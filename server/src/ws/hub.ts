@@ -6,9 +6,12 @@ import { db } from "../db/index.js";
 import type { RoleRow } from "../db/types.js";
 import { SESSION_COOKIE } from "../middleware/auth.js";
 
+type ClientRole = "super_admin" | "admin" | "operator" | "viewer" | null;
+
 interface ClientState {
   ws: WebSocket;
-  role: "admin" | "operator" | "viewer" | null;
+  role: ClientRole;
+  stationId: number | null;
   topics: Set<string>;
 }
 
@@ -18,7 +21,8 @@ export function initWebSocketHub(server: HttpServer): void {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
   wss.on("connection", (ws, req) => {
-    let role: ClientState["role"] = null;
+    let role: ClientRole = null;
+    let stationId: number | null = null;
     const cookies = req.headers.cookie ? parseCookie(req.headers.cookie) : {};
     const token = cookies[SESSION_COOKIE];
     if (token) {
@@ -26,17 +30,18 @@ export function initWebSocketHub(server: HttpServer): void {
       if (resolved) {
         const roleRow = db.prepare<[number], RoleRow>("SELECT * FROM roles WHERE id = ?").get(resolved.user.role_id);
         role = roleRow?.name ?? null;
+        stationId = resolved.user.station_id;
       }
     }
 
-    const state: ClientState = { ws, role, topics: new Set() };
+    const state: ClientState = { ws, role, stationId, topics: new Set() };
     clients.add(state);
 
     ws.on("message", (raw) => {
       try {
         const msg = JSON.parse(raw.toString()) as { type: string; topic?: string; accessToken?: string };
         if (msg.type === "subscribe" && msg.topic) {
-          if (isTopicAllowed(msg.topic, role, msg.accessToken)) {
+          if (isTopicAllowed(msg.topic, state, msg.accessToken)) {
             state.topics.add(msg.topic);
           }
         } else if (msg.type === "unsubscribe" && msg.topic) {
@@ -55,22 +60,39 @@ export function initWebSocketHub(server: HttpServer): void {
   });
 }
 
-/** "pumps" topigi herkese acik (kiosk dahil); islem detaylari icin dogru accessToken sarttir. */
-function isTopicAllowed(topic: string, role: ClientState["role"], accessToken?: string): boolean {
-  if (topic === "pumps") return true;
-  if (role === "admin" || role === "operator") {
-    if (topic === "transactions" || topic === "alarms") return true;
+function isStaffForStation(state: ClientState, stationId: number): boolean {
+  if (state.role === "super_admin") return true;
+  if (state.role !== "admin" && state.role !== "operator") return false;
+  return state.stationId === stationId;
+}
+
+/** "pumps:<id>" herkese acik (kiosk dahil); "transactions:<id>"/"alarms:<id>" o istasyonun personeline veya super_admin'e ozeldir. */
+function isTopicAllowed(topic: string, state: ClientState, accessToken?: string): boolean {
+  if (topic.startsWith("pumps:")) {
+    const stationId = Number(topic.slice("pumps:".length));
+    return Number.isInteger(stationId);
   }
+
+  if (topic.startsWith("transactions:") || topic.startsWith("alarms:")) {
+    const prefix = topic.startsWith("transactions:") ? "transactions:" : "alarms:";
+    const stationId = Number(topic.slice(prefix.length));
+    if (!Number.isInteger(stationId)) return false;
+    return isStaffForStation(state, stationId);
+  }
+
   if (topic.startsWith("transaction:")) {
     const id = Number(topic.slice("transaction:".length));
     if (!Number.isInteger(id)) return false;
-    if (role === "admin" || role === "operator") return true;
-    if (!accessToken) return false;
     const row = db
-      .prepare<[number], { kiosk_access_token: string }>("SELECT kiosk_access_token FROM transactions WHERE id = ?")
+      .prepare<[number], { kiosk_access_token: string; station_id: number }>(
+        "SELECT kiosk_access_token, station_id FROM transactions WHERE id = ?"
+      )
       .get(id);
-    return !!row && row.kiosk_access_token === accessToken;
+    if (!row) return false;
+    if (isStaffForStation(state, row.station_id)) return true;
+    return !!accessToken && row.kiosk_access_token === accessToken;
   }
+
   return false;
 }
 

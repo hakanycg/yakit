@@ -28,13 +28,22 @@ function isPlausiblePlate(plate: string): boolean {
   return province >= 1 && province <= 81;
 }
 
-router.get("/station", (_req, res) => {
-  const station = db.prepare<[], StationRow>("SELECT * FROM stations LIMIT 1").get();
-  const prices = db.prepare<[], FuelPriceRow>("SELECT * FROM fuel_prices").all();
+router.get("/station/:slug", (req, res) => {
+  const station = db.prepare<[string], StationRow>("SELECT * FROM stations WHERE slug = ? AND active = 1").get(req.params.slug ?? "");
+  if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+
+  const prices = db.prepare<[number], FuelPriceRow>("SELECT * FROM fuel_prices WHERE station_id = ?").all(station.id);
   res.json({
-    station,
+    station: {
+      id: station.id,
+      slug: station.slug,
+      name: station.name,
+      address: station.address,
+      latitude: station.latitude,
+      longitude: station.longitude,
+    },
     fuelPrices: prices.map((p) => ({ fuelType: p.fuel_type, label: p.label, pricePerLiter: p.price_per_liter })),
-    pumps: listPumps().map(serializePump),
+    pumps: listPumps(station.id).map(serializePump),
   });
 });
 

@@ -13,7 +13,7 @@ export default function Login() {
   const [submitting, setSubmitting] = useState(false);
 
   if (user) {
-    const dest = user.role === "admin" ? "/admin" : "/operator";
+    const dest = user.role === "super_admin" ? "/admin/istasyonlar" : user.role === "admin" ? "/admin" : "/operator";
     return <Navigate to={dest} replace />;
   }
 
@@ -23,8 +23,10 @@ export default function Login() {
     setSubmitting(true);
     try {
       await login(username, password);
+      // Basarili girisin ardindan bilesen yeniden render olur; yukaridaki `if (user)`
+      // bloğu role gore dogru sayfaya yonlendirir. `from` state'i varsa onu tercih eder.
       const state = location.state as { from?: string } | null;
-      navigate(state?.from ?? "/operator", { replace: true });
+      if (state?.from) navigate(state.from, { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Giris basarisiz oldu.");
     } finally {

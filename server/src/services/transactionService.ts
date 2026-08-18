@@ -27,6 +27,7 @@ export class TransactionError extends Error {
 export function serializeTransaction(t: TransactionRow) {
   return {
     id: t.id,
+    stationId: t.station_id,
     pumpId: t.pump_id,
     plate: t.plate,
     plateSource: t.plate_source,
@@ -48,8 +49,10 @@ export function serializeTransaction(t: TransactionRow) {
   };
 }
 
-function getFuelPrice(fuelType: FuelType): FuelPriceRow {
-  const row = db.prepare<[string], FuelPriceRow>("SELECT * FROM fuel_prices WHERE fuel_type = ?").get(fuelType);
+function getFuelPrice(stationId: number, fuelType: FuelType): FuelPriceRow {
+  const row = db
+    .prepare<[number, string], FuelPriceRow>("SELECT * FROM fuel_prices WHERE station_id = ? AND fuel_type = ?")
+    .get(stationId, fuelType);
   if (!row) throw new TransactionError("Gecersiz yakit tipi.", 400);
   return row;
 }
@@ -69,7 +72,7 @@ function touch(id: number, fields: Record<string, unknown>): TransactionRow {
 
 function broadcastTransaction(t: TransactionRow): void {
   broadcast(`transaction:${t.id}`, serializeTransaction(t));
-  broadcast("transactions", serializeTransaction(t));
+  broadcast(`transactions:${t.station_id}`, serializeTransaction(t));
 }
 
 export interface CreateTransactionInput {
@@ -92,7 +95,7 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
     throw new TransactionError("Bu pompa secilen yakit tipini desteklemiyor.", 400);
   }
 
-  const price = getFuelPrice(input.fuelType);
+  const price = getFuelPrice(pump.station_id, input.fuelType);
 
   if (input.amountMode === "amount" && (!input.requestedAmount || input.requestedAmount <= 0)) {
     throw new TransactionError("Gecerli bir tutar giriniz.", 400);
@@ -113,11 +116,12 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
   const result = db
     .prepare(
       `INSERT INTO transactions
-        (pump_id, plate, plate_source, fuel_type, amount_mode, requested_amount, requested_liters,
+        (station_id, pump_id, plate, plate_source, fuel_type, amount_mode, requested_amount, requested_liters,
          price_per_liter, total_amount, kiosk_access_token, status, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', 'pending')`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', 'pending')`
     )
     .run(
+      pump.station_id,
       input.pumpId,
       input.plate.toUpperCase().replace(/\s+/g, " ").trim(),
       input.plateSource,
@@ -157,6 +161,7 @@ export function payTransaction(id: number, accessToken: string, card: VirtualCar
     });
     setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
     createAlarm({
+      stationId: t.station_id,
       pumpId: t.pump_id,
       type: "payment_failed",
       severity: "warning",
@@ -254,7 +259,14 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
     completed_at: wasDispensing ? new Date().toISOString() : null,
   });
   setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
-  recordAudit({ user: byUser, action: "transaction_emergency_stop", entityType: "transaction", entityId: id, details: { reason } });
+  recordAudit({
+    user: byUser,
+    action: "transaction_emergency_stop",
+    entityType: "transaction",
+    entityId: id,
+    details: { reason },
+    stationId: t.station_id,
+  });
   broadcastTransaction(updated);
   return updated;
 }
@@ -268,9 +280,12 @@ export function cancelPendingTransaction(id: number, accessToken: string, reason
   return updated;
 }
 
-export function listTransactions(filters: { status?: string; from?: string; to?: string; limit?: number }): TransactionRow[] {
-  const clauses: string[] = [];
-  const params: unknown[] = [];
+export function listTransactions(
+  stationId: number,
+  filters: { status?: string; from?: string; to?: string; limit?: number }
+): TransactionRow[] {
+  const clauses: string[] = ["station_id = ?"];
+  const params: unknown[] = [stationId];
   if (filters.status) {
     clauses.push("status = ?");
     params.push(filters.status);
@@ -283,7 +298,7 @@ export function listTransactions(filters: { status?: string; from?: string; to?:
     clauses.push("created_at <= ?");
     params.push(filters.to);
   }
-  const where = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+  const where = `WHERE ${clauses.join(" AND ")}`;
   const limit = Math.min(filters.limit ?? 200, 1000);
   return db.prepare<unknown[], TransactionRow>(`SELECT * FROM transactions ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit);
 }

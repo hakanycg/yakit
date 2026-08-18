@@ -8,7 +8,7 @@ export interface StationResponse {
 }
 
 export const kioskApi = {
-  getStation: () => api.get<StationResponse>("/api/kiosk/station"),
+  getStation: (slug: string) => api.get<StationResponse>(`/api/kiosk/station/${encodeURIComponent(slug)}`),
 
   recognizePlate: (plate: string) =>
     api.post<{ plate: string; valid: boolean; confidence: number }>("/api/kiosk/lpr/recognize", { plate }),

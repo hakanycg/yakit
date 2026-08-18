@@ -2,11 +2,11 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import type { AuditLogRow } from "../db/types.js";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { attachStationScope, requireAuth, requireRole } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("admin"));
+router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope);
 
 const listSchema = z.object({
   limit: z.coerce.number().int().positive().max(1000).optional(),
@@ -18,6 +18,12 @@ router.get("/", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
   const clauses: string[] = [];
   const params: unknown[] = [];
+
+  // super_admin bir istasyon secmemisse tum istasyonlarin kayitlarini gorur; digerleri her zaman kendi istasyonuyla sinirlidir.
+  if (req.stationId !== undefined) {
+    clauses.push("station_id = ?");
+    params.push(req.stationId);
+  }
   if (q.action) {
     clauses.push("action = ?");
     params.push(q.action);
@@ -35,6 +41,7 @@ router.get("/", validateQuery(listSchema), (req, res) => {
   res.json({
     entries: rows.map((r) => ({
       id: r.id,
+      stationId: r.station_id,
       userId: r.user_id,
       username: r.username,
       action: r.action,

@@ -2,8 +2,8 @@ import { db } from "../db/index.js";
 import type { PumpRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 
-export function listPumps(): PumpRow[] {
-  return db.prepare<[], PumpRow>("SELECT * FROM pumps ORDER BY number").all();
+export function listPumps(stationId: number): PumpRow[] {
+  return db.prepare<[number], PumpRow>("SELECT * FROM pumps WHERE station_id = ? ORDER BY number").all(stationId);
 }
 
 export function getPump(id: number): PumpRow | undefined {
@@ -27,8 +27,8 @@ export function serializePump(p: PumpRow) {
   };
 }
 
-export function broadcastPumps(): void {
-  broadcast("pumps", listPumps().map(serializePump));
+export function broadcastPumps(stationId: number): void {
+  broadcast(`pumps:${stationId}`, listPumps(stationId).map(serializePump));
 }
 
 export function setPumpStatus(
@@ -54,5 +54,7 @@ export function setPumpStatus(
 
   values.push(id);
   db.prepare(`UPDATE pumps SET ${fields.join(", ")} WHERE id = ?`).run(...values);
-  broadcastPumps();
+
+  const pump = getPump(id);
+  if (pump) broadcastPumps(pump.station_id);
 }

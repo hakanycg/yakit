@@ -1,12 +1,12 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole } from "../middleware/auth.js";
+import { attachStationScope, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
 import { listTransactions, serializeTransaction } from "../services/transactionService.js";
 import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("admin", "operator", "viewer"));
+router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
 
 const listSchema = z.object({
   status: z.string().optional(),
@@ -17,13 +17,13 @@ const listSchema = z.object({
 
 router.get("/", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
-  const rows = listTransactions(q);
+  const rows = listTransactions(req.stationId!, q);
   res.json({ transactions: rows.map(serializeTransaction) });
 });
 
 router.get("/export.csv", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
-  const rows = listTransactions({ ...q, limit: q.limit ?? 1000 });
+  const rows = listTransactions(req.stationId!, { ...q, limit: q.limit ?? 1000 });
 
   const header = [
     "id",
@@ -65,7 +65,7 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
     );
   }
 
-  recordAudit({ user: req.user!, action: "transactions_exported", details: { count: rows.length }, ip: req.ip });
+  recordAudit({ user: req.user!, action: "transactions_exported", details: { count: rows.length }, ip: req.ip, stationId: req.stationId });
 
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="islemler-${Date.now()}.csv"`);

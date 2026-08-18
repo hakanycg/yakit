@@ -1,17 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { useTopicSubscription } from "../../shared/useWebSocket";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
+import { appendStationParam } from "../../shared/stationScope";
 import { TRANSACTION_STATUS_LABEL, FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 import type { Transaction } from "../../shared/types";
-import { useAuth } from "../../shared/AuthContext";
 
 export default function Transactions() {
-  const { user } = useAuth();
+  const stationId = useEffectiveStationId();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
 
   function load() {
+    if (stationId === null) return;
     setLoading(true);
     const query = statusFilter ? `?status=${statusFilter}` : "";
     api.get<{ transactions: Transaction[] }>(`/api/transactions${query}`).then((res) => {
@@ -20,9 +22,11 @@ export default function Transactions() {
     });
   }
 
-  useEffect(load, [statusFilter]);
+  useEffect(load, [statusFilter, stationId]);
 
-  useTopicSubscription(user ? "transactions" : null, () => load());
+  useTopicSubscription(stationId !== null ? `transactions:${stationId}` : null, () => load());
+
+  const csvHref = appendStationParam(`/api/transactions/export.csv${statusFilter ? `?status=${statusFilter}` : ""}`);
 
   return (
     <div>
@@ -35,7 +39,7 @@ export default function Transactions() {
           ))}
         </select>
         <div className="spacer" />
-        <a href={`/api/transactions/export.csv${statusFilter ? `?status=${statusFilter}` : ""}`}>
+        <a href={csvHref}>
           <button>CSV Disa Aktar</button>
         </a>
       </div>

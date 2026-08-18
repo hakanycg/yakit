@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { FUEL_LABEL, formatCurrency } from "../../shared/format";
 
 interface SummaryResponse {
@@ -17,11 +18,13 @@ interface SummaryResponse {
 }
 
 export default function Reports() {
+  const stationId = useEffectiveStationId();
   const [data, setData] = useState<SummaryResponse | null>(null);
 
   useEffect(() => {
+    if (stationId === null) return;
     api.get<SummaryResponse>("/api/reports/summary").then(setData);
-  }, []);
+  }, [stationId]);
 
   if (!data) return <p className="hint-text">Yukleniyor...</p>;
 

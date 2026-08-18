@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { kioskApi, type StationResponse } from "./kioskApi";
 import { useTopicSubscription } from "../shared/useWebSocket";
 import type { FuelType, Pump, Transaction } from "../shared/types";
@@ -16,7 +17,9 @@ type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "dis
 const STEP_ORDER: Step[] = ["plate", "pump", "fuel", "amount", "payment", "dispense", "receipt"];
 
 export default function KioskFlow() {
+  const { slug } = useParams<{ slug: string }>();
   const [station, setStation] = useState<StationResponse | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("plate");
   const [plate, setPlate] = useState("");
   const [plateSource, setPlateSource] = useState<"manual" | "lpr">("manual");
@@ -29,11 +32,20 @@ export default function KioskFlow() {
   const [targetLiters, setTargetLiters] = useState(0);
 
   const loadStation = useCallback(() => {
-    kioskApi.getStation().then(setStation);
-  }, []);
+    if (!slug) return;
+    kioskApi
+      .getStation(slug)
+      .then((res) => {
+        setStation(res);
+        setLoadError(null);
+      })
+      .catch((err) => {
+        setLoadError(err instanceof ApiError ? err.message : "Istasyon yuklenemedi.");
+      });
+  }, [slug]);
 
   useEffect(loadStation, [loadStation]);
-  useTopicSubscription("pumps", (payload) => {
+  useTopicSubscription(station ? `pumps:${station.station.id}` : null, (payload) => {
     setStation((prev) => (prev ? { ...prev, pumps: payload as Pump[] } : prev));
   });
 
@@ -84,6 +96,18 @@ export default function KioskFlow() {
       setError(err instanceof ApiError ? err.message : "Islem olusturulamadi.");
       setStep("amount");
     }
+  }
+
+  if (loadError) {
+    return (
+      <div className="kiosk-shell">
+        <div className="kiosk-card">
+          <h2>Istasyon Bulunamadi</h2>
+          <p className="error-text">{loadError}</p>
+          <p className="hint-text">Bu kiosk terminalinin adresi hatali olabilir. Lutfen istasyon yoneticinizle iletisime gecin.</p>
+        </div>
+      </div>
+    );
   }
 
   if (!station) {

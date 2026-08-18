@@ -1,4 +1,15 @@
-export type RoleName = "admin" | "operator" | "viewer";
+export type RoleName = "super_admin" | "admin" | "operator" | "viewer";
+
+export interface StationRow {
+  id: number;
+  slug: string;
+  name: string;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  active: 0 | 1;
+  created_at: string;
+}
 
 export interface UserRow {
   id: number;
@@ -8,6 +19,7 @@ export interface UserRow {
   password_salt: string;
   password_iterations: number;
   role_id: number;
+  station_id: number | null; // NULL = super_admin
   active: 0 | 1;
   must_change_password: 0 | 1;
   failed_login_attempts: number;
@@ -65,6 +77,7 @@ export type PaymentStatus = "pending" | "authorized" | "captured" | "failed" | "
 
 export interface TransactionRow {
   id: number;
+  station_id: number;
   pump_id: number;
   plate: string;
   plate_source: "manual" | "lpr";
@@ -93,6 +106,7 @@ export type AlarmStatus = "active" | "acknowledged" | "resolved";
 
 export interface AlarmRow {
   id: number;
+  station_id: number;
   pump_id: number | null;
   type: string;
   severity: AlarmSeverity;
@@ -107,6 +121,7 @@ export interface AlarmRow {
 
 export interface AuditLogRow {
   id: number;
+  station_id: number | null;
   user_id: number | null;
   username: string | null;
   action: string;
@@ -118,16 +133,17 @@ export interface AuditLogRow {
 }
 
 export interface FuelPriceRow {
+  station_id: number;
   fuel_type: FuelType;
   label: string;
   price_per_liter: number;
   updated_at: string;
 }
 
-export interface StationRow {
-  id: number;
-  name: string;
-  address: string;
-  latitude: number | null;
-  longitude: number | null;
+export interface SettingRow {
+  station_id: number;
+  key: string;
+  value: string;
+  updated_at: string;
+  updated_by: number | null;
 }

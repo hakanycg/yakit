@@ -1,16 +1,19 @@
 import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { formatDateTime } from "../../shared/format";
 import type { AuditEntry } from "../../shared/types";
 
 export default function AuditLog() {
+  const stationId = useEffectiveStationId();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [actionFilter, setActionFilter] = useState("");
 
   useEffect(() => {
+    if (stationId === null) return;
     const query = actionFilter ? `?action=${encodeURIComponent(actionFilter)}` : "";
     api.get<{ entries: AuditEntry[] }>(`/api/audit-log${query}`).then((res) => setEntries(res.entries));
-  }, [actionFilter]);
+  }, [actionFilter, stationId]);
 
   return (
     <div>

@@ -7,7 +7,8 @@ export function RequireRole({ roles }: { roles: RoleName[] }) {
 
   if (loading) return <div className="page-loading">Yukleniyor...</div>;
   if (!user) return <Navigate to="/giris" replace />;
-  if (!roles.includes(user.role)) return <Navigate to="/yetkisiz" replace />;
+  // super_admin platformu isleten ekip icindir ve her zaman tum rol kontrollerini gecer.
+  if (user.role !== "super_admin" && !roles.includes(user.role)) return <Navigate to="/yetkisiz" replace />;
 
   return <Outlet />;
 }

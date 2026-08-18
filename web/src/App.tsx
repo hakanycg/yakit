@@ -15,12 +15,13 @@ import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
 import Settings from "./pages/admin/Settings";
 import DemoReset from "./pages/admin/DemoReset";
+import Stations from "./pages/admin/Stations";
 
 export default function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/kiosk" replace />} />
-      <Route path="/kiosk" element={<KioskFlow />} />
+      <Route path="/" element={<Navigate to="/giris" replace />} />
+      <Route path="/kiosk/:slug" element={<KioskFlow />} />
       <Route path="/giris" element={<Login />} />
       <Route path="/yetkisiz" element={<Unauthorized />} />
 
@@ -41,10 +42,14 @@ export default function App() {
             <Route path="/admin/ayarlar" element={<Settings />} />
             <Route path="/admin/sifirla" element={<DemoReset />} />
           </Route>
+
+          <Route element={<RequireRole roles={["super_admin"]} />}>
+            <Route path="/admin/istasyonlar" element={<Stations />} />
+          </Route>
         </Route>
       </Route>
 
-      <Route path="*" element={<Navigate to="/kiosk" replace />} />
+      <Route path="*" element={<Navigate to="/giris" replace />} />
     </Routes>
   );
 }

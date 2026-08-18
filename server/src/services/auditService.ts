@@ -8,11 +8,14 @@ export function recordAudit(params: {
   entityId?: string | number;
   details?: unknown;
   ip?: string;
+  stationId?: number | null;
 }): void {
+  const stationId = params.stationId !== undefined ? params.stationId : (params.user?.station_id ?? null);
   db.prepare(
-    `INSERT INTO audit_log (user_id, username, action, entity_type, entity_id, details, ip_address)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO audit_log (station_id, user_id, username, action, entity_type, entity_id, details, ip_address)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
+    stationId,
     params.user?.id ?? null,
     params.user?.username ?? null,
     params.action,

@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { FUEL_LABEL, formatCurrency, formatDateTime } from "../../shared/format";
 import type { FuelPrice } from "../../shared/types";
 
 export default function Settings() {
+  const stationId = useEffectiveStationId();
   const [prices, setPrices] = useState<FuelPrice[]>([]);
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
 
   function load() {
+    if (stationId === null) return;
     api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => setPrices(res.fuelPrices));
   }
-  useEffect(load, []);
+  useEffect(load, [stationId]);
 
   async function save(fuelType: string) {
     const raw = edits[fuelType];
@@ -95,15 +98,17 @@ const INTERVAL_OPTIONS = [
 ];
 
 function FuelSyncCard({ onPricesChanged }: { onPricesChanged: () => void }) {
+  const stationId = useEffectiveStationId();
   const [state, setState] = useState<FuelSyncState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [running, setRunning] = useState(false);
 
   function load() {
+    if (stationId === null) return;
     api.get<FuelSyncState>("/api/settings/fuel-sync").then(setState);
   }
-  useEffect(load, []);
+  useEffect(load, [stationId]);
 
   async function updateConfig(patch: Partial<FuelSyncConfig>) {
     setSaving(true);

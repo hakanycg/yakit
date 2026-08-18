@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePumps, useActiveAlarms } from "../../shared/hooks";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { api } from "../../shared/api";
 import { PUMP_STATUS_LABEL, FUEL_LABEL, formatCurrency } from "../../shared/format";
 
@@ -18,11 +19,13 @@ interface Summary {
 export default function Dashboard() {
   const { pumps } = usePumps();
   const { alarms } = useActiveAlarms();
+  const stationId = useEffectiveStationId();
   const [summary, setSummary] = useState<Summary | null>(null);
 
   useEffect(() => {
+    if (stationId === null) return;
     api.get<Summary>("/api/reports/summary").then(setSummary);
-  }, []);
+  }, [stationId]);
 
   const dispensing = pumps.filter((p) => p.status === "dispensing").length;
   const faulty = pumps.filter((p) => p.status === "fault").length;

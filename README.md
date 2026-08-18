@@ -19,14 +19,23 @@ yakit/
 └── web/       React + TypeScript + Vite (Kiosk, Operatör Paneli, Yönetici Paneli)
 ```
 
-- **Kiosk** (`/kiosk`, herkese açık): Plaka girişi (manuel + LPR simülasyonu), pompa/yakıt/miktar
+- **Kiosk** (`/kiosk/:slug`, herkese açık): Plaka girişi (manuel + LPR simülasyonu), pompa/yakıt/miktar
   seçimi, sanal kart ile ödeme, otomatik pompa yetkilendirme, canlı dolum ilerlemesi
-  (WebSocket), işlem tamamlandı / fiş ekranı.
-- **Operatör Paneli** (`/operator/*`, giriş gerektirir): Dashboard, 4 pompa canlı durumu,
+  (WebSocket), işlem tamamlandı / fiş ekranı. Her istasyonun kendine özel kiosk adresi
+  (`slug`) vardır; birden fazla istasyonunuz varsa her biri için ayrı bir kiosk URL'si olur.
+- **Operatör Paneli** (`/operator/*`, giriş gerektirir): Dashboard, pompa canlı durumu,
   pompa başlat/durdur/reset, arıza simülasyonu, işlem listesi + CSV dışa aktarma, alarm
-  merkezi, istasyon haritası, raporlama.
-- **Yönetici Paneli** (`/admin/*`, yalnızca `admin` rolü): Kullanıcı/rol yönetimi, audit log,
-  yakıt fiyatı ayarları, demo verilerini sıfırlama.
+  merkezi, istasyon haritası, raporlama. Her zaman yalnızca kullanıcının bağlı olduğu
+  istasyonun verisini gösterir.
+- **İstasyon Yönetimi** (`/admin/*`, `admin` rolü): Kullanıcı/rol yönetimi, audit log,
+  yakıt fiyatı ayarları, demo verilerini sıfırlama — hepsi yalnızca kendi istasyonuyla sınırlı.
+- **Platform Yönetimi** (`/admin/istasyonlar`, yalnızca `super_admin` rolü): Tüm istasyonları
+  listeler, yeni istasyon (+ istasyon yöneticisi hesabı) oluşturur, istasyonları
+  etkinleştirir/devre dışı bırakır. Üst menüdeki istasyon değiştirici ile herhangi bir
+  istasyonun operatör/yönetici panelini görüntüleyebilir — tıpkı o istasyonun kendi
+  yöneticisiymiş gibi, ama tüm istasyonlara erişimi olan tek roldür. Ürünün satışı
+  sonrasında müşteri hizmetleri ekibine bu rolü vererek tüm istasyonlara destek erişimi
+  sağlayabilirsiniz; her istasyon sahibi ise yalnızca kendi istasyonunun verisini görür.
 
 ## Güvenlik
 
@@ -39,13 +48,20 @@ yakit/
 - **Çerezler:** `httpOnly`, `SameSite=Strict`, üretimde `Secure` (env ile zorunlu kılınabilir).
 - **CSRF koruması:** Çift-gönderim (double-submit) deseni; durum değiştiren her istek
   `X-CSRF-Token` başlığını, oturumla eşleşen token ile birlikte göndermek zorundadır.
-- **RBAC:** `admin` / `operator` / `viewer` rolleri; her endpoint sunucu tarafında rol
-  kontrolünden geçer (yalnızca arayüz gizleme değildir).
+- **RBAC + çoklu istasyon (multi-tenant) izolasyonu:** `super_admin` / `admin` / `operator` /
+  `viewer` rolleri. `super_admin` dışındaki her kullanıcı tam olarak bir istasyona bağlıdır
+  (`users.station_id`) ve sunucu tarafında bu istasyonun dışına asla çıkamaz — pompalar,
+  işlemler, alarmlar, raporlar, kullanıcılar, yakıt fiyatları ve audit log dahil her sorgu
+  `station_id` ile filtrelenir; bu filtre istemciden gelen parametrelere değil, oturumdaki
+  kullanıcının kendi `station_id`'sine dayanır, dolayısıyla bir istasyon yöneticisi başka bir
+  istasyonun verisini URL/parametre değiştirerek göremez. `super_admin` tüm istasyonlara
+  erişebilir ve üst menüdeki istasyon değiştirici ile hangi istasyona "baktığını" seçer.
 - **Brute-force koruması:** 5 başarısız denemeden sonra hesap 15 dakika kilitlenir; ayrıca
   giriş uçları `express-rate-limit` ile IP bazlı sınırlandırılır.
 - **Denetim günlüğü (audit log):** Giriş/çıkış, parola değişikliği, pompa işlemleri, alarm
   onay/çözüm, kullanıcı/ayar değişiklikleri, CSV dışa aktarma gibi tüm hassas eylemler
-  kullanıcı, IP ve zaman damgasıyla kaydedilir; yalnızca `admin` görüntüleyebilir.
+  kullanıcı, IP ve zaman damgasıyla kaydedilir; yalnızca `admin`/`super_admin` görüntüleyebilir
+  ve kayıtlar da istasyona göre etiketlenip filtrelenir.
 - **Girdi doğrulama:** Tüm istek gövdeleri/parametreleri `zod` şemalarıyla katı şekilde
   doğrulanır; SQL enjeksiyonuna karşı tüm sorgular parametreli (`better-sqlite3` prepared
   statement) çalışır.
@@ -85,16 +101,20 @@ cp server/.env.example server/.env
 # server/.env içindeki SESSION_SECRET degerini `openssl rand -hex 32` ile uretilmis
 # rastgele bir degerle degistirin.
 
-npm run seed --workspace server   # roller, ilk admin kullanicisi, istasyon, 4 pompa, fiyatlar
+npm run seed --workspace server   # roller, super_admin, ilk istasyon + istasyon yoneticisi, 4 pompa, fiyatlar
 npm run dev:server                # http://localhost:4000
 npm run dev:web                   # http://localhost:5173 (ayri terminalde)
 ```
 
-İlk giriş bilgileri `server/.env` dosyasındaki `SEED_ADMIN_USERNAME` / `SEED_ADMIN_PASSWORD`
-değerleridir (varsayılan: `admin` / `ChangeMe!12345`). İlk girişte parola değiştirme
-zorunludur. **Üretime almadan önce mutlaka değiştirin.**
+Seed script'i iki hesap oluşturur (ikisi de `SEED_ADMIN_PASSWORD` şifresiyle, varsayılan
+`ChangeMe!12345`, ilk girişte değiştirme zorunlu):
+- `admin` (`SEED_ADMIN_USERNAME`): **süper admin**, tüm istasyonlara erişir.
+- `merkez-admin`: ilk istasyonun (**Merkez Yakıt İstasyonu**) yöneticisi, yalnızca bu istasyonu görür.
 
-Kiosk ekranı: `http://localhost:5173/kiosk`
+Yeni bir istasyon eklemek için süper admin ile giriş yapıp **Platform → İstasyonlar →
+Yeni İstasyon**'u kullanın; formda doğrudan o istasyonun ilk yöneticisini de oluşturabilirsiniz.
+
+Kiosk ekranı: `http://localhost:5173/kiosk/merkez` (istasyonun `slug` değeri URL'de kullanılır)
 Personel girişi: `http://localhost:5173/giris`
 
 ## Üretime alırken

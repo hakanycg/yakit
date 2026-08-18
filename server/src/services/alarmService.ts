@@ -5,6 +5,7 @@ import { broadcast } from "../ws/hub.js";
 export function serializeAlarm(a: AlarmRow) {
   return {
     id: a.id,
+    stationId: a.station_id,
     pumpId: a.pump_id,
     type: a.type,
     severity: a.severity,
@@ -19,26 +20,31 @@ export function serializeAlarm(a: AlarmRow) {
 }
 
 export function createAlarm(params: {
+  stationId: number;
   pumpId?: number | null;
   type: string;
   severity: AlarmRow["severity"];
   message: string;
 }): AlarmRow {
   const result = db
-    .prepare(`INSERT INTO alarms (pump_id, type, severity, message) VALUES (?, ?, ?, ?)`)
-    .run(params.pumpId ?? null, params.type, params.severity, params.message);
+    .prepare(`INSERT INTO alarms (station_id, pump_id, type, severity, message) VALUES (?, ?, ?, ?, ?)`)
+    .run(params.stationId, params.pumpId ?? null, params.type, params.severity, params.message);
   const alarm = db.prepare<[number], AlarmRow>("SELECT * FROM alarms WHERE id = ?").get(result.lastInsertRowid as number)!;
-  broadcastAlarms();
+  broadcastAlarms(params.stationId);
   return alarm;
 }
 
-export function listAlarms(status?: AlarmRow["status"]): AlarmRow[] {
+export function listAlarms(stationId: number, status?: AlarmRow["status"]): AlarmRow[] {
   if (status) {
-    return db.prepare<[string], AlarmRow>("SELECT * FROM alarms WHERE status = ? ORDER BY created_at DESC").all(status);
+    return db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND status = ? ORDER BY created_at DESC")
+      .all(stationId, status);
   }
-  return db.prepare<[], AlarmRow>("SELECT * FROM alarms ORDER BY created_at DESC LIMIT 500").all();
+  return db
+    .prepare<[number], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? ORDER BY created_at DESC LIMIT 500")
+    .all(stationId);
 }
 
-export function broadcastAlarms(): void {
-  broadcast("alarms", listAlarms("active").map(serializeAlarm));
+export function broadcastAlarms(stationId: number): void {
+  broadcast(`alarms:${stationId}`, listAlarms(stationId, "active").map(serializeAlarm));
 }

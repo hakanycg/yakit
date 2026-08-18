@@ -16,6 +16,8 @@ declare global {
       role?: RoleRow;
       sessionToken?: string;
       csrfToken?: string;
+      /** Istegin kapsandigi istasyon. super_admin icin ?stationId= ile secilir, digerlerinde kendi istasyonudur. */
+      stationId?: number;
     }
   }
 }
@@ -79,18 +81,58 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-export function requireRole(...roles: Array<"admin" | "operator" | "viewer">) {
+export function requireRole(...roles: Array<"super_admin" | "admin" | "operator" | "viewer">) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user || !req.role) {
       res.status(401).json({ error: "Oturum gerekli. Lutfen giris yapin." });
       return;
     }
+    // super_admin her zaman gecer: platformu isleten ekip tum istasyonlara ve yetkilere sahiptir.
+    if (req.role.name === "super_admin") return next();
     if (!roles.includes(req.role.name)) {
       res.status(403).json({ error: "Bu islem icin yetkiniz yok." });
       return;
     }
     next();
   };
+}
+
+/**
+ * Istegin hangi istasyona ait oldugunu belirler.
+ * - super_admin: ?stationId= sorgu parametresiyle secilir (verilmezse req.stationId tanimsiz kalir).
+ * - digerleri: her zaman kendi station_id'lerine sabitlenir; baska bir istasyon secemezler.
+ */
+export function attachStationScope(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || !req.role) return next();
+
+  if (req.role.name === "super_admin") {
+    const raw = req.query.stationId;
+    if (raw !== undefined) {
+      const id = Number(raw);
+      if (!Number.isInteger(id) || id <= 0) {
+        res.status(400).json({ error: "Gecersiz stationId." });
+        return;
+      }
+      req.stationId = id;
+    }
+    return next();
+  }
+
+  if (req.user.station_id === null) {
+    // Veri butunlugu ihlali: super_admin olmayan bir kullanicinin istasyonu olmali.
+    res.status(403).json({ error: "Hesabiniza bagli bir istasyon bulunamadi." });
+    return;
+  }
+  req.stationId = req.user.station_id;
+  next();
+}
+
+export function requireStationSelected(req: Request, res: Response, next: NextFunction): void {
+  if (req.stationId === undefined) {
+    res.status(400).json({ error: "Bir istasyon secmelisiniz (stationId parametresi)." });
+    return;
+  }
+  next();
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);

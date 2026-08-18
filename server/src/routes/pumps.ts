@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { requireAuth, requireRole, csrfProtection } from "../middleware/auth.js";
+import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { getPump, listPumps, serializePump, setPumpStatus } from "../services/pumpService.js";
 import { emergencyStopTransaction, TransactionError } from "../services/transactionService.js";
@@ -8,14 +8,20 @@ import { createAlarm } from "../services/alarmService.js";
 import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
-router.use(requireAuth, csrfProtection);
+router.use(requireAuth, attachStationScope, requireStationSelected, csrfProtection);
 
-router.get("/", (_req, res) => {
-  res.json({ pumps: listPumps().map(serializePump) });
+function pumpInScope(req: { stationId?: number }, pumpId: number) {
+  const pump = getPump(pumpId);
+  if (!pump || pump.station_id !== req.stationId) return undefined;
+  return pump;
+}
+
+router.get("/", (req, res) => {
+  res.json({ pumps: listPumps(req.stationId!).map(serializePump) });
 });
 
 router.post("/:id/stop", requireRole("admin", "operator"), (req, res) => {
-  const pump = getPump(Number(req.params.id));
+  const pump = pumpInScope(req, Number(req.params.id));
   if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
 
   if (pump.current_transaction_id) {
@@ -27,22 +33,22 @@ router.post("/:id/stop", requireRole("admin", "operator"), (req, res) => {
   } else {
     setPumpStatus(pump.id, "offline");
   }
-  recordAudit({ user: req.user!, action: "pump_stopped", entityType: "pump", entityId: pump.id, ip: req.ip });
+  recordAudit({ user: req.user!, action: "pump_stopped", entityType: "pump", entityId: pump.id, ip: req.ip, stationId: req.stationId });
   res.json({ pump: serializePump(getPump(pump.id)!) });
 });
 
 router.post("/:id/start", requireRole("admin", "operator"), (req, res) => {
-  const pump = getPump(Number(req.params.id));
+  const pump = pumpInScope(req, Number(req.params.id));
   if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
   if (pump.status === "offline" || pump.status === "fault") {
     setPumpStatus(pump.id, "idle", { faultCode: null, faultMessage: null });
   }
-  recordAudit({ user: req.user!, action: "pump_started", entityType: "pump", entityId: pump.id, ip: req.ip });
+  recordAudit({ user: req.user!, action: "pump_started", entityType: "pump", entityId: pump.id, ip: req.ip, stationId: req.stationId });
   res.json({ pump: serializePump(getPump(pump.id)!) });
 });
 
 router.post("/:id/reset", requireRole("admin", "operator"), (req, res) => {
-  const pump = getPump(Number(req.params.id));
+  const pump = pumpInScope(req, Number(req.params.id));
   if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
 
   if (pump.current_transaction_id) {
@@ -53,7 +59,7 @@ router.post("/:id/reset", requireRole("admin", "operator"), (req, res) => {
     }
   }
   setPumpStatus(pump.id, "idle", { faultCode: null, faultMessage: null, currentTransactionId: null });
-  recordAudit({ user: req.user!, action: "pump_reset", entityType: "pump", entityId: pump.id, ip: req.ip });
+  recordAudit({ user: req.user!, action: "pump_reset", entityType: "pump", entityId: pump.id, ip: req.ip, stationId: req.stationId });
   res.json({ pump: serializePump(getPump(pump.id)!) });
 });
 
@@ -63,7 +69,7 @@ const faultSchema = z.object({
 });
 
 router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBody(faultSchema), (req, res) => {
-  const pump = getPump(Number(req.params.id));
+  const pump = pumpInScope(req, Number(req.params.id));
   if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
   const { faultCode, faultMessage } = req.body as z.infer<typeof faultSchema>;
 
@@ -76,7 +82,13 @@ router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBod
   }
 
   setPumpStatus(pump.id, "fault", { faultCode, faultMessage, currentTransactionId: null });
-  createAlarm({ pumpId: pump.id, type: "pump_fault", severity: "critical", message: `Pompa ${pump.number}: ${faultMessage}` });
+  createAlarm({
+    stationId: req.stationId!,
+    pumpId: pump.id,
+    type: "pump_fault",
+    severity: "critical",
+    message: `Pompa ${pump.number}: ${faultMessage}`,
+  });
   recordAudit({
     user: req.user!,
     action: "pump_fault_simulated",
@@ -84,6 +96,7 @@ router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBod
     entityId: pump.id,
     details: { faultCode, faultMessage },
     ip: req.ip,
+    stationId: req.stationId,
   });
   res.json({ pump: serializePump(getPump(pump.id)!) });
 });

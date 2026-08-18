@@ -1,21 +1,31 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import type { AdminUser, RoleName } from "../../shared/types";
 import { useAuth } from "../../shared/AuthContext";
 
-const ROLE_LABEL: Record<RoleName, string> = { admin: "Yonetici", operator: "Operator", viewer: "Izleyici" };
+const ROLE_LABEL: Record<RoleName, string> = {
+  super_admin: "Platform Yoneticisi",
+  admin: "Istasyon Yoneticisi",
+  operator: "Operator",
+  viewer: "Izleyici",
+};
+
+const EDITABLE_ROLES: RoleName[] = ["admin", "operator", "viewer"];
 
 export default function Users() {
   const { user: me } = useAuth();
+  const stationId = useEffectiveStationId();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function load() {
+    if (stationId === null) return;
     api.get<{ users: AdminUser[] }>("/api/users").then((res) => setUsers(res.users));
   }
-  useEffect(load, []);
+  useEffect(load, [stationId]);
 
   async function toggleActive(u: AdminUser) {
     setError(null);
@@ -69,11 +79,15 @@ export default function Users() {
                 <td>{u.username}{u.locked && <span className="badge fault" style={{ marginLeft: 6 }}>Kilitli</span>}</td>
                 <td>{u.displayName}</td>
                 <td>
-                  <select value={u.role} disabled={u.id === me?.id} onChange={(e) => changeRole(u, e.target.value as RoleName)}>
-                    {(Object.keys(ROLE_LABEL) as RoleName[]).map((r) => (
-                      <option key={r} value={r}>{ROLE_LABEL[r]}</option>
-                    ))}
-                  </select>
+                  {u.role === "super_admin" ? (
+                    <span className="badge idle">{ROLE_LABEL.super_admin}</span>
+                  ) : (
+                    <select value={u.role} disabled={u.id === me?.id} onChange={(e) => changeRole(u, e.target.value as RoleName)}>
+                      {EDITABLE_ROLES.map((r) => (
+                        <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                      ))}
+                    </select>
+                  )}
                 </td>
                 <td><span className={`badge ${u.active ? "resolved" : "fault"}`}>{u.active ? "Aktif" : "Pasif"}</span></td>
                 <td>{formatDateTime(u.lastLoginAt)}</td>
@@ -87,6 +101,7 @@ export default function Users() {
                 </td>
               </tr>
             ))}
+            {users.length === 0 && <tr><td colSpan={6} className="hint-text">Kayit yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -97,6 +112,8 @@ export default function Users() {
 }
 
 function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { user: me } = useAuth();
+  const stationId = useEffectiveStationId();
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
@@ -104,12 +121,19 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  const canGrantSuperAdmin = me?.role === "super_admin";
+  const roleOptions: RoleName[] = canGrantSuperAdmin ? ["super_admin", ...EDITABLE_ROLES] : EDITABLE_ROLES;
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setSubmitting(true);
     setError(null);
     try {
-      await api.post("/api/users", { username, displayName, password, role });
+      const body: Record<string, unknown> = { username, displayName, password, role };
+      if (role !== "super_admin" && me?.role === "super_admin") {
+        body.stationId = stationId;
+      }
+      await api.post("/api/users", body);
       onCreated();
       onClose();
     } catch (err) {
@@ -136,10 +160,13 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
         <label>Rol</label>
         <select value={role} onChange={(e) => setRole(e.target.value as RoleName)}>
-          {(Object.keys(ROLE_LABEL) as RoleName[]).map((r) => (
+          {roleOptions.map((r) => (
             <option key={r} value={r}>{ROLE_LABEL[r]}</option>
           ))}
         </select>
+        {role === "super_admin" && (
+          <p className="hint-text">Platform yoneticisi hicbir istasyona bagli olmaz, tum istasyonlara erisir.</p>
+        )}
         {error && <p className="error-text">{error}</p>}
         <div className="toolbar" style={{ marginTop: "1.25rem" }}>
           <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>

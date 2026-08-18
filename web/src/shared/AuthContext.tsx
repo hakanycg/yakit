@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { api, ApiError } from "./api";
+import { setCurrentStationId } from "./stationScope";
 import type { CurrentUser } from "./types";
 
 interface AuthState {
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     await api.post("/api/auth/logout");
     setUser(null);
+    setCurrentStationId(null);
   }, []);
 
   return <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>{children}</AuthContext.Provider>;

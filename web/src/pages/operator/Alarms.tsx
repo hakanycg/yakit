@@ -1,26 +1,29 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
 import { useTopicSubscription } from "../../shared/useWebSocket";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { ALARM_SEVERITY_LABEL, ALARM_STATUS_LABEL, formatDateTime } from "../../shared/format";
 import type { Alarm } from "../../shared/types";
 import { useAuth } from "../../shared/AuthContext";
 
 export default function Alarms() {
   const { user } = useAuth();
+  const stationId = useEffectiveStationId();
   const [alarms, setAlarms] = useState<Alarm[]>([]);
   const [statusFilter, setStatusFilter] = useState<"active" | "acknowledged" | "resolved" | "">("active");
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function load() {
+    if (stationId === null) return;
     const query = statusFilter ? `?status=${statusFilter}` : "";
     api.get<{ alarms: Alarm[] }>(`/api/alarms${query}`).then((res) => setAlarms(res.alarms));
   }
 
-  useEffect(load, [statusFilter]);
-  useTopicSubscription(user ? "alarms" : null, () => load());
+  useEffect(load, [statusFilter, stationId]);
+  useTopicSubscription(stationId !== null ? `alarms:${stationId}` : null, () => load());
 
-  const canManage = user?.role === "admin" || user?.role === "operator";
+  const canManage = user?.role === "admin" || user?.role === "operator" || user?.role === "super_admin";
 
   async function act(id: number, action: "acknowledge" | "resolve") {
     setBusyId(id);

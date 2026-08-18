@@ -1,8 +1,14 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
+import StationSwitcher from "./StationSwitcher";
 
-const ROLE_LABEL: Record<string, string> = { admin: "Yonetici", operator: "Operator", viewer: "Izleyici" };
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: "Platform Yoneticisi",
+  admin: "Istasyon Yoneticisi",
+  operator: "Operator",
+  viewer: "Izleyici",
+};
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -15,12 +21,22 @@ export default function AppLayout() {
 
   if (!user) return null;
 
+  const isSuperAdmin = user.role === "super_admin";
+  const isStationAdmin = user.role === "admin" || isSuperAdmin;
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
         <h1>Yakit Istasyonu</h1>
         <p className="brand-sub">Yonetim Sistemi</p>
         <nav>
+          {isSuperAdmin && (
+            <>
+              <p className="section-label">Platform</p>
+              <NavLink to="/admin/istasyonlar">Istasyonlar</NavLink>
+            </>
+          )}
+
           <p className="section-label">Operator</p>
           <NavLink to="/operator" end>Panel</NavLink>
           <NavLink to="/operator/pompalar">Pompalar</NavLink>
@@ -29,9 +45,9 @@ export default function AppLayout() {
           <NavLink to="/operator/harita">Istasyon Haritasi</NavLink>
           <NavLink to="/operator/raporlar">Raporlama</NavLink>
 
-          {user.role === "admin" && (
+          {isStationAdmin && (
             <>
-              <p className="section-label">Yonetici</p>
+              <p className="section-label">Istasyon Yonetimi</p>
               <NavLink to="/admin/kullanicilar">Kullanici / Rol Yonetimi</NavLink>
               <NavLink to="/admin/audit-log">Audit Log</NavLink>
               <NavLink to="/admin/ayarlar">Ayarlar</NavLink>
@@ -42,9 +58,12 @@ export default function AppLayout() {
       </aside>
       <div className="main-content">
         <header className="topbar">
-          <div>
-            <strong>{user.displayName}</strong>{" "}
-            <span className="hint-text">({ROLE_LABEL[user.role] ?? user.role})</span>
+          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <div>
+              <strong>{user.displayName}</strong>{" "}
+              <span className="hint-text">({ROLE_LABEL[user.role] ?? user.role})</span>
+            </div>
+            {isSuperAdmin && <StationSwitcher />}
           </div>
           <div style={{ display: "flex", gap: "0.6rem" }}>
             <NavLink to="/operator/sifre-degistir"><button className="ghost">Sifre Degistir</button></NavLink>

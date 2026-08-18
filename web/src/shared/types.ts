@@ -1,4 +1,4 @@
-export type RoleName = "admin" | "operator" | "viewer";
+export type RoleName = "super_admin" | "admin" | "operator" | "viewer";
 export type FuelType = "benzin" | "motorin" | "lpg";
 export type PumpStatus = "idle" | "reserved" | "dispensing" | "fault" | "offline";
 export type TransactionStatus =
@@ -15,6 +15,7 @@ export interface CurrentUser {
   username: string;
   displayName: string;
   role: RoleName;
+  stationId: number | null;
   mustChangePassword: boolean;
 }
 
@@ -35,6 +36,7 @@ export interface Pump {
 
 export interface Transaction {
   id: number;
+  stationId: number;
   pumpId: number;
   plate: string;
   plateSource: "manual" | "lpr";
@@ -57,6 +59,7 @@ export interface Transaction {
 
 export interface Alarm {
   id: number;
+  stationId: number;
   pumpId: number | null;
   type: string;
   severity: "info" | "warning" | "critical";
@@ -78,10 +81,16 @@ export interface FuelPrice {
 
 export interface Station {
   id: number;
+  slug: string;
   name: string;
   address: string;
   latitude: number | null;
   longitude: number | null;
+  active?: boolean;
+  createdAt?: string;
+  pumpCount?: number;
+  activeAlarms?: number;
+  userCount?: number;
 }
 
 export interface AdminUser {
@@ -89,6 +98,8 @@ export interface AdminUser {
   username: string;
   displayName: string;
   role: RoleName;
+  stationId: number | null;
+  stationName: string | null;
   active: boolean;
   mustChangePassword: boolean;
   createdAt: string;
@@ -98,6 +109,7 @@ export interface AdminUser {
 
 export interface AuditEntry {
   id: number;
+  stationId: number | null;
   userId: number | null;
   username: string | null;
   action: string;

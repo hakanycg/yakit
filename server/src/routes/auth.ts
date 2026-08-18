@@ -79,6 +79,7 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
       username: user.username,
       displayName: user.display_name,
       role: role.name,
+      stationId: user.station_id,
       mustChangePassword: !!user.must_change_password,
     },
   });
@@ -100,6 +101,7 @@ router.get("/me", requireAuth, (req, res) => {
       username: user.username,
       displayName: user.display_name,
       role: role.name,
+      stationId: user.station_id,
       mustChangePassword: !!user.must_change_password,
     },
     csrfToken: req.csrfToken,

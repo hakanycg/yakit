@@ -3,8 +3,19 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS roles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE,           -- admin | operator | viewer
+  name TEXT NOT NULL UNIQUE,           -- super_admin | admin | operator | viewer
   description TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS stations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  slug TEXT NOT NULL UNIQUE,           -- kiosk adreslerinde kullanilir: /kiosk/:slug
+  name TEXT NOT NULL,
+  address TEXT NOT NULL DEFAULT '',
+  latitude REAL,
+  longitude REAL,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS users (
@@ -15,6 +26,7 @@ CREATE TABLE IF NOT EXISTS users (
   password_salt TEXT NOT NULL,         -- hex(random salt)
   password_iterations INTEGER NOT NULL,
   role_id INTEGER NOT NULL REFERENCES roles(id),
+  station_id INTEGER REFERENCES stations(id), -- NULL = super_admin (tum istasyonlara erisir)
   active INTEGER NOT NULL DEFAULT 1,   -- 0/1
   must_change_password INTEGER NOT NULL DEFAULT 0,
   failed_login_attempts INTEGER NOT NULL DEFAULT 0,
@@ -23,6 +35,7 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_login_at TEXT
 );
+CREATE INDEX IF NOT EXISTS idx_users_station ON users(station_id);
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,                 -- rastgele opaque token (hash'i saklanir)
@@ -37,19 +50,13 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
 CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
 
-CREATE TABLE IF NOT EXISTS stations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  address TEXT NOT NULL DEFAULT '',
-  latitude REAL,
-  longitude REAL
-);
-
 CREATE TABLE IF NOT EXISTS fuel_prices (
-  fuel_type TEXT PRIMARY KEY,          -- benzin | motorin | lpg
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,             -- benzin | motorin | lpg
   label TEXT NOT NULL,
   price_per_liter REAL NOT NULL,
-  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (station_id, fuel_type)
 );
 
 CREATE TABLE IF NOT EXISTS pumps (
@@ -67,9 +74,11 @@ CREATE TABLE IF NOT EXISTS pumps (
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(station_id, number)
 );
+CREATE INDEX IF NOT EXISTS idx_pumps_station ON pumps(station_id);
 
 CREATE TABLE IF NOT EXISTS transactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
   pump_id INTEGER NOT NULL REFERENCES pumps(id),
   plate TEXT NOT NULL,
   plate_source TEXT NOT NULL DEFAULT 'manual', -- manual | lpr
@@ -92,12 +101,14 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE INDEX IF NOT EXISTS idx_transactions_station ON transactions(station_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_pump ON transactions(pump_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
 
 CREATE TABLE IF NOT EXISTS alarms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
   pump_id INTEGER REFERENCES pumps(id),
   type TEXT NOT NULL,                  -- pump_fault | payment_failed | sensor | offline | manual
   severity TEXT NOT NULL DEFAULT 'warning', -- info | warning | critical
@@ -109,10 +120,12 @@ CREATE TABLE IF NOT EXISTS alarms (
   resolved_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE INDEX IF NOT EXISTS idx_alarms_station ON alarms(station_id);
 CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER REFERENCES stations(id), -- NULL: platform genelinde islem (ör. istasyon olusturma)
   user_id INTEGER REFERENCES users(id),
   username TEXT,
   action TEXT NOT NULL,
@@ -124,10 +137,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_station ON audit_log(station_id);
 
 CREATE TABLE IF NOT EXISTS settings (
-  key TEXT PRIMARY KEY,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  key TEXT NOT NULL,
   value TEXT NOT NULL,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  updated_by INTEGER REFERENCES users(id)
+  updated_by INTEGER REFERENCES users(id),
+  PRIMARY KEY (station_id, key)
 );

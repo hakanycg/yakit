@@ -1,0 +1,142 @@
+import { Router } from "express";
+import { z } from "zod";
+import { db } from "../db/index.js";
+import type { StationRow } from "../db/types.js";
+import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
+import { validateBody } from "../middleware/validate.js";
+import { recordAudit } from "../services/auditService.js";
+
+const router = Router();
+router.use(requireAuth, attachStationScope);
+
+function serializeStation(s: StationRow) {
+  return {
+    id: s.id,
+    slug: s.slug,
+    name: s.name,
+    address: s.address,
+    latitude: s.latitude,
+    longitude: s.longitude,
+    active: !!s.active,
+    createdAt: s.created_at,
+  };
+}
+
+router.get("/current", requireStationSelected, (req, res) => {
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(req.stationId!);
+  if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  res.json({ station: serializeStation(station) });
+});
+
+router.get("/", requireRole("super_admin"), (_req, res) => {
+  const stations = db.prepare<[], StationRow>("SELECT * FROM stations ORDER BY name").all();
+  const withStats = stations.map((s) => {
+    const pumpCount = (db.prepare("SELECT COUNT(*) as c FROM pumps WHERE station_id = ?").get(s.id) as { c: number }).c;
+    const activeAlarms = (
+      db.prepare("SELECT COUNT(*) as c FROM alarms WHERE station_id = ? AND status = 'active'").get(s.id) as { c: number }
+    ).c;
+    const userCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE station_id = ?").get(s.id) as { c: number }).c;
+    return { ...serializeStation(s), pumpCount, activeAlarms, userCount };
+  });
+  res.json({ stations: withStats });
+});
+
+const createSchema = z.object({
+  slug: z
+    .string()
+    .regex(/^[a-z0-9-]{2,40}$/, "Slug yalnizca kucuk harf, rakam ve tire icerebilir (orn: merkez-istasyon)."),
+  name: z.string().min(2).max(120),
+  address: z.string().max(300).optional().default(""),
+  latitude: z.number().min(-90).max(90).optional(),
+  longitude: z.number().min(-180).max(180).optional(),
+  pumpCount: z.number().int().min(1).max(16).optional().default(4),
+});
+
+const PUMP_POSITIONS = [
+  { x: 20, y: 30 }, { x: 45, y: 30 }, { x: 20, y: 65 }, { x: 45, y: 65 },
+  { x: 70, y: 30 }, { x: 70, y: 65 }, { x: 95, y: 30 }, { x: 95, y: 65 },
+];
+
+const DEFAULT_FUEL_PRICES = [
+  { fuelType: "benzin", label: "Kursunsuz Benzin 95", price: 44.5 },
+  { fuelType: "motorin", label: "Motorin (Diesel)", price: 43.2 },
+  { fuelType: "lpg", label: "Otogaz LPG", price: 21.9 },
+];
+
+router.post("/", requireRole("super_admin"), csrfProtection, validateBody(createSchema), (req, res) => {
+  const body = req.body as z.infer<typeof createSchema>;
+
+  const existing = db.prepare("SELECT id FROM stations WHERE slug = ?").get(body.slug);
+  if (existing) return void res.status(409).json({ error: "Bu slug zaten kullaniliyor." });
+
+  const create = db.transaction(() => {
+    const result = db
+      .prepare("INSERT INTO stations (slug, name, address, latitude, longitude) VALUES (?, ?, ?, ?, ?)")
+      .run(body.slug, body.name, body.address, body.latitude ?? null, body.longitude ?? null);
+    const stationId = result.lastInsertRowid as number;
+
+    const insertPrice = db.prepare(
+      "INSERT INTO fuel_prices (station_id, fuel_type, label, price_per_liter) VALUES (?, ?, ?, ?)"
+    );
+    for (const p of DEFAULT_FUEL_PRICES) insertPrice.run(stationId, p.fuelType, p.label, p.price);
+
+    const insertPump = db.prepare(
+      `INSERT INTO pumps (station_id, number, label, status, fuel_types, pos_x, pos_y) VALUES (?, ?, ?, 'idle', ?, ?, ?)`
+    );
+    for (let i = 0; i < body.pumpCount; i++) {
+      const pos = PUMP_POSITIONS[i % PUMP_POSITIONS.length]!;
+      insertPump.run(stationId, i + 1, `Pompa ${i + 1}`, JSON.stringify(["benzin", "motorin", "lpg"]), pos.x, pos.y);
+    }
+
+    return stationId;
+  });
+
+  const stationId = create();
+
+  recordAudit({
+    user: req.user!,
+    action: "station_created",
+    entityType: "station",
+    entityId: stationId,
+    details: { slug: body.slug, name: body.name, pumpCount: body.pumpCount },
+    ip: req.ip,
+    stationId,
+  });
+
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(stationId)!;
+  res.status(201).json({ station: serializeStation(station) });
+});
+
+const updateSchema = z.object({
+  name: z.string().min(2).max(120).optional(),
+  address: z.string().max(300).optional(),
+  active: z.boolean().optional(),
+  latitude: z.number().min(-90).max(90).nullable().optional(),
+  longitude: z.number().min(-180).max(180).nullable().optional(),
+});
+
+router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(updateSchema), (req, res) => {
+  const id = Number(req.params.id);
+  const existing = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id);
+  if (!existing) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+
+  const body = req.body as z.infer<typeof updateSchema>;
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if (body.name !== undefined) { fields.push("name = ?"); values.push(body.name); }
+  if (body.address !== undefined) { fields.push("address = ?"); values.push(body.address); }
+  if (body.active !== undefined) { fields.push("active = ?"); values.push(body.active ? 1 : 0); }
+  if (body.latitude !== undefined) { fields.push("latitude = ?"); values.push(body.latitude); }
+  if (body.longitude !== undefined) { fields.push("longitude = ?"); values.push(body.longitude); }
+
+  if (fields.length > 0) {
+    values.push(id);
+    db.prepare(`UPDATE stations SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+    recordAudit({ user: req.user!, action: "station_updated", entityType: "station", entityId: id, details: body, ip: req.ip, stationId: id });
+  }
+
+  const updated = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id)!;
+  res.json({ station: serializeStation(updated) });
+});
+
+export { router as stationsRouter };

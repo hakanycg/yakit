@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import { recordAudit } from "./auditService.js";
-import type { FuelType, UserRow } from "../db/types.js";
+import type { FuelType, StationRow, UserRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
 
 // Kaynak: hasanadiguzel.com.tr'nin ucretsiz akaryakit API'si. Resmi (EPDK) bir
@@ -92,8 +92,8 @@ export interface SyncResult {
   timestamp: string;
 }
 
-/** Harici kaynaktan fiyatlari ceker ve gecerli olanlari fuel_prices tablosuna yazar. */
-export async function runFuelPriceSync(city: TurkeyCity, actor: UserRow | null): Promise<SyncResult> {
+/** Harici kaynaktan fiyatlari ceker ve gecerli olanlari bir istasyonun fuel_prices satirlarina yazar. */
+export async function runFuelPriceSync(stationId: number, city: TurkeyCity, actor: UserRow | null): Promise<SyncResult> {
   const fetched = await fetchExternalFuelPrices(city);
   const now = new Date().toISOString();
   const mapping: Array<{ fuelType: FuelType; value: number | null }> = [
@@ -105,41 +105,44 @@ export async function runFuelPriceSync(city: TurkeyCity, actor: UserRow | null):
   const updated: Partial<Record<FuelType, number>> = {};
   const skipped: FuelType[] = [];
 
-  const update = db.prepare("UPDATE fuel_prices SET price_per_liter = ?, updated_at = ? WHERE fuel_type = ?");
+  const update = db.prepare("UPDATE fuel_prices SET price_per_liter = ?, updated_at = ? WHERE station_id = ? AND fuel_type = ?");
 
   for (const { fuelType, value } of mapping) {
     if (value === null) {
       skipped.push(fuelType);
       continue;
     }
-    update.run(value, now, fuelType);
+    update.run(value, now, stationId, fuelType);
     updated[fuelType] = value;
   }
 
-  setSetting("fuel_sync_last_run_at", now, actor);
-  setSetting("fuel_sync_last_status", "success", actor);
-  setSetting("fuel_sync_last_summary", JSON.stringify({ city, updated, skipped }), actor);
+  setSetting(stationId, "fuel_sync_last_run_at", now, actor);
+  setSetting(stationId, "fuel_sync_last_status", "success", actor);
+  setSetting(stationId, "fuel_sync_last_summary", JSON.stringify({ city, updated, skipped }), actor);
 
   recordAudit({
     user: actor,
     action: "fuel_price_auto_synced",
     entityType: "fuel_price",
     details: { city, updated, skipped, source: "hasanadiguzel.com.tr" },
+    stationId,
   });
 
   return { city, updated, skipped, timestamp: now };
 }
 
-export function getSetting(key: string): string | null {
-  const row = db.prepare<[string], { value: string }>("SELECT value FROM settings WHERE key = ?").get(key);
+export function getSetting(stationId: number, key: string): string | null {
+  const row = db
+    .prepare<[number, string], { value: string }>("SELECT value FROM settings WHERE station_id = ? AND key = ?")
+    .get(stationId, key);
   return row?.value ?? null;
 }
 
-export function setSetting(key: string, value: string, actor: UserRow | null): void {
+export function setSetting(stationId: number, key: string, value: string, actor: UserRow | null): void {
   db.prepare(
-    `INSERT INTO settings (key, value, updated_at, updated_by) VALUES (?, ?, ?, ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`
-  ).run(key, value, new Date().toISOString(), actor?.id ?? null);
+    `INSERT INTO settings (station_id, key, value, updated_at, updated_by) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(station_id, key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at, updated_by = excluded.updated_by`
+  ).run(stationId, key, value, new Date().toISOString(), actor?.id ?? null);
 }
 
 export interface FuelSyncConfig {
@@ -150,36 +153,45 @@ export interface FuelSyncConfig {
 
 const DEFAULT_CONFIG: FuelSyncConfig = { enabled: false, city: "ISTANBUL", intervalMinutes: 360 };
 
-export function getFuelSyncConfig(): FuelSyncConfig {
-  const enabled = getSetting("fuel_sync_enabled") === "true";
-  const cityRaw = getSetting("fuel_sync_city");
+export function getFuelSyncConfig(stationId: number): FuelSyncConfig {
+  const enabled = getSetting(stationId, "fuel_sync_enabled") === "true";
+  const cityRaw = getSetting(stationId, "fuel_sync_city");
   const city = (TURKEY_CITIES as readonly string[]).includes(cityRaw ?? "") ? (cityRaw as TurkeyCity) : DEFAULT_CONFIG.city;
-  const intervalRaw = Number(getSetting("fuel_sync_interval_minutes"));
+  const intervalRaw = Number(getSetting(stationId, "fuel_sync_interval_minutes"));
   const intervalMinutes = Number.isFinite(intervalRaw) && intervalRaw >= 15 ? intervalRaw : DEFAULT_CONFIG.intervalMinutes;
   return { enabled, city, intervalMinutes };
 }
 
-export function setFuelSyncConfig(config: Partial<FuelSyncConfig>, actor: UserRow | null): void {
-  if (config.enabled !== undefined) setSetting("fuel_sync_enabled", String(config.enabled), actor);
-  if (config.city !== undefined) setSetting("fuel_sync_city", config.city, actor);
-  if (config.intervalMinutes !== undefined) setSetting("fuel_sync_interval_minutes", String(config.intervalMinutes), actor);
+export function setFuelSyncConfig(stationId: number, config: Partial<FuelSyncConfig>, actor: UserRow | null): void {
+  if (config.enabled !== undefined) setSetting(stationId, "fuel_sync_enabled", String(config.enabled), actor);
+  if (config.city !== undefined) setSetting(stationId, "fuel_sync_city", config.city, actor);
+  if (config.intervalMinutes !== undefined) setSetting(stationId, "fuel_sync_interval_minutes", String(config.intervalMinutes), actor);
 }
 
-/** Sunucu basladiginda ve periyodik olarak cagrilir; zamani gelmisse senkronizasyonu tetikler. */
+/** Sunucu basladiginda ve periyodik olarak cagrilir; senkronizasyonu acik olan tum istasyonlar icin zamani gelmisse tetikler. */
 export async function maybeRunScheduledSync(): Promise<void> {
-  const config = getFuelSyncConfig();
-  if (!config.enabled) return;
+  const stations = db.prepare<[], StationRow>("SELECT * FROM stations WHERE active = 1").all();
 
-  const lastRunAt = getSetting("fuel_sync_last_run_at");
-  const dueAt = lastRunAt ? new Date(lastRunAt).getTime() + config.intervalMinutes * 60_000 : 0;
-  if (Date.now() < dueAt) return;
+  for (const station of stations) {
+    const config = getFuelSyncConfig(station.id);
+    if (!config.enabled) continue;
 
-  try {
-    const result = await runFuelPriceSync(config.city, null);
-    logger.info({ result }, "Otomatik yakit fiyati senkronizasyonu tamamlandi.");
-  } catch (err) {
-    setSetting("fuel_sync_last_status", "error", null);
-    setSetting("fuel_sync_last_summary", JSON.stringify({ error: err instanceof Error ? err.message : String(err) }), null);
-    logger.error({ err }, "Otomatik yakit fiyati senkronizasyonu basarisiz.");
+    const lastRunAt = getSetting(station.id, "fuel_sync_last_run_at");
+    const dueAt = lastRunAt ? new Date(lastRunAt).getTime() + config.intervalMinutes * 60_000 : 0;
+    if (Date.now() < dueAt) continue;
+
+    try {
+      const result = await runFuelPriceSync(station.id, config.city, null);
+      logger.info({ station: station.slug, result }, "Otomatik yakit fiyati senkronizasyonu tamamlandi.");
+    } catch (err) {
+      setSetting(station.id, "fuel_sync_last_status", "error", null);
+      setSetting(
+        station.id,
+        "fuel_sync_last_summary",
+        JSON.stringify({ error: err instanceof Error ? err.message : String(err) }),
+        null
+      );
+      logger.error({ station: station.slug, err }, "Otomatik yakit fiyati senkronizasyonu basarisiz.");
+    }
   }
 }

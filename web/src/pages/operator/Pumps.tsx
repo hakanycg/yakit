@@ -12,7 +12,7 @@ export default function Pumps() {
   const [error, setError] = useState<string | null>(null);
   const [faultTarget, setFaultTarget] = useState<Pump | null>(null);
 
-  const canOperate = user?.role === "admin" || user?.role === "operator";
+  const canOperate = user?.role === "admin" || user?.role === "operator" || user?.role === "super_admin";
 
   async function runAction(id: number, action: "start" | "stop" | "reset") {
     setBusyId(id);
