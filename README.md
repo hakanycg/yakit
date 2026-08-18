@@ -25,8 +25,18 @@ yakit/
   (`slug`) vardır; birden fazla istasyonunuz varsa her biri için ayrı bir kiosk URL'si olur.
 - **Operatör Paneli** (`/operator/*`, giriş gerektirir): Dashboard, pompa canlı durumu,
   pompa başlat/durdur/reset, arıza simülasyonu, işlem listesi + CSV dışa aktarma, alarm
-  merkezi, istasyon haritası, raporlama. Her zaman yalnızca kullanıcının bağlı olduğu
-  istasyonun verisini gösterir.
+  merkezi, istasyon haritası, raporlama, vardiya yönetimi. Her zaman yalnızca kullanıcının
+  bağlı olduğu istasyonun verisini gösterir.
+- **Vardiya yönetimi** (`/operator/vardiya`): Operatör/yönetici vardiya başlatıp bitirebilir;
+  açık vardiyanın canlı süresi, işlem sayısı, cirosu ve litre toplamı gösterilir; geçmiş
+  vardiyalar aynı istatistiklerle listelenir.
+- **Makbuz gönderimi:** Kiosk'ta işlem tamamlandığında müşteri isterse e-posta ve/veya SMS
+  ile makbuz alabilir (`POST /api/kiosk/transactions/:id/receipt`).
+- **Kritik alarm bildirimleri:** Bir pompa arızası gibi kritik önem düzeyinde bir alarm
+  oluştuğunda, istasyondaki bildirim tercihi açık olan admin/operatör kullanıcılarına
+  otomatik e-posta/SMS gönderilir; ayrıca panel açıkken tarayıcı bildirimi (Web Notification
+  API) gösterilir. Her kullanıcı kendi e-posta/telefon/bildirim tercihini
+  **Hesabım → Bildirim Ayarları** sayfasından yönetir.
 - **İstasyon Yönetimi** (`/admin/*`, `admin` rolü): Kullanıcı/rol yönetimi, audit log,
   yakıt fiyatı ayarları, demo verilerini sıfırlama — hepsi yalnızca kendi istasyonuyla sınırlı.
 - **Platform Yönetimi** (`/admin/istasyonlar`, yalnızca `super_admin` rolü): Tüm istasyonları
@@ -89,8 +99,19 @@ yakit/
 
 Bunların dışındaki **her şey gerçek ve uçtan uca çalışır**: pompa durum makinesi, işlem
 yaşam döngüsü (oluşturuldu → ödendi → yetkilendirildi → dolum → tamamlandı), gerçek zamanlı
-litre/tutar artışı, alarm üretimi, raporlama ve CSV dışa aktarma gerçek veritabanı verisi
-üzerinden hesaplanır.
+litre/tutar artışı, alarm üretimi, raporlama, CSV dışa aktarma, vardiya takibi ve e-posta/SMS
+gönderimi gerçek veritabanı verisi ve gerçek servis entegrasyonları üzerinden çalışır.
+
+### E-posta/SMS için kendi sağlayıcınızı bağlamanız gerekir
+
+Makbuz gönderimi ve kritik alarm bildirimleri kod olarak tam çalışır durumdadır (nodemailer
+ile gerçek SMTP, genel bir HTTP tabanlı SMS webhook'u), ancak **bir e-posta/SMS sağlayıcı
+hesabınız olmadan** hiçbir yere gönderim yapamaz — `server/.env` içindeki `SMTP_*` / `SMS_*`
+değerleri boşsa sistem çökmez, sadece "yapılandırılmamış" uyarısı loglayıp o kanalı atlar.
+Gerçek gönderim için kendi SMTP hesabınızı (Gmail, SendGrid, kurumsal SMTP vb.) ve bir SMS
+sağlayıcısının (Netgsm, İletimerkezi, Twilio vb.) REST endpoint bilgilerini `server/.env`'e
+girmeniz yeterlidir; SMS sağlayıcınızın istek formatı farklıysa
+`server/src/services/notificationService.ts` içindeki `sendSms` fonksiyonunu ona göre uyarlayın.
 
 ## Kurulum
 

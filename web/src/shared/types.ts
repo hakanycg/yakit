@@ -17,6 +17,10 @@ export interface CurrentUser {
   role: RoleName;
   stationId: number | null;
   mustChangePassword: boolean;
+  email: string | null;
+  phone: string | null;
+  notifyEmail: boolean;
+  notifySms: boolean;
 }
 
 export interface Pump {
@@ -105,6 +109,10 @@ export interface AdminUser {
   createdAt: string;
   lastLoginAt: string | null;
   locked: boolean;
+  email: string | null;
+  phone: string | null;
+  notifyEmail: boolean;
+  notifySms: boolean;
 }
 
 export interface AuditEntry {

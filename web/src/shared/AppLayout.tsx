@@ -2,6 +2,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
+import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Platform Yoneticisi",
@@ -13,6 +14,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  useCriticalAlarmNotifications();
 
   async function handleLogout() {
     await logout();
@@ -44,6 +46,7 @@ export default function AppLayout() {
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
           <NavLink to="/operator/harita">Istasyon Haritasi</NavLink>
           <NavLink to="/operator/raporlar">Raporlama</NavLink>
+          <NavLink to="/operator/vardiya">Vardiya</NavLink>
 
           {isStationAdmin && (
             <>
@@ -66,7 +69,7 @@ export default function AppLayout() {
             {isSuperAdmin && <StationSwitcher />}
           </div>
           <div style={{ display: "flex", gap: "0.6rem" }}>
-            <NavLink to="/operator/sifre-degistir"><button className="ghost">Sifre Degistir</button></NavLink>
+            <NavLink to="/operator/sifre-degistir"><button className="ghost">Hesabim</button></NavLink>
             <button onClick={handleLogout}>Cikis Yap</button>
           </div>
         </header>

@@ -34,4 +34,11 @@ export const kioskApi = {
 
   cancel: (id: number, token: string) =>
     kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}/cancel`, token, { method: "POST" }),
+
+  sendReceipt: (id: number, token: string, target: { email?: string; phone?: string }) =>
+    kioskRequest<{ result: { email?: { sent: boolean; reason?: string }; sms?: { sent: boolean; reason?: string } } }>(
+      `/api/kiosk/transactions/${id}/receipt`,
+      token,
+      { method: "POST", body: JSON.stringify(target) }
+    ),
 };

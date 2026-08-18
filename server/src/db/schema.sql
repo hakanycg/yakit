@@ -31,6 +31,10 @@ CREATE TABLE IF NOT EXISTS users (
   must_change_password INTEGER NOT NULL DEFAULT 0,
   failed_login_attempts INTEGER NOT NULL DEFAULT 0,
   locked_until TEXT,                   -- ISO tarih, hesap kilidi
+  email TEXT,
+  phone TEXT,
+  notify_email INTEGER NOT NULL DEFAULT 1, -- kritik alarm olustugunda e-posta gonderilsin mi
+  notify_sms INTEGER NOT NULL DEFAULT 0,   -- kritik alarm olustugunda SMS gonderilsin mi
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_login_at TEXT
@@ -98,6 +102,9 @@ CREATE TABLE IF NOT EXISTS transactions (
   started_at TEXT,
   completed_at TEXT,
   cancelled_reason TEXT,
+  receipt_email TEXT,
+  receipt_phone TEXT,
+  receipt_sent_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
@@ -138,6 +145,20 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_station ON audit_log(station_id);
+
+CREATE TABLE IF NOT EXISTS shifts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  started_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  ended_at TEXT,
+  opening_note TEXT,
+  closing_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_shifts_station ON shifts(station_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_user ON shifts(user_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_open ON shifts(station_id, ended_at);
 
 CREATE TABLE IF NOT EXISTS settings (
   station_id INTEGER NOT NULL REFERENCES stations(id),

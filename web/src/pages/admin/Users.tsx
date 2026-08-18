@@ -60,6 +60,20 @@ export default function Users() {
     }
   }
 
+  async function editContact(u: AdminUser) {
+    const email = prompt(`${u.username} icin e-posta (bos birakabilirsiniz):`, u.email ?? "");
+    if (email === null) return;
+    const phone = prompt(`${u.username} icin telefon (bos birakabilirsiniz):`, u.phone ?? "");
+    if (phone === null) return;
+    setError(null);
+    try {
+      await api.patch(`/api/users/${u.id}`, { email: email.trim() || null, phone: phone.trim() || null });
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+    }
+  }
+
   return (
     <div>
       <h2>Kullanici / Rol Yonetimi</h2>
@@ -93,6 +107,7 @@ export default function Users() {
                 <td>{formatDateTime(u.lastLoginAt)}</td>
                 <td>
                   <div className="toolbar" style={{ margin: 0 }}>
+                    <button onClick={() => editContact(u)}>Iletisim</button>
                     <button onClick={() => resetPassword(u)}>Sifre Sifirla</button>
                     <button disabled={u.id === me?.id} onClick={() => toggleActive(u)}>
                       {u.active ? "Devre Disi Birak" : "Etkinlestir"}
@@ -117,6 +132,8 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   const [username, setUsername] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<RoleName>("operator");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -130,6 +147,8 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     setError(null);
     try {
       const body: Record<string, unknown> = { username, displayName, password, role };
+      if (email.trim()) body.email = email.trim();
+      if (phone.trim()) body.phone = phone.trim();
       if (role !== "super_admin" && me?.role === "super_admin") {
         body.stationId = stationId;
       }
@@ -158,6 +177,10 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
         <label>Gecici Sifre</label>
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <label>E-posta (opsiyonel, bildirimler icin)</label>
+        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <label>Telefon (opsiyonel, bildirimler icin)</label>
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} />
         <label>Rol</label>
         <select value={role} onChange={(e) => setRole(e.target.value as RoleName)}>
           {roleOptions.map((r) => (

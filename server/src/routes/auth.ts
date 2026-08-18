@@ -103,9 +103,53 @@ router.get("/me", requireAuth, (req, res) => {
       role: role.name,
       stationId: user.station_id,
       mustChangePassword: !!user.must_change_password,
+      email: user.email,
+      phone: user.phone,
+      notifyEmail: !!user.notify_email,
+      notifySms: !!user.notify_sms,
     },
     csrfToken: req.csrfToken,
   });
+});
+
+const notificationSettingsSchema = z.object({
+  email: z.string().email().max(120).nullable().optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9 ]{10,16}$/, "Gecersiz telefon numarasi.")
+    .nullable()
+    .optional(),
+  notifyEmail: z.boolean().optional(),
+  notifySms: z.boolean().optional(),
+});
+
+router.patch("/notification-settings", requireAuth, csrfProtection, validateBody(notificationSettingsSchema), (req, res) => {
+  const user = req.user!;
+  const body = req.body as z.infer<typeof notificationSettingsSchema>;
+
+  if (body.email !== undefined) {
+    db.prepare("UPDATE users SET email = ?, updated_at = ? WHERE id = ?").run(body.email, new Date().toISOString(), user.id);
+  }
+  if (body.phone !== undefined) {
+    db.prepare("UPDATE users SET phone = ?, updated_at = ? WHERE id = ?").run(body.phone, new Date().toISOString(), user.id);
+  }
+  if (body.notifyEmail !== undefined) {
+    db.prepare("UPDATE users SET notify_email = ?, updated_at = ? WHERE id = ?").run(
+      body.notifyEmail ? 1 : 0,
+      new Date().toISOString(),
+      user.id
+    );
+  }
+  if (body.notifySms !== undefined) {
+    db.prepare("UPDATE users SET notify_sms = ?, updated_at = ? WHERE id = ?").run(
+      body.notifySms ? 1 : 0,
+      new Date().toISOString(),
+      user.id
+    );
+  }
+
+  recordAudit({ user, action: "notification_settings_updated", details: body, ip: req.ip });
+  res.status(204).end();
 });
 
 const changePasswordSchema = z.object({

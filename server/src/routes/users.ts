@@ -24,6 +24,10 @@ function serializeUser(u: UserRow, roleName: string, stationName: string | null)
     createdAt: u.created_at,
     lastLoginAt: u.last_login_at,
     locked: !!(u.locked_until && new Date(u.locked_until).getTime() > Date.now()),
+    email: u.email,
+    phone: u.phone,
+    notifyEmail: !!u.notify_email,
+    notifySms: !!u.notify_sms,
   };
 }
 
@@ -59,6 +63,11 @@ const createUserSchema = z.object({
   password: z.string().min(1),
   role: z.enum(["super_admin", "admin", "operator", "viewer"]),
   stationId: z.number().int().positive().optional(),
+  email: z.string().email().max(120).optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9 ]{10,16}$/, "Gecersiz telefon numarasi.")
+    .optional(),
 });
 
 router.post("/", validateBody(createUserSchema), (req, res) => {
@@ -94,10 +103,20 @@ router.post("/", validateBody(createUserSchema), (req, res) => {
   const hashed = hashPassword(body.password);
   const result = db
     .prepare(
-      `INSERT INTO users (username, display_name, password_hash, password_salt, password_iterations, role_id, station_id, must_change_password)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 1)`
+      `INSERT INTO users (username, display_name, password_hash, password_salt, password_iterations, role_id, station_id, email, phone, must_change_password)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
     )
-    .run(username, body.displayName, hashed.hash, hashed.salt, hashed.iterations, role.id, targetStationId);
+    .run(
+      username,
+      body.displayName,
+      hashed.hash,
+      hashed.salt,
+      hashed.iterations,
+      role.id,
+      targetStationId,
+      body.email ?? null,
+      body.phone ?? null
+    );
 
   recordAudit({
     user: req.user!,
@@ -120,6 +139,14 @@ const updateUserSchema = z.object({
   role: z.enum(["admin", "operator", "viewer"]).optional(),
   active: z.boolean().optional(),
   resetPassword: z.string().optional(),
+  email: z.string().email().max(120).nullable().optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9 ]{10,16}$/, "Gecersiz telefon numarasi.")
+    .nullable()
+    .optional(),
+  notifyEmail: z.boolean().optional(),
+  notifySms: z.boolean().optional(),
 });
 
 router.patch("/:id", validateBody(updateUserSchema), (req, res) => {
@@ -167,6 +194,18 @@ router.patch("/:id", validateBody(updateUserSchema), (req, res) => {
       "UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?, must_change_password = 1, updated_at = ? WHERE id = ?"
     ).run(hashed.hash, hashed.salt, hashed.iterations, new Date().toISOString(), id);
     destroyAllSessionsForUser(id);
+  }
+  if (body.email !== undefined) {
+    db.prepare("UPDATE users SET email = ?, updated_at = ? WHERE id = ?").run(body.email, new Date().toISOString(), id);
+  }
+  if (body.phone !== undefined) {
+    db.prepare("UPDATE users SET phone = ?, updated_at = ? WHERE id = ?").run(body.phone, new Date().toISOString(), id);
+  }
+  if (body.notifyEmail !== undefined) {
+    db.prepare("UPDATE users SET notify_email = ?, updated_at = ? WHERE id = ?").run(body.notifyEmail ? 1 : 0, new Date().toISOString(), id);
+  }
+  if (body.notifySms !== undefined) {
+    db.prepare("UPDATE users SET notify_sms = ?, updated_at = ? WHERE id = ?").run(body.notifySms ? 1 : 0, new Date().toISOString(), id);
   }
 
   recordAudit({

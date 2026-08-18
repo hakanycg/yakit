@@ -24,6 +24,10 @@ export interface UserRow {
   must_change_password: 0 | 1;
   failed_login_attempts: number;
   locked_until: string | null;
+  email: string | null;
+  phone: string | null;
+  notify_email: 0 | 1;
+  notify_sms: 0 | 1;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
@@ -97,6 +101,9 @@ export interface TransactionRow {
   started_at: string | null;
   completed_at: string | null;
   cancelled_reason: string | null;
+  receipt_email: string | null;
+  receipt_phone: string | null;
+  receipt_sent_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -138,6 +145,17 @@ export interface FuelPriceRow {
   label: string;
   price_per_liter: number;
   updated_at: string;
+}
+
+export interface ShiftRow {
+  id: number;
+  station_id: number;
+  user_id: number;
+  started_at: string;
+  ended_at: string | null;
+  opening_note: string | null;
+  closing_note: string | null;
+  created_at: string;
 }
 
 export interface SettingRow {

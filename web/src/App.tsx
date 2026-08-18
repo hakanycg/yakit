@@ -11,6 +11,7 @@ import Alarms from "./pages/operator/Alarms";
 import StationMap from "./pages/operator/StationMap";
 import Reports from "./pages/operator/Reports";
 import ChangePassword from "./pages/operator/ChangePassword";
+import Shift from "./pages/operator/Shift";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
 import Settings from "./pages/admin/Settings";
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/operator/alarmlar" element={<Alarms />} />
           <Route path="/operator/harita" element={<StationMap />} />
           <Route path="/operator/raporlar" element={<Reports />} />
+          <Route path="/operator/vardiya" element={<Shift />} />
           <Route path="/operator/sifre-degistir" element={<ChangePassword />} />
 
           <Route element={<RequireRole roles={["admin"]} />}>

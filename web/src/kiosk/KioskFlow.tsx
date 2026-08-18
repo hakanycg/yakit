@@ -170,7 +170,9 @@ export default function KioskFlow() {
 
         {step === "dispense" && transaction && <DispenseStep transaction={transaction} targetLiters={targetLiters} />}
 
-        {step === "receipt" && transaction && <ReceiptStep transaction={transaction} onRestart={reset} />}
+        {step === "receipt" && transaction && (
+          <ReceiptStep transaction={transaction} accessToken={accessToken} onRestart={reset} />
+        )}
       </div>
     </div>
   );

@@ -11,6 +11,7 @@ import {
   serializeTransaction,
 } from "../services/transactionService.js";
 import { listPumps, serializePump } from "../services/pumpService.js";
+import { sendReceipt } from "../services/receiptService.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, StationRow } from "../db/types.js";
 
@@ -138,6 +139,29 @@ router.post("/transactions/:id/cancel", (req, res) => {
   try {
     const updated = cancelPendingTransaction(Number(req.params.id), token, "Musteri tarafindan iptal edildi.");
     res.json({ transaction: serializeTransaction(updated) });
+  } catch (err) {
+    if (err instanceof TransactionError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+const receiptSchema = z.object({
+  email: z.string().email().max(120).optional(),
+  phone: z
+    .string()
+    .regex(/^\+?[0-9 ]{10,16}$/, "Gecersiz telefon numarasi.")
+    .optional(),
+});
+
+router.post("/transactions/:id/receipt", validateBody(receiptSchema), async (req, res) => {
+  const token = requireAccessToken(req, res);
+  if (!token) return;
+  try {
+    const result = await sendReceipt(Number(req.params.id), token, req.body as z.infer<typeof receiptSchema>);
+    res.json({ result });
   } catch (err) {
     if (err instanceof TransactionError) {
       res.status(err.status).json({ error: err.message });

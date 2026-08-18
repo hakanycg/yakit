@@ -1,6 +1,10 @@
 import "dotenv/config";
 import { z } from "zod";
 
+/** Bos string'i (".env" dosyasinda bos birakilan opsiyonel degiskenler) undefined'a cevirir. */
+const optionalString = () => z.preprocess((v) => (v === "" ? undefined : v), z.string().optional());
+const optionalUrl = () => z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional());
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
@@ -15,6 +19,22 @@ const envSchema = z.object({
     .transform((v) => v === "true"),
   SEED_ADMIN_USERNAME: z.string().min(3).default("admin"),
   SEED_ADMIN_PASSWORD: z.string().min(8).default("ChangeMe!12345"),
+
+  // E-posta (SMTP) - bos birakilirsa e-posta gonderimi devre disi kalir, hata vermez.
+  SMTP_HOST: optionalString(),
+  SMTP_PORT: z.coerce.number().int().positive().default(587),
+  SMTP_SECURE: z
+    .string()
+    .default("false")
+    .transform((v) => v === "true"),
+  SMTP_USER: optionalString(),
+  SMTP_PASS: optionalString(),
+  SMTP_FROM: z.string().default("Yakit Istasyonu <no-reply@yakit-istasyonu.local>"),
+
+  // SMS - genel bir HTTP tabanli SMS saglayicisina POST atar. Bos birakilirsa devre disi kalir.
+  SMS_PROVIDER_URL: optionalUrl(),
+  SMS_PROVIDER_API_KEY: optionalString(),
+  SMS_SENDER_ID: z.string().default("YAKITIST"),
 });
 
 const parsed = envSchema.safeParse(process.env);
