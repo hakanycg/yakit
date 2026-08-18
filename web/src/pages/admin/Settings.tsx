@@ -55,6 +55,17 @@ export default function Settings() {
             <button onClick={() => save(p.fuelType)}>Kaydet</button>
           </div>
         ))}
+        <p className="hint-text" style={{ marginTop: "0.75rem" }}>
+          Resmi fiyatları elle karşılaştırmak isterseniz:{" "}
+          <a
+            href="https://lisans.epdk.gov.tr/epvys-web/faces/pages/lisans/petrolBayilik/pompaFiyatlariOzetSorgula.xhtml"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            EPDK İstasyon Pompa Fiyatları sorgu sayfası
+          </a>{" "}
+          (il/ilçe/bayi bazında; CAPTCHA korumalı olduğundan otomatik çekilemiyor, elle sorgulanır).
+        </p>
       </div>
 
       <FuelSyncCard onPricesChanged={load} />
