@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
-import { FUEL_LABEL } from "../../shared/format";
+import { FUEL_LABEL, formatCurrency, formatDateTime } from "../../shared/format";
 import type { FuelPrice } from "../../shared/types";
 
 export default function Settings() {
@@ -56,6 +56,135 @@ export default function Settings() {
           </div>
         ))}
       </div>
+
+      <FuelSyncCard onPricesChanged={load} />
+    </div>
+  );
+}
+
+interface FuelSyncConfig {
+  enabled: boolean;
+  city: string;
+  intervalMinutes: number;
+}
+
+interface FuelSyncState {
+  config: FuelSyncConfig;
+  cities: string[];
+  lastRunAt: string | null;
+  lastStatus: string | null;
+  lastSummary: { city?: string; updated?: Record<string, number>; skipped?: string[]; error?: string } | null;
+}
+
+const INTERVAL_OPTIONS = [
+  { minutes: 60, label: "Her saat" },
+  { minutes: 360, label: "6 saatte bir" },
+  { minutes: 720, label: "12 saatte bir" },
+  { minutes: 1440, label: "Gunde bir kez" },
+];
+
+function FuelSyncCard({ onPricesChanged }: { onPricesChanged: () => void }) {
+  const [state, setState] = useState<FuelSyncState | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [running, setRunning] = useState(false);
+
+  function load() {
+    api.get<FuelSyncState>("/api/settings/fuel-sync").then(setState);
+  }
+  useEffect(load, []);
+
+  async function updateConfig(patch: Partial<FuelSyncConfig>) {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch("/api/settings/fuel-sync", patch);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Ayar guncellenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function runNow() {
+    setRunning(true);
+    setError(null);
+    try {
+      await api.post("/api/settings/fuel-sync/run-now");
+      load();
+      onPricesChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Senkronizasyon basarisiz.");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  if (!state) return null;
+
+  return (
+    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
+      <h3 style={{ marginTop: 0 }}>Otomatik Fiyat Guncelleme (Turkiye Piyasasi)</h3>
+      <p className="hint-text">
+        Ucuncu parti bir kaynaktan (hasanadiguzel.com.tr) sehir bazli yaklasik guncel fiyatlar cekilir. Bu resmi
+        (EPDK) bir kaynak degildir; referans amaclidir. LPG verisi bazi sehirlerde bulunmayabilir, bu durumda o
+        yakit tipi atlanir.
+      </p>
+
+      <label>Durum</label>
+      <div className="toolbar">
+        <button
+          className={state.config.enabled ? "success" : ""}
+          disabled={saving}
+          onClick={() => updateConfig({ enabled: !state.config.enabled })}
+        >
+          {state.config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
+        </button>
+      </div>
+
+      <label>Sehir</label>
+      <select value={state.config.city} disabled={saving} onChange={(e) => updateConfig({ city: e.target.value })}>
+        {state.cities.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
+
+      <label>Guncelleme sikligi</label>
+      <select
+        value={state.config.intervalMinutes}
+        disabled={saving}
+        onChange={(e) => updateConfig({ intervalMinutes: Number(e.target.value) })}
+      >
+        {INTERVAL_OPTIONS.map((o) => (
+          <option key={o.minutes} value={o.minutes}>{o.label}</option>
+        ))}
+      </select>
+
+      {error && <p className="error-text">{error}</p>}
+
+      <div className="toolbar" style={{ marginTop: "1rem" }}>
+        <button onClick={runNow} disabled={running}>{running ? "Cekiliyor..." : "Simdi Guncelle"}</button>
+        <div className="spacer" />
+        <span className="hint-text">Son calisma: {formatDateTime(state.lastRunAt)}</span>
+      </div>
+
+      {state.lastStatus === "error" && state.lastSummary?.error && (
+        <p className="error-text">Son deneme basarisiz: {state.lastSummary.error}</p>
+      )}
+      {state.lastStatus === "success" && state.lastSummary?.updated && (
+        <div className="hint-text" style={{ marginTop: "0.5rem" }}>
+          <div>{state.lastSummary.city} icin guncellenen fiyatlar:</div>
+          <ul style={{ margin: "0.25rem 0 0 1rem" }}>
+            {Object.entries(state.lastSummary.updated).map(([fuelType, price]) => (
+              <li key={fuelType}>{FUEL_LABEL[fuelType] ?? fuelType}: {formatCurrency(price)}</li>
+            ))}
+          </ul>
+          {state.lastSummary.skipped && state.lastSummary.skipped.length > 0 && (
+            <div>Veri bulunamadigi icin atlandi: {state.lastSummary.skipped.map((f) => FUEL_LABEL[f] ?? f).join(", ")}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
