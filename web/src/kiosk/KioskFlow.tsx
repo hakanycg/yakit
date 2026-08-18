@@ -1,0 +1,153 @@
+import { useCallback, useEffect, useState } from "react";
+import { kioskApi, type StationResponse } from "./kioskApi";
+import { useTopicSubscription } from "../shared/useWebSocket";
+import type { FuelType, Pump, Transaction } from "../shared/types";
+import PlateStep from "./steps/PlateStep";
+import PumpStep from "./steps/PumpStep";
+import FuelStep from "./steps/FuelStep";
+import AmountStep, { type AmountSelection } from "./steps/AmountStep";
+import PaymentStep from "./steps/PaymentStep";
+import DispenseStep from "./steps/DispenseStep";
+import ReceiptStep from "./steps/ReceiptStep";
+import { ApiError } from "../shared/api";
+
+type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "dispense" | "receipt";
+
+const STEP_ORDER: Step[] = ["plate", "pump", "fuel", "amount", "payment", "dispense", "receipt"];
+
+export default function KioskFlow() {
+  const [station, setStation] = useState<StationResponse | null>(null);
+  const [step, setStep] = useState<Step>("plate");
+  const [plate, setPlate] = useState("");
+  const [plateSource, setPlateSource] = useState<"manual" | "lpr">("manual");
+  const [pump, setPump] = useState<Pump | null>(null);
+  const [fuelType, setFuelType] = useState<FuelType | null>(null);
+  const [amountSelection, setAmountSelection] = useState<AmountSelection | null>(null);
+  const [transaction, setTransaction] = useState<Transaction | null>(null);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [targetLiters, setTargetLiters] = useState(0);
+
+  const loadStation = useCallback(() => {
+    kioskApi.getStation().then(setStation);
+  }, []);
+
+  useEffect(loadStation, [loadStation]);
+  useTopicSubscription("pumps", (payload) => {
+    setStation((prev) => (prev ? { ...prev, pumps: payload as Pump[] } : prev));
+  });
+
+  useTopicSubscription(transaction ? `transaction:${transaction.id}` : null, (payload) => {
+    const t = payload as Transaction;
+    setTransaction(t);
+    if (t.status === "completed" || t.status === "cancelled" || t.status === "failed") {
+      setStep("receipt");
+    }
+  }, accessToken ?? undefined);
+
+  function reset() {
+    setStep("plate");
+    setPlate("");
+    setPump(null);
+    setFuelType(null);
+    setAmountSelection(null);
+    setTransaction(null);
+    setAccessToken(null);
+    setError(null);
+    loadStation();
+  }
+
+  async function handleAmount(selection: AmountSelection) {
+    if (!pump || !fuelType || !station) return;
+    setAmountSelection(selection);
+    setError(null);
+    setStep("creating");
+
+    const price = station.fuelPrices.find((f) => f.fuelType === fuelType)!;
+    const liters = selection.mode === "liters" ? selection.liters : selection.mode === "amount" ? selection.amount / price.pricePerLiter : 55;
+    setTargetLiters(liters);
+
+    try {
+      const res = await kioskApi.createTransaction({
+        pumpId: pump.id,
+        plate,
+        plateSource,
+        fuelType,
+        amountMode: selection.mode,
+        requestedAmount: selection.mode === "amount" ? selection.amount : undefined,
+        requestedLiters: selection.mode === "liters" ? selection.liters : undefined,
+      });
+      setTransaction(res.transaction);
+      setAccessToken(res.accessToken);
+      setStep("payment");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Islem olusturulamadi.");
+      setStep("amount");
+    }
+  }
+
+  if (!station) {
+    return (
+      <div className="kiosk-shell">
+        <div className="kiosk-card">Yukleniyor...</div>
+      </div>
+    );
+  }
+
+  const stepIndex = STEP_ORDER.indexOf(step === "creating" ? "amount" : step);
+
+  return (
+    <div className="kiosk-shell">
+      <div className="kiosk-card">
+        <div className="kiosk-steps">
+          {STEP_ORDER.map((s, i) => (
+            <div key={s} className={`step ${i <= stepIndex ? "done" : ""}`} />
+          ))}
+        </div>
+
+        {error && step !== "amount" && <p className="error-text">{error}</p>}
+
+        {step === "plate" && (
+          <PlateStep
+            onNext={(p, source) => {
+              setPlate(p);
+              setPlateSource(source);
+              setStep("pump");
+            }}
+          />
+        )}
+
+        {step === "pump" && (
+          <PumpStep pumps={station.pumps} onNext={(p) => { setPump(p); setStep("fuel"); }} onBack={() => setStep("plate")} />
+        )}
+
+        {step === "fuel" && pump && (
+          <FuelStep pump={pump} fuelPrices={station.fuelPrices} onNext={(f) => { setFuelType(f); setStep("amount"); }} onBack={() => setStep("pump")} />
+        )}
+
+        {step === "amount" && fuelType && (
+          <AmountStep
+            price={station.fuelPrices.find((f) => f.fuelType === fuelType)!}
+            onNext={handleAmount}
+            onBack={() => setStep("fuel")}
+          />
+        )}
+
+        {step === "creating" && <p className="hint-text">Pompa rezerve ediliyor ve odeme ekranina yonlendiriliyorsunuz...</p>}
+
+        {step === "payment" && transaction && accessToken && (
+          <PaymentStep
+            transaction={transaction}
+            accessToken={accessToken}
+            onPaid={(t) => { setTransaction(t); setStep("dispense"); }}
+            onCancel={reset}
+          />
+        )}
+
+        {step === "dispense" && transaction && <DispenseStep transaction={transaction} targetLiters={targetLiters} />}
+
+        {step === "receipt" && transaction && <ReceiptStep transaction={transaction} onRestart={reset} />}
+      </div>
+    </div>
+  );
+}

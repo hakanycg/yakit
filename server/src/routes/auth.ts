@@ -1,0 +1,143 @@
+import { Router } from "express";
+import { z } from "zod";
+import { db } from "../db/index.js";
+import type { RoleRow, UserRow } from "../db/types.js";
+import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
+import { createSession, destroySession } from "../services/sessionService.js";
+import { recordAudit } from "../services/auditService.js";
+import { validateBody } from "../middleware/validate.js";
+import { loginRateLimit } from "../middleware/rateLimit.js";
+import { clearSessionCookies, csrfProtection, requireAuth, setSessionCookies } from "../middleware/auth.js";
+
+const router = Router();
+
+const MAX_FAILED_ATTEMPTS = 5;
+const LOCKOUT_MS = 15 * 60 * 1000;
+
+const loginSchema = z.object({
+  username: z.string().min(1).max(64),
+  password: z.string().min(1).max(256),
+});
+
+router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
+  const { username, password } = req.body as z.infer<typeof loginSchema>;
+  const ip = req.ip;
+
+  const user = db.prepare<[string], UserRow>("SELECT * FROM users WHERE username = ?").get(username.trim().toLowerCase());
+
+  // Kullanici bulunamasa da sabit is yapip zamanlama sizintisini azaltiyoruz.
+  const dummy = hashPassword("timing-safety-noop");
+  const target = user
+    ? { hash: user.password_hash, salt: user.password_salt, iterations: user.password_iterations }
+    : dummy;
+  const passwordOk = verifyPassword(password, target);
+
+  if (!user) {
+    recordAudit({ user: null, action: "login_failed", details: { username, reason: "not_found" }, ip });
+    res.status(401).json({ error: "Kullanici adi veya sifre hatali." });
+    return;
+  }
+
+  if (!user.active) {
+    recordAudit({ user, action: "login_failed", details: { reason: "inactive" }, ip });
+    res.status(403).json({ error: "Hesabiniz devre disi birakilmis." });
+    return;
+  }
+
+  if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+    recordAudit({ user, action: "login_failed", details: { reason: "locked" }, ip });
+    res.status(423).json({ error: "Hesap gecici olarak kilitlendi. Lutfen daha sonra tekrar deneyin." });
+    return;
+  }
+
+  if (!passwordOk) {
+    const attempts = user.failed_login_attempts + 1;
+    const lockUntil = attempts >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCKOUT_MS).toISOString() : null;
+    db.prepare("UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?").run(
+      attempts,
+      lockUntil,
+      user.id
+    );
+    recordAudit({ user, action: "login_failed", details: { reason: "bad_password", attempts }, ip });
+    res.status(401).json({ error: "Kullanici adi veya sifre hatali." });
+    return;
+  }
+
+  db.prepare(
+    "UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = ? WHERE id = ?"
+  ).run(new Date().toISOString(), user.id);
+
+  const { token, csrfToken } = createSession(user, ip, req.headers["user-agent"]);
+  setSessionCookies(res, token, csrfToken);
+
+  const role = db.prepare<[number], RoleRow>("SELECT * FROM roles WHERE id = ?").get(user.role_id)!;
+  recordAudit({ user, action: "login_success", ip });
+
+  res.json({
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      role: role.name,
+      mustChangePassword: !!user.must_change_password,
+    },
+  });
+});
+
+router.post("/logout", requireAuth, csrfProtection, (req, res) => {
+  if (req.sessionToken) destroySession(req.sessionToken);
+  recordAudit({ user: req.user ?? null, action: "logout", ip: req.ip });
+  clearSessionCookies(res);
+  res.status(204).end();
+});
+
+router.get("/me", requireAuth, (req, res) => {
+  const user = req.user!;
+  const role = req.role!;
+  res.json({
+    user: {
+      id: user.id,
+      username: user.username,
+      displayName: user.display_name,
+      role: role.name,
+      mustChangePassword: !!user.must_change_password,
+    },
+    csrfToken: req.csrfToken,
+  });
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(1),
+});
+
+router.post("/change-password", requireAuth, csrfProtection, validateBody(changePasswordSchema), (req, res) => {
+  const user = req.user!;
+  const { currentPassword, newPassword } = req.body as z.infer<typeof changePasswordSchema>;
+
+  const ok = verifyPassword(currentPassword, {
+    hash: user.password_hash,
+    salt: user.password_salt,
+    iterations: user.password_iterations,
+  });
+  if (!ok) {
+    res.status(401).json({ error: "Mevcut sifre hatali." });
+    return;
+  }
+
+  const errors = validatePasswordPolicy(newPassword);
+  if (errors.length > 0) {
+    res.status(400).json({ error: "Sifre politikasi saglanmiyor.", details: errors });
+    return;
+  }
+
+  const hashed = hashPassword(newPassword);
+  db.prepare(
+    "UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ?, must_change_password = 0, updated_at = ? WHERE id = ?"
+  ).run(hashed.hash, hashed.salt, hashed.iterations, new Date().toISOString(), user.id);
+
+  recordAudit({ user, action: "password_changed", ip: req.ip });
+  res.status(204).end();
+});
+
+export { router as authRouter };

@@ -1,0 +1,50 @@
+import { Navigate, Route, Routes } from "react-router-dom";
+import KioskFlow from "./kiosk/KioskFlow";
+import Login from "./pages/Login";
+import Unauthorized from "./pages/Unauthorized";
+import AppLayout from "./shared/AppLayout";
+import { RequireRole } from "./shared/RequireRole";
+import Dashboard from "./pages/operator/Dashboard";
+import Pumps from "./pages/operator/Pumps";
+import Transactions from "./pages/operator/Transactions";
+import Alarms from "./pages/operator/Alarms";
+import StationMap from "./pages/operator/StationMap";
+import Reports from "./pages/operator/Reports";
+import ChangePassword from "./pages/operator/ChangePassword";
+import Users from "./pages/admin/Users";
+import AuditLog from "./pages/admin/AuditLog";
+import Settings from "./pages/admin/Settings";
+import DemoReset from "./pages/admin/DemoReset";
+
+export default function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/kiosk" replace />} />
+      <Route path="/kiosk" element={<KioskFlow />} />
+      <Route path="/giris" element={<Login />} />
+      <Route path="/yetkisiz" element={<Unauthorized />} />
+
+      <Route element={<RequireRole roles={["admin", "operator", "viewer"]} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/operator" element={<Dashboard />} />
+          <Route path="/operator/pompalar" element={<Pumps />} />
+          <Route path="/operator/islemler" element={<Transactions />} />
+          <Route path="/operator/alarmlar" element={<Alarms />} />
+          <Route path="/operator/harita" element={<StationMap />} />
+          <Route path="/operator/raporlar" element={<Reports />} />
+          <Route path="/operator/sifre-degistir" element={<ChangePassword />} />
+
+          <Route element={<RequireRole roles={["admin"]} />}>
+            <Route path="/admin" element={<Navigate to="/admin/kullanicilar" replace />} />
+            <Route path="/admin/kullanicilar" element={<Users />} />
+            <Route path="/admin/audit-log" element={<AuditLog />} />
+            <Route path="/admin/ayarlar" element={<Settings />} />
+            <Route path="/admin/sifirla" element={<DemoReset />} />
+          </Route>
+        </Route>
+      </Route>
+
+      <Route path="*" element={<Navigate to="/kiosk" replace />} />
+    </Routes>
+  );
+}

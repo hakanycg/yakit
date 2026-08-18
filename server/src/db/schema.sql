@@ -1,0 +1,133 @@
+-- Yakit Istasyonu Self-Servis Sistemi - Veritabani semasi
+PRAGMA foreign_keys = ON;
+
+CREATE TABLE IF NOT EXISTS roles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,           -- admin | operator | viewer
+  description TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  username TEXT NOT NULL UNIQUE,
+  display_name TEXT NOT NULL,
+  password_hash TEXT NOT NULL,         -- hex(pbkdf2)
+  password_salt TEXT NOT NULL,         -- hex(random salt)
+  password_iterations INTEGER NOT NULL,
+  role_id INTEGER NOT NULL REFERENCES roles(id),
+  active INTEGER NOT NULL DEFAULT 1,   -- 0/1
+  must_change_password INTEGER NOT NULL DEFAULT 0,
+  failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,                   -- ISO tarih, hesap kilidi
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  last_login_at TEXT
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+  id TEXT PRIMARY KEY,                 -- rastgele opaque token (hash'i saklanir)
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  csrf_token TEXT NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  expires_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires ON sessions(expires_at);
+
+CREATE TABLE IF NOT EXISTS stations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  address TEXT NOT NULL DEFAULT '',
+  latitude REAL,
+  longitude REAL
+);
+
+CREATE TABLE IF NOT EXISTS fuel_prices (
+  fuel_type TEXT PRIMARY KEY,          -- benzin | motorin | lpg
+  label TEXT NOT NULL,
+  price_per_liter REAL NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+CREATE TABLE IF NOT EXISTS pumps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  number INTEGER NOT NULL,
+  label TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'idle', -- idle | reserved | dispensing | fault | offline
+  fuel_types TEXT NOT NULL,            -- JSON dizi: ["benzin","motorin"]
+  pos_x REAL NOT NULL DEFAULT 0,       -- istasyon haritasindaki konum (yuzde 0-100)
+  pos_y REAL NOT NULL DEFAULT 0,
+  fault_code TEXT,
+  fault_message TEXT,
+  current_transaction_id INTEGER,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(station_id, number)
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pump_id INTEGER NOT NULL REFERENCES pumps(id),
+  plate TEXT NOT NULL,
+  plate_source TEXT NOT NULL DEFAULT 'manual', -- manual | lpr
+  fuel_type TEXT NOT NULL,
+  amount_mode TEXT NOT NULL,           -- amount | liters | full_tank
+  requested_amount REAL,               -- TL cinsinden istenen tutar
+  requested_liters REAL,               -- litre cinsinden istenen miktar
+  price_per_liter REAL NOT NULL,
+  dispensed_liters REAL NOT NULL DEFAULT 0,
+  total_amount REAL NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL DEFAULT 'virtual_card',
+  payment_status TEXT NOT NULL DEFAULT 'pending', -- pending | authorized | captured | failed | refunded
+  payment_reference TEXT,
+  status TEXT NOT NULL DEFAULT 'created', -- created | paid | authorized | dispensing | completed | cancelled | failed
+  kiosk_access_token TEXT NOT NULL,    -- kiosk terminalinin bu islemi sorgulamasi icin gereken tek kullanimlik token
+  operator_user_id INTEGER REFERENCES users(id),
+  started_at TEXT,
+  completed_at TEXT,
+  cancelled_reason TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_transactions_pump ON transactions(pump_id);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
+
+CREATE TABLE IF NOT EXISTS alarms (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pump_id INTEGER REFERENCES pumps(id),
+  type TEXT NOT NULL,                  -- pump_fault | payment_failed | sensor | offline | manual
+  severity TEXT NOT NULL DEFAULT 'warning', -- info | warning | critical
+  message TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active', -- active | acknowledged | resolved
+  acknowledged_by INTEGER REFERENCES users(id),
+  acknowledged_at TEXT,
+  resolved_by INTEGER REFERENCES users(id),
+  resolved_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id),
+  username TEXT,
+  action TEXT NOT NULL,
+  entity_type TEXT,
+  entity_id TEXT,
+  details TEXT,                        -- JSON
+  ip_address TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
+
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_by INTEGER REFERENCES users(id)
+);
