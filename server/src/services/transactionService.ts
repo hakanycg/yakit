@@ -7,6 +7,7 @@ import { processVirtualPayment, type VirtualCardInput } from "./paymentService.j
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
+import { safeCompare } from "../utils/safeCompare.js";
 
 const DISPENSE_TICK_MS = 500;
 const FLOW_LITERS_PER_SEC_MIN = 0.45;
@@ -147,7 +148,7 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
 
 export function getTransactionForKiosk(id: number, accessToken: string): TransactionRow {
   const t = getTransactionOrThrow(id);
-  if (t.kiosk_access_token !== accessToken) throw new TransactionError("Erisim reddedildi.", 403);
+  if (!safeCompare(t.kiosk_access_token, accessToken)) throw new TransactionError("Erisim reddedildi.", 403);
   return t;
 }
 
@@ -218,7 +219,7 @@ export function markIyzicoPending(id: number, accessToken: string, token: string
 /** iyzico callback'inin, o an islem uzerinde bekleyen token ile eslesip eslesmedigini dogrular. */
 export function getTransactionForIyzicoCallback(id: number, token: string): TransactionRow {
   const t = getTransactionOrThrow(id);
-  if (t.payment_method !== "iyzico" || t.payment_reference !== token) {
+  if (t.payment_method !== "iyzico" || !t.payment_reference || !safeCompare(t.payment_reference, token)) {
     throw new TransactionError("iyzico token eslesmedi.", 403);
   }
   return t;
@@ -351,10 +352,6 @@ export function listTransactions(
   const where = `WHERE ${clauses.join(" AND ")}`;
   const limit = Math.min(filters.limit ?? 200, 1000);
   return db.prepare<unknown[], TransactionRow>(`SELECT * FROM transactions ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit);
-}
-
-export function getTransactionById(id: number): TransactionRow {
-  return getTransactionOrThrow(id);
 }
 
 /** Sunucu yeniden baslatildiginda yarim kalmis dolum simulasyonlarini emniyetli sekilde temizler. */

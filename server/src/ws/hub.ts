@@ -5,6 +5,7 @@ import { resolveSession } from "../services/sessionService.js";
 import { db } from "../db/index.js";
 import type { RoleRow } from "../db/types.js";
 import { SESSION_COOKIE } from "../middleware/auth.js";
+import { safeCompare } from "../utils/safeCompare.js";
 
 type ClientRole = "super_admin" | "admin" | "operator" | "viewer" | null;
 
@@ -90,7 +91,7 @@ function isTopicAllowed(topic: string, state: ClientState, accessToken?: string)
       .get(id);
     if (!row) return false;
     if (isStaffForStation(state, row.station_id)) return true;
-    return !!accessToken && row.kiosk_access_token === accessToken;
+    return !!accessToken && safeCompare(row.kiosk_access_token, accessToken);
   }
 
   return false;
