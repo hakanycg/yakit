@@ -15,7 +15,9 @@ import {
 } from "../services/fuelStockService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+// Yakit stogu yalnizca istasyon yoneticisine (admin) ve platform yoneticisine (super_admin,
+// her zaman gectigi icin) acik; operator/viewer bu sayfayi goremez/duzenleyemez.
+router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
 
 const fuelTypeEnum = z.enum(["benzin", "motorin", "lpg"]);
 
@@ -66,7 +68,7 @@ const addSchema = z.object({
   note: z.string().max(300).optional(),
 });
 
-router.post("/:fuelType/add", requireRole("admin", "operator"), csrfProtection, validateBody(addSchema), (req, res) => {
+router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res) => {
   const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 
@@ -94,7 +96,7 @@ const adjustSchema = z.object({
   note: z.string().max(300).optional(),
 });
 
-router.post("/:fuelType/adjust", requireRole("admin", "super_admin"), csrfProtection, validateBody(adjustSchema), (req, res) => {
+router.post("/:fuelType/adjust", csrfProtection, validateBody(adjustSchema), (req, res) => {
   const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 
@@ -122,7 +124,7 @@ const settingsSchema = z.object({
   lowStockThresholdLiters: z.number().min(0).max(1000000).optional(),
 });
 
-router.patch("/:fuelType/settings", requireRole("admin", "super_admin"), csrfProtection, validateBody(settingsSchema), (req, res) => {
+router.patch("/:fuelType/settings", csrfProtection, validateBody(settingsSchema), (req, res) => {
   const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 

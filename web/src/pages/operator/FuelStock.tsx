@@ -3,7 +3,6 @@ import { api, ApiError } from "../../shared/api";
 import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useTopicSubscription } from "../../shared/useWebSocket";
-import { useAuth } from "../../shared/AuthContext";
 import { FUEL_LABEL, formatDateTime, formatLiters } from "../../shared/format";
 import type { FuelStockMovement, FuelTank } from "../../shared/types";
 
@@ -12,14 +11,10 @@ const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", c
 const MOVEMENT_TYPE_LABEL: Record<string, string> = { delivery: "Teslimat", sale: "Satis", adjustment: "Duzeltme" };
 
 export default function FuelStock() {
-  const { user } = useAuth();
   const stationId = useEffectiveStationId();
   const [tanks, setTanks] = useState<FuelTank[]>([]);
   const [movements, setMovements] = useState<FuelStockMovement[]>([]);
   const [movementFilter, setMovementFilter] = useState("");
-
-  const canAddStock = user?.role === "admin" || user?.role === "operator" || user?.role === "super_admin";
-  const canManageSettings = user?.role === "admin" || user?.role === "super_admin";
 
   function loadTanks() {
     if (stationId === null) return;
@@ -49,8 +44,6 @@ export default function FuelStock() {
           <TankCard
             key={t.fuelType}
             tank={t}
-            canAddStock={canAddStock}
-            canManageSettings={canManageSettings}
             onChanged={() => {
               loadTanks();
               loadMovements();
@@ -110,17 +103,7 @@ export default function FuelStock() {
   );
 }
 
-function TankCard({
-  tank,
-  canAddStock,
-  canManageSettings,
-  onChanged,
-}: {
-  tank: FuelTank;
-  canAddStock: boolean;
-  canManageSettings: boolean;
-  onChanged: () => void;
-}) {
+function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const criticalZoneHeight = tank.capacityLiters > 0 ? (tank.lowStockThresholdLiters / tank.capacityLiters) * 100 : 0;
@@ -164,8 +147,8 @@ function TankCard({
       <p className="hint-text" style={{ marginTop: "0.75rem", marginBottom: 0 }}>Son guncelleme: {formatDateTime(tank.updatedAt)}</p>
 
       <div className="tank-actions">
-        {canAddStock && <button className="primary" onClick={() => setShowAdd(true)}>Stok Ekle</button>}
-        {canManageSettings && <button onClick={() => setShowSettings(true)}>Ayarlar</button>}
+        <button className="primary" onClick={() => setShowAdd(true)}>Stok Ekle</button>
+        <button onClick={() => setShowSettings(true)}>Ayarlar</button>
       </div>
 
       {showAdd && (

@@ -36,7 +36,6 @@ export default function App() {
           <Route path="/operator/harita" element={<StationMap />} />
           <Route path="/operator/raporlar" element={<Reports />} />
           <Route path="/operator/vardiya" element={<Shift />} />
-          <Route path="/operator/stok" element={<FuelStock />} />
           <Route path="/operator/sifre-degistir" element={<ChangePassword />} />
 
           <Route element={<RequireRole roles={["admin"]} />}>
@@ -45,6 +44,7 @@ export default function App() {
             <Route path="/admin/audit-log" element={<AuditLog />} />
             <Route path="/admin/ayarlar" element={<Settings />} />
             <Route path="/admin/sifirla" element={<DemoReset />} />
+            <Route path="/operator/stok" element={<FuelStock />} />
           </Route>
 
           <Route element={<RequireRole roles={["super_admin"]} />}>

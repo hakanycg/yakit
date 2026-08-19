@@ -42,7 +42,6 @@ export default function AppLayout() {
           <p className="section-label">Operator</p>
           <NavLink to="/operator" end>Panel</NavLink>
           <NavLink to="/operator/pompalar">Pompalar</NavLink>
-          <NavLink to="/operator/stok">Yakit Stoku</NavLink>
           <NavLink to="/operator/islemler">Islem Listesi</NavLink>
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
           <NavLink to="/operator/harita">Istasyon Haritasi</NavLink>
@@ -52,6 +51,7 @@ export default function AppLayout() {
           {isStationAdmin && (
             <>
               <p className="section-label">Istasyon Yonetimi</p>
+              <NavLink to="/operator/stok">Yakit Stoku</NavLink>
               <NavLink to="/admin/kullanicilar">Kullanici / Rol Yonetimi</NavLink>
               <NavLink to="/admin/audit-log">Audit Log</NavLink>
               <NavLink to="/admin/ayarlar">Ayarlar</NavLink>

@@ -39,7 +39,8 @@ yakit/
   otomatik olarak bir uyarı alarmı oluşturur (bir vardiya açıldığında bu alarm kendiliğinden
   kapanır) — böylece hiçbir satış sessizce takipsiz kalmaz. Hem vardiya geçmişi hem personel
   performansı tablosu **CSV olarak indirilebilir**.
-- **Yakıt Stoku** (`/operator/stok`): Her istasyonun benzin/motorin/LPG tankları için mevcut
+- **Yakıt Stoku** (`/operator/stok`, yalnızca istasyon yöneticisi/`admin` görebilir ve
+  düzenleyebilir; `operator`/`viewer` erişemez): Her istasyonun benzin/motorin/LPG tankları için mevcut
   seviye, kapasite ve düşük stok eşiği canlı bir tank göstergesiyle (gauge) izlenir. Kiosk'ta
   bir satış tamamlandığında ilgili tankın stoğu **otomatik olarak düşer**; tank teslimatı
   (tanker geldiğinde) "Stok Ekle" ile kaydedilir (tedarikçi, irsaliye no, not dahil) — kapasiteyi
