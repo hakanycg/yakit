@@ -227,13 +227,50 @@ Yeni İstasyon**'u kullanın; formda doğrudan o istasyonun ilk yöneticisini de
 Kiosk ekranı: `http://localhost:5173/kiosk/merkez` (istasyonun `slug` değeri URL'de kullanılır)
 Personel girişi: `http://localhost:5173/giris`
 
-## Üretime alırken
+## Üretime alırken (7/24 yayında tutma)
 
-- `server/.env`: `NODE_ENV=production`, `COOKIE_SECURE=true`, güçlü/rastgele `SESSION_SECRET`.
-- Uygulamayı HTTPS sonlandıran bir ters proxy (nginx, Caddy vb.) arkasında çalıştırın.
-- `npm run build` her iki workspace'i de derler; `server/dist` Node ile, `web/dist` statik
-  dosya olarak (nginx veya benzeri) sunulabilir.
-- SQLite veritabanı dosyasının düzenli olarak yedeklenmesini sağlayın.
+`npm run build` her iki workspace'i de derler; Express sunucusu `NODE_ENV=production`
+iken derlenmiş `web/dist`'i **kendisi statik dosya olarak sunar** (ayrı bir nginx/CDN
+gerekmez, tek süreç/tek adres). Yani üretimde tek komut yeterli:
+
+```bash
+npm run build
+npm run start   # server/dist/index.js'i calistirir, hem API hem web ayni portta
+```
+
+**Gerekli ortam değişkenleri** (bkz. `server/.env.example`):
+- `NODE_ENV=production`
+- `COOKIE_SECURE=true` (yalnızca gerçek HTTPS arkasında çalışırken)
+- `SESSION_SECRET`: `openssl rand -hex 32` ile üretilmiş rastgele bir değer
+- `WEB_ORIGIN` ve `PUBLIC_API_BASE_URL`: sitenin gerçek genel adresi (ör. `https://siteniz.up.railway.app`) — ikisi de aynı olmalı, artık tek origin'de servis ediliyor
+- `DATABASE_PATH`: SQLite dosyasının **kalıcı** bir diskte olduğundan emin olun (bkz. aşağıda)
+
+### Kolay yol: Railway / Render gibi yönetilen platformlar
+
+Repoda `railway.json` ve `render.yaml` hazır — GitHub reposunu bu platformlardan birine
+bağlayıp yukarıdaki ortam değişkenlerini panelden girmeniz yeterli, sunucu bakımı/HTTPS/
+yeniden başlatma platform tarafından otomatik yönetilir:
+- **Railway**: proje oluşturup GitHub reposunu bağlayın, panelden bir **Volume** ekleyip
+  `DATABASE_PATH`'i o volume'ün mount yoluna (ör. `/data/yakit.sqlite`) ayarlayın — aksi
+  halde her deploy'da veritabanı sıfırlanır. Railway size otomatik bir `*.up.railway.app`
+  HTTPS adresi verir; bu adresi `WEB_ORIGIN`/`PUBLIC_API_BASE_URL` olarak girin.
+- **Render**: `render.yaml`'daki blueprint bir **persistent disk** (`/var/data`) zaten
+  tanımlıyor; ilk deploy'dan sonra Render'in verdiği adresi Dashboard'dan `WEB_ORIGIN` ve
+  `PUBLIC_API_BASE_URL` olarak girin (bu ikisi platform tarafından önceden bilinemediği
+  için blueprint'te boş bırakıldı).
+
+Her iki platformda da ücretsiz katman genelde ya kalıcı disk sunmaz ya da inaktivitede
+uykuya geçirir — gerçek 7/24 çalışma için en ucuz ücretli plan (aylık birkaç dolar)
+gerekir.
+
+### Kendi sunucunuzda (VPS)
+
+- Uygulamayı bir process manager (`pm2`, `systemd`) ile arka planda ve sunucu yeniden
+  başlasa bile otomatik ayağa kalkacak şekilde çalıştırın.
+- HTTPS sonlandırması için önüne bir ters proxy (nginx, Caddy) koyabilirsiniz, ama zorunlu
+  değil — Express doğrudan da servis edebilir; sadece sertifika yönetimini proxy'ye
+  bırakmak genelde daha kolaydır.
+- SQLite veritabanı dosyasının (`DATABASE_PATH`) düzenli olarak yedeklenmesini sağlayın.
 
 ## Komutlar
 

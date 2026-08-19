@@ -1,3 +1,6 @@
+import path from "node:path";
+import { existsSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import express from "express";
 import helmet from "helmet";
 import cors from "cors";
@@ -19,6 +22,12 @@ import { reportsRouter } from "./routes/reports.js";
 import { stationsRouter } from "./routes/stations.js";
 import { shiftsRouter } from "./routes/shifts.js";
 import { fuelStockRouter } from "./routes/fuelStock.js";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+// Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
+// olarak bu Express sunucusundan servis edilir - ayri bir origin/CORS/cookie-domain
+// karmasasi olmadan tek adres/tek surecte calisabilsin diye.
+const WEB_DIST = path.resolve(__dirname, "../../web/dist");
 
 export function createApp() {
   const app = express();
@@ -75,6 +84,19 @@ export function createApp() {
   app.use("/api/fuel-stock", fuelStockRouter);
 
   app.use("/api", notFoundHandler);
+
+  if (isProd && existsSync(WEB_DIST)) {
+    app.use(express.static(WEB_DIST));
+    // React Router (SPA) icin: /api ve /ws disindaki tum GET istekleri index.html'e
+    // duser, client-side routing yenilenen sayfalarda (ör. dogrudan /kiosk/:slug
+    // acilmasinda) 404 vermez.
+    app.get(/^(?!\/api|\/ws).*/, (_req, res) => {
+      res.sendFile(path.join(WEB_DIST, "index.html"));
+    });
+  } else if (isProd) {
+    logger.warn({ WEB_DIST }, "Uretim modu ama web/dist bulunamadi - once 'npm run build' calistirilmali.");
+  }
+
   app.use(errorHandler);
 
   return app;

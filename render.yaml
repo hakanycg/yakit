@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: yakit
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: DATABASE_PATH
+        value: /var/data/yakit.sqlite
+      # Deploy sonrasi Render'in verdigi https adresini WEB_ORIGIN ve
+      # PUBLIC_API_BASE_URL olarak Dashboard > Environment'tan girin
+      # (ör. https://yakit.onrender.com) - ilk deploy'da bu adres henuz
+      # bilinmedigi icin burada otomatik doldurulamiyor.
+      - key: WEB_ORIGIN
+        sync: false
+      - key: PUBLIC_API_BASE_URL
+        sync: false
+    disk:
+      name: yakit-data
+      mountPath: /var/data
+      sizeGB: 1
