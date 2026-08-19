@@ -33,6 +33,11 @@ yakit/
   açık olabilir (mükerrer satış sayımını önlemek için) — biri kapatılmadan yenisi açılamaz.
   **Personel Performansı** tablosu, her personelin tüm vardiyaları toplamındaki satış
   litresini/cirosunu gösterir — "hangi kullanıcı kaç litre sattı" sorusunun cevabı budur.
+  Kiosk satışları hiçbir kullanıcı hesabına doğrudan bağlı değildir (self-servis, müşteri
+  oturum açmaz); bir satış, tamamlandığı anda istasyonda **açık olan vardiyaya** atfedilir.
+  Açık vardiya yokken tamamlanan satışlar "Vardiyasız Satışlar" altında ayrıca gösterilir ve
+  otomatik olarak bir uyarı alarmı oluşturur (bir vardiya açıldığında bu alarm kendiliğinden
+  kapanır) — böylece hiçbir satış sessizce takipsiz kalmaz.
 - **Ödeme:** İki mod desteklenir. Bir istasyon **iyzico** ile yapılandırılmışsa (Ayarlar →
   "Ödeme Ayarları"), kiosk'taki ödeme adımı iyzico'nun barındırdığı gerçek, PCI DSS
   kapsamındaki güvenli ödeme formuna yönlendirir — bu **gerçek bir banka/kart altyapısı

@@ -48,6 +48,7 @@ export default function Shift() {
   const [current, setCurrent] = useState<Shift | null | undefined>(undefined);
   const [history, setHistory] = useState<Shift[]>([]);
   const [summary, setSummary] = useState<StaffSummary[]>([]);
+  const [unassigned, setUnassigned] = useState<ShiftStats | null>(null);
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -60,7 +61,10 @@ export default function Shift() {
     if (stationId === null) return;
     api.get<{ shift: Shift | null }>("/api/shifts/current").then((res) => setCurrent(res.shift));
     api.get<{ shifts: Shift[] }>("/api/shifts").then((res) => setHistory(res.shifts));
-    api.get<{ summary: StaffSummary[] }>("/api/shifts/summary").then((res) => setSummary(res.summary));
+    api.get<{ summary: StaffSummary[]; unassigned: ShiftStats }>("/api/shifts/summary").then((res) => {
+      setSummary(res.summary);
+      setUnassigned(res.unassigned);
+    });
   }
   useEffect(load, [stationId]);
 
@@ -178,9 +182,26 @@ export default function Shift() {
                 <td>{formatLiters(s.liters)}</td>
               </tr>
             ))}
-            {summary.length === 0 && <tr><td colSpan={5} className="hint-text">Henuz kapatilmis vardiya yok.</td></tr>}
+            {unassigned && unassigned.transactionCount > 0 && (
+              <tr>
+                <td className="hint-text">— Vardiyasiz Satislar —</td>
+                <td className="hint-text">-</td>
+                <td>{unassigned.transactionCount}</td>
+                <td>{formatCurrency(unassigned.revenue)}</td>
+                <td>{formatLiters(unassigned.liters)}</td>
+              </tr>
+            )}
+            {summary.length === 0 && (!unassigned || unassigned.transactionCount === 0) && (
+              <tr><td colSpan={5} className="hint-text">Henuz kapatilmis vardiya yok.</td></tr>
+            )}
           </tbody>
         </table>
+        {unassigned && unassigned.transactionCount > 0 && (
+          <p className="hint-text" style={{ marginTop: "0.5rem" }}>
+            "Vardiyasiz Satislar": acik vardiya olmadan tamamlanan, hicbir personele atfedilemeyen satislar. Bunlar
+            olustugunda Alarm Merkezi'nde bir uyari olusur; bir vardiya acildiginda bu uyari otomatik kapanir.
+          </p>
+        )}
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>

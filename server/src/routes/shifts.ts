@@ -5,6 +5,7 @@ import type { ShiftRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
+import { broadcastAlarms } from "../services/alarmService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
@@ -110,7 +111,35 @@ router.get("/summary", (req, res) => {
     )
     .all(...params);
 
-  res.json({ summary: rows });
+  // Acik vardiya penceresine denk gelmeyen (kimseye atfedilmeyen) satislar.
+  const unassignedClauses = ["t.station_id = ?", "t.status = 'completed'"];
+  const unassignedParams: unknown[] = [req.stationId!];
+  if (from) {
+    unassignedClauses.push("t.completed_at >= ?");
+    unassignedParams.push(from);
+  }
+  if (to) {
+    unassignedClauses.push("t.completed_at <= ?");
+    unassignedParams.push(to);
+  }
+  const unassigned = db
+    .prepare<unknown[], { transactionCount: number; revenue: number; liters: number }>(
+      `SELECT
+         COUNT(*) as transactionCount,
+         COALESCE(SUM(t.total_amount), 0) as revenue,
+         COALESCE(SUM(t.dispensed_liters), 0) as liters
+       FROM transactions t
+       WHERE ${unassignedClauses.join(" AND ")}
+         AND NOT EXISTS (
+           SELECT 1 FROM shifts sh
+           WHERE sh.station_id = t.station_id
+             AND t.completed_at >= sh.started_at
+             AND t.completed_at <= COALESCE(sh.ended_at, strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+         )`
+    )
+    .get(...unassignedParams)!;
+
+  res.json({ summary: rows, unassigned });
 });
 
 const startSchema = z.object({ openingNote: z.string().max(300).optional() });
@@ -134,6 +163,13 @@ router.post("/start", requireRole("admin", "operator"), csrfProtection, validate
   const result = db
     .prepare("INSERT INTO shifts (station_id, user_id, opening_note) VALUES (?, ?, ?)")
     .run(req.stationId!, req.user!.id, openingNote ?? null);
+
+  // Vardiya acildigi icin "vardiyasiz satis" alarmi artik gecerli degil; otomatik coz.
+  const now = new Date().toISOString();
+  db.prepare(
+    "UPDATE alarms SET status = 'resolved', resolved_by = ?, resolved_at = ? WHERE station_id = ? AND type = 'unassigned_sale' AND status != 'resolved'"
+  ).run(req.user!.id, now, req.stationId!);
+  broadcastAlarms(req.stationId!);
 
   recordAudit({
     user: req.user!,
