@@ -65,9 +65,9 @@ const DEFAULT_FUEL_PRICES = [
 ];
 
 const DEFAULT_FUEL_TANKS = [
-  { fuelType: "benzin", capacity: 10000, current: 6000, threshold: 1500 },
-  { fuelType: "motorin", capacity: 10000, current: 6000, threshold: 1500 },
-  { fuelType: "lpg", capacity: 5000, current: 3000, threshold: 750 },
+  { fuelType: "benzin", capacity: 10000, current: 0, threshold: 1500 },
+  { fuelType: "motorin", capacity: 10000, current: 0, threshold: 1500 },
+  { fuelType: "lpg", capacity: 5000, current: 0, threshold: 750 },
 ];
 
 router.post("/", requireRole("super_admin"), csrfProtection, validateBody(createSchema), (req, res) => {

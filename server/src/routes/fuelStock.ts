@@ -63,8 +63,8 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
 
 const addSchema = z.object({
   liters: z.number().positive().max(100000),
-  supplier: z.string().max(120).optional(),
-  deliveryRef: z.string().max(60).optional(),
+  supplier: z.string().trim().min(2, "Tedarikci zorunludur.").max(120),
+  deliveryRef: z.string().trim().min(1, "Irsaliye/fis no zorunludur.").max(60),
   note: z.string().max(300).optional(),
 });
 

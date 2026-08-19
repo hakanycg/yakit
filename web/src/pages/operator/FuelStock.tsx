@@ -199,8 +199,8 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
     try {
       const res = await api.post<{ tank: FuelTank; overflow: number }>(`/api/fuel-stock/${tank.fuelType}/add`, {
         liters: Number(liters),
-        supplier: supplier.trim() || undefined,
-        deliveryRef: deliveryRef.trim() || undefined,
+        supplier: supplier.trim(),
+        deliveryRef: deliveryRef.trim(),
         note: note.trim() || undefined,
       });
       if (res.overflow > 0) {
@@ -226,11 +226,11 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <label>Eklenecek Miktar (L)</label>
       <input type="number" min={1} value={liters} onChange={(e) => setLiters(e.target.value)} autoFocus />
 
-      <label>Tedarikci (opsiyonel)</label>
-      <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" />
+      <label>Tedarikci</label>
+      <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" required />
 
-      <label>Irsaliye / Fis No (opsiyonel)</label>
-      <input value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} />
+      <label>Irsaliye / Fis No</label>
+      <input value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} required />
 
       <label>Not (opsiyonel)</label>
       <input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -240,7 +240,11 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <div className="toolbar" style={{ marginTop: "1.25rem" }}>
         <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>
         <div className="spacer" />
-        <button className="primary" disabled={submitting || !liters || Number(liters) <= 0} onClick={submit}>
+        <button
+          className="primary"
+          disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim() || !deliveryRef.trim()}
+          onClick={submit}
+        >
           {submitting ? "Ekleniyor..." : "Stok Ekle"}
         </button>
       </div>

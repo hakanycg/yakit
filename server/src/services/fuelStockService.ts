@@ -106,7 +106,7 @@ export function addStock(
   stationId: number,
   fuelType: FuelType,
   liters: number,
-  meta: { supplier?: string; deliveryRef?: string; note?: string },
+  meta: { supplier: string; deliveryRef: string; note?: string },
   actor: UserRow
 ): { tank: FuelTankRow; overflow: number } {
   if (liters <= 0) throw new FuelStockError("Eklenecek miktar sifirdan buyuk olmalidir.", 400);

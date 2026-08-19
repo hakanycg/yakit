@@ -204,7 +204,7 @@ INSERT OR IGNORE INTO fuel_tanks (station_id, fuel_type, capacity_liters, curren
 SELECT s.id, x.fuel_type, x.capacity, x.current, x.threshold
 FROM stations s
 CROSS JOIN (
-  SELECT 'benzin' as fuel_type, 10000.0 as capacity, 6000.0 as current, 1500.0 as threshold
-  UNION ALL SELECT 'motorin', 10000.0, 6000.0, 1500.0
-  UNION ALL SELECT 'lpg', 5000.0, 3000.0, 750.0
+  SELECT 'benzin' as fuel_type, 10000.0 as capacity, 0.0 as current, 1500.0 as threshold
+  UNION ALL SELECT 'motorin', 10000.0, 0.0, 1500.0
+  UNION ALL SELECT 'lpg', 5000.0, 0.0, 750.0
 ) x;

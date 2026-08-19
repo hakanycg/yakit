@@ -109,9 +109,9 @@ function ensureFuelPrices(station: StationRow): void {
 
 function ensureFuelTanks(station: StationRow): void {
   const tanks: Array<{ fuelType: string; capacity: number; current: number; threshold: number }> = [
-    { fuelType: "benzin", capacity: 10000, current: 6000, threshold: 1500 },
-    { fuelType: "motorin", capacity: 10000, current: 6000, threshold: 1500 },
-    { fuelType: "lpg", capacity: 5000, current: 3000, threshold: 750 },
+    { fuelType: "benzin", capacity: 10000, current: 0, threshold: 1500 },
+    { fuelType: "motorin", capacity: 10000, current: 0, threshold: 1500 },
+    { fuelType: "lpg", capacity: 5000, current: 0, threshold: 750 },
   ];
   const insert = db.prepare(
     "INSERT OR IGNORE INTO fuel_tanks (station_id, fuel_type, capacity_liters, current_liters, low_stock_threshold_liters) VALUES (?, ?, ?, ?, ?)"

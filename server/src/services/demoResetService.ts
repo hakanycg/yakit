@@ -30,13 +30,7 @@ export function resetDemoData(stationId: number): void {
        WHERE station_id = ?`
     ).run(stationId);
     db.prepare(
-      `UPDATE fuel_tanks SET current_liters = CASE fuel_type
-         WHEN 'benzin' THEN 6000
-         WHEN 'motorin' THEN 6000
-         WHEN 'lpg' THEN 3000
-         ELSE current_liters END,
-       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
-       WHERE station_id = ?`
+      "UPDATE fuel_tanks SET current_liters = 0, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE station_id = ?"
     ).run(stationId);
   });
   reset();
