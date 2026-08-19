@@ -10,6 +10,16 @@ interface ShiftStats {
   liters: number;
 }
 
+interface StaffSummary {
+  userId: number;
+  username: string;
+  displayName: string;
+  shiftCount: number;
+  transactionCount: number;
+  revenue: number;
+  liters: number;
+}
+
 interface Shift {
   id: number;
   stationId: number;
@@ -37,6 +47,7 @@ export default function Shift() {
   const stationId = useEffectiveStationId();
   const [current, setCurrent] = useState<Shift | null | undefined>(undefined);
   const [history, setHistory] = useState<Shift[]>([]);
+  const [summary, setSummary] = useState<StaffSummary[]>([]);
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +60,7 @@ export default function Shift() {
     if (stationId === null) return;
     api.get<{ shift: Shift | null }>("/api/shifts/current").then((res) => setCurrent(res.shift));
     api.get<{ shifts: Shift[] }>("/api/shifts").then((res) => setHistory(res.shifts));
+    api.get<{ summary: StaffSummary[] }>("/api/shifts/summary").then((res) => setSummary(res.summary));
   }
   useEffect(load, [stationId]);
 
@@ -145,6 +157,30 @@ export default function Shift() {
             )}
           </>
         )}
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem" }}>
+        <h3 style={{ marginTop: 0 }}>Personel Performansi</h3>
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          Her personelin butun vardiyalari toplaminda sattigi litre/ciro; en cok satis yapan ustte listelenir.
+        </p>
+        <table>
+          <thead>
+            <tr><th>Personel</th><th>Vardiya Sayisi</th><th>Islem</th><th>Ciro</th><th>Litre</th></tr>
+          </thead>
+          <tbody>
+            {summary.map((s) => (
+              <tr key={s.userId}>
+                <td>{s.displayName}</td>
+                <td>{s.shiftCount}</td>
+                <td>{s.transactionCount}</td>
+                <td>{formatCurrency(s.revenue)}</td>
+                <td>{formatLiters(s.liters)}</td>
+              </tr>
+            ))}
+            {summary.length === 0 && <tr><td colSpan={5} className="hint-text">Henuz kapatilmis vardiya yok.</td></tr>}
+          </tbody>
+        </table>
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>

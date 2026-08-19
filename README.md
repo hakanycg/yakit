@@ -29,7 +29,10 @@ yakit/
   bağlı olduğu istasyonun verisini gösterir.
 - **Vardiya yönetimi** (`/operator/vardiya`): Operatör/yönetici vardiya başlatıp bitirebilir;
   açık vardiyanın canlı süresi, işlem sayısı, cirosu ve litre toplamı gösterilir; geçmiş
-  vardiyalar aynı istatistiklerle listelenir.
+  vardiyalar aynı istatistiklerle listelenir. Bir istasyonda aynı anda yalnızca bir vardiya
+  açık olabilir (mükerrer satış sayımını önlemek için) — biri kapatılmadan yenisi açılamaz.
+  **Personel Performansı** tablosu, her personelin tüm vardiyaları toplamındaki satış
+  litresini/cirosunu gösterir — "hangi kullanıcı kaç litre sattı" sorusunun cevabı budur.
 - **Ödeme:** İki mod desteklenir. Bir istasyon **iyzico** ile yapılandırılmışsa (Ayarlar →
   "Ödeme Ayarları"), kiosk'taki ödeme adımı iyzico'nun barındırdığı gerçek, PCI DSS
   kapsamındaki güvenli ödeme formuna yönlendirir — bu **gerçek bir banka/kart altyapısı
