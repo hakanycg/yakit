@@ -11,7 +11,9 @@ import Alarms from "./pages/operator/Alarms";
 import StationMap from "./pages/operator/StationMap";
 import Reports from "./pages/operator/Reports";
 import ChangePassword from "./pages/operator/ChangePassword";
-import Shift from "./pages/operator/Shift";
+// Vardiya sistemi gecici olarak devre disi - bkz. asagidaki route. Kodu (Shift.tsx) silinmedi,
+// sadece erisim kapatildi; geri acmak icin bu import'u ve ilgili <Route>'u geri getirin.
+// import Shift from "./pages/operator/Shift";
 import FuelStock from "./pages/operator/FuelStock";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
@@ -35,7 +37,8 @@ export default function App() {
           <Route path="/operator/alarmlar" element={<Alarms />} />
           <Route path="/operator/harita" element={<StationMap />} />
           <Route path="/operator/raporlar" element={<Reports />} />
-          <Route path="/operator/vardiya" element={<Shift />} />
+          {/* Vardiya sistemi gecici olarak devre disi - bkz. yukaridaki import. */}
+          {/* <Route path="/operator/vardiya" element={<Shift />} /> */}
           <Route path="/operator/sifre-degistir" element={<ChangePassword />} />
 
           <Route element={<RequireRole roles={["admin"]} />}>
