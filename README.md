@@ -247,13 +247,17 @@ npm run start   # server/dist/index.js'i calistirir, hem API hem web ayni portta
 
 ### Kolay yol: Railway / Render gibi yönetilen platformlar
 
-Repoda `railway.json` ve `render.yaml` hazır — GitHub reposunu bu platformlardan birine
-bağlayıp yukarıdaki ortam değişkenlerini panelden girmeniz yeterli, sunucu bakımı/HTTPS/
-yeniden başlatma platform tarafından otomatik yönetilir:
+Repoda `railway.json`, `render.yaml` ve bir `Dockerfile` hazır — GitHub reposunu bu
+platformlardan birine bağlayıp yukarıdaki ortam değişkenlerini panelden girmeniz yeterli,
+sunucu bakımı/HTTPS/yeniden başlatma platform tarafından otomatik yönetilir:
 - **Railway**: proje oluşturup GitHub reposunu bağlayın, panelden bir **Volume** ekleyip
   `DATABASE_PATH`'i o volume'ün mount yoluna (ör. `/data/yakit.sqlite`) ayarlayın — aksi
   halde her deploy'da veritabanı sıfırlanır. Railway size otomatik bir `*.up.railway.app`
   HTTPS adresi verir; bu adresi `WEB_ORIGIN`/`PUBLIC_API_BASE_URL` olarak girin.
+  `railway.json` build'i Nixpacks yerine **Dockerfile** ile yapacak şekilde ayarlı — bunun
+  nedeni `better-sqlite3` (native/derlenmiş bağımlılık) Nixpacks'in varsayılan build
+  ortamında derlenemediği için; Dockerfile bunun için gereken derleyici araçlarını
+  (`python3`, `make`, `g++`) içeriyor.
 - **Render**: `render.yaml`'daki blueprint bir **persistent disk** (`/var/data`) zaten
   tanımlıyor; ilk deploy'dan sonra Render'in verdiği adresi Dashboard'dan `WEB_ORIGIN` ve
   `PUBLIC_API_BASE_URL` olarak girin (bu ikisi platform tarafından önceden bilinemediği
