@@ -45,7 +45,8 @@ router.get("/summary", (req, res) => {
     .prepare(
       `SELECT p.number as pumpNumber,
               COUNT(t.id) as count,
-              COALESCE(SUM(t.total_amount), 0) as revenue
+              COALESCE(SUM(t.total_amount), 0) as revenue,
+              COALESCE(SUM(t.dispensed_liters), 0) as liters
        FROM pumps p LEFT JOIN transactions t ON t.pump_id = p.id AND t.status = 'completed'
        WHERE p.station_id = ?
        GROUP BY p.id ORDER BY p.number`
