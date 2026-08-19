@@ -39,6 +39,16 @@ yakit/
   otomatik olarak bir uyarı alarmı oluşturur (bir vardiya açıldığında bu alarm kendiliğinden
   kapanır) — böylece hiçbir satış sessizce takipsiz kalmaz. Hem vardiya geçmişi hem personel
   performansı tablosu **CSV olarak indirilebilir**.
+- **Yakıt Stoku** (`/operator/stok`): Her istasyonun benzin/motorin/LPG tankları için mevcut
+  seviye, kapasite ve düşük stok eşiği canlı bir tank göstergesiyle (gauge) izlenir. Kiosk'ta
+  bir satış tamamlandığında ilgili tankın stoğu **otomatik olarak düşer**; tank teslimatı
+  (tanker geldiğinde) "Stok Ekle" ile kaydedilir (tedarikçi, irsaliye no, not dahil) — kapasiteyi
+  aşan miktar otomatik olarak sınırlanır ve fazlalık raporlanır. Yönetici rolü kapasite/eşik
+  ayarlarını değiştirebilir ve fiziksel sayım sonrası **manuel stok düzeltmesi** yapabilir.
+  Her hareket (satış/teslimat/düzeltme) zaman damgası, kullanıcı ve bakiye ile birlikte
+  **Stok Hareketleri** tablosunda tutulur ve CSV olarak indirilebilir. Bir tank düşük stok
+  eşiğinin altına düşünce otomatik olarak kritik bir alarm oluşur; stok yeniden eşiğin
+  üzerine çıkınca bu alarm kendiliğinden kapanır.
 - **Ödeme:** İki mod desteklenir. Bir istasyon **iyzico** ile yapılandırılmışsa (Ayarlar →
   "Ödeme Ayarları"), kiosk'taki ödeme adımı iyzico'nun barındırdığı gerçek, PCI DSS
   kapsamındaki güvenli ödeme formuna yönlendirir — bu **gerçek bir banka/kart altyapısı

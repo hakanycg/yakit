@@ -18,6 +18,7 @@ import { settingsRouter } from "./routes/settings.js";
 import { reportsRouter } from "./routes/reports.js";
 import { stationsRouter } from "./routes/stations.js";
 import { shiftsRouter } from "./routes/shifts.js";
+import { fuelStockRouter } from "./routes/fuelStock.js";
 
 export function createApp() {
   const app = express();
@@ -71,6 +72,7 @@ export function createApp() {
   app.use("/api/reports", reportsRouter);
   app.use("/api/stations", stationsRouter);
   app.use("/api/shifts", shiftsRouter);
+  app.use("/api/fuel-stock", fuelStockRouter);
 
   app.use("/api", notFoundHandler);
   app.use(errorHandler);

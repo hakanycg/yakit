@@ -1,0 +1,148 @@
+import { Router } from "express";
+import { z } from "zod";
+import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
+import { recordAudit } from "../services/auditService.js";
+import {
+  FuelStockError,
+  addStock,
+  adjustStock,
+  listMovements,
+  listTanks,
+  serializeMovement,
+  serializeTank,
+  updateTankSettings,
+} from "../services/fuelStockService.js";
+
+const router = Router();
+router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+
+const fuelTypeEnum = z.enum(["benzin", "motorin", "lpg"]);
+
+router.get("/", (req, res) => {
+  res.json({ tanks: listTanks(req.stationId!).map(serializeTank) });
+});
+
+const movementsQuerySchema = z.object({
+  fuelType: fuelTypeEnum.optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+});
+
+router.get("/movements", validateQuery(movementsQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof movementsQuerySchema> }).validatedQuery;
+  const rows = listMovements(req.stationId!, q);
+  res.json({ movements: rows.map((m) => serializeMovement(m, m.username)) });
+});
+
+router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof movementsQuerySchema> }).validatedQuery;
+  const rows = listMovements(req.stationId!, { ...q, limit: q.limit ?? 1000 });
+
+  const header = ["id", "yakit_tipi", "tip", "litre", "bakiye", "tedarikci", "irsaliye_no", "not", "kullanici", "tarih"];
+  const escape = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const typeLabel: Record<string, string> = { delivery: "Teslimat", sale: "Satis", adjustment: "Duzeltme" };
+  const lines = [header.join(",")];
+  for (const m of rows) {
+    lines.push(
+      [m.id, m.fuel_type, typeLabel[m.type] ?? m.type, m.liters, m.balance_after, m.supplier, m.delivery_ref, m.note, m.username, m.created_at]
+        .map(escape)
+        .join(",")
+    );
+  }
+
+  recordAudit({ user: req.user!, action: "fuel_stock_movements_exported", details: { count: rows.length }, ip: req.ip, stationId: req.stationId });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="yakit-stok-hareketleri-${Date.now()}.csv"`);
+  res.send("﻿" + lines.join("\n"));
+});
+
+const addSchema = z.object({
+  liters: z.number().positive().max(100000),
+  supplier: z.string().max(120).optional(),
+  deliveryRef: z.string().max(60).optional(),
+  note: z.string().max(300).optional(),
+});
+
+router.post("/:fuelType/add", requireRole("admin", "operator"), csrfProtection, validateBody(addSchema), (req, res) => {
+  const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
+  if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
+
+  try {
+    const { liters, supplier, deliveryRef, note } = req.body as z.infer<typeof addSchema>;
+    const { tank, overflow } = addStock(req.stationId!, fuelType.data, liters, { supplier, deliveryRef, note }, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_stock_added",
+      entityType: "fuel_tank",
+      entityId: fuelType.data,
+      details: { liters, overflow, supplier, deliveryRef },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ tank: serializeTank(tank), overflow });
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const adjustSchema = z.object({
+  newLiters: z.number().min(0).max(1000000),
+  note: z.string().max(300).optional(),
+});
+
+router.post("/:fuelType/adjust", requireRole("admin", "super_admin"), csrfProtection, validateBody(adjustSchema), (req, res) => {
+  const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
+  if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
+
+  try {
+    const { newLiters, note } = req.body as z.infer<typeof adjustSchema>;
+    const tank = adjustStock(req.stationId!, fuelType.data, newLiters, note, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_stock_adjusted",
+      entityType: "fuel_tank",
+      entityId: fuelType.data,
+      details: { newLiters, note },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ tank: serializeTank(tank) });
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const settingsSchema = z.object({
+  capacityLiters: z.number().positive().max(1000000).optional(),
+  lowStockThresholdLiters: z.number().min(0).max(1000000).optional(),
+});
+
+router.patch("/:fuelType/settings", requireRole("admin", "super_admin"), csrfProtection, validateBody(settingsSchema), (req, res) => {
+  const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
+  if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
+
+  try {
+    const body = req.body as z.infer<typeof settingsSchema>;
+    const tank = updateTankSettings(req.stationId!, fuelType.data, body, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_tank_settings_updated",
+      entityType: "fuel_tank",
+      entityId: fuelType.data,
+      details: body,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ tank: serializeTank(tank) });
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+export { router as fuelStockRouter };

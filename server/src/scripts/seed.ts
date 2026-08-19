@@ -107,6 +107,18 @@ function ensureFuelPrices(station: StationRow): void {
   for (const p of prices) insert.run(station.id, p.fuelType, p.label, p.price);
 }
 
+function ensureFuelTanks(station: StationRow): void {
+  const tanks: Array<{ fuelType: string; capacity: number; current: number; threshold: number }> = [
+    { fuelType: "benzin", capacity: 10000, current: 6000, threshold: 1500 },
+    { fuelType: "motorin", capacity: 10000, current: 6000, threshold: 1500 },
+    { fuelType: "lpg", capacity: 5000, current: 3000, threshold: 750 },
+  ];
+  const insert = db.prepare(
+    "INSERT OR IGNORE INTO fuel_tanks (station_id, fuel_type, capacity_liters, current_liters, low_stock_threshold_liters) VALUES (?, ?, ?, ?, ?)"
+  );
+  for (const t of tanks) insert.run(station.id, t.fuelType, t.capacity, t.current, t.threshold);
+}
+
 function main(): void {
   const roleIds = ensureRoles();
   ensureSuperAdmin(roleIds);
@@ -114,6 +126,7 @@ function main(): void {
   ensureStationOwner(station, roleIds);
   ensurePumps(station);
   ensureFuelPrices(station);
+  ensureFuelTanks(station);
   logger.info("Seed islemi tamamlandi.");
   logger.info(`Kiosk adresi: /kiosk/${station.slug}`);
 }

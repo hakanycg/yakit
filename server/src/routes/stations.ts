@@ -64,6 +64,12 @@ const DEFAULT_FUEL_PRICES = [
   { fuelType: "lpg", label: "Otogaz LPG", price: 21.9 },
 ];
 
+const DEFAULT_FUEL_TANKS = [
+  { fuelType: "benzin", capacity: 10000, current: 6000, threshold: 1500 },
+  { fuelType: "motorin", capacity: 10000, current: 6000, threshold: 1500 },
+  { fuelType: "lpg", capacity: 5000, current: 3000, threshold: 750 },
+];
+
 router.post("/", requireRole("super_admin"), csrfProtection, validateBody(createSchema), (req, res) => {
   const body = req.body as z.infer<typeof createSchema>;
 
@@ -88,6 +94,11 @@ router.post("/", requireRole("super_admin"), csrfProtection, validateBody(create
       const pos = PUMP_POSITIONS[i % PUMP_POSITIONS.length]!;
       insertPump.run(stationId, i + 1, `Pompa ${i + 1}`, JSON.stringify(["benzin", "motorin", "lpg"]), pos.x, pos.y);
     }
+
+    const insertTank = db.prepare(
+      "INSERT INTO fuel_tanks (station_id, fuel_type, capacity_liters, current_liters, low_stock_threshold_liters) VALUES (?, ?, ?, ?, ?)"
+    );
+    for (const t of DEFAULT_FUEL_TANKS) insertTank.run(stationId, t.fuelType, t.capacity, t.current, t.threshold);
 
     return stationId;
   });
@@ -160,6 +171,8 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     db.prepare("DELETE FROM shifts WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM pumps WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM fuel_prices WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM fuel_tanks WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM settings WHERE station_id = ?").run(id);
 
     // Istasyona bagli kullanici hesaplarini da kalici olarak sil (islem kaydi

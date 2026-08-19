@@ -168,3 +168,43 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_by INTEGER REFERENCES users(id),
   PRIMARY KEY (station_id, key)
 );
+
+CREATE TABLE IF NOT EXISTS fuel_tanks (
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,             -- benzin | motorin | lpg
+  capacity_liters REAL NOT NULL DEFAULT 10000,
+  current_liters REAL NOT NULL DEFAULT 0,
+  low_stock_threshold_liters REAL NOT NULL DEFAULT 1000,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  updated_by INTEGER REFERENCES users(id),
+  PRIMARY KEY (station_id, fuel_type)
+);
+CREATE INDEX IF NOT EXISTS idx_fuel_tanks_station ON fuel_tanks(station_id);
+
+CREATE TABLE IF NOT EXISTS fuel_stock_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,
+  type TEXT NOT NULL,                  -- delivery | sale | adjustment
+  liters REAL NOT NULL,                -- pozitif: stok girisi, negatif: cikis
+  balance_after REAL NOT NULL,
+  supplier TEXT,
+  delivery_ref TEXT,
+  note TEXT,
+  transaction_id INTEGER REFERENCES transactions(id),
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fuel_stock_movements_station ON fuel_stock_movements(station_id, created_at);
+
+-- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
+-- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
+-- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.
+INSERT OR IGNORE INTO fuel_tanks (station_id, fuel_type, capacity_liters, current_liters, low_stock_threshold_liters)
+SELECT s.id, x.fuel_type, x.capacity, x.current, x.threshold
+FROM stations s
+CROSS JOIN (
+  SELECT 'benzin' as fuel_type, 10000.0 as capacity, 6000.0 as current, 1500.0 as threshold
+  UNION ALL SELECT 'motorin', 10000.0, 6000.0, 1500.0
+  UNION ALL SELECT 'lpg', 5000.0, 3000.0, 750.0
+) x;

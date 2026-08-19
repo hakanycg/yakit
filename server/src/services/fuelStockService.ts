@@ -1,0 +1,267 @@
+import { db } from "../db/index.js";
+import type { FuelStockMovementRow, FuelTankRow, FuelType, UserRow } from "../db/types.js";
+import { broadcast } from "../ws/hub.js";
+import { createAlarm, broadcastAlarms } from "./alarmService.js";
+
+export class FuelStockError extends Error {
+  constructor(
+    message: string,
+    public status = 400
+  ) {
+    super(message);
+  }
+}
+
+export const FUEL_TYPES: FuelType[] = ["benzin", "motorin", "lpg"];
+
+export type TankStatus = "ok" | "low" | "critical";
+
+export function tankStatus(t: FuelTankRow): TankStatus {
+  if (t.current_liters <= t.low_stock_threshold_liters) return "critical";
+  if (t.current_liters <= t.low_stock_threshold_liters * 1.5) return "low";
+  return "ok";
+}
+
+export function serializeTank(t: FuelTankRow) {
+  return {
+    fuelType: t.fuel_type,
+    capacityLiters: Math.round(t.capacity_liters * 100) / 100,
+    currentLiters: Math.round(t.current_liters * 100) / 100,
+    lowStockThresholdLiters: Math.round(t.low_stock_threshold_liters * 100) / 100,
+    percentFull: t.capacity_liters > 0 ? Math.round((t.current_liters / t.capacity_liters) * 1000) / 10 : 0,
+    status: tankStatus(t),
+    updatedAt: t.updated_at,
+  };
+}
+
+export function serializeMovement(m: FuelStockMovementRow, username: string | null) {
+  return {
+    id: m.id,
+    fuelType: m.fuel_type,
+    type: m.type,
+    liters: Math.round(m.liters * 100) / 100,
+    balanceAfter: Math.round(m.balance_after * 100) / 100,
+    supplier: m.supplier,
+    deliveryRef: m.delivery_ref,
+    note: m.note,
+    transactionId: m.transaction_id,
+    username,
+    createdAt: m.created_at,
+  };
+}
+
+function getTank(stationId: number, fuelType: FuelType): FuelTankRow {
+  const row = db
+    .prepare<[number, string], FuelTankRow>("SELECT * FROM fuel_tanks WHERE station_id = ? AND fuel_type = ?")
+    .get(stationId, fuelType);
+  if (row) return row;
+  // Bu istasyon icin tank kaydi henuz olusmamissa (ör. sema henuz uygulanmadan
+  // once olusturulmus eski bir istasyon) varsayilan degerlerle olusturulur.
+  db.prepare(
+    "INSERT INTO fuel_tanks (station_id, fuel_type) VALUES (?, ?) ON CONFLICT(station_id, fuel_type) DO NOTHING"
+  ).run(stationId, fuelType);
+  return db.prepare<[number, string], FuelTankRow>("SELECT * FROM fuel_tanks WHERE station_id = ? AND fuel_type = ?").get(stationId, fuelType)!;
+}
+
+export function listTanks(stationId: number): FuelTankRow[] {
+  return FUEL_TYPES.map((ft) => getTank(stationId, ft));
+}
+
+export function broadcastTanks(stationId: number): void {
+  broadcast(`fuel-stock:${stationId}`, listTanks(stationId).map(serializeTank));
+}
+
+function insertMovement(params: {
+  stationId: number;
+  fuelType: FuelType;
+  type: FuelStockMovementRow["type"];
+  liters: number;
+  balanceAfter: number;
+  supplier?: string | null;
+  deliveryRef?: string | null;
+  note?: string | null;
+  transactionId?: number | null;
+  userId?: number | null;
+}): void {
+  db.prepare(
+    `INSERT INTO fuel_stock_movements
+      (station_id, fuel_type, type, liters, balance_after, supplier, delivery_ref, note, transaction_id, user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    params.stationId,
+    params.fuelType,
+    params.type,
+    params.liters,
+    params.balanceAfter,
+    params.supplier ?? null,
+    params.deliveryRef ?? null,
+    params.note ?? null,
+    params.transactionId ?? null,
+    params.userId ?? null
+  );
+}
+
+/** Depoya yakit teslimati (stok ekleme) kaydeder. Tank kapasitesini asan kisim eklenmez ("tasma"). */
+export function addStock(
+  stationId: number,
+  fuelType: FuelType,
+  liters: number,
+  meta: { supplier?: string; deliveryRef?: string; note?: string },
+  actor: UserRow
+): { tank: FuelTankRow; overflow: number } {
+  if (liters <= 0) throw new FuelStockError("Eklenecek miktar sifirdan buyuk olmalidir.", 400);
+
+  const tank = getTank(stationId, fuelType);
+  const capacityLeft = Math.max(0, tank.capacity_liters - tank.current_liters);
+  const actualAdded = Math.min(liters, capacityLeft);
+  const overflow = Math.round((liters - actualAdded) * 100) / 100;
+  const newLevel = Math.round((tank.current_liters + actualAdded) * 100) / 100;
+
+  db.prepare(
+    "UPDATE fuel_tanks SET current_liters = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
+  ).run(newLevel, new Date().toISOString(), actor.id, stationId, fuelType);
+
+  const note = overflow > 0 ? `${meta.note ?? ""} (Kapasite asimi: ${overflow} L eklenemedi)`.trim() : (meta.note ?? null);
+  insertMovement({
+    stationId,
+    fuelType,
+    type: "delivery",
+    liters: actualAdded,
+    balanceAfter: newLevel,
+    supplier: meta.supplier,
+    deliveryRef: meta.deliveryRef,
+    note,
+    userId: actor.id,
+  });
+
+  resolveLowStockAlarmIfRecovered(stationId, fuelType, newLevel, tank.low_stock_threshold_liters, actor);
+
+  broadcastTanks(stationId);
+  return { tank: getTank(stationId, fuelType), overflow };
+}
+
+/** Kiosk'ta bir satis tamamlandiginda tank stogundan otomatik dusum yapar. */
+export function deductStockForSale(stationId: number, fuelType: FuelType, liters: number, transactionId: number): void {
+  if (liters <= 0) return;
+  const tank = getTank(stationId, fuelType);
+  const newLevel = Math.max(0, Math.round((tank.current_liters - liters) * 100) / 100);
+
+  db.prepare("UPDATE fuel_tanks SET current_liters = ?, updated_at = ? WHERE station_id = ? AND fuel_type = ?").run(
+    newLevel,
+    new Date().toISOString(),
+    stationId,
+    fuelType
+  );
+
+  insertMovement({
+    stationId,
+    fuelType,
+    type: "sale",
+    liters: -liters,
+    balanceAfter: newLevel,
+    transactionId,
+  });
+
+  if (newLevel <= tank.low_stock_threshold_liters) {
+    raiseLowStockAlarmIfNeeded(stationId, fuelType, newLevel);
+  }
+
+  broadcastTanks(stationId);
+}
+
+/** Yonetici, fiziksel olcum sonrasi tank seviyesini dogrudan duzeltir (ör. sayac farki). */
+export function adjustStock(stationId: number, fuelType: FuelType, newLiters: number, note: string | undefined, actor: UserRow): FuelTankRow {
+  if (newLiters < 0) throw new FuelStockError("Stok miktari negatif olamaz.", 400);
+  const tank = getTank(stationId, fuelType);
+  const clamped = Math.min(newLiters, tank.capacity_liters);
+  const delta = Math.round((clamped - tank.current_liters) * 100) / 100;
+
+  db.prepare(
+    "UPDATE fuel_tanks SET current_liters = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
+  ).run(clamped, new Date().toISOString(), actor.id, stationId, fuelType);
+
+  insertMovement({
+    stationId,
+    fuelType,
+    type: "adjustment",
+    liters: delta,
+    balanceAfter: clamped,
+    note: note ?? "Manuel duzeltme",
+    userId: actor.id,
+  });
+
+  if (clamped <= tank.low_stock_threshold_liters) {
+    raiseLowStockAlarmIfNeeded(stationId, fuelType, clamped);
+  } else {
+    resolveLowStockAlarmIfRecovered(stationId, fuelType, clamped, tank.low_stock_threshold_liters, actor);
+  }
+
+  broadcastTanks(stationId);
+  return getTank(stationId, fuelType);
+}
+
+export function updateTankSettings(
+  stationId: number,
+  fuelType: FuelType,
+  input: { capacityLiters?: number; lowStockThresholdLiters?: number },
+  actor: UserRow
+): FuelTankRow {
+  const tank = getTank(stationId, fuelType);
+  const capacity = input.capacityLiters ?? tank.capacity_liters;
+  const threshold = input.lowStockThresholdLiters ?? tank.low_stock_threshold_liters;
+  if (capacity <= 0) throw new FuelStockError("Tank kapasitesi sifirdan buyuk olmalidir.", 400);
+  if (threshold < 0 || threshold > capacity) throw new FuelStockError("Dusuk stok esigi gecersiz.", 400);
+
+  db.prepare(
+    "UPDATE fuel_tanks SET capacity_liters = ?, low_stock_threshold_liters = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
+  ).run(capacity, threshold, new Date().toISOString(), actor.id, stationId, fuelType);
+
+  broadcastTanks(stationId);
+  return getTank(stationId, fuelType);
+}
+
+export function listMovements(stationId: number, filters: { fuelType?: FuelType; limit?: number }): (FuelStockMovementRow & { username: string | null })[] {
+  const clauses = ["m.station_id = ?"];
+  const params: unknown[] = [stationId];
+  if (filters.fuelType) {
+    clauses.push("m.fuel_type = ?");
+    params.push(filters.fuelType);
+  }
+  const limit = Math.min(filters.limit ?? 200, 1000);
+  return db
+    .prepare<unknown[], FuelStockMovementRow & { username: string | null }>(
+      `SELECT m.*, u.username as username
+       FROM fuel_stock_movements m LEFT JOIN users u ON u.id = m.user_id
+       WHERE ${clauses.join(" AND ")}
+       ORDER BY m.created_at DESC LIMIT ?`
+    )
+    .all(...params, limit);
+}
+
+const FUEL_LABELS: Record<FuelType, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
+
+function lowStockAlarmType(fuelType: FuelType): string {
+  return `low_stock_${fuelType}`;
+}
+
+function raiseLowStockAlarmIfNeeded(stationId: number, fuelType: FuelType, level: number): void {
+  const existing = db
+    .prepare("SELECT id FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1")
+    .get(stationId, lowStockAlarmType(fuelType));
+  if (existing) return;
+  createAlarm({
+    stationId,
+    type: lowStockAlarmType(fuelType),
+    severity: "critical",
+    message: `${FUEL_LABELS[fuelType]} tanki dusuk seviyede (${Math.round(level)} L kaldi). Yakit ikmali yapin.`,
+  });
+}
+
+function resolveLowStockAlarmIfRecovered(stationId: number, fuelType: FuelType, level: number, threshold: number, actor: UserRow): void {
+  if (level <= threshold) return;
+  const now = new Date().toISOString();
+  const result = db
+    .prepare("UPDATE alarms SET status = 'resolved', resolved_by = ?, resolved_at = ? WHERE station_id = ? AND type = ? AND status != 'resolved'")
+    .run(actor.id, now, stationId, lowStockAlarmType(fuelType));
+  if (result.changes > 0) broadcastAlarms(stationId);
+}

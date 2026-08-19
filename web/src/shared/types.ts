@@ -83,6 +83,34 @@ export interface FuelPrice {
   updatedAt?: string;
 }
 
+export type TankStatus = "ok" | "low" | "critical";
+
+export interface FuelTank {
+  fuelType: FuelType;
+  capacityLiters: number;
+  currentLiters: number;
+  lowStockThresholdLiters: number;
+  percentFull: number;
+  status: TankStatus;
+  updatedAt: string;
+}
+
+export type FuelStockMovementType = "delivery" | "sale" | "adjustment";
+
+export interface FuelStockMovement {
+  id: number;
+  fuelType: FuelType;
+  type: FuelStockMovementType;
+  liters: number;
+  balanceAfter: number;
+  supplier: string | null;
+  deliveryRef: string | null;
+  note: string | null;
+  transactionId: number | null;
+  username: string | null;
+  createdAt: string;
+}
+
 export interface Station {
   id: number;
   slug: string;

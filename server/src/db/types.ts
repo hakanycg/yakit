@@ -165,3 +165,30 @@ export interface SettingRow {
   updated_at: string;
   updated_by: number | null;
 }
+
+export interface FuelTankRow {
+  station_id: number;
+  fuel_type: FuelType;
+  capacity_liters: number;
+  current_liters: number;
+  low_stock_threshold_liters: number;
+  updated_at: string;
+  updated_by: number | null;
+}
+
+export type FuelStockMovementType = "delivery" | "sale" | "adjustment";
+
+export interface FuelStockMovementRow {
+  id: number;
+  station_id: number;
+  fuel_type: FuelType;
+  type: FuelStockMovementType;
+  liters: number;
+  balance_after: number;
+  supplier: string | null;
+  delivery_ref: string | null;
+  note: string | null;
+  transaction_id: number | null;
+  user_id: number | null;
+  created_at: string;
+}

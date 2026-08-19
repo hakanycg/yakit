@@ -12,6 +12,7 @@ import StationMap from "./pages/operator/StationMap";
 import Reports from "./pages/operator/Reports";
 import ChangePassword from "./pages/operator/ChangePassword";
 import Shift from "./pages/operator/Shift";
+import FuelStock from "./pages/operator/FuelStock";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
 import Settings from "./pages/admin/Settings";
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="/operator/harita" element={<StationMap />} />
           <Route path="/operator/raporlar" element={<Reports />} />
           <Route path="/operator/vardiya" element={<Shift />} />
+          <Route path="/operator/stok" element={<FuelStock />} />
           <Route path="/operator/sifre-degistir" element={<ChangePassword />} />
 
           <Route element={<RequireRole roles={["admin"]} />}>

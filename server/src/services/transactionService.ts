@@ -6,6 +6,7 @@ import { getPump, setPumpStatus } from "./pumpService.js";
 import { processVirtualPayment, type VirtualCardInput } from "./paymentService.js";
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
+import { deductStockForSale } from "./fuelStockService.js";
 
 const DISPENSE_TICK_MS = 500;
 const FLOW_LITERS_PER_SEC_MIN = 0.45;
@@ -298,6 +299,7 @@ function startDispensing(id: number): void {
     setPumpStatus(current.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(completed);
     flagIfUnassignedSale(completed);
+    deductStockForSale(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
   }, DISPENSE_TICK_MS);
 
   activeDispensers.set(id, interval);
@@ -333,6 +335,9 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
   });
   broadcastTransaction(updated);
   flagIfUnassignedSale(updated);
+  if (updated.status === "completed") {
+    deductStockForSale(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
+  }
   return updated;
 }
 

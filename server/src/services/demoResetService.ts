@@ -24,10 +24,21 @@ export function resetDemoData(stationId: number): void {
        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
        WHERE station_id = ?`
     ).run(stationId);
+    db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(stationId);
+    db.prepare(
+      `UPDATE fuel_tanks SET current_liters = CASE fuel_type
+         WHEN 'benzin' THEN 6000
+         WHEN 'motorin' THEN 6000
+         WHEN 'lpg' THEN 3000
+         ELSE current_liters END,
+       updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
+       WHERE station_id = ?`
+    ).run(stationId);
   });
   reset();
 
   broadcastPumps(stationId);
   broadcastAlarms(stationId);
   broadcast(`transactions:${stationId}`, { reset: true });
+  broadcast(`fuel-stock:${stationId}`, { reset: true });
 }
