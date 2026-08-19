@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
+import { appendStationParam } from "../../shared/stationScope";
 import { useAuth } from "../../shared/AuthContext";
 import { formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 
@@ -164,8 +165,14 @@ export default function Shift() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Personel Performansi</h3>
-        <p className="hint-text" style={{ marginTop: 0 }}>
+        <div className="toolbar" style={{ marginBottom: 0 }}>
+          <h3 style={{ margin: 0 }}>Personel Performansi</h3>
+          <div className="spacer" />
+          <a href={appendStationParam("/api/shifts/summary/export.csv")}>
+            <button>CSV Indir</button>
+          </a>
+        </div>
+        <p className="hint-text" style={{ marginTop: "0.4rem" }}>
           Her personelin butun vardiyalari toplaminda sattigi litre/ciro; en cok satis yapan ustte listelenir.
         </p>
         <table>
@@ -205,7 +212,13 @@ export default function Shift() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Vardiya Gecmisi</h3>
+        <div className="toolbar" style={{ marginBottom: "0.5rem" }}>
+          <h3 style={{ margin: 0 }}>Vardiya Gecmisi</h3>
+          <div className="spacer" />
+          <a href={appendStationParam("/api/shifts/export.csv")}>
+            <button>CSV Indir</button>
+          </a>
+        </div>
         <table>
           <thead>
             <tr><th>Personel</th><th>Baslangic</th><th>Bitis</th><th>Sure</th><th>Islem</th><th>Ciro</th><th>Litre</th></tr>

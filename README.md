@@ -37,7 +37,8 @@ yakit/
   oturum açmaz); bir satış, tamamlandığı anda istasyonda **açık olan vardiyaya** atfedilir.
   Açık vardiya yokken tamamlanan satışlar "Vardiyasız Satışlar" altında ayrıca gösterilir ve
   otomatik olarak bir uyarı alarmı oluşturur (bir vardiya açıldığında bu alarm kendiliğinden
-  kapanır) — böylece hiçbir satış sessizce takipsiz kalmaz.
+  kapanır) — böylece hiçbir satış sessizce takipsiz kalmaz. Hem vardiya geçmişi hem personel
+  performansı tablosu **CSV olarak indirilebilir**.
 - **Ödeme:** İki mod desteklenir. Bir istasyon **iyzico** ile yapılandırılmışsa (Ayarlar →
   "Ödeme Ayarları"), kiosk'taki ödeme adımı iyzico'nun barındırdığı gerçek, PCI DSS
   kapsamındaki güvenli ödeme formuna yönlendirir — bu **gerçek bir banka/kart altyapısı
