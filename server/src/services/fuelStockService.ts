@@ -180,7 +180,13 @@ export function deductAvailable(stationId: number, fuelType: FuelType, desiredLi
   }
 
   broadcastTanks(stationId);
-  return { actual: Math.round(actualRaw * 100) / 100, limited };
+  // Tank siniri asilmadiysa TAM (yuvarlanmamis) miktar dondurulur: aksi halde
+  // dolumun son anindaki kucuk artislar (<0.005 L) 2 ondalige yuvarlanip sifira
+  // duserdi ve "dispensed_liters" hicbir zaman hedefe ulasamayip islem sonsuza
+  // kadar "dispensing" durumunda takili kalirdi. Tank gercekten tukendiyse
+  // (limited=true) actual, tank seviyesindeki gercek (yuvarlanmis) degisimden alinir.
+  const actual = limited ? Math.round((tank.current_liters - newLevel) * 100) / 100 : actualRaw;
+  return { actual, limited };
 }
 
 /** Bir satis tamamlandiginda (veya kismen kesildiginde) tek satirlik ozet hareket kaydi olusturur. Tank seviyesi bu fonksiyonda DEGISTIRILMEZ; dusum zaten deductAvailable ile tick tick yapilmis olur. */
