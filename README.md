@@ -263,6 +263,13 @@ sunucu bakımı/HTTPS/yeniden başlatma platform tarafından otomatik yönetilir
   `PUBLIC_API_BASE_URL` olarak girin (bu ikisi platform tarafından önceden bilinemediği
   için blueprint'te boş bırakıldı).
 
+Seed (roller, `admin`/`<slug>-admin` hesapları, ilk istasyon) **container her başladığında
+otomatik** çalışır (Dockerfile'ın `CMD`'i) - idempotent olduğu için zaten var olan veriye
+dokunmaz, ilk deploy'da manuel bir seed adımı atmanıza gerek yoktur. (`railway run npm run
+seed` gibi bir komut **çalıştırmayın** - bu, Railway'deki gerçek volume'a değil sizin kendi
+bilgisayarınıza yazar.) Giriş bilgileri: `admin` / `SEED_ADMIN_PASSWORD` (varsayılan
+`ChangeMe!12345`), ilk girişte şifre değiştirme zorunludur.
+
 Her iki platformda da ücretsiz katman genelde ya kalıcı disk sunmaz ya da inaktivitede
 uykuya geçirir — gerçek 7/24 çalışma için en ucuz ücretli plan (aylık birkaç dolar)
 gerekir.
