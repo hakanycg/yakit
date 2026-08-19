@@ -60,7 +60,12 @@ export default function Alarms() {
               <tr key={a.id}>
                 <td><span className={`badge ${a.severity}`}>{ALARM_SEVERITY_LABEL[a.severity]}</span></td>
                 <td>{a.type}</td>
-                <td>{a.message}</td>
+                <td>
+                  {a.message}
+                  {a.type === "pump_fault" && a.status !== "resolved" && (
+                    <div className="hint-text">"Çöz" ile kapatmak ilgili pompayı da otomatik olarak kullanıma açar.</div>
+                  )}
+                </td>
                 <td><span className={`badge ${a.status}`}>{ALARM_STATUS_LABEL[a.status]}</span></td>
                 <td>{formatDateTime(a.createdAt)}</td>
                 {canManage && (

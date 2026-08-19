@@ -5,6 +5,7 @@ import type { AlarmRow } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import { listAlarms, serializeAlarm, broadcastAlarms } from "../services/alarmService.js";
+import { getPump, setPumpStatus } from "../services/pumpService.js";
 import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
@@ -50,6 +51,25 @@ router.post("/:id/resolve", requireRole("admin", "operator"), csrfProtection, va
     new Date().toISOString(),
     id
   );
+
+  // Bir pompa arizasi alarmi cozuldugunde, pompa da otomatik olarak kullanima acilir;
+  // aksi halde alarm "cozuldu" gorunse bile pompa "ariza" durumunda kilitli kalirdi.
+  if (alarm.type === "pump_fault" && alarm.pump_id) {
+    const pump = getPump(alarm.pump_id);
+    if (pump && pump.status === "fault") {
+      setPumpStatus(pump.id, "idle", { faultCode: null, faultMessage: null });
+      recordAudit({
+        user: req.user!,
+        action: "pump_fault_cleared_via_alarm",
+        entityType: "pump",
+        entityId: pump.id,
+        details: { alarmId: id },
+        ip: req.ip,
+        stationId: req.stationId,
+      });
+    }
+  }
+
   broadcastAlarms(req.stationId!);
   recordAudit({ user: req.user!, action: "alarm_resolved", entityType: "alarm", entityId: id, ip: req.ip, stationId: req.stationId });
   res.json({ alarm: serializeAlarm(db.prepare<[number], AlarmRow>("SELECT * FROM alarms WHERE id = ?").get(id)!) });
