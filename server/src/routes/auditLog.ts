@@ -6,7 +6,7 @@ import { attachStationScope, requireAuth, requireRole } from "../middleware/auth
 import { validateQuery } from "../middleware/validate.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope);
+router.use(requireAuth, requireRole("super_admin"), attachStationScope);
 
 const listSchema = z.object({
   limit: z.coerce.number().int().positive().max(1000).optional(),

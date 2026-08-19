@@ -44,7 +44,6 @@ export default function App() {
           <Route element={<RequireRole roles={["admin"]} />}>
             <Route path="/admin" element={<Navigate to="/admin/kullanicilar" replace />} />
             <Route path="/admin/kullanicilar" element={<Users />} />
-            <Route path="/admin/audit-log" element={<AuditLog />} />
             <Route path="/admin/ayarlar" element={<Settings />} />
             <Route path="/admin/sifirla" element={<DemoReset />} />
             <Route path="/operator/stok" element={<FuelStock />} />
@@ -52,6 +51,7 @@ export default function App() {
 
           <Route element={<RequireRole roles={["super_admin"]} />}>
             <Route path="/admin/istasyonlar" element={<Stations />} />
+            <Route path="/admin/audit-log" element={<AuditLog />} />
           </Route>
         </Route>
       </Route>
