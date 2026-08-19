@@ -10,6 +10,11 @@ import { broadcast } from "../ws/hub.js";
  */
 export function resetDemoData(stationId: number): void {
   const reset = db.transaction(() => {
+    // fuel_stock_movements.transaction_id, transactions(id)'e FK ile bagli oldugundan
+    // (ON DELETE CASCADE yok), once hareket kayitlari, sonra islemler silinmeli -
+    // aksi halde tamamlanmis bir satisin hareket kaydi asilda kalip
+    // SQLITE_CONSTRAINT_FOREIGNKEY ile silme islemini bastan sona basarisiz kilar.
+    db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM transactions WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM alarms WHERE station_id = ?").run(stationId);
     db.prepare(
@@ -24,7 +29,6 @@ export function resetDemoData(stationId: number): void {
        updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
        WHERE station_id = ?`
     ).run(stationId);
-    db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(stationId);
     db.prepare(
       `UPDATE fuel_tanks SET current_liters = CASE fuel_type
          WHEN 'benzin' THEN 6000
