@@ -27,6 +27,24 @@ function pct(part: number, total: number): string {
   return `%${((part / total) * 100).toFixed(1)}`;
 }
 
+/**
+ * Backend yalnizca satis olan gunleri dondurur; grafik her zaman tam 30 gunluk
+ * bir zaman cizelgesi gostersin diye eksik gunler 0 degeriyle doldurulur. Aksi
+ * halde (ör. tek gunluk veri varken) tek bir çubuk tum genisligi kaplayip
+ * grafik degil duz bir dikdortgen gibi gorunuyordu.
+ */
+function buildLast30Days(byDay: SummaryResponse["byDay"]): SummaryResponse["byDay"] {
+  const byDate = new Map(byDay.map((d) => [d.day, d]));
+  const today = new Date();
+  const result: SummaryResponse["byDay"] = [];
+  for (let i = 29; i >= 0; i--) {
+    const d = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - i));
+    const key = d.toISOString().slice(0, 10);
+    result.push(byDate.get(key) ?? { day: key, count: 0, revenue: 0 });
+  }
+  return result;
+}
+
 export default function Reports() {
   const stationId = useEffectiveStationId();
   const [data, setData] = useState<SummaryResponse | null>(null);
@@ -38,10 +56,10 @@ export default function Reports() {
 
   if (!data) return <p className="hint-text">Yukleniyor...</p>;
 
-  const maxDayRevenue = Math.max(1, ...data.byDay.map((d) => d.revenue));
   const maxPumpRevenue = Math.max(1, ...data.byPump.map((d) => d.revenue));
   const avgTicket = data.totals.completedCount > 0 ? data.totals.totalRevenue / data.totals.completedCount : 0;
-  const days = [...data.byDay].reverse();
+  const days = buildLast30Days(data.byDay);
+  const maxDayRevenue = Math.max(1, ...days.map((d) => d.revenue));
   const avgDayRevenue = days.length > 0 ? days.reduce((sum, d) => sum + d.revenue, 0) / days.length : 0;
   const bestDay = days.reduce<SummaryResponse["byDay"][number] | null>((best, d) => (!best || d.revenue > best.revenue ? d : best), null);
 
@@ -157,14 +175,11 @@ export default function Reports() {
               <div className="report-day-bar" style={{ height: `${Math.max((d.revenue / maxDayRevenue) * 100, 1.5)}%` }} />
             </div>
           ))}
-          {days.length === 0 && <p className="hint-text">Veri yok.</p>}
         </div>
-        {days.length > 0 && (
-          <div className="toolbar" style={{ marginTop: "0.5rem", marginBottom: 0, justifyContent: "space-between" }}>
-            <span className="hint-text">{formatDayLabel(days[0]!.day)}</span>
-            <span className="hint-text">{formatDayLabel(days[days.length - 1]!.day)}</span>
-          </div>
-        )}
+        <div className="toolbar" style={{ marginTop: "0.5rem", marginBottom: 0, justifyContent: "space-between" }}>
+          <span className="hint-text">{formatDayLabel(days[0]!.day)}</span>
+          <span className="hint-text">{formatDayLabel(days[days.length - 1]!.day)}</span>
+        </div>
       </div>
     </div>
   );
