@@ -12,6 +12,16 @@ export class FuelStockError extends Error {
   }
 }
 
+/** Ayni istasyon+yakit tipinde daha once ayni irsaliye/fis no ile teslimat kaydedilmisse firlatilir. */
+export class DuplicateDeliveryRefError extends FuelStockError {
+  constructor(
+    public movementId: number,
+    public existingCreatedAt: string
+  ) {
+    super("Bu irsaliye/fis numarasiyla bu yakit tipi icin daha once bir teslimat kaydedilmis.", 409);
+  }
+}
+
 export const FUEL_TYPES: FuelType[] = ["benzin", "motorin", "lpg"];
 
 export type TankStatus = "ok" | "low" | "critical";
@@ -101,15 +111,38 @@ function insertMovement(params: {
   );
 }
 
-/** Depoya yakit teslimati (stok ekleme) kaydeder. Tank kapasitesini asan kisim eklenmez ("tasma"). */
+function findDuplicateDeliveryRef(stationId: number, fuelType: FuelType, deliveryRef: string): { id: number; createdAt: string } | undefined {
+  const row = db
+    .prepare<[number, string, string], { id: number; created_at: string }>(
+      `SELECT id, created_at FROM fuel_stock_movements
+       WHERE station_id = ? AND fuel_type = ? AND type = 'delivery' AND lower(trim(delivery_ref)) = lower(trim(?))
+       ORDER BY created_at DESC LIMIT 1`
+    )
+    .get(stationId, fuelType, deliveryRef);
+  return row ? { id: row.id, createdAt: row.created_at } : undefined;
+}
+
+/**
+ * Depoya yakit teslimati (stok ekleme) kaydeder. Tank kapasitesini asan kisim eklenmez ("tasma").
+ * Ayni istasyon+yakit tipinde daha once ayni irsaliye/fis no ile teslimat girilmisse (muhtemel
+ * yanlislikla ikinci kez girme), `force` gecilmedigi surece DuplicateDeliveryRefError firlatilir -
+ * cagiran taraf (route) bunu kullaniciya onaylatip force:true ile tekrar cagirabilir. Not: ayni
+ * irsaliyenin FARKLI yakit tipleri icin tekrarlanmasi normaldir (tek tankerde birden fazla urun
+ * ayni irsaliye ile gelebilir), bu yuzden kontrol yakit tipine ozeldir.
+ */
 export function addStock(
   stationId: number,
   fuelType: FuelType,
   liters: number,
-  meta: { supplier: string; deliveryRef: string; note?: string },
+  meta: { supplier: string; deliveryRef: string; note?: string; force?: boolean },
   actor: UserRow
 ): { tank: FuelTankRow; overflow: number } {
   if (liters <= 0) throw new FuelStockError("Eklenecek miktar sifirdan buyuk olmalidir.", 400);
+
+  if (!meta.force) {
+    const duplicate = findDuplicateDeliveryRef(stationId, fuelType, meta.deliveryRef);
+    if (duplicate) throw new DuplicateDeliveryRefError(duplicate.id, duplicate.createdAt);
+  }
 
   const tank = getTank(stationId, fuelType);
   const capacityLeft = Math.max(0, tank.capacity_liters - tank.current_liters);

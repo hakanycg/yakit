@@ -75,6 +75,7 @@ export default function FuelStock() {
               <th>Tip</th>
               <th className="numeric">Miktar</th>
               <th className="numeric">Bakiye</th>
+              <th>Irsaliye/Fis No</th>
               <th>Detay</th>
               <th>Kullanici</th>
             </tr>
@@ -89,13 +90,14 @@ export default function FuelStock() {
                   {m.liters > 0 ? "+" : ""}{formatLiters(m.liters)}
                 </td>
                 <td className="numeric">{formatLiters(m.balanceAfter)}</td>
+                <td>{m.deliveryRef ?? "-"}</td>
                 <td className="hint-text">
-                  {[m.supplier, m.deliveryRef, m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}
+                  {[m.supplier, m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}
                 </td>
                 <td>{m.username ?? "-"}</td>
               </tr>
             ))}
-            {movements.length === 0 && <tr><td colSpan={7} className="hint-text">Kayit yok.</td></tr>}
+            {movements.length === 0 && <tr><td colSpan={8} className="hint-text">Kayit yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -191,17 +193,20 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
   const [deliveryRef, setDeliveryRef] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  async function submit() {
+  async function submit(force = false) {
     setSubmitting(true);
     setError(null);
+    if (!force) setDuplicateWarning(null);
     try {
       const res = await api.post<{ tank: FuelTank; overflow: number }>(`/api/fuel-stock/${tank.fuelType}/add`, {
         liters: Number(liters),
         supplier: supplier.trim(),
         deliveryRef: deliveryRef.trim(),
         note: note.trim() || undefined,
+        force: force || undefined,
       });
       if (res.overflow > 0) {
         setError(`Uyari: tank kapasitesi nedeniyle ${formatLiters(res.overflow)} eklenemedi.`);
@@ -210,6 +215,13 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       }
       onAdded();
     } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.details && typeof err.details === "object" && "duplicate" in err.details) {
+        const d = err.details as unknown as { existingCreatedAt: string };
+        setDuplicateWarning(
+          `Bu irsaliye/fis no ile ${FUEL_LABEL[tank.fuelType]} icin daha once ${formatDateTime(d.existingCreatedAt)} tarihinde bir teslimat kaydedilmis. Yine de eklemek istiyor musunuz?`
+        );
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Stok eklenemedi.");
     } finally {
       setSubmitting(false);
@@ -230,23 +242,39 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" required />
 
       <label>Irsaliye / Fis No</label>
-      <input value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} required />
+      <input
+        value={deliveryRef}
+        onChange={(e) => {
+          setDeliveryRef(e.target.value);
+          setDuplicateWarning(null);
+        }}
+        required
+      />
 
       <label>Not (opsiyonel)</label>
       <input value={note} onChange={(e) => setNote(e.target.value)} />
 
       {error && <p className="error-text">{error}</p>}
+      {duplicateWarning && (
+        <p className="hint-text" style={{ color: "var(--warning)" }}>{duplicateWarning}</p>
+      )}
 
       <div className="toolbar" style={{ marginTop: "1.25rem" }}>
         <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>
         <div className="spacer" />
-        <button
-          className="primary"
-          disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim() || !deliveryRef.trim()}
-          onClick={submit}
-        >
-          {submitting ? "Ekleniyor..." : "Stok Ekle"}
-        </button>
+        {duplicateWarning ? (
+          <button className="danger" disabled={submitting} onClick={() => submit(true)}>
+            {submitting ? "Ekleniyor..." : "Yine de Ekle"}
+          </button>
+        ) : (
+          <button
+            className="primary"
+            disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim() || !deliveryRef.trim()}
+            onClick={() => submit(false)}
+          >
+            {submitting ? "Ekleniyor..." : "Stok Ekle"}
+          </button>
+        )}
       </div>
     </Modal>
   );

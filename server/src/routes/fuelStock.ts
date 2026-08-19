@@ -4,6 +4,7 @@ import { attachStationScope, csrfProtection, requireAuth, requireRole, requireSt
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import {
+  DuplicateDeliveryRefError,
   FuelStockError,
   addStock,
   adjustStock,
@@ -66,6 +67,7 @@ const addSchema = z.object({
   supplier: z.string().trim().min(2, "Tedarikci zorunludur.").max(120),
   deliveryRef: z.string().trim().min(1, "Irsaliye/fis no zorunludur.").max(60),
   note: z.string().max(300).optional(),
+  force: z.boolean().optional(),
 });
 
 router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res) => {
@@ -73,8 +75,8 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 
   try {
-    const { liters, supplier, deliveryRef, note } = req.body as z.infer<typeof addSchema>;
-    const { tank, overflow } = addStock(req.stationId!, fuelType.data, liters, { supplier, deliveryRef, note }, req.user!);
+    const { liters, supplier, deliveryRef, note, force } = req.body as z.infer<typeof addSchema>;
+    const { tank, overflow } = addStock(req.stationId!, fuelType.data, liters, { supplier, deliveryRef, note, force }, req.user!);
     recordAudit({
       user: req.user!,
       action: "fuel_stock_added",
@@ -86,6 +88,12 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
     });
     res.status(201).json({ tank: serializeTank(tank), overflow });
   } catch (err) {
+    if (err instanceof DuplicateDeliveryRefError) {
+      return void res.status(err.status).json({
+        error: err.message,
+        details: { duplicate: true, movementId: err.movementId, existingCreatedAt: err.existingCreatedAt },
+      });
+    }
     if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }
