@@ -205,8 +205,7 @@ export default function Shift() {
         </table>
         {unassigned && unassigned.transactionCount > 0 && (
           <p className="hint-text" style={{ marginTop: "0.5rem" }}>
-            "Vardiyasiz Satislar": acik vardiya olmadan tamamlanan, hicbir personele atfedilemeyen satislar. Bunlar
-            olustugunda Alarm Merkezi'nde bir uyari olusur; bir vardiya acildiginda bu uyari otomatik kapanir.
+            "Vardiyasiz Satislar": acik vardiya olmadan tamamlanan, hicbir personele atfedilemeyen satislar.
           </p>
         )}
       </div>

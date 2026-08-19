@@ -16,15 +16,21 @@ interface Summary {
   };
 }
 
+interface ShiftSummaryResponse {
+  unassigned: { transactionCount: number; revenue: number; liters: number };
+}
+
 export default function Dashboard() {
   const { pumps } = usePumps();
   const { alarms } = useActiveAlarms();
   const stationId = useEffectiveStationId();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [unassignedCount, setUnassignedCount] = useState(0);
 
   useEffect(() => {
     if (stationId === null) return;
     api.get<Summary>("/api/reports/summary").then(setSummary);
+    api.get<ShiftSummaryResponse>("/api/shifts/summary").then((res) => setUnassignedCount(res.unassigned.transactionCount));
   }, [stationId]);
 
   const dispensing = pumps.filter((p) => p.status === "dispensing").length;
@@ -33,6 +39,16 @@ export default function Dashboard() {
   return (
     <div>
       <h2>Panel</h2>
+      {unassignedCount > 0 && (
+        <div className="card" style={{ marginBottom: "1rem", borderColor: "var(--warning)" }}>
+          <div className="toolbar" style={{ margin: 0 }}>
+            <span className="badge warning">Bilgi</span>
+            <span>Acik vardiya olmadan tamamlanan {unassignedCount} satis var.</span>
+            <div className="spacer" />
+            <Link to="/operator/vardiya"><button className="ghost">Vardiya sayfasina git</button></Link>
+          </div>
+        </div>
+      )}
       <div className="grid cols-4">
         <div className="card stat">
           <span className="label">Toplam Ciro</span>

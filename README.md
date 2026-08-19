@@ -35,10 +35,10 @@ yakit/
   litresini/cirosunu gösterir — "hangi kullanıcı kaç litre sattı" sorusunun cevabı budur.
   Kiosk satışları hiçbir kullanıcı hesabına doğrudan bağlı değildir (self-servis, müşteri
   oturum açmaz); bir satış, tamamlandığı anda istasyonda **açık olan vardiyaya** atfedilir.
-  Açık vardiya yokken tamamlanan satışlar "Vardiyasız Satışlar" altında ayrıca gösterilir ve
-  otomatik olarak bir uyarı alarmı oluşturur (bir vardiya açıldığında bu alarm kendiliğinden
-  kapanır) — böylece hiçbir satış sessizce takipsiz kalmaz. Hem vardiya geçmişi hem personel
-  performansı tablosu **CSV olarak indirilebilir**.
+  Açık vardiya yokken tamamlanan satışlar "Vardiyasız Satışlar" altında ayrıca gösterilir —
+  böylece hiçbir satış sessizce takipsiz kalmaz. Bu, Alarm Merkezi'nde bir alarm olarak değil
+  (gerçek arıza/kritik durumlarla karışmasın diye), Panel'de küçük bir bilgi rozetiyle
+  gösterilir. Hem vardiya geçmişi hem personel performansı tablosu **CSV olarak indirilebilir**.
 - **Yakıt Stoku** (`/operator/stok`, yalnızca istasyon yöneticisi/`admin` görebilir ve
   düzenleyebilir; `operator`/`viewer` erişemez): Her istasyonun benzin/motorin/LPG tankları için mevcut
   seviye, kapasite ve düşük stok eşiği canlı bir tank göstergesiyle (gauge) izlenir. Kiosk'ta

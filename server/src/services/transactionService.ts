@@ -76,33 +76,6 @@ function broadcastTransaction(t: TransactionRow): void {
   broadcast(`transactions:${t.station_id}`, serializeTransaction(t));
 }
 
-function hasOpenShift(stationId: number): boolean {
-  return !!db.prepare("SELECT 1 FROM shifts WHERE station_id = ? AND ended_at IS NULL LIMIT 1").get(stationId);
-}
-
-/**
- * Kiosk satislari hicbir kullanici hesabina dogrudan baglanmaz; Personel Performansi
- * raporu satisi, o an istasyonda acik olan vardiyaya (zaman araligina gore) atfeder.
- * Acik vardiya yokken bir satis tamamlanirsa kimseye yazilmaz ("vardiyasiz satis").
- * Bunu operator/yoneticinin fark etmesi icin bir alarm olusturulur; ayni donemde
- * tekrar tekrar bildirim gitmesin diye zaten aktif boyle bir alarm varsa yenisi
- * acilmaz (bir vardiya acildiginda bu alarm otomatik cozulur, bkz. routes/shifts.ts).
- */
-function flagIfUnassignedSale(t: TransactionRow): void {
-  if (t.status !== "completed" || hasOpenShift(t.station_id)) return;
-  const existing = db
-    .prepare("SELECT id FROM alarms WHERE station_id = ? AND type = 'unassigned_sale' AND status != 'resolved' LIMIT 1")
-    .get(t.station_id);
-  if (existing) return;
-  createAlarm({
-    stationId: t.station_id,
-    pumpId: t.pump_id,
-    type: "unassigned_sale",
-    severity: "warning",
-    message: `Acik vardiya yokken bir satis tamamlandi (Pompa ${t.pump_id}, Plaka ${t.plate}). Personel Performansi raporunda "Vardiyasiz Satislar" altinda gorunur.`,
-  });
-}
-
 export interface CreateTransactionInput {
   pumpId: number;
   plate: string;
@@ -305,7 +278,6 @@ function startDispensing(id: number): void {
     });
     setPumpStatus(current.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(completed);
-    flagIfUnassignedSale(completed);
     recordSaleMovement(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
   }, DISPENSE_TICK_MS);
 
@@ -341,7 +313,6 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
     stationId: t.station_id,
   });
   broadcastTransaction(updated);
-  flagIfUnassignedSale(updated);
   if (updated.status === "completed") {
     // Tank stogu zaten dolum sirasinda tick tick dusulmustu (deductAvailable);
     // burada sadece o ana kadar dagitilan miktar icin ozet hareket kaydediliyor.

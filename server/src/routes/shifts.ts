@@ -5,7 +5,6 @@ import type { ShiftRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
-import { broadcastAlarms } from "../services/alarmService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
@@ -227,13 +226,6 @@ router.post("/start", requireRole("admin", "operator"), csrfProtection, validate
   const result = db
     .prepare("INSERT INTO shifts (station_id, user_id, opening_note) VALUES (?, ?, ?)")
     .run(req.stationId!, req.user!.id, openingNote ?? null);
-
-  // Vardiya acildigi icin "vardiyasiz satis" alarmi artik gecerli degil; otomatik coz.
-  const now = new Date().toISOString();
-  db.prepare(
-    "UPDATE alarms SET status = 'resolved', resolved_by = ?, resolved_at = ? WHERE station_id = ? AND type = 'unassigned_sale' AND status != 'resolved'"
-  ).run(req.user!.id, now, req.stationId!);
-  broadcastAlarms(req.stationId!);
 
   recordAudit({
     user: req.user!,
