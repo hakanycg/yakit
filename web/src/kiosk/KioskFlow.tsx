@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { kioskApi, type StationResponse } from "./kioskApi";
 import { useTopicSubscription } from "../shared/useWebSocket";
-import type { FuelType, Pump, Transaction } from "../shared/types";
+import type { FuelTank, FuelType, Pump, Transaction } from "../shared/types";
 import PlateStep from "./steps/PlateStep";
 import PumpStep from "./steps/PumpStep";
 import FuelStep from "./steps/FuelStep";
@@ -54,6 +54,22 @@ export default function KioskFlow() {
   useEffect(loadStation, [loadStation]);
   useTopicSubscription(station ? `pumps:${station.station.id}` : null, (payload) => {
     setStation((prev) => (prev ? { ...prev, pumps: payload as Pump[] } : prev));
+  });
+
+  // Operator stok ekledigi/dusurdugunde kiosk'taki "tukendi" durumu yenilenmeden
+  // gecerliligini yitirmesin diye tank seviyelerini canli izler.
+  useTopicSubscription(station ? `fuel-stock:${station.station.id}` : null, (payload) => {
+    const tanks = payload as FuelTank[];
+    setStation((prev) => {
+      if (!prev) return prev;
+      const stockByType = new Map(tanks.map((t) => [t.fuelType, t.currentLiters]));
+      return {
+        ...prev,
+        fuelPrices: prev.fuelPrices.map((f) =>
+          stockByType.has(f.fuelType) ? { ...f, inStock: (stockByType.get(f.fuelType) ?? 0) > 0 } : f
+        ),
+      };
+    });
   });
 
   // iyzico odemesi tamamlandiginda musteri, sunucunun sonucu dogruladigi callback
