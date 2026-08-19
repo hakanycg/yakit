@@ -49,7 +49,14 @@ yakit/
   Her hareket (satış/teslimat/düzeltme) zaman damgası, kullanıcı ve bakiye ile birlikte
   **Stok Hareketleri** tablosunda tutulur ve CSV olarak indirilebilir. Bir tank düşük stok
   eşiğinin altına düşünce otomatik olarak kritik bir alarm oluşur; stok yeniden eşiğin
-  üzerine çıkınca bu alarm kendiliğinden kapanır.
+  üzerine çıkınca bu alarm kendiliğinden kapanır. **Stok olmadan satış yapılamaz:** bir
+  yakıt tipinin deposu tükenmişse kiosk'ta o buton "Tükendi" olarak devre dışı kalır ve
+  sunucu tarafında da işlem oluşturma reddedilir (arayüz atlanarak doğrudan API'ye
+  istek atılsa bile). Dolum sırasında da tank seviyesi **gerçek zamanlı, litre litre**
+  düşürülür (tek seferlik toplu düşüm değil) — böylece aynı tankı paylaşan birden fazla
+  pompa aynı anda dolum yapıyorsa, depo bittiğinde ikisi de doğru şekilde sınırlanır;
+  depo bir müşterinin dolumu sırasında tükenirse işlem o ana kadar verilen miktarla
+  otomatik tamamlanır ve müşteriye makbuzda bu açıkça belirtilir.
 - **Ödeme:** İki mod desteklenir. Bir istasyon **iyzico** ile yapılandırılmışsa (Ayarlar →
   "Ödeme Ayarları"), kiosk'taki ödeme adımı iyzico'nun barındırdığı gerçek, PCI DSS
   kapsamındaki güvenli ödeme formuna yönlendirir — bu **gerçek bir banka/kart altyapısı

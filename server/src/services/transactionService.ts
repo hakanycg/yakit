@@ -6,7 +6,7 @@ import { getPump, setPumpStatus } from "./pumpService.js";
 import { processVirtualPayment, type VirtualCardInput } from "./paymentService.js";
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
-import { deductStockForSale } from "./fuelStockService.js";
+import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
 
 const DISPENSE_TICK_MS = 500;
 const FLOW_LITERS_PER_SEC_MIN = 0.45;
@@ -121,6 +121,10 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
   const fuelTypes = JSON.parse(pump.fuel_types) as string[];
   if (!fuelTypes.includes(input.fuelType)) {
     throw new TransactionError("Bu pompa secilen yakit tipini desteklemiyor.", 400);
+  }
+
+  if (getAvailableLiters(pump.station_id, input.fuelType) <= 0) {
+    throw new TransactionError("Bu yakit tipi su anda tukenmis. Lutfen istasyon gorevlisiyle iletisime gecin.", 409);
   }
 
   const price = getFuelPrice(pump.station_id, input.fuelType);
@@ -271,14 +275,16 @@ function startDispensing(id: number): void {
     }
 
     const flowRate = FLOW_LITERS_PER_SEC_MIN + Math.random() * (FLOW_LITERS_PER_SEC_MAX - FLOW_LITERS_PER_SEC_MIN);
-    const increment = flowRate * (DISPENSE_TICK_MS / 1000);
-    let nextLiters = current.dispensed_liters + increment;
-    let finished = false;
+    const desiredIncrement = Math.min(flowRate * (DISPENSE_TICK_MS / 1000), targetLiters - current.dispensed_liters);
 
-    if (nextLiters >= targetLiters) {
-      nextLiters = targetLiters;
-      finished = true;
-    }
+    // Gercek fiziksel pompa gibi, dolum ANLIK olarak tanktan besleniyor — depo bu
+    // ana kadar bosaldiysa (ör. ayni tanki paylasan baska bir pompa tuketmis olabilir)
+    // istenen kadar degil, tankta gercekten kalan kadar dusum yapilir.
+    const { actual: actualIncrement, limited: ranDry } = deductAvailable(current.station_id, current.fuel_type, desiredIncrement);
+
+    let nextLiters = current.dispensed_liters + actualIncrement;
+    const finished = nextLiters >= targetLiters - 0.0001 || ranDry;
+    if (finished) nextLiters = Math.min(nextLiters, targetLiters);
 
     const nextAmount = nextLiters * current.price_per_liter;
 
@@ -295,11 +301,12 @@ function startDispensing(id: number): void {
       total_amount: Math.round(nextAmount * 100) / 100,
       status: "completed",
       completed_at: new Date().toISOString(),
+      cancelled_reason: ranDry ? "Depo dolum sirasinda tukendi; islem eldeki miktarla sonuclandirildi." : null,
     });
     setPumpStatus(current.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(completed);
     flagIfUnassignedSale(completed);
-    deductStockForSale(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
+    recordSaleMovement(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
   }, DISPENSE_TICK_MS);
 
   activeDispensers.set(id, interval);
@@ -336,7 +343,9 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
   broadcastTransaction(updated);
   flagIfUnassignedSale(updated);
   if (updated.status === "completed") {
-    deductStockForSale(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
+    // Tank stogu zaten dolum sirasinda tick tick dusulmustu (deductAvailable);
+    // burada sadece o ana kadar dagitilan miktar icin ozet hareket kaydediliyor.
+    recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
   }
   return updated;
 }

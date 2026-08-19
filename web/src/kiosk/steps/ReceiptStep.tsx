@@ -23,6 +23,12 @@ export default function ReceiptStep({
       ) : (
         <>
           <p className="hint-text">Aracinizin yakit dolumu basariyla tamamlandi.</p>
+          {transaction.cancelledReason && (
+            <p className="error-text">
+              Depo dolum sirasinda tukendigi icin islem {formatLiters(transaction.dispensedLiters)} ile sinirli
+              kaldi. Anlayisiniz icin tesekkur ederiz.
+            </p>
+          )}
           <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
             <div className="toolbar"><span>Plaka</span><div className="spacer" /><strong>{transaction.plate}</strong></div>
             <div className="toolbar"><span>Yakit</span><div className="spacer" /><strong>{FUEL_LABEL[transaction.fuelType]}</strong></div>

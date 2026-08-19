@@ -140,12 +140,34 @@ export function addStock(
   return { tank: getTank(stationId, fuelType), overflow };
 }
 
-/** Kiosk'ta bir satis tamamlandiginda tank stogundan otomatik dusum yapar. */
-export function deductStockForSale(stationId: number, fuelType: FuelType, liters: number, transactionId: number): void {
-  if (liters <= 0) return;
-  const tank = getTank(stationId, fuelType);
-  const newLevel = Math.max(0, Math.round((tank.current_liters - liters) * 100) / 100);
+export function getAvailableLiters(stationId: number, fuelType: FuelType): number {
+  return getTank(stationId, fuelType).current_liters;
+}
 
+export interface DeductResult {
+  actual: number;
+  /** Istenen miktarin tamami karsilanamadi (tank o an bunun altindaydi) - yuvarlama degil, gercek kisitlama. */
+  limited: boolean;
+}
+
+/**
+ * Dolum sirasinda (her tick'te) gercek zamanli olarak tanktan dusum yapar; istenen
+ * miktar tankta kalandan fazlaysa yalnizca mevcut olan kadari dusulur. Boylece ayni
+ * tanktan besleniyor olabilecek birden fazla pompa, depo bosaldiginda dogru sekilde
+ * birbirini sinirlar (tek seferlik toplu dusum yerine). `limited`, yuvarlamadan
+ * ETKILENMEYECEK sekilde asil (yuvarlanmamis) miktarlar karsilastirilarak hesaplanir -
+ * aksi halde normal (stok yeterliyken) durumlarda bile kucuk yuvarlama farklari
+ * "depo tukendi" sanilmasina yol acabilirdi. Hareket kaydi burada TUTULMAZ; islem
+ * tamamlaninca recordSaleMovement ile tek satirlik ozet kaydedilir.
+ */
+export function deductAvailable(stationId: number, fuelType: FuelType, desiredLiters: number): DeductResult {
+  if (desiredLiters <= 0) return { actual: 0, limited: false };
+  const tank = getTank(stationId, fuelType);
+  const limited = tank.current_liters < desiredLiters;
+  const actualRaw = limited ? tank.current_liters : desiredLiters;
+  if (actualRaw <= 0) return { actual: 0, limited: true };
+
+  const newLevel = Math.max(0, Math.round((tank.current_liters - actualRaw) * 100) / 100);
   db.prepare("UPDATE fuel_tanks SET current_liters = ?, updated_at = ? WHERE station_id = ? AND fuel_type = ?").run(
     newLevel,
     new Date().toISOString(),
@@ -153,20 +175,26 @@ export function deductStockForSale(stationId: number, fuelType: FuelType, liters
     fuelType
   );
 
-  insertMovement({
-    stationId,
-    fuelType,
-    type: "sale",
-    liters: -liters,
-    balanceAfter: newLevel,
-    transactionId,
-  });
-
   if (newLevel <= tank.low_stock_threshold_liters) {
     raiseLowStockAlarmIfNeeded(stationId, fuelType, newLevel);
   }
 
   broadcastTanks(stationId);
+  return { actual: Math.round(actualRaw * 100) / 100, limited };
+}
+
+/** Bir satis tamamlandiginda (veya kismen kesildiginde) tek satirlik ozet hareket kaydi olusturur. Tank seviyesi bu fonksiyonda DEGISTIRILMEZ; dusum zaten deductAvailable ile tick tick yapilmis olur. */
+export function recordSaleMovement(stationId: number, fuelType: FuelType, liters: number, transactionId: number): void {
+  if (liters <= 0) return;
+  const tank = getTank(stationId, fuelType);
+  insertMovement({
+    stationId,
+    fuelType,
+    type: "sale",
+    liters: -liters,
+    balanceAfter: tank.current_liters,
+    transactionId,
+  });
 }
 
 /** Yonetici, fiziksel olcum sonrasi tank seviyesini dogrudan duzeltir (ör. sayac farki). */
@@ -245,16 +273,28 @@ function lowStockAlarmType(fuelType: FuelType): string {
 }
 
 function raiseLowStockAlarmIfNeeded(stationId: number, fuelType: FuelType, level: number): void {
+  const message =
+    level <= 0
+      ? `${FUEL_LABELS[fuelType]} tanki tukendi. Bu yakit tipi icin kiosk'ta yeni satis alinamiyor; acilen ikmal yapin.`
+      : `${FUEL_LABELS[fuelType]} tanki dusuk seviyede (${Math.round(level)} L kaldi). Yakit ikmali yapin.`;
+
   const existing = db
-    .prepare("SELECT id FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1")
+    .prepare<[number, string], { id: number; message: string }>(
+      "SELECT id, message FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1"
+    )
     .get(stationId, lowStockAlarmType(fuelType));
-  if (existing) return;
-  createAlarm({
-    stationId,
-    type: lowStockAlarmType(fuelType),
-    severity: "critical",
-    message: `${FUEL_LABELS[fuelType]} tanki dusuk seviyede (${Math.round(level)} L kaldi). Yakit ikmali yapin.`,
-  });
+
+  if (existing) {
+    // Zaten aktif bir uyari varsa spam olmasin diye yeni alarm acilmaz, ama tank
+    // tamamen tukendiginde ("dusuk" -> "bitti") mesaj bayat kalmasin diye guncellenir.
+    if (level <= 0 && existing.message !== message) {
+      db.prepare("UPDATE alarms SET message = ? WHERE id = ?").run(message, existing.id);
+      broadcastAlarms(stationId);
+    }
+    return;
+  }
+
+  createAlarm({ stationId, type: lowStockAlarmType(fuelType), severity: "critical", message });
 }
 
 function resolveLowStockAlarmIfRecovered(stationId: number, fuelType: FuelType, level: number, threshold: number, actor: UserRow): void {

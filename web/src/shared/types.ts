@@ -81,6 +81,7 @@ export interface FuelPrice {
   label: string;
   pricePerLiter: number;
   updatedAt?: string;
+  inStock?: boolean;
 }
 
 export type TankStatus = "ok" | "low" | "critical";

@@ -18,6 +18,7 @@ import { listPumps, serializePump } from "../services/pumpService.js";
 import { sendReceipt } from "../services/receiptService.js";
 import { initializeCheckoutForm, retrieveCheckoutForm, IyzicoError } from "../services/iyzicoService.js";
 import { isIyzicoReady } from "../services/paymentSettingsService.js";
+import { getAvailableLiters } from "../services/fuelStockService.js";
 import { env } from "../config.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, StationRow } from "../db/types.js";
@@ -51,7 +52,12 @@ router.get("/station/:slug", (req, res) => {
       latitude: station.latitude,
       longitude: station.longitude,
     },
-    fuelPrices: prices.map((p) => ({ fuelType: p.fuel_type, label: p.label, pricePerLiter: p.price_per_liter })),
+    fuelPrices: prices.map((p) => ({
+      fuelType: p.fuel_type,
+      label: p.label,
+      pricePerLiter: p.price_per_liter,
+      inStock: getAvailableLiters(station.id, p.fuel_type) > 0,
+    })),
     pumps: listPumps(station.id).map(serializePump),
     iyzicoEnabled: isIyzicoReady(station.id).ready,
   });
