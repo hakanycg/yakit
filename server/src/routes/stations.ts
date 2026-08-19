@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import type { StationRow } from "../db/types.js";
+import type { StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
@@ -146,19 +146,32 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
   if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
 
   const txCount = (db.prepare("SELECT COUNT(*) as c FROM transactions WHERE station_id = ?").get(id) as { c: number }).c;
-  const userCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE station_id = ?").get(id) as { c: number }).c;
-  if (txCount > 0 || userCount > 0) {
+  if (txCount > 0) {
     res.status(409).json({
-      error: "Bu istasyonda islem veya kullanici kayitlari oldugu icin tamamen silinemez. Bunun yerine devre disi birakabilirsiniz.",
+      error: "Bu istasyonda islem kayitlari oldugu icin tamamen silinemez. Bunun yerine devre disi birakabilirsiniz.",
     });
     return;
   }
 
+  const stationUsers = db.prepare<[number], UserRow>("SELECT * FROM users WHERE station_id = ?").all(id);
+
   const del = db.transaction(() => {
     db.prepare("DELETE FROM alarms WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM shifts WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM pumps WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM fuel_prices WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM settings WHERE station_id = ?").run(id);
+
+    // Istasyona bagli kullanici hesaplarini da kalici olarak sil (islem kaydi
+    // olmadigi icin bu hesaplarin baska bir istasyona tasinmasi anlamsiz).
+    // Denetim gunlugundeki gecmis kayitlari koru, sadece kullaniciya olan referansi kaldir.
+    if (stationUsers.length > 0) {
+      const userIds = stationUsers.map((u) => u.id);
+      const placeholders = userIds.map(() => "?").join(",");
+      db.prepare(`UPDATE audit_log SET user_id = NULL WHERE user_id IN (${placeholders})`).run(...userIds);
+      db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...userIds);
+    }
+
     // Denetim gunlugundeki gecmis kayitlari koru, sadece bu istasyona olan referansi kaldir.
     db.prepare("UPDATE audit_log SET station_id = NULL WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM stations WHERE id = ?").run(id);
@@ -170,7 +183,7 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     action: "station_deleted",
     entityType: "station",
     entityId: id,
-    details: { slug: station.slug, name: station.name },
+    details: { slug: station.slug, name: station.name, deletedUsernames: stationUsers.map((u) => u.username) },
     ip: req.ip,
     stationId: null,
   });

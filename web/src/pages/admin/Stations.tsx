@@ -30,7 +30,8 @@ export default function Stations() {
   }
 
   async function deleteStation(s: Station) {
-    if (!confirm(`"${s.name}" istasyonunu kalici olarak silmek istediginize emin misiniz? Bu islem geri alinamaz.`)) return;
+    const userWarning = (s.userCount ?? 0) > 0 ? ` Bu istasyona bagli ${s.userCount} kullanici hesabi da kalici olarak silinecek.` : "";
+    if (!confirm(`"${s.name}" istasyonunu kalici olarak silmek istediginize emin misiniz?${userWarning} Bu islem geri alinamaz.`)) return;
     setError(null);
     try {
       await api.delete(`/api/stations/${s.id}`);
@@ -71,14 +72,19 @@ export default function Stations() {
             </div>
             <div className="toolbar" style={{ marginTop: "0.75rem" }}>
               <button onClick={() => toggleActive(s)}>{s.active ? "Devre Disi Birak" : "Etkinlestir"}</button>
-              {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) === 0 && (
+              {(s.transactionCount ?? 0) === 0 && (
                 <button className="danger" onClick={() => deleteStation(s)}>Kalici Olarak Sil</button>
               )}
               {s.createdAt && <span className="hint-text">Olusturulma: {formatDateTime(s.createdAt)}</span>}
             </div>
-            {((s.transactionCount ?? 0) > 0 || (s.userCount ?? 0) > 0) && (
+            {(s.transactionCount ?? 0) > 0 && (
               <p className="hint-text" style={{ marginTop: "0.4rem" }}>
-                Islem veya kullanici kaydi oldugu icin kalici olarak silinemez; sadece devre disi birakilabilir.
+                Islem kaydi oldugu icin kalici olarak silinemez; sadece devre disi birakilabilir.
+              </p>
+            )}
+            {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) > 0 && (
+              <p className="hint-text" style={{ marginTop: "0.4rem" }}>
+                Silme, buradaki {s.userCount} kullanici hesabini da kalici olarak kaldirir.
               </p>
             )}
           </div>

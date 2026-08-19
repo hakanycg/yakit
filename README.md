@@ -46,9 +46,11 @@ yakit/
   yakıt fiyatı ayarları, demo verilerini sıfırlama — hepsi yalnızca kendi istasyonuyla sınırlı.
 - **Platform Yönetimi** (`/admin/istasyonlar`, yalnızca `super_admin` rolü): Tüm istasyonları
   listeler, yeni istasyon (+ istasyon yöneticisi hesabı) oluşturur, istasyonları
-  etkinleştirir/devre dışı bırakır. Hiç işlemi veya kullanıcısı olmayan (örn. yanlışlıkla
-  oluşturulmuş veya test amaçlı) bir istasyon kalıcı olarak da silinebilir; işlem/kullanıcı
-  kaydı bulunan istasyonlar veri bütünlüğü için yalnızca devre dışı bırakılabilir. Üst
+  etkinleştirir/devre dışı bırakır. Hiç işlem kaydı olmayan (örn. yanlışlıkla oluşturulmuş
+  veya test amaçlı) bir istasyon kalıcı olarak da silinebilir — bu durumda istasyona bağlı
+  kullanıcı hesapları da otomatik olarak kalıcı silinir (arayüz ve API bunu önceden açıkça
+  belirtir). İşlem kaydı bulunan istasyonlar ise veri bütünlüğü için yalnızca devre dışı
+  bırakılabilir, silinemez. Üst
   menüdeki istasyon değiştirici ile herhangi bir
   istasyonun operatör/yönetici panelini görüntüleyebilir — tıpkı o istasyonun kendi
   yöneticisiymiş gibi, ama tüm istasyonlara erişimi olan tek roldür. Ürünün satışı
