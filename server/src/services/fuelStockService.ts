@@ -236,8 +236,8 @@ export function recordSaleMovement(stationId: number, fuelType: FuelType, liters
   });
 }
 
-/** Yonetici, fiziksel olcum sonrasi tank seviyesini dogrudan duzeltir (ör. sayac farki). */
-export function adjustStock(stationId: number, fuelType: FuelType, newLiters: number, note: string | undefined, actor: UserRow): FuelTankRow {
+/** Yonetici, fiziksel olcum sonrasi tank seviyesini dogrudan duzeltir (ör. sayac farki). Aciklama zorunludur - denetim icin her duzeltmenin gercek bir gerekcesi kayit altina alinir. */
+export function adjustStock(stationId: number, fuelType: FuelType, newLiters: number, note: string, actor: UserRow): FuelTankRow {
   if (newLiters < 0) throw new FuelStockError("Stok miktari negatif olamaz.", 400);
   const tank = getTank(stationId, fuelType);
   const clamped = Math.min(newLiters, tank.capacity_liters);
@@ -253,7 +253,7 @@ export function adjustStock(stationId: number, fuelType: FuelType, newLiters: nu
     type: "adjustment",
     liters: delta,
     balanceAfter: clamped,
-    note: note ?? "Manuel duzeltme",
+    note,
     userId: actor.id,
   });
 

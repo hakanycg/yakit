@@ -101,7 +101,7 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
 
 const adjustSchema = z.object({
   newLiters: z.number().min(0).max(1000000),
-  note: z.string().max(300).optional(),
+  note: z.string().trim().min(3, "Aciklama zorunludur.").max(300),
 });
 
 router.post("/:fuelType/adjust", csrfProtection, validateBody(adjustSchema), (req, res) => {

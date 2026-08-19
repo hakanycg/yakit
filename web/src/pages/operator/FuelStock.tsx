@@ -310,7 +310,7 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
     try {
       await api.post(`/api/fuel-stock/${tank.fuelType}/adjust`, {
         newLiters: Number(adjustLiters),
-        note: adjustNote.trim() || undefined,
+        note: adjustNote.trim(),
       });
       onSaved();
     } catch (err) {
@@ -343,11 +343,16 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
         </p>
         <label>Gercek Stok Miktari (L)</label>
         <input type="number" min={0} value={adjustLiters} onChange={(e) => setAdjustLiters(e.target.value)} />
-        <label>Aciklama (opsiyonel)</label>
-        <input value={adjustNote} onChange={(e) => setAdjustNote(e.target.value)} placeholder="orn: Fiziksel olcum sonrasi duzeltme" />
+        <label>Aciklama</label>
+        <input
+          value={adjustNote}
+          onChange={(e) => setAdjustNote(e.target.value)}
+          placeholder="orn: Fiziksel olcum sonrasi duzeltme, sayac X litre farkli cikti"
+          required
+        />
         <div className="toolbar" style={{ marginTop: "0.75rem" }}>
           <div className="spacer" />
-          <button className="danger" disabled={submitting} onClick={submitAdjust}>Duzelt</button>
+          <button className="danger" disabled={submitting || !adjustNote.trim()} onClick={submitAdjust}>Duzelt</button>
         </div>
       </div>
 
