@@ -16,6 +16,7 @@ function slugify(name: string): string {
 export default function Stations() {
   const [stations, setStations] = useState<Station[]>([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [, setCurrentStationId] = useCurrentStationId();
 
   function load() {
@@ -28,9 +29,21 @@ export default function Stations() {
     load();
   }
 
+  async function deleteStation(s: Station) {
+    if (!confirm(`"${s.name}" istasyonunu kalici olarak silmek istediginize emin misiniz? Bu islem geri alinamaz.`)) return;
+    setError(null);
+    try {
+      await api.delete(`/api/stations/${s.id}`);
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Istasyon silinemedi.");
+    }
+  }
+
   return (
     <div>
       <h2>Istasyonlar</h2>
+      {error && <p className="error-text">{error}</p>}
       <div className="toolbar">
         <div className="spacer" />
         <button className="primary" onClick={() => setShowCreate(true)}>Yeni Istasyon</button>
@@ -58,8 +71,16 @@ export default function Stations() {
             </div>
             <div className="toolbar" style={{ marginTop: "0.75rem" }}>
               <button onClick={() => toggleActive(s)}>{s.active ? "Devre Disi Birak" : "Etkinlestir"}</button>
+              {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) === 0 && (
+                <button className="danger" onClick={() => deleteStation(s)}>Kalici Olarak Sil</button>
+              )}
               {s.createdAt && <span className="hint-text">Olusturulma: {formatDateTime(s.createdAt)}</span>}
             </div>
+            {((s.transactionCount ?? 0) > 0 || (s.userCount ?? 0) > 0) && (
+              <p className="hint-text" style={{ marginTop: "0.4rem" }}>
+                Islem veya kullanici kaydi oldugu icin kalici olarak silinemez; sadece devre disi birakilabilir.
+              </p>
+            )}
           </div>
         ))}
         {stations.length === 0 && (

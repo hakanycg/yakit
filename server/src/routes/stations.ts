@@ -36,7 +36,8 @@ router.get("/", requireRole("super_admin"), (_req, res) => {
       db.prepare("SELECT COUNT(*) as c FROM alarms WHERE station_id = ? AND status = 'active'").get(s.id) as { c: number }
     ).c;
     const userCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE station_id = ?").get(s.id) as { c: number }).c;
-    return { ...serializeStation(s), pumpCount, activeAlarms, userCount };
+    const transactionCount = (db.prepare("SELECT COUNT(*) as c FROM transactions WHERE station_id = ?").get(s.id) as { c: number }).c;
+    return { ...serializeStation(s), pumpCount, activeAlarms, userCount, transactionCount };
   });
   res.json({ stations: withStats });
 });
@@ -137,6 +138,44 @@ router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(up
 
   const updated = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id)!;
   res.json({ station: serializeStation(updated) });
+});
+
+router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id);
+  if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+
+  const txCount = (db.prepare("SELECT COUNT(*) as c FROM transactions WHERE station_id = ?").get(id) as { c: number }).c;
+  const userCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE station_id = ?").get(id) as { c: number }).c;
+  if (txCount > 0 || userCount > 0) {
+    res.status(409).json({
+      error: "Bu istasyonda islem veya kullanici kayitlari oldugu icin tamamen silinemez. Bunun yerine devre disi birakabilirsiniz.",
+    });
+    return;
+  }
+
+  const del = db.transaction(() => {
+    db.prepare("DELETE FROM alarms WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM pumps WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM fuel_prices WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM settings WHERE station_id = ?").run(id);
+    // Denetim gunlugundeki gecmis kayitlari koru, sadece bu istasyona olan referansi kaldir.
+    db.prepare("UPDATE audit_log SET station_id = NULL WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM stations WHERE id = ?").run(id);
+  });
+  del();
+
+  recordAudit({
+    user: req.user!,
+    action: "station_deleted",
+    entityType: "station",
+    entityId: id,
+    details: { slug: station.slug, name: station.name },
+    ip: req.ip,
+    stationId: null,
+  });
+
+  res.status(204).end();
 });
 
 export { router as stationsRouter };

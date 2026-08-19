@@ -93,6 +93,7 @@ export interface Station {
   active?: boolean;
   createdAt?: string;
   pumpCount?: number;
+  transactionCount?: number;
   activeAlarms?: number;
   userCount?: number;
 }
