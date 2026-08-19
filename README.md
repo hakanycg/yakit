@@ -30,6 +30,11 @@ yakit/
 - **Vardiya yönetimi** (`/operator/vardiya`): Operatör/yönetici vardiya başlatıp bitirebilir;
   açık vardiyanın canlı süresi, işlem sayısı, cirosu ve litre toplamı gösterilir; geçmiş
   vardiyalar aynı istatistiklerle listelenir.
+- **Ödeme:** İki mod desteklenir. Bir istasyon **iyzico** ile yapılandırılmışsa (Ayarlar →
+  "Ödeme Ayarları"), kiosk'taki ödeme adımı iyzico'nun barındırdığı gerçek, PCI DSS
+  kapsamındaki güvenli ödeme formuna yönlendirir — bu **gerçek bir banka/kart altyapısı
+  entegrasyonudur**, simülasyon değildir (aşağıya bakınız). iyzico yapılandırılmamış
+  istasyonlarda kiosk, kural tabanlı bir sanal POS simülasyonuna otomatik olarak düşer.
 - **Makbuz gönderimi:** Kiosk'ta işlem tamamlandığında müşteri isterse e-posta ve/veya SMS
   ile makbuz alabilir (`POST /api/kiosk/transactions/:id/receipt`).
 - **Kritik alarm bildirimleri:** Bir pompa arızası gibi kritik önem düzeyinde bir alarm
@@ -88,22 +93,72 @@ yakit/
 - **Az yetki ilkesi:** Kiosk uçları kullanıcı oturumu gerektirmez ve yalnızca işlem
   yaşam döngüsüyle sınırlıdır; yönetimsel uçların tamamı `requireAuth` + `requireRole` +
   `csrfProtection` zincirinden geçer.
+- **iyzico ödeme doğrulaması:** Kart bilgileri hiçbir zaman bu sunucuya ulaşmaz. Kiosk
+  yalnızca iyzico'dan bir "checkout form" başlatır; ödemenin gerçekten başarılı olup
+  olmadığına biz kendi tarafımızda **sunucudan sunucuya** bir "retrieve" sorgusuyla karar
+  veririz — iyzico'nun tarayıcı üzerinden gönderdiği callback'teki değerlere güvenilmez.
+  Ayrıca iyzico'nun döndürdüğü her yanıt, kendi secret key'inizle hesaplanan bir
+  HMAC-SHA256 imzasıyla (`iyzicoService.ts`) doğrulanır; imza uyuşmazsa sonuç reddedilir.
 
-## Simülasyon olarak uygulanan iki bileşen (donanım gerektirdiği için)
+## Gerçek ödeme altyapısı: iyzico
+
+Ödeme, demo/simülasyon değil **gerçek bir iyzico entegrasyonudur**: `server/src/services/
+iyzicoService.ts` iyzico'nun resmi Node SDK'sı (`iyzipay`) ile "Checkout Form" (Ödeme Formu)
+ürününü kullanır — kiosk kart bilgisi toplamaz, müşteri iyzico'nun barındırdığı güvenli
+forma yönlendirilir (PCI DSS kapsamı iyzico'da kalır).
+
+- **Yapılandırma istasyon bazlıdır:** Yönetici Paneli → Ayarlar → "Ödeme Ayarları (iyzico)"
+  ekranından her istasyon kendi iyzico API/secret anahtarlarını ve ortamını (sandbox/production)
+  girer; anahtarlar veritabanında saklanır, API üzerinden yalnızca maskeli (son 4 hane)
+  olarak geri döner. iyzico yapılandırılmamış veya devre dışı bırakılmış bir istasyonda kiosk
+  otomatik olarak sanal POS simülasyonuna döner (bkz. aşağıdaki simülasyon bölümü).
+- **Zorunlu ön koşul — `PUBLIC_API_BASE_URL`:** iyzico, ödeme sonucunu bu sunucunun **herkese
+  açık** bir adresine (kendi sunucularından) bildirir; bu adres `server/.env` içinde
+  `PUBLIC_API_BASE_URL` ile tanımlanmalıdır. `localhost` veya yerel ağ adresleriyle **çalışmaz**.
+  Yerelde test etmek için ngrok/cloudflared gibi bir tünel açıp verdiği `https://...` adresini
+  buraya yazmanız gerekir; üretimde bu, sunucunuzun gerçek genel adresi olur. Bu değişken
+  boşsa iyzico ödemesi başlatılamaz — kiosk sanal POS simülasyonuna düşer ve Ayarlar sayfasında
+  net bir uyarı gösterilir.
+- **Akış:** Kiosk `POST /api/kiosk/transactions/:id/iyzico/init` çağırır → iyzico'dan alınan
+  ödeme formu kiosk sayfasına gömülür → müşteri kartını iyzico'nun formunda girer → iyzico,
+  müşteri tarayıcısını `POST /api/kiosk/transactions/:id/iyzico/callback` adresine yönlendirir
+  (kiosk erişim token'ı olmadan, genel erişimli) → sunucu bu callback'e **güvenmez**, aynı
+  token ile iyzico'ya kendi tarafımızdan bir doğrulama sorgusu (`retrieveCheckoutForm`) atar,
+  imzayı kontrol eder, işlemi kesinleştirir ve müşteriyi kiosk arayüzüne geri yönlendirir; SPA
+  durumu tam sayfa yönlendirmede kaybolduğundan işlem kimliği/erişim token'ı yönlendirmeden
+  hemen önce tarayıcının `localStorage`'ında saklanıp geri dönüşte okunur.
+- **Bu ortamda canlı test edilemedi:** Bu oturumun çalıştığı sandbox, iyzico'nun sunucularına
+  (veya herhangi bir dış servise) çıkış yapamıyor — kod, gerçek bir bağlantı denemesi
+  yapıp sonucu doğru şekilde hatayla karşıladığı doğrulandı (bağlantı reddi/tünel hatası
+  düzgün bir Türkçe hata mesajına çevrilip 502 döndü, sunucu çökmedi), ancak gerçek bir
+  sandbox/production iyzico hesabıyla uçtan uca ödeme akışı **sizin tarafınızdan test
+  edilmelidir**. Bu test sırasında iyzico'nun mevcut `checkoutFormContent` gömme sözleşmesini
+  (script/iframe yapısı) tarayıcı konsolundan doğrulamanız ve gerekirse iyzico'nun güncel
+  entegrasyon dokümantasyonuna göre `web/src/kiosk/steps/PaymentStep.tsx` içindeki gömme
+  kodunu güncellemeniz önerilir.
+- **Bilinen bir üçüncü parti kütüphane sorununa karşı önlem:** `iyzipay` SDK'sının kullandığı
+  eski HTTP istemcisi, bir ağ kesintisinden sonra ilgisiz bir soket hatasını (`ECONNRESET`)
+  yakalanmamış şekilde fırlatabiliyor; bu, düzeltilmeseydi tek bir ödeme denemesindeki geçici
+  bir ağ sorunu **tüm istasyonlardaki** sunucuyu çökertebilirdi. `server/src/index.ts`
+  içindeki `uncaughtException`/`unhandledRejection` güvenlik ağı bunu loglayıp sunucunun
+  çalışmaya devam etmesini sağlar (test edilip doğrulandı).
+
+## Simülasyon olarak uygulanan bileşenler (donanım gerektirdiği için / iyzico yapılandırılmadığında)
 
 1. **LPR / plaka tanıma:** Gerçek bir kamera donanımı olmadığından, `POST /api/kiosk/lpr/recognize`
    plaka formatını (il kodu 01–81 + harf/rakam düzeni) doğrulayan ve bir güven skoru üreten
    gerçekçi bir kural motoruyla çalışır. Kiosk arayüzünde bu açıkça belirtilir; kullanıcı
    isterse plakayı elle de girebilir.
-2. **Sanal ödeme (POS/banka ağı):** Gerçek bir ödeme ağı entegrasyonu olmadığından,
+2. **Sanal ödeme (yalnızca iyzico yapılandırılmamış istasyonlarda kullanılan yedek yol):**
    `paymentService.ts` Luhn algoritmasıyla kart numarası doğrulaması, son kullanma tarihi ve
    CVV kontrolü yapan gerçek kurallı bir sanal POS simülasyonudur. Test için `...0002` ile
    biten kart numaraları bilinçli olarak reddedilir (red senaryosunu test etmek için).
 
 Bunların dışındaki **her şey gerçek ve uçtan uca çalışır**: pompa durum makinesi, işlem
 yaşam döngüsü (oluşturuldu → ödendi → yetkilendirildi → dolum → tamamlandı), gerçek zamanlı
-litre/tutar artışı, alarm üretimi, raporlama, CSV dışa aktarma, vardiya takibi ve e-posta/SMS
-gönderimi gerçek veritabanı verisi ve gerçek servis entegrasyonları üzerinden çalışır.
+litre/tutar artışı, alarm üretimi, raporlama, CSV dışa aktarma, vardiya takibi, e-posta/SMS
+gönderimi ve iyzico ödeme entegrasyonu gerçek veritabanı verisi ve gerçek servis
+entegrasyonları üzerinden çalışır.
 
 ### E-posta/SMS için kendi sağlayıcınızı bağlamanız gerekir
 
@@ -124,6 +179,8 @@ npm install
 cp server/.env.example server/.env
 # server/.env içindeki SESSION_SECRET degerini `openssl rand -hex 32` ile uretilmis
 # rastgele bir degerle degistirin.
+# iyzico ile gercek odeme almak isterseniz PUBLIC_API_BASE_URL'i de doldurun (bkz. asagidaki
+# "Gercek odeme altyapisi: iyzico" bolumu); bos birakilirsa kiosk sanal POS simulasyonuna doner.
 
 npm run seed --workspace server   # roller, super_admin, ilk istasyon + istasyon yoneticisi, 4 pompa, fiyatlar
 npm run dev:server                # http://localhost:4000

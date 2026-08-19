@@ -20,6 +20,7 @@
     "express": "^4.21.0",
     "express-rate-limit": "^7.4.0",
     "helmet": "^7.1.0",
+    "iyzipay": "^2.0.69",
     "nanoid": "^5.0.7",
     "nodemailer": "^6.9.15",
     "pino": "^9.4.0",

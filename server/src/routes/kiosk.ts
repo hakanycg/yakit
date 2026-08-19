@@ -1,4 +1,5 @@
 import { Router } from "express";
+import express from "express";
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { kioskRateLimit } from "../middleware/rateLimit.js";
@@ -6,14 +7,21 @@ import {
   TransactionError,
   cancelPendingTransaction,
   createTransaction,
+  finalizeTransactionPayment,
+  getTransactionForIyzicoCallback,
   getTransactionForKiosk,
+  markIyzicoPending,
   payTransaction,
   serializeTransaction,
 } from "../services/transactionService.js";
 import { listPumps, serializePump } from "../services/pumpService.js";
 import { sendReceipt } from "../services/receiptService.js";
+import { initializeCheckoutForm, retrieveCheckoutForm, IyzicoError } from "../services/iyzicoService.js";
+import { isIyzicoReady } from "../services/paymentSettingsService.js";
+import { env } from "../config.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, StationRow } from "../db/types.js";
+import { logger } from "../utils/logger.js";
 
 const router = Router();
 router.use(kioskRateLimit);
@@ -45,6 +53,7 @@ router.get("/station/:slug", (req, res) => {
     },
     fuelPrices: prices.map((p) => ({ fuelType: p.fuel_type, label: p.label, pricePerLiter: p.price_per_liter })),
     pumps: listPumps(station.id).map(serializePump),
+    iyzicoEnabled: isIyzicoReady(station.id).ready,
   });
 });
 
@@ -132,6 +141,120 @@ router.post("/transactions/:id/pay", validateBody(paySchema), (req, res) => {
     throw err;
   }
 });
+
+const FUEL_LABELS: Record<string, string> = {
+  benzin: "Kursunsuz Benzin",
+  motorin: "Motorin (Diesel)",
+  lpg: "Otogaz LPG",
+};
+
+router.post("/transactions/:id/iyzico/init", async (req, res) => {
+  const token = requireAccessToken(req, res);
+  if (!token) return;
+  const id = Number(req.params.id);
+  try {
+    const t = getTransactionForKiosk(id, token);
+    if (t.status !== "created") {
+      res.status(409).json({ error: "Bu islem icin odeme baslatilamaz." });
+      return;
+    }
+    if (!env.PUBLIC_API_BASE_URL) {
+      res.status(409).json({ error: "Sunucunun herkese acik adresi tanimlanmamis; iyzico odemesi baslatilamaz." });
+      return;
+    }
+
+    const callbackUrl = `${env.PUBLIC_API_BASE_URL}/api/kiosk/transactions/${id}/iyzico/callback`;
+    const result = await initializeCheckoutForm({
+      stationId: t.station_id,
+      transactionId: id,
+      totalAmount: t.total_amount,
+      plate: t.plate,
+      fuelLabel: FUEL_LABELS[t.fuel_type] ?? t.fuel_type,
+      ip: req.ip ?? "0.0.0.0",
+      callbackUrl,
+    });
+
+    markIyzicoPending(id, token, result.token);
+    res.json({
+      checkoutFormContent: result.checkoutFormContent,
+      paymentPageUrl: result.paymentPageUrl ?? null,
+    });
+  } catch (err) {
+    if (err instanceof TransactionError || err instanceof IyzicoError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+/**
+ * iyzico'nun odeme sonrasi yonlendirdigi (musteri tarayicisi araciligiyla, sunucudan
+ * sunucuya degil) genel erisimli endpoint. Kiosk erisim tokeni burada YOKTUR; bu
+ * yuzden guven, iyzico'ya sunucu-sunucu "retrieve" sorgusu atip donen sonucu
+ * dogrulamaktan (ve HMAC imza kontrolunden) gelir, callback body'sindeki degerlerden degil.
+ */
+router.post(
+  "/transactions/:id/iyzico/callback",
+  express.urlencoded({ extended: false, limit: "8kb" }),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    const token = typeof (req.body as Record<string, unknown> | undefined)?.token === "string" ? (req.body as Record<string, string>).token : null;
+
+    function redirectToKiosk(status: "ok" | "fail") {
+      const row = db
+        .prepare<[number], { slug: string }>(
+          "SELECT s.slug as slug FROM stations s JOIN transactions t ON t.station_id = s.id WHERE t.id = ?"
+        )
+        .get(id);
+      const base = row ? `${env.WEB_ORIGIN}/kiosk/${row.slug}` : env.WEB_ORIGIN;
+      res.redirect(303, `${base}?tx=${id}&iyzico=${status}`);
+    }
+
+    if (!Number.isInteger(id) || !token) {
+      logger.warn({ id }, "iyzico callback: eksik parametre.");
+      redirectToKiosk("fail");
+      return;
+    }
+
+    let t;
+    try {
+      t = getTransactionForIyzicoCallback(id, token);
+    } catch (err) {
+      logger.warn({ id, err }, "iyzico callback: token eslesmedi.");
+      redirectToKiosk("fail");
+      return;
+    }
+
+    if (t.status !== "created") {
+      // Callback tekrar gelmis olabilir (ör. sayfa yenileme); islem zaten sonuclanmis, idempotent yanit ver.
+      const already = t.status === "authorized" || t.status === "dispensing" || t.status === "completed";
+      redirectToKiosk(already ? "ok" : "fail");
+      return;
+    }
+
+    try {
+      const result = await retrieveCheckoutForm(t.station_id, token);
+      if (result.conversationId !== String(id)) {
+        throw new IyzicoError("iyzico conversationId uyumsuz.", 502);
+      }
+      finalizeTransactionPayment(id, {
+        success: result.success,
+        reference: result.paymentId ?? token,
+        message: result.message,
+      });
+      redirectToKiosk(result.success ? "ok" : "fail");
+    } catch (err) {
+      logger.error({ id, err }, "iyzico callback dogrulama hatasi.");
+      finalizeTransactionPayment(id, {
+        success: false,
+        reference: token,
+        message: "iyzico odeme dogrulamasi basarisiz oldu.",
+      });
+      redirectToKiosk("fail");
+    }
+  }
+);
 
 router.post("/transactions/:id/cancel", (req, res) => {
   const token = requireAccessToken(req, res);

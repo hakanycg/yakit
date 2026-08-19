@@ -11,10 +11,17 @@ import PaymentStep from "./steps/PaymentStep";
 import DispenseStep from "./steps/DispenseStep";
 import ReceiptStep from "./steps/ReceiptStep";
 import { ApiError } from "../shared/api";
+import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./resumeStorage";
 
-type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "dispense" | "receipt";
+type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
 const STEP_ORDER: Step[] = ["plate", "pump", "fuel", "amount", "payment", "dispense", "receipt"];
+
+function computeTargetLiters(t: Transaction): number {
+  if (t.amountMode === "liters") return t.requestedLiters ?? 0;
+  if (t.amountMode === "amount") return (t.requestedAmount ?? 0) / t.pricePerLiter;
+  return 55;
+}
 
 export default function KioskFlow() {
   const { slug } = useParams<{ slug: string }>();
@@ -49,11 +56,52 @@ export default function KioskFlow() {
     setStation((prev) => (prev ? { ...prev, pumps: payload as Pump[] } : prev));
   });
 
+  // iyzico odemesi tamamlandiginda musteri, sunucunun sonucu dogruladigi callback
+  // uzerinden tam sayfa yonlendirmeyle bu adrese (?tx=...) geri doner; SPA state'i bu
+  // yonlendirmede kaybolduğu icin islem kimligi/erisim tokeni yerelden geri yuklenir.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const txParam = params.get("tx");
+    if (!txParam) return;
+    const id = Number(txParam);
+
+    window.history.replaceState(null, "", window.location.pathname);
+
+    const pending = readPendingKioskTransaction(id);
+    clearPendingKioskTransaction();
+    if (!pending) return;
+
+    kioskApi
+      .getTransaction(id, pending.accessToken)
+      .then((res) => {
+        const t = res.transaction;
+        setTransaction(t);
+        setAccessToken(pending.accessToken);
+        if (t.status === "completed" || t.status === "cancelled" || t.status === "failed") {
+          setStep("receipt");
+        } else if (t.status === "authorized" || t.status === "dispensing") {
+          setTargetLiters(computeTargetLiters(t));
+          setStep("dispense");
+        } else {
+          // Odeme sonucu henuz sunucuya ulasmamis olabilir; WS baglantisi kurulunca
+          // asagidaki abonelik geldigi anda durumu yakalayip yonlendirecektir.
+          setStep("iyzico-wait");
+        }
+      })
+      .catch(() => {
+        setError("Odeme sonrasi islem bilgisi alinamadi. Lutfen yeni bir islem baslatin.");
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useTopicSubscription(transaction ? `transaction:${transaction.id}` : null, (payload) => {
     const t = payload as Transaction;
     setTransaction(t);
     if (t.status === "completed" || t.status === "cancelled" || t.status === "failed") {
       setStep("receipt");
+    } else if (t.status === "authorized" || t.status === "dispensing") {
+      setTargetLiters((prev) => (prev > 0 ? prev : computeTargetLiters(t)));
+      setStep((prev) => (prev === "payment" || prev === "iyzico-wait" ? "dispense" : prev));
     }
   }, accessToken ?? undefined);
 
@@ -118,7 +166,7 @@ export default function KioskFlow() {
     );
   }
 
-  const stepIndex = STEP_ORDER.indexOf(step === "creating" ? "amount" : step);
+  const stepIndex = STEP_ORDER.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
 
   return (
     <div className="kiosk-shell">
@@ -163,9 +211,17 @@ export default function KioskFlow() {
           <PaymentStep
             transaction={transaction}
             accessToken={accessToken}
+            iyzicoEnabled={station.iyzicoEnabled}
             onPaid={(t) => { setTransaction(t); setStep("dispense"); }}
             onCancel={reset}
           />
+        )}
+
+        {step === "iyzico-wait" && transaction && (
+          <div>
+            <h2>Odeme Sonucu Bekleniyor</h2>
+            <p className="hint-text">iyzico odeme sonucunuz dogrulaniyor, lutfen bekleyin...</p>
+          </div>
         )}
 
         {step === "dispense" && transaction && <DispenseStep transaction={transaction} targetLiters={targetLiters} />}

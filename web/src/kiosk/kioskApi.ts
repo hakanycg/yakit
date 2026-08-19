@@ -5,6 +5,7 @@ export interface StationResponse {
   station: Station;
   fuelPrices: FuelPrice[];
   pumps: Pump[];
+  iyzicoEnabled: boolean;
 }
 
 export const kioskApi = {
@@ -34,6 +35,13 @@ export const kioskApi = {
 
   cancel: (id: number, token: string) =>
     kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}/cancel`, token, { method: "POST" }),
+
+  initIyzico: (id: number, token: string) =>
+    kioskRequest<{ checkoutFormContent: string; paymentPageUrl: string | null }>(
+      `/api/kiosk/transactions/${id}/iyzico/init`,
+      token,
+      { method: "POST" }
+    ),
 
   sendReceipt: (id: number, token: string, target: { email?: string; phone?: string }) =>
     kioskRequest<{ result: { email?: { sent: boolean; reason?: string }; sms?: { sent: boolean; reason?: string } } }>(

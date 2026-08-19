@@ -72,6 +72,7 @@ export default function Settings() {
       </div>
 
       <FuelSyncCard onPricesChanged={load} />
+      <PaymentSettingsCard />
     </div>
   );
 }
@@ -201,6 +202,123 @@ function FuelSyncCard({ onPricesChanged }: { onPricesChanged: () => void }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+interface PaymentConfig {
+  enabled: boolean;
+  environment: "sandbox" | "production";
+  apiKeySet: boolean;
+  secretKeySet: boolean;
+  apiKeyMasked: string | null;
+  secretKeyMasked: string | null;
+  publicApiBaseUrlConfigured: boolean;
+  publicApiBaseUrl: string | null;
+}
+
+function PaymentSettingsCard() {
+  const stationId = useEffectiveStationId();
+  const [config, setConfig] = useState<PaymentConfig | null>(null);
+  const [apiKey, setApiKey] = useState("");
+  const [secretKey, setSecretKey] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    if (stationId === null) return;
+    api.get<{ config: PaymentConfig }>("/api/settings/payment").then((res) => setConfig(res.config));
+  }
+  useEffect(load, [stationId]);
+
+  async function update(patch: Record<string, unknown>) {
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await api.patch("/api/settings/payment", patch);
+      setSavedMsg("Odeme ayarlari guncellendi.");
+      setApiKey("");
+      setSecretKey("");
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Odeme ayarlari guncellenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!config) return null;
+
+  return (
+    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
+      <h3 style={{ marginTop: 0 }}>Odeme Ayarlari (iyzico)</h3>
+      <p className="hint-text">
+        Kiosk'ta kart bilgisi toplanmaz; musteri iyzico'nun barindirdigi guvenli odeme formuna yonlendirilir. Bu
+        gercek bir odeme altyapisi entegrasyonudur — test icin kendi iyzico magaza hesabinizin API anahtarlarina
+        ihtiyaciniz vardir.
+      </p>
+
+      <label>Durum</label>
+      <div className="toolbar">
+        <button
+          className={config.enabled ? "success" : ""}
+          disabled={saving}
+          onClick={() => update({ enabled: !config.enabled })}
+        >
+          {config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
+        </button>
+      </div>
+
+      <label>Ortam</label>
+      <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
+        <option value="sandbox">Sandbox (test)</option>
+        <option value="production">Production (canli)</option>
+      </select>
+
+      <label>API Anahtari {config.apiKeySet && <span className="hint-text">(kayitli: {config.apiKeyMasked})</span>}</label>
+      <input
+        value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        placeholder={config.apiKeySet ? "Degistirmek icin yeni deger girin" : "iyzico API anahtari"}
+      />
+
+      <label>Secret Anahtar {config.secretKeySet && <span className="hint-text">(kayitli: {config.secretKeyMasked})</span>}</label>
+      <input
+        type="password"
+        value={secretKey}
+        onChange={(e) => setSecretKey(e.target.value)}
+        placeholder={config.secretKeySet ? "Degistirmek icin yeni deger girin" : "iyzico secret anahtari"}
+      />
+
+      {error && <p className="error-text">{error}</p>}
+      {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
+
+      <div className="toolbar" style={{ marginTop: "0.75rem" }}>
+        <div className="spacer" />
+        <button
+          className="primary"
+          disabled={saving || (!apiKey.trim() && !secretKey.trim())}
+          onClick={() => update({ apiKey: apiKey.trim() || undefined, secretKey: secretKey.trim() || undefined })}
+        >
+          Anahtarlari Kaydet
+        </button>
+      </div>
+
+      <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        {config.publicApiBaseUrlConfigured ? (
+          <p className="hint-text">
+            Geri bildirim (callback) adresi: <code>{config.publicApiBaseUrl}/api/kiosk/transactions/:id/iyzico/callback</code>
+          </p>
+        ) : (
+          <p className="error-text">
+            Sunucuda <code>PUBLIC_API_BASE_URL</code> tanimlanmamis. iyzico odeme sonucunu bu sunucuya bildiremez;
+            iyzico odemesi bu ayar olmadan calismaz. Sunucunuzun herkese acik (localhost olmayan) adresini
+            .env dosyasina ekleyin.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

@@ -146,11 +146,21 @@ export function getTransactionForKiosk(id: number, accessToken: string): Transac
   return t;
 }
 
-export function payTransaction(id: number, accessToken: string, card: VirtualCardInput): TransactionRow {
-  const t = getTransactionForKiosk(id, accessToken);
-  if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
+export interface PaymentOutcome {
+  success: boolean;
+  reference: string;
+  message: string;
+}
 
-  const result = processVirtualPayment(card, t.total_amount);
+/**
+ * Odeme sonucunu (simule sanal kart veya gercek iyzico dogrulamasi) islem kaydina
+ * isler: basarisizsa pompayi serbest birakip alarm olusturur, basarili ise dolumu
+ * baslatir. Hem `payTransaction` (simule kart) hem de iyzico callback handler'i
+ * bu tek fonksiyonu kullanir; boylece iki odeme yolu arasinda mantik tekrari olmaz.
+ */
+export function finalizeTransactionPayment(id: number, result: PaymentOutcome): TransactionRow {
+  const t = getTransactionOrThrow(id);
+  if (t.status !== "created") throw new TransactionError("Bu islem icin odeme sonucu islenemez.", 409);
 
   if (!result.success) {
     const updated = touch(id, {
@@ -181,6 +191,32 @@ export function payTransaction(id: number, accessToken: string, card: VirtualCar
 
   startDispensing(id);
   return getTransactionOrThrow(id);
+}
+
+export function payTransaction(id: number, accessToken: string, card: VirtualCardInput): TransactionRow {
+  const t = getTransactionForKiosk(id, accessToken);
+  if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
+
+  const result = processVirtualPayment(card, t.total_amount);
+  return finalizeTransactionPayment(id, result);
+}
+
+/** Kiosk iyzico odeme formuna yonlendirmeden once, islemi "iyzico odemesi bekleniyor" durumuna alir. */
+export function markIyzicoPending(id: number, accessToken: string, token: string): TransactionRow {
+  const t = getTransactionForKiosk(id, accessToken);
+  if (t.status !== "created") throw new TransactionError("Bu islem icin odeme baslatilamaz.", 409);
+  const updated = touch(id, { payment_method: "iyzico", payment_status: "processing", payment_reference: token });
+  broadcastTransaction(updated);
+  return updated;
+}
+
+/** iyzico callback'inin, o an islem uzerinde bekleyen token ile eslesip eslesmedigini dogrular. */
+export function getTransactionForIyzicoCallback(id: number, token: string): TransactionRow {
+  const t = getTransactionOrThrow(id);
+  if (t.payment_method !== "iyzico" || t.payment_reference !== token) {
+    throw new TransactionError("iyzico token eslesmedi.", 403);
+  }
+  return t;
 }
 
 function startDispensing(id: number): void {

@@ -35,6 +35,10 @@ const envSchema = z.object({
   SMS_PROVIDER_URL: optionalUrl(),
   SMS_PROVIDER_API_KEY: optionalString(),
   SMS_SENDER_ID: z.string().default("YAKITIST"),
+
+  // Bu sunucunun disaridan (iyzico'nun sunuculari dahil) erisilebilir oldugu genel adres.
+  // iyzico odeme sonucu callback'i icin gereklidir; yerelde (localhost) calismaz.
+  PUBLIC_API_BASE_URL: optionalUrl(),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -13,6 +13,7 @@ import {
   runFuelPriceSync,
   setFuelSyncConfig,
 } from "../services/fuelSyncService.js";
+import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -84,6 +85,30 @@ router.post("/fuel-sync/run-now", async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: err instanceof Error ? err.message : "Senkronizasyon basarisiz." });
   }
+});
+
+router.get("/payment", (req, res) => {
+  res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
+});
+
+const paymentConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  environment: z.enum(["sandbox", "production"]).optional(),
+  apiKey: z.string().min(4).max(200).optional(),
+  secretKey: z.string().min(4).max(200).optional(),
+});
+
+router.patch("/payment", validateBody(paymentConfigSchema), (req, res) => {
+  const body = req.body as z.infer<typeof paymentConfigSchema>;
+  setIyzicoConfig(req.stationId!, body, req.user!);
+  recordAudit({
+    user: req.user!,
+    action: "payment_config_updated",
+    details: { enabled: body.enabled, environment: body.environment, apiKeyChanged: !!body.apiKey, secretKeyChanged: !!body.secretKey },
+    ip: req.ip,
+    stationId: req.stationId,
+  });
+  res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
 });
 
 const resetSchema = z.object({ confirm: z.literal(true) });
