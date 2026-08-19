@@ -37,6 +37,7 @@ export default function AppLayout() {
               <p className="section-label">Platform</p>
               <NavLink to="/admin/istasyonlar">Istasyonlar</NavLink>
               <NavLink to="/admin/audit-log">Audit Log</NavLink>
+              <NavLink to="/admin/sifirla">Demo Verilerini Sifirla</NavLink>
             </>
           )}
 
@@ -56,7 +57,6 @@ export default function AppLayout() {
               <NavLink to="/operator/stok">Yakit Stoku</NavLink>
               <NavLink to="/admin/kullanicilar">Kullanici / Rol Yonetimi</NavLink>
               <NavLink to="/admin/ayarlar">Ayarlar</NavLink>
-              <NavLink to="/admin/sifirla">Demo Verilerini Sifirla</NavLink>
             </>
           )}
         </nav>

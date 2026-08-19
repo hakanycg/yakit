@@ -113,7 +113,7 @@ router.patch("/payment", validateBody(paymentConfigSchema), (req, res) => {
 
 const resetSchema = z.object({ confirm: z.literal(true) });
 
-router.post("/demo-reset", validateBody(resetSchema), (req, res) => {
+router.post("/demo-reset", requireRole("super_admin"), validateBody(resetSchema), (req, res) => {
   resetDemoData(req.stationId!);
   recordAudit({ user: req.user!, action: "demo_data_reset", ip: req.ip, stationId: req.stationId });
   res.status(204).end();
