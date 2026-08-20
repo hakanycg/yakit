@@ -39,6 +39,12 @@ const envSchema = z.object({
   // Bu sunucunun disaridan (iyzico'nun sunuculari dahil) erisilebilir oldugu genel adres.
   // iyzico odeme sonucu callback'i icin gereklidir; yerelde (localhost) calismaz.
   PUBLIC_API_BASE_URL: optionalUrl(),
+
+  // Veritabani yedekleme - bos birakilirsa (varsayilan) devre disi kalir. Ayarlanirsa,
+  // belirtilen dizine periyodik olarak tutarli (WAL-safe) bir SQLite yedegi alinir.
+  BACKUP_DIR: optionalString(),
+  BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(14),
 });
 
 const parsed = envSchema.safeParse(process.env);

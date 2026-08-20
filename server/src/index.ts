@@ -6,6 +6,7 @@ import { initWebSocketHub } from "./ws/hub.js";
 import { purgeExpiredSessions } from "./services/sessionService.js";
 import { reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
+import { runBackup } from "./services/backupService.js";
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -45,6 +46,14 @@ const reportEmailInterval = setInterval(() => {
   maybeSendScheduledReportEmails().catch((err) => logger.error({ err }, "Ozet raporu e-postasi gonderimi basarisiz."));
 }, 60 * 60 * 1000);
 reportEmailInterval.unref();
+
+// Veritabani yedekleme: BACKUP_DIR ayarlanmamissa runBackup() no-op'tur. Sunucu
+// baslarken bir kez ve ardindan BACKUP_INTERVAL_HOURS'ta bir calisir.
+runBackup().catch((err) => logger.error({ err }, "Veritabani yedeklemesi basarisiz."));
+const backupInterval = setInterval(() => {
+  runBackup().catch((err) => logger.error({ err }, "Veritabani yedeklemesi basarisiz."));
+}, env.BACKUP_INTERVAL_HOURS * 60 * 60 * 1000);
+backupInterval.unref();
 
 server.listen(env.PORT, () => {
   logger.info(`Yakit istasyonu API sunucusu ${env.PORT} portunda calisiyor (${env.NODE_ENV}).`);

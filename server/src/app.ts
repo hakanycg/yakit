@@ -7,6 +7,7 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import { env, isProd } from "./config.js";
 import { logger } from "./utils/logger.js";
+import { db } from "./db/index.js";
 import { attachSession } from "./middleware/auth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
@@ -70,7 +71,18 @@ export function createApp() {
   app.use(attachSession);
   app.use("/api", apiRateLimit);
 
-  app.get("/api/health", (_req, res) => res.json({ status: "ok", time: new Date().toISOString() }));
+  app.get("/api/health", (_req, res) => {
+    let dbOk = true;
+    try {
+      // Trivial okuma sorgusu: baglanti/dosya kilidi sorunlarini gercekten yakalar,
+      // sadece surecin ayakta olup olmadigini degil.
+      db.prepare("SELECT 1").get();
+    } catch {
+      dbOk = false;
+    }
+    const status = dbOk ? "ok" : "degraded";
+    res.status(dbOk ? 200 : 503).json({ status, dbOk, uptimeSeconds: Math.round(process.uptime()), time: new Date().toISOString() });
+  });
 
   app.use("/api/auth", authRouter);
   app.use("/api/kiosk", kioskRouter);

@@ -347,7 +347,28 @@ gerekir.
 - HTTPS sonlandırması için önüne bir ters proxy (nginx, Caddy) koyabilirsiniz, ama zorunlu
   değil — Express doğrudan da servis edebilir; sadece sertifika yönetimini proxy'ye
   bırakmak genelde daha kolaydır.
-- SQLite veritabanı dosyasının (`DATABASE_PATH`) düzenli olarak yedeklenmesini sağlayın.
+- SQLite veritabanı dosyasının (`DATABASE_PATH`) düzenli olarak yedeklenmesini sağlayın —
+  bkz. aşağıdaki "Otomatik yedekleme" bölümü, sunucu bunu kendi başına yapabilir.
+
+## Otomatik yedekleme, sağlık kontrolü ve testler
+
+**Yedekleme**: `BACKUP_DIR` ortam değişkeni ayarlanırsa (varsayılan: boş = kapalı), sunucu
+`better-sqlite3`'ün kendi `.backup()` API'siyle (WAL modunda bile tutarlı bir anlık görüntü
+alır — ham dosya kopyalamaktan farklı olarak yarım yazılmış bir sayfayı yakalama riski yoktur)
+`BACKUP_INTERVAL_HOURS`'ta bir (varsayılan 24) zaman damgalı bir yedek alır ve
+`BACKUP_RETENTION_COUNT`'tan (varsayılan 14) eski yedekleri otomatik siler. Geri yüklemek için
+istediğiniz yedek dosyasını `DATABASE_PATH`'in üzerine kopyalayıp sunucuyu yeniden başlatmanız
+yeterlidir.
+
+**Sağlık kontrolü**: `GET /api/health` kimlik doğrulama gerektirmez, veritabanı bağlantısını
+gerçekten sorgulayıp (`dbOk`) çalışma süresini (`uptimeSeconds`) döner — uptime izleme
+araçları (UptimeRobot vb.) veya konteyner orkestrasyon health-check'leri için uygundur.
+
+**Testler**: `npm run test` (server workspace), kritik iş mantığı için (yakıt stoğu
+ağırlıklı ortalama maliyet, indirim kodu doğrulama/kullanım istatistikleri, TOTP, şifre
+politikası, `chargeAmount`) vitest ile birim testleri çalıştırır; kendi geçici SQLite
+dosyasını kullanır, gerçek veritabanınıza dokunmaz. `.github/workflows/ci.yml`, her
+push/PR'da typecheck + lint + test + build adımlarını otomatik çalıştırır.
 
 ## Komutlar
 
@@ -356,4 +377,6 @@ gerekir.
 | `npm run dev:server` / `dev:web` | Geliştirme sunucularını başlatır |
 | `npm run build` | Backend + frontend derlemesi |
 | `npm run typecheck` | Tüm workspace'lerde TypeScript tip kontrolü |
+| `npm run lint` | Tüm workspace'lerde ESLint |
+| `npm run test` | Backend birim testleri (vitest) |
 | `npm run seed --workspace server` | Roller, admin kullanıcı, istasyon, pompa, fiyat verisini oluşturur |
