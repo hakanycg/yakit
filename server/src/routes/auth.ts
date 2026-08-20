@@ -4,7 +4,14 @@ import { db } from "../db/index.js";
 import type { RoleRow, UserRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
 import { buildOtpauthUri, generateTotpSecret, verifyTotpCode } from "../utils/totp.js";
-import { createSession, destroySession } from "../services/sessionService.js";
+import {
+  createSession,
+  destroyOtherSessionsForUser,
+  destroySession,
+  destroySessionById,
+  listSessionsForUser,
+  sessionIdForToken,
+} from "../services/sessionService.js";
 import { recordAudit } from "../services/auditService.js";
 import { PasswordResetError, requestPasswordReset, resetPasswordWithToken } from "../services/passwordResetService.js";
 import { createTotpChallenge, deleteTotpChallenge, peekTotpChallenge, registerFailedTotpAttempt } from "../services/totpChallengeService.js";
@@ -266,6 +273,44 @@ router.post("/change-password", requireAuth, csrfProtection, validateBody(change
 
   recordAudit({ user, action: "password_changed", ip: req.ip });
   res.status(204).end();
+});
+
+/** Hesaba ait tum aktif oturumlari listeler (Hesabim sayfasindaki "Aktif Oturumlar" karti icin). */
+router.get("/sessions", requireAuth, (req, res) => {
+  const currentId = req.sessionToken ? sessionIdForToken(req.sessionToken) : null;
+  const sessions = listSessionsForUser(req.user!.id).map((s) => ({
+    id: s.id,
+    ipAddress: s.ip_address,
+    userAgent: s.user_agent,
+    createdAt: s.created_at,
+    lastSeenAt: s.last_seen_at,
+    expiresAt: s.expires_at,
+    isCurrent: s.id === currentId,
+  }));
+  res.json({ sessions });
+});
+
+/** Tek bir oturumu (ör. baska bir cihazi) uzaktan kapatir. Kendi oturumunu kapatirsa cerezler de temizlenir. */
+router.delete("/sessions/:id", requireAuth, csrfProtection, (req, res) => {
+  const id = req.params.id ?? "";
+  const deleted = destroySessionById(id, req.user!.id);
+  if (!deleted) {
+    res.status(404).json({ error: "Oturum bulunamadi." });
+    return;
+  }
+  recordAudit({ user: req.user!, action: "session_revoked", entityType: "session", ip: req.ip });
+  if (req.sessionToken && sessionIdForToken(req.sessionToken) === id) {
+    clearSessionCookies(res);
+  }
+  res.status(204).end();
+});
+
+/** Mevcut oturum haric hesaba ait tum oturumlari kapatir (ör. sifre calindigindan supheleniliyorsa). */
+router.post("/sessions/revoke-others", requireAuth, csrfProtection, (req, res) => {
+  const currentId = req.sessionToken ? sessionIdForToken(req.sessionToken) : "";
+  const count = destroyOtherSessionsForUser(req.user!.id, currentId);
+  recordAudit({ user: req.user!, action: "sessions_revoked_others", details: { count }, ip: req.ip });
+  res.json({ revoked: count });
 });
 
 /** Kurulumu baslatir: yeni bir "pending" sir uretir (henuz etkinlestirilmez) ve authenticator uygulamasina eklenecek bilgileri dondurur. Tekrar cagrilirsa onceki pending sir gecersizlenir. */

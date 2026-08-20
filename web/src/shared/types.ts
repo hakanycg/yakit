@@ -97,6 +97,7 @@ export interface FuelTank {
   capacityLiters: number;
   currentLiters: number;
   lowStockThresholdLiters: number;
+  averageCostPerLiter: number;
   percentFull: number;
   status: TankStatus;
   updatedAt: string;
@@ -113,9 +114,19 @@ export interface FuelStockMovement {
   supplier: string | null;
   deliveryRef: string | null;
   note: string | null;
+  unitCost: number | null;
   transactionId: number | null;
   username: string | null;
   createdAt: string;
+}
+
+export interface SupplierSummaryRow {
+  supplier: string;
+  fuelType: FuelType;
+  deliveryCount: number;
+  totalLiters: number;
+  avgUnitCost: number | null;
+  lastDeliveryAt: string;
 }
 
 export interface Station {

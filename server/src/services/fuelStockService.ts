@@ -38,6 +38,7 @@ export function serializeTank(t: FuelTankRow) {
     capacityLiters: Math.round(t.capacity_liters * 100) / 100,
     currentLiters: Math.round(t.current_liters * 100) / 100,
     lowStockThresholdLiters: Math.round(t.low_stock_threshold_liters * 100) / 100,
+    averageCostPerLiter: Math.round(t.average_cost_per_liter * 100) / 100,
     percentFull: t.capacity_liters > 0 ? Math.round((t.current_liters / t.capacity_liters) * 1000) / 10 : 0,
     status: tankStatus(t),
     updatedAt: t.updated_at,
@@ -54,6 +55,7 @@ export function serializeMovement(m: FuelStockMovementRow, username: string | nu
     supplier: m.supplier,
     deliveryRef: m.delivery_ref,
     note: m.note,
+    unitCost: m.unit_cost,
     transactionId: m.transaction_id,
     username,
     createdAt: m.created_at,
@@ -90,13 +92,14 @@ function insertMovement(params: {
   supplier?: string | null;
   deliveryRef?: string | null;
   note?: string | null;
+  unitCost?: number | null;
   transactionId?: number | null;
   userId?: number | null;
 }): void {
   db.prepare(
     `INSERT INTO fuel_stock_movements
-      (station_id, fuel_type, type, liters, balance_after, supplier, delivery_ref, note, transaction_id, user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (station_id, fuel_type, type, liters, balance_after, supplier, delivery_ref, note, unit_cost, transaction_id, user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     params.stationId,
     params.fuelType,
@@ -106,6 +109,7 @@ function insertMovement(params: {
     params.supplier ?? null,
     params.deliveryRef ?? null,
     params.note ?? null,
+    params.unitCost ?? null,
     params.transactionId ?? null,
     params.userId ?? null
   );
@@ -142,7 +146,7 @@ export function addStock(
   stationId: number,
   fuelType: FuelType,
   liters: number,
-  meta: { supplier: string; deliveryRef?: string | null; note?: string; force?: boolean },
+  meta: { supplier: string; deliveryRef?: string | null; note?: string; unitCost?: number | null; force?: boolean },
   actor: UserRow
 ): { tank: FuelTankRow; overflow: number } {
   if (liters <= 0) throw new FuelStockError("Eklenecek miktar sifirdan buyuk olmalidir.", 400);
@@ -158,9 +162,20 @@ export function addStock(
   const overflow = Math.round((liters - actualAdded) * 100) / 100;
   const newLevel = Math.round((tank.current_liters + actualAdded) * 100) / 100;
 
+  // Birim maliyet girildiyse, tankin agirlikli ortalama maliyetini guncelle. Maliyet
+  // girilmemis teslimatlar ortalamayi ETKILEMEZ (bilinmeyen maliyet, mevcut ortalamayla
+  // "sulandirilmaz") - bu yuzden kar raporu her zaman yalnizca maliyeti girilen
+  // teslimatlara dayanan bir YAKLASIK degerdir.
+  let newAvgCost = tank.average_cost_per_liter;
+  if (meta.unitCost && meta.unitCost > 0 && actualAdded > 0) {
+    const totalCostBefore = tank.average_cost_per_liter * tank.current_liters;
+    const totalCostAfter = totalCostBefore + meta.unitCost * actualAdded;
+    newAvgCost = newLevel > 0 ? Math.round((totalCostAfter / newLevel) * 10000) / 10000 : meta.unitCost;
+  }
+
   db.prepare(
-    "UPDATE fuel_tanks SET current_liters = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
-  ).run(newLevel, new Date().toISOString(), actor.id, stationId, fuelType);
+    "UPDATE fuel_tanks SET current_liters = ?, average_cost_per_liter = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
+  ).run(newLevel, newAvgCost, new Date().toISOString(), actor.id, stationId, fuelType);
 
   const note = overflow > 0 ? `${meta.note ?? ""} (Kapasite asimi: ${overflow} L eklenemedi)`.trim() : (meta.note ?? null);
   insertMovement({
@@ -172,6 +187,7 @@ export function addStock(
     supplier: meta.supplier,
     deliveryRef: meta.deliveryRef,
     note,
+    unitCost: meta.unitCost || null,
     userId: actor.id,
   });
 
@@ -336,6 +352,42 @@ export function listMovements(stationId: number, filters: { fuelType?: FuelType;
        ORDER BY m.created_at DESC LIMIT ?`
     )
     .all(...params, limit);
+}
+
+export interface SupplierSummaryRow {
+  supplier: string;
+  fuelType: FuelType;
+  deliveryCount: number;
+  totalLiters: number;
+  avgUnitCost: number | null;
+  lastDeliveryAt: string;
+}
+
+/** Tedarikci + yakit tipi bazinda teslimat ozeti (Yakit Stoku sayfasindaki "Tedarikci Ozeti" tablosu icin). */
+export function getSupplierSummary(stationId: number): SupplierSummaryRow[] {
+  const rows = db
+    .prepare<[number], { supplier: string; fuel_type: FuelType; deliveryCount: number; totalLiters: number; costedLiters: number; totalCost: number; lastDeliveryAt: string }>(
+      `SELECT supplier, fuel_type,
+              COUNT(*) as deliveryCount,
+              COALESCE(SUM(liters), 0) as totalLiters,
+              COALESCE(SUM(CASE WHEN unit_cost IS NOT NULL THEN liters ELSE 0 END), 0) as costedLiters,
+              COALESCE(SUM(CASE WHEN unit_cost IS NOT NULL THEN liters * unit_cost ELSE 0 END), 0) as totalCost,
+              MAX(created_at) as lastDeliveryAt
+       FROM fuel_stock_movements
+       WHERE station_id = ? AND type = 'delivery' AND supplier IS NOT NULL AND trim(supplier) != ''
+       GROUP BY supplier, fuel_type
+       ORDER BY totalLiters DESC`
+    )
+    .all(stationId);
+
+  return rows.map((r) => ({
+    supplier: r.supplier,
+    fuelType: r.fuel_type,
+    deliveryCount: r.deliveryCount,
+    totalLiters: Math.round(r.totalLiters * 100) / 100,
+    avgUnitCost: r.costedLiters > 0 ? Math.round((r.totalCost / r.costedLiters) * 10000) / 10000 : null,
+    lastDeliveryAt: r.lastDeliveryAt,
+  }));
 }
 
 const FUEL_LABELS: Record<FuelType, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };

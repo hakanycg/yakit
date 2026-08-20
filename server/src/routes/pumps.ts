@@ -6,6 +6,7 @@ import { getPump, listPumps, serializePump, setPumpStatus } from "../services/pu
 import { emergencyStopTransaction, TransactionError } from "../services/transactionService.js";
 import { createAlarm } from "../services/alarmService.js";
 import { recordAudit } from "../services/auditService.js";
+import { addMaintenanceLog, listMaintenanceLogs, serializeMaintenanceLog } from "../services/pumpMaintenanceService.js";
 
 const router = Router();
 router.use(requireAuth, attachStationScope, requireStationSelected, csrfProtection);
@@ -99,6 +100,36 @@ router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBod
     stationId: req.stationId,
   });
   res.json({ pump: serializePump(getPump(pump.id)!) });
+});
+
+router.get("/:id/maintenance-logs", (req, res) => {
+  const pump = pumpInScope(req, Number(req.params.id));
+  if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
+  const logs = listMaintenanceLogs(req.stationId!, pump.id);
+  res.json({ logs: logs.map((l) => serializeMaintenanceLog(l, l.username)) });
+});
+
+const maintenanceLogSchema = z.object({
+  type: z.enum(["maintenance", "note"]).default("maintenance"),
+  description: z.string().trim().min(3, "Aciklama zorunludur.").max(500),
+});
+
+router.post("/:id/maintenance-logs", requireRole("admin", "operator"), validateBody(maintenanceLogSchema), (req, res) => {
+  const pump = pumpInScope(req, Number(req.params.id));
+  if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
+  const { type, description } = req.body as z.infer<typeof maintenanceLogSchema>;
+
+  const log = addMaintenanceLog(req.stationId!, pump.id, type, description, req.user!);
+  recordAudit({
+    user: req.user!,
+    action: "pump_maintenance_log_added",
+    entityType: "pump",
+    entityId: pump.id,
+    details: { type, description },
+    ip: req.ip,
+    stationId: req.stationId,
+  });
+  res.status(201).json({ log: serializeMaintenanceLog(log, req.user!.username) });
 });
 
 export { router as pumpsRouter };

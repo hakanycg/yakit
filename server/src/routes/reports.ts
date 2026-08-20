@@ -36,7 +36,25 @@ router.get("/summary", (req, res) => {
               COALESCE(SUM(dispensed_liters), 0) as liters
        FROM transactions WHERE station_id = ? AND status = 'completed' GROUP BY fuel_type`
     )
-    .all(stationId);
+    .all(stationId) as { fuelType: string; count: number; revenue: number; discount: number; grossRevenue: number; liters: number }[];
+
+  // Tahmini brut kar: satilan litre * tankin GUNCEL agirlikli ortalama maliyeti (average_cost_per_liter).
+  // Bu bir YAKLASIM'dir - satis anindaki gercek maliyet degil, su anki ortalama maliyet kullanilir
+  // (transactions tablosu maliyet degil satis fiyati tutar). Maliyeti hic girilmemis (average_cost_per_liter=0)
+  // bir yakit tipi icin kar hesaplanamaz, bu durumda estimatedGrossProfit null doner.
+  const avgCosts = db
+    .prepare(`SELECT fuel_type as fuelType, average_cost_per_liter as avgCost FROM fuel_tanks WHERE station_id = ?`)
+    .all(stationId) as { fuelType: string; avgCost: number }[];
+  const avgCostByFuel = new Map(avgCosts.map((r) => [r.fuelType, r.avgCost]));
+
+  const byFuelTypeWithProfit = byFuelType.map((row) => {
+    const avgCost = avgCostByFuel.get(row.fuelType) ?? 0;
+    return {
+      ...row,
+      avgCostPerLiter: avgCost > 0 ? avgCost : null,
+      estimatedGrossProfit: avgCost > 0 ? Math.round((row.revenue - avgCost * row.liters) * 100) / 100 : null,
+    };
+  });
 
   const byDay = db
     .prepare(
@@ -60,7 +78,7 @@ router.get("/summary", (req, res) => {
     )
     .all(stationId);
 
-  res.json({ totals, byFuelType, byDay, byPump });
+  res.json({ totals, byFuelType: byFuelTypeWithProfit, byDay, byPump });
 });
 
 export { router as reportsRouter };

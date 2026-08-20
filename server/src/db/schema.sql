@@ -187,6 +187,7 @@ CREATE TABLE IF NOT EXISTS fuel_tanks (
   capacity_liters REAL NOT NULL DEFAULT 10000,
   current_liters REAL NOT NULL DEFAULT 0,
   low_stock_threshold_liters REAL NOT NULL DEFAULT 1000,
+  average_cost_per_liter REAL NOT NULL DEFAULT 0, -- agirlikli ortalama alis maliyeti (TL/L); sadece maliyet girilen teslimatlarla guncellenir
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_by INTEGER REFERENCES users(id),
   PRIMARY KEY (station_id, fuel_type)
@@ -203,6 +204,7 @@ CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   supplier TEXT,
   delivery_ref TEXT,
   note TEXT,
+  unit_cost REAL,                      -- sadece delivery: opsiyonel alis maliyeti (TL/L)
   transaction_id INTEGER REFERENCES transactions(id),
   user_id INTEGER REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
@@ -276,6 +278,17 @@ CREATE TABLE IF NOT EXISTS waybills (
   UNIQUE(movement_id)
 );
 CREATE INDEX IF NOT EXISTS idx_waybills_station ON waybills(station_id, created_at);
+
+CREATE TABLE IF NOT EXISTS pump_maintenance_logs (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  pump_id INTEGER NOT NULL REFERENCES pumps(id),
+  type TEXT NOT NULL DEFAULT 'maintenance', -- maintenance | note
+  description TEXT NOT NULL,
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pump_maintenance_pump ON pump_maintenance_logs(pump_id, created_at);
 
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta

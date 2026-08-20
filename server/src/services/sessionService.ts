@@ -79,6 +79,32 @@ export function destroyAllSessionsForUser(userId: number): void {
   db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId);
 }
 
+/**
+ * Sunulan ham token'in DB'de sakli hash kimligini dondurur - "Aktif Oturumlar"
+ * listesinde hangi satirin "bu cihaz" oldugunu isaretlemek icin kullanilir.
+ * Bu hash tek yonlu (SHA-256) oldugundan, geri donusturulup token'i ele
+ * gecirmek icin kullanilamaz - kullaniciya gostermek/API'den donmek guvenlidir.
+ */
+export function sessionIdForToken(token: string): string {
+  return hashToken(token);
+}
+
+export function listSessionsForUser(userId: number): SessionRow[] {
+  return db.prepare<[number], SessionRow>("SELECT * FROM sessions WHERE user_id = ? ORDER BY last_seen_at DESC").all(userId);
+}
+
+/** Yalnizca kullanicinin KENDI oturumunu silebilmesini garantiler (id'yi tahmin eden baskasi baska bir kullanicinin oturumunu kapatamaz). */
+export function destroySessionById(id: string, userId: number): boolean {
+  const result = db.prepare("DELETE FROM sessions WHERE id = ? AND user_id = ?").run(id, userId);
+  return result.changes > 0;
+}
+
+/** "Diger tum oturumlari kapat": mevcut oturum (keepId) haric kullanicinin tum oturumlarini siler. */
+export function destroyOtherSessionsForUser(userId: number, keepId: string): number {
+  const result = db.prepare("DELETE FROM sessions WHERE user_id = ? AND id != ?").run(userId, keepId);
+  return result.changes;
+}
+
 export function purgeExpiredSessions(): void {
   db.prepare("DELETE FROM sessions WHERE expires_at < ?").run(new Date().toISOString());
 }

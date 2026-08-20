@@ -13,7 +13,16 @@ interface SummaryResponse {
     cancelledCount: number;
     failedCount: number;
   };
-  byFuelType: Array<{ fuelType: string; count: number; revenue: number; discount: number; grossRevenue: number; liters: number }>;
+  byFuelType: Array<{
+    fuelType: string;
+    count: number;
+    revenue: number;
+    discount: number;
+    grossRevenue: number;
+    liters: number;
+    avgCostPerLiter: number | null;
+    estimatedGrossProfit: number | null;
+  }>;
   byDay: Array<{ day: string; count: number; revenue: number }>;
   byPump: Array<{ pumpNumber: number; count: number; revenue: number; liters: number }>;
 }
@@ -98,6 +107,10 @@ export default function Reports() {
       <div className="grid cols-2" style={{ marginTop: "1rem" }}>
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Yakit Tipine Gore</h3>
+          <p className="hint-text" style={{ marginTop: 0 }}>
+            Tahmini Kar: satilan litre × tankin guncel ortalama alis maliyeti kullanilarak hesaplanir (satis anindaki
+            gercek maliyet degil, yaklasik bir degerdir). Bu yakit tipi icin hic maliyet girilmemisse "-" gosterilir.
+          </p>
           <table>
             <thead>
               <tr>
@@ -107,6 +120,7 @@ export default function Reports() {
                 <th className="numeric">Ort. Fiyat</th>
                 <th className="numeric">Indirim</th>
                 <th className="numeric">Ciro</th>
+                <th className="numeric">Tahmini Kar</th>
                 <th className="numeric">Pay</th>
               </tr>
             </thead>
@@ -119,10 +133,13 @@ export default function Reports() {
                   <td className="numeric">{formatCurrency(f.liters > 0 ? f.grossRevenue / f.liters : 0)}</td>
                   <td className="numeric">{f.discount > 0 ? formatCurrency(f.discount) : "-"}</td>
                   <td className="numeric">{formatCurrency(f.revenue)}</td>
+                  <td className="numeric" style={{ color: f.estimatedGrossProfit !== null && f.estimatedGrossProfit < 0 ? "var(--danger)" : undefined }}>
+                    {f.estimatedGrossProfit !== null ? formatCurrency(f.estimatedGrossProfit) : "-"}
+                  </td>
                   <td className="numeric"><span className="share-pill">{pct(f.revenue, data.totals.totalRevenue)}</span></td>
                 </tr>
               ))}
-              {data.byFuelType.length === 0 && <tr><td colSpan={7} className="hint-text">Veri yok.</td></tr>}
+              {data.byFuelType.length === 0 && <tr><td colSpan={8} className="hint-text">Veri yok.</td></tr>}
               {data.byFuelType.length > 0 && (
                 <tr className="table-total">
                   <td>Toplam</td>
@@ -131,6 +148,11 @@ export default function Reports() {
                   <td className="hint-text-cell numeric">-</td>
                   <td className="numeric">{formatCurrency(data.byFuelType.reduce((s, f) => s + f.discount, 0))}</td>
                   <td className="numeric">{formatCurrency(data.byFuelType.reduce((s, f) => s + f.revenue, 0))}</td>
+                  <td className="numeric">
+                    {data.byFuelType.some((f) => f.estimatedGrossProfit !== null)
+                      ? formatCurrency(data.byFuelType.reduce((s, f) => s + (f.estimatedGrossProfit ?? 0), 0))
+                      : "-"}
+                  </td>
                   <td className="numeric">%100.0</td>
                 </tr>
               )}

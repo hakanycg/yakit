@@ -42,6 +42,8 @@ export function applyMigrations(): void {
   ensureColumn("users", "totp_secret", "TEXT");
   ensureColumn("users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn("users", "totp_pending_secret", "TEXT");
+  ensureColumn("fuel_tanks", "average_cost_per_liter", "REAL NOT NULL DEFAULT 0");
+  ensureColumn("fuel_stock_movements", "unit_cost", "REAL");
 }
 
 applySchema();

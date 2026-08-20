@@ -9,6 +9,7 @@ import {
   addStock,
   adjustStock,
   getMovementById,
+  getSupplierSummary,
   listMovements,
   listTanks,
   serializeMovement,
@@ -66,11 +67,16 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
   res.send("﻿" + lines.join("\n"));
 });
 
+router.get("/suppliers/summary", (req, res) => {
+  res.json({ suppliers: getSupplierSummary(req.stationId!) });
+});
+
 const addSchema = z.object({
   liters: z.number().positive().max(100000),
   supplier: z.string().trim().min(2, "Tedarikci zorunludur.").max(120),
   deliveryRef: z.string().trim().max(60).optional(),
   note: z.string().max(300).optional(),
+  unitCost: z.number().positive().max(1000).optional(),
   force: z.boolean().optional(),
 });
 
@@ -79,12 +85,12 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 
   try {
-    const { liters, supplier, deliveryRef, note, force } = req.body as z.infer<typeof addSchema>;
+    const { liters, supplier, deliveryRef, note, unitCost, force } = req.body as z.infer<typeof addSchema>;
     const { tank, overflow } = addStock(
       req.stationId!,
       fuelType.data,
       liters,
-      { supplier, deliveryRef: deliveryRef || null, note, force },
+      { supplier, deliveryRef: deliveryRef || null, note, unitCost: unitCost || null, force },
       req.user!
     );
     recordAudit({
@@ -92,7 +98,7 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
       action: "fuel_stock_added",
       entityType: "fuel_tank",
       entityId: fuelType.data,
-      details: { liters, overflow, supplier, deliveryRef },
+      details: { liters, overflow, supplier, deliveryRef, unitCost },
       ip: req.ip,
       stationId: req.stationId,
     });

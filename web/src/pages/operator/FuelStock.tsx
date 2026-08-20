@@ -3,8 +3,8 @@ import { api, ApiError } from "../../shared/api";
 import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useTopicSubscription } from "../../shared/useWebSocket";
-import { FUEL_LABEL, formatDateTime, formatLiters } from "../../shared/format";
-import type { FuelStockMovement, FuelTank } from "../../shared/types";
+import { FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
+import type { FuelStockMovement, FuelTank, SupplierSummaryRow } from "../../shared/types";
 
 const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Dusuk", critical: "Kritik" };
 const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical" };
@@ -15,6 +15,7 @@ export default function FuelStock() {
   const [tanks, setTanks] = useState<FuelTank[]>([]);
   const [movements, setMovements] = useState<FuelStockMovement[]>([]);
   const [movementFilter, setMovementFilter] = useState("");
+  const [suppliers, setSuppliers] = useState<SupplierSummaryRow[]>([]);
 
   function loadTanks() {
     if (stationId === null) return;
@@ -25,12 +26,18 @@ export default function FuelStock() {
     const query = movementFilter ? `?fuelType=${movementFilter}` : "";
     api.get<{ movements: FuelStockMovement[] }>(`/api/fuel-stock/movements${query}`).then((res) => setMovements(res.movements));
   }
+  function loadSuppliers() {
+    if (stationId === null) return;
+    api.get<{ suppliers: SupplierSummaryRow[] }>("/api/fuel-stock/suppliers/summary").then((res) => setSuppliers(res.suppliers));
+  }
 
   useEffect(loadTanks, [stationId]);
   useEffect(loadMovements, [stationId, movementFilter]);
+  useEffect(loadSuppliers, [stationId]);
   useTopicSubscription(stationId !== null ? `fuel-stock:${stationId}` : null, () => {
     loadTanks();
     loadMovements();
+    loadSuppliers();
   });
 
   const csvHref = appendStationParam(`/api/fuel-stock/movements/export.csv${movementFilter ? `?fuelType=${movementFilter}` : ""}`);
@@ -99,13 +106,47 @@ export default function FuelStock() {
                   )}
                 </td>
                 <td className="hint-text">
-                  {[m.supplier, m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}
+                  {[m.supplier, m.unitCost ? `Maliyet: ${formatCurrency(m.unitCost)}/L` : null, m.note, m.transactionId ? `Islem #${m.transactionId}` : null]
+                    .filter(Boolean)
+                    .join(" · ") || "-"}
                 </td>
                 <td>{m.username ?? "-"}</td>
                 <td>{m.type === "delivery" && <WaybillCell movementId={m.id} />}</td>
               </tr>
             ))}
             {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayit yok.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem" }}>
+        <h3 style={{ marginTop: 0 }}>Tedarikci Ozeti</h3>
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          Tum zamanlar. Ort. Maliyet, yalnizca birim maliyeti girilmis teslimatlar uzerinden hesaplanir.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Tedarikci</th>
+              <th>Yakit</th>
+              <th className="numeric">Teslimat</th>
+              <th className="numeric">Toplam Litre</th>
+              <th className="numeric">Ort. Maliyet</th>
+              <th>Son Teslimat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {suppliers.map((s) => (
+              <tr key={`${s.supplier}-${s.fuelType}`}>
+                <td>{s.supplier}</td>
+                <td><span className={`fuel-dot ${s.fuelType}`} />{FUEL_LABEL[s.fuelType] ?? s.fuelType}</td>
+                <td className="numeric">{s.deliveryCount}</td>
+                <td className="numeric">{formatLiters(s.totalLiters)}</td>
+                <td className="numeric">{s.avgUnitCost !== null ? `${formatCurrency(s.avgUnitCost)}/L` : "-"}</td>
+                <td>{formatDateTime(s.lastDeliveryAt)}</td>
+              </tr>
+            ))}
+            {suppliers.length === 0 && <tr><td colSpan={6} className="hint-text">Kayit yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -150,6 +191,10 @@ function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }
           <div className="tank-stat-row">
             <span className="k">Dusuk Stok Esigi</span>
             <span className="v">{formatLiters(tank.lowStockThresholdLiters)}</span>
+          </div>
+          <div className="tank-stat-row">
+            <span className="k">Ort. Maliyet</span>
+            <span className="v">{tank.averageCostPerLiter > 0 ? `${formatCurrency(tank.averageCostPerLiter)}/L` : "-"}</span>
           </div>
         </div>
       </div>
@@ -199,6 +244,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
   const [liters, setLiters] = useState("");
   const [supplier, setSupplier] = useState("");
   const [deliveryRef, setDeliveryRef] = useState("");
+  const [unitCost, setUnitCost] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -213,6 +259,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
         liters: Number(liters),
         supplier: supplier.trim(),
         deliveryRef: deliveryRef.trim() || undefined,
+        unitCost: unitCost.trim() ? Number(unitCost) : undefined,
         note: note.trim() || undefined,
         force: force || undefined,
       });
@@ -257,6 +304,9 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
           setDuplicateWarning(null);
         }}
       />
+
+      <label>Birim Maliyet (TL/L) <span className="hint-text">(opsiyonel; kar raporu icin kullanilir)</span></label>
+      <input type="number" min={0} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
 
       <label>Not (opsiyonel)</label>
       <input value={note} onChange={(e) => setNote(e.target.value)} />

@@ -241,6 +241,7 @@ export interface FuelTankRow {
   capacity_liters: number;
   current_liters: number;
   low_stock_threshold_liters: number;
+  average_cost_per_liter: number;
   updated_at: string;
   updated_by: number | null;
 }
@@ -257,7 +258,20 @@ export interface FuelStockMovementRow {
   supplier: string | null;
   delivery_ref: string | null;
   note: string | null;
+  unit_cost: number | null;
   transaction_id: number | null;
+  user_id: number | null;
+  created_at: string;
+}
+
+export type PumpMaintenanceLogType = "maintenance" | "note";
+
+export interface PumpMaintenanceLogRow {
+  id: number;
+  station_id: number;
+  pump_id: number;
+  type: PumpMaintenanceLogType;
+  description: string;
   user_id: number | null;
   created_at: string;
 }
