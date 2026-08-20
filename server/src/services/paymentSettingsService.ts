@@ -1,5 +1,5 @@
 import type { UserRow } from "../db/types.js";
-import { getSetting, setSetting } from "./fuelSyncService.js";
+import { getSetting, setSetting } from "./settingsStore.js";
 import { env } from "../config.js";
 
 export type IyzicoEnvironment = "sandbox" | "production";

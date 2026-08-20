@@ -1,5 +1,5 @@
 import type { UserRow } from "../db/types.js";
-import { getSetting, setSetting } from "./fuelSyncService.js";
+import { getSetting, setSetting } from "./settingsStore.js";
 
 export type InvoiceEnvironment = "sandbox" | "production";
 

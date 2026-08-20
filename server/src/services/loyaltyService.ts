@@ -1,6 +1,6 @@
 import { db } from "../db/index.js";
 import type { LoyaltyAccountRow, LoyaltyMovementRow, UserRow } from "../db/types.js";
-import { getSetting, setSetting } from "./fuelSyncService.js";
+import { getSetting, setSetting } from "./settingsStore.js";
 
 export class LoyaltyError extends Error {
   constructor(
