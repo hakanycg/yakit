@@ -148,6 +148,18 @@ export interface DiscountCodeRow {
   created_by: number | null;
 }
 
+export interface InvoiceRow {
+  id: number;
+  station_id: number;
+  transaction_id: number;
+  status: "pending" | "sent" | "failed";
+  provider: string;
+  provider_invoice_id: string | null;
+  error_message: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export type AlarmSeverity = "info" | "warning" | "critical";
 export type AlarmStatus = "active" | "acknowledged" | "resolved";
 

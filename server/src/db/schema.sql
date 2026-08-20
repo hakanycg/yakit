@@ -241,6 +241,20 @@ CREATE TABLE IF NOT EXISTS discount_codes (
 );
 CREATE INDEX IF NOT EXISTS idx_discount_codes_station ON discount_codes(station_id, active);
 
+CREATE TABLE IF NOT EXISTS invoices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  transaction_id INTEGER NOT NULL REFERENCES transactions(id),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | sent | failed
+  provider TEXT NOT NULL DEFAULT 'uyumsoft',
+  provider_invoice_id TEXT,
+  error_message TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(transaction_id)
+);
+CREATE INDEX IF NOT EXISTS idx_invoices_station ON invoices(station_id, created_at);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

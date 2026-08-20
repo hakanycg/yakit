@@ -172,6 +172,38 @@ forma yönlendirilir (PCI DSS kapsamı iyzico'da kalır).
   içindeki `uncaughtException`/`unhandledRejection` güvenlik ağı bunu loglayıp sunucunun
   çalışmaya devam etmesini sağlar (test edilip doğrulandı).
 
+## Gerçek e-Fatura/e-Arşiv altyapısı: Uyumsoft
+
+Sadakat puanı ve kampanya kodu sistemlerinin yanı sıra, tamamlanan işlemler için **gerçek bir
+e-Fatura/e-Arşiv entegrasyon altyapısı** da hazırdır. Bu da iyzico gibi demo/simülasyon
+değildir: `server/src/services/invoiceService.ts`, Uyumsoft'un dokümante edilmiş REST
+entegrasyon API'sine (`BasicIntegrationApi`, `Action: "SendInvoice"`) göre yazılmış gerçek
+istemci kodudur ve UBL-TR standardına uygun tam bir fatura gövdesi (`AccountingSupplierParty`,
+`InvoiceLine`, `LegalMonetaryTotal` vb.) oluşturup gönderir.
+
+- **Yapılandırma istasyon bazlıdır:** Yönetici Paneli → Ayarlar → "Fatura Ayarları (E-Fatura /
+  e-Arşiv)" ekranından her istasyon kendi Uyumsoft müşteri hesabının kullanıcı adı/şifresini,
+  ortamını (sandbox/production) ve şirket vergi bilgilerini (VKN, unvan, vergi dairesi, adres)
+  girer. Şifre veritabanında saklanır, API üzerinden yalnızca maskeli (son 4 hane) döner.
+- **Hazır olmadan çalışmaz, çökmez:** Bu bilgiler eksikken (varsayılan durum) `isInvoiceReady()`
+  kontrolü `false` döner ve `POST /api/transactions/:id/invoice` net bir Türkçe hata mesajıyla
+  (`409`) reddedilir — gerçek bir Uyumsoft hesabı bağlanana kadar sistem bu haliyle güvenle
+  devrede kalabilir.
+- **Akış:** Operatör panelindeki İşlem Listesi'nde, `completed` durumundaki her işlem satırında
+  bir "E-Fatura Oluştur" düğmesi bulunur. Tıklandığında sunucu Uyumsoft'a gerçek bir HTTP isteği
+  atar; başarılı olursa dönen `InvoiceId` yerel `invoices` tablosuna kaydedilir ve düğme
+  "Kesildi" rozetine döner, başarısız olursa hata mesajı (ör. kimlik doğrulama hatası, ağ hatası)
+  aynı satırda gösterilir ve tekrar denenebilir.
+- **Müşteri kimliği:** Kiosk'ta alıcı kimlik bilgisi toplanmadığından, Türkiye'de akaryakıt
+  istasyonlarında yaygın olan **"Nihai Tüketici"** (VKN/TCKN'siz perakende e-Arşiv) olarak
+  kesilir; plaka, açıklama alanında referans olarak yer alır.
+- **Bu ortamda canlı test edilemedi:** Uyumsoft'un test (sandbox) sunucusuna gerçek bir HTTP
+  isteği atıldığı ve sahte kimlik bilgileriyle sunucudan gerçek bir HTTP 403 yanıtı alındığı bu
+  oturumda doğrulandı (bağlantı gerçekten kuruluyor, hata düzgün şekilde 502'ye çevrilip
+  sunucu çökmüyor) — ancak gerçek bir Uyumsoft müşteri hesabıyla uçtan uca başarılı fatura
+  kesimi **sizin tarafınızdan test edilmelidir**. KDV oranı kodda %20 olarak sabitlenmiştir
+  (`invoiceService.ts` içindeki `VAT_RATE`); oran değişirse orası güncellenmelidir.
+
 ## Simülasyon olarak uygulanan bileşenler (donanım gerektirdiği için / iyzico yapılandırılmadığında)
 
 1. **LPR / plaka tanıma:** Gerçek bir kamera donanımı olmadığından, `POST /api/kiosk/lpr/recognize`

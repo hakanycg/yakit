@@ -18,6 +18,7 @@ export function resetDemoData(stationId: number): void {
     db.prepare("DELETE FROM loyalty_movements WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM loyalty_accounts WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM discount_codes WHERE station_id = ?").run(stationId);
+    db.prepare("DELETE FROM invoices WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM transactions WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM alarms WHERE station_id = ?").run(stationId);
     db.prepare(

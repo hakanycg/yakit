@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api } from "../../shared/api";
+import { api, ApiError } from "../../shared/api";
 import { useTopicSubscription } from "../../shared/useWebSocket";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { appendStationParam } from "../../shared/stationScope";
@@ -51,7 +51,7 @@ export default function Transactions() {
           <table>
             <thead>
               <tr>
-                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakit</th><th>Litre</th><th>Tutar</th><th>Durum</th><th>Olusturulma</th>
+                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakit</th><th>Litre</th><th>Tutar</th><th>Durum</th><th>Olusturulma</th><th>E-Fatura</th>
               </tr>
             </thead>
             <tbody>
@@ -65,15 +65,62 @@ export default function Transactions() {
                   <td>{formatCurrency(t.totalAmount)}</td>
                   <td><span className={`badge ${t.status}`}>{TRANSACTION_STATUS_LABEL[t.status]}</span></td>
                   <td>{formatDateTime(t.createdAt)}</td>
+                  <td>{t.status === "completed" && <InvoiceCell transactionId={t.id} />}</td>
                 </tr>
               ))}
               {transactions.length === 0 && (
-                <tr><td colSpan={8} className="hint-text">Kayit bulunamadi.</td></tr>
+                <tr><td colSpan={9} className="hint-text">Kayit bulunamadi.</td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
+    </div>
+  );
+}
+
+interface InvoiceInfo {
+  status: "pending" | "sent" | "failed";
+  providerInvoiceId: string | null;
+  errorMessage: string | null;
+}
+
+function InvoiceCell({ transactionId }: { transactionId: number }) {
+  const [invoice, setInvoice] = useState<InvoiceInfo | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    api.get<{ invoice: InvoiceInfo | null }>(`/api/transactions/${transactionId}/invoice`).then((res) => setInvoice(res.invoice));
+  }
+  useEffect(load, [transactionId]);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ invoice: InvoiceInfo }>(`/api/transactions/${transactionId}/invoice`);
+      setInvoice(res.invoice);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Fatura olusturulamadi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (invoice === undefined) return <span className="hint-text">...</span>;
+
+  if (invoice?.status === "sent") {
+    return <span className="badge completed" title={invoice.providerInvoiceId ?? undefined}>Kesildi</span>;
+  }
+
+  return (
+    <div>
+      <button onClick={create} disabled={busy}>{busy ? "..." : "E-Fatura Olustur"}</button>
+      {error && <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{error}</div>}
+      {!error && invoice?.status === "failed" && (
+        <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{invoice.errorMessage}</div>
+      )}
     </div>
   );
 }

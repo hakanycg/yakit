@@ -14,6 +14,7 @@ import {
   setFuelSyncConfig,
 } from "../services/fuelSyncService.js";
 import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
+import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -109,6 +110,36 @@ router.patch("/payment", validateBody(paymentConfigSchema), (req, res) => {
     stationId: req.stationId,
   });
   res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
+});
+
+router.get("/invoice", (req, res) => {
+  res.json({ config: serializeInvoiceConfig(getInvoiceConfig(req.stationId!)) });
+});
+
+const invoiceConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  environment: z.enum(["sandbox", "production"]).optional(),
+  username: z.string().min(1).max(200).optional(),
+  password: z.string().min(1).max(200).optional(),
+  companyVkn: z.string().min(1).max(20).optional(),
+  companyTitle: z.string().min(1).max(200).optional(),
+  companyTaxOffice: z.string().min(1).max(100).optional(),
+  companyAddress: z.string().min(1).max(300).optional(),
+  companyCity: z.string().min(1).max(100).optional(),
+  companyDistrict: z.string().min(1).max(100).optional(),
+});
+
+router.patch("/invoice", validateBody(invoiceConfigSchema), (req, res) => {
+  const body = req.body as z.infer<typeof invoiceConfigSchema>;
+  setInvoiceConfig(req.stationId!, body, req.user!);
+  recordAudit({
+    user: req.user!,
+    action: "invoice_config_updated",
+    details: { enabled: body.enabled, environment: body.environment, usernameChanged: !!body.username, passwordChanged: !!body.password },
+    ip: req.ip,
+    stationId: req.stationId,
+  });
+  res.json({ config: serializeInvoiceConfig(getInvoiceConfig(req.stationId!)) });
 });
 
 const resetSchema = z.object({ confirm: z.literal(true) });

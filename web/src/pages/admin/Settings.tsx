@@ -74,6 +74,7 @@ export default function Settings() {
       <FuelSyncCard onPricesChanged={load} />
       <PaymentSettingsCard />
       <LoyaltyConfigCard />
+      <InvoiceSettingsCard />
     </div>
   );
 }
@@ -400,6 +401,152 @@ function PaymentSettingsCard() {
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+interface InvoiceConfig {
+  enabled: boolean;
+  environment: "sandbox" | "production";
+  usernameSet: boolean;
+  username: string | null;
+  passwordSet: boolean;
+  passwordMasked: string | null;
+  companyVkn: string | null;
+  companyTitle: string | null;
+  companyTaxOffice: string | null;
+  companyAddress: string | null;
+  companyCity: string | null;
+  companyDistrict: string | null;
+}
+
+function InvoiceSettingsCard() {
+  const stationId = useEffectiveStationId();
+  const [config, setConfig] = useState<InvoiceConfig | null>(null);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [company, setCompany] = useState({ companyVkn: "", companyTitle: "", companyTaxOffice: "", companyAddress: "", companyCity: "", companyDistrict: "" });
+  const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    if (stationId === null) return;
+    api.get<{ config: InvoiceConfig }>("/api/settings/invoice").then((res) => {
+      setConfig(res.config);
+      setCompany({
+        companyVkn: res.config.companyVkn ?? "",
+        companyTitle: res.config.companyTitle ?? "",
+        companyTaxOffice: res.config.companyTaxOffice ?? "",
+        companyAddress: res.config.companyAddress ?? "",
+        companyCity: res.config.companyCity ?? "",
+        companyDistrict: res.config.companyDistrict ?? "",
+      });
+    });
+  }
+  useEffect(load, [stationId]);
+
+  async function update(patch: Record<string, unknown>) {
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await api.patch("/api/settings/invoice", patch);
+      setSavedMsg("E-fatura ayarlari guncellendi.");
+      setUsername("");
+      setPassword("");
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "E-fatura ayarlari guncellenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!config) return null;
+
+  return (
+    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
+      <h3 style={{ marginTop: 0 }}>Fatura Ayarlari (E-Fatura / e-Arsiv)</h3>
+      <p className="hint-text">
+        Tamamlanan islemler icin gercek Uyumsoft e-Fatura/e-Arsiv entegrasyon API'sine baglanir. Bu bir simulasyon
+        degildir — kendi Uyumsoft musteri hesabinizin kullanici adi/sifresini ve sirket vergi bilgilerinizi
+        girmeden fatura kesilemez.
+      </p>
+
+      <label>Durum</label>
+      <div className="toolbar">
+        <button className={config.enabled ? "success" : ""} disabled={saving} onClick={() => update({ enabled: !config.enabled })}>
+          {config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
+        </button>
+      </div>
+
+      <label>Ortam</label>
+      <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
+        <option value="sandbox">Sandbox (test)</option>
+        <option value="production">Production (canli)</option>
+      </select>
+
+      <label>Uyumsoft Kullanici Adi {config.usernameSet && <span className="hint-text">(kayitli: {config.username})</span>}</label>
+      <input
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        placeholder={config.usernameSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft kullanici adi"}
+      />
+
+      <label>Uyumsoft Sifre {config.passwordSet && <span className="hint-text">(kayitli: {config.passwordMasked})</span>}</label>
+      <input
+        type="password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        placeholder={config.passwordSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft sifresi"}
+      />
+
+      <div className="toolbar" style={{ marginTop: "0.5rem" }}>
+        <div className="spacer" />
+        <button
+          className="primary"
+          disabled={saving || (!username.trim() && !password.trim())}
+          onClick={() => update({ username: username.trim() || undefined, password: password.trim() || undefined })}
+        >
+          Kullanici Bilgilerini Kaydet
+        </button>
+      </div>
+
+      <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+        <label>Sirket VKN</label>
+        <input value={company.companyVkn} onChange={(e) => setCompany((p) => ({ ...p, companyVkn: e.target.value }))} placeholder="10 haneli vergi kimlik no" />
+
+        <label>Sirket Unvani</label>
+        <input value={company.companyTitle} onChange={(e) => setCompany((p) => ({ ...p, companyTitle: e.target.value }))} placeholder="Resmi sirket unvani" />
+
+        <label>Vergi Dairesi</label>
+        <input value={company.companyTaxOffice} onChange={(e) => setCompany((p) => ({ ...p, companyTaxOffice: e.target.value }))} />
+
+        <label>Adres</label>
+        <input value={company.companyAddress} onChange={(e) => setCompany((p) => ({ ...p, companyAddress: e.target.value }))} />
+
+        <div className="toolbar">
+          <div>
+            <label>Il</label>
+            <input value={company.companyCity} onChange={(e) => setCompany((p) => ({ ...p, companyCity: e.target.value }))} style={{ maxWidth: 160 }} />
+          </div>
+          <div>
+            <label>Ilce</label>
+            <input value={company.companyDistrict} onChange={(e) => setCompany((p) => ({ ...p, companyDistrict: e.target.value }))} style={{ maxWidth: 160 }} />
+          </div>
+        </div>
+
+        <div className="toolbar" style={{ marginTop: "0.5rem" }}>
+          <div className="spacer" />
+          <button className="primary" disabled={saving} onClick={() => update(company)}>
+            Sirket Bilgilerini Kaydet
+          </button>
+        </div>
+      </div>
+
+      {error && <p className="error-text">{error}</p>}
+      {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
     </div>
   );
 }

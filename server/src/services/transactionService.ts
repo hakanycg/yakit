@@ -418,6 +418,13 @@ export function listTransactions(
   return db.prepare<unknown[], TransactionRow>(`SELECT * FROM transactions ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit);
 }
 
+/** Istasyon kapsamli tekil islem sorgusu (IDOR korumali - baska istasyonun islemi 404 doner). */
+export function getTransactionById(id: number, stationId: number): TransactionRow {
+  const t = getTransactionOrThrow(id);
+  if (t.station_id !== stationId) throw new TransactionError("Islem bulunamadi.", 404);
+  return t;
+}
+
 /** Sunucu yeniden baslatildiginda yarim kalmis dolum simulasyonlarini emniyetli sekilde temizler. */
 export function reconcileStuckTransactions(): void {
   const stuck = db
