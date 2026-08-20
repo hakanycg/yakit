@@ -63,3 +63,14 @@ export function createTestPump(stationId: number, fuelTypes: FuelType[] = ["benz
     .run(stationId, number, `Pompa ${number}`, JSON.stringify(fuelTypes));
   return result.lastInsertRowid as number;
 }
+
+export function createTestFuelPrice(stationId: number, fuelType: FuelType, pricePerLiter: number): void {
+  db.prepare(
+    `INSERT INTO fuel_prices (station_id, fuel_type, label, price_per_liter) VALUES (?, ?, ?, ?)
+     ON CONFLICT(station_id, fuel_type) DO UPDATE SET price_per_liter = excluded.price_per_liter`
+  ).run(stationId, fuelType, fuelType, pricePerLiter);
+}
+
+export function setTankStock(stationId: number, fuelType: FuelType, liters: number): void {
+  db.prepare("UPDATE fuel_tanks SET current_liters = ? WHERE station_id = ? AND fuel_type = ?").run(liters, stationId, fuelType);
+}

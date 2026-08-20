@@ -42,6 +42,15 @@ export interface InitCheckoutFormInput {
   fuelLabel: string;
   ip: string;
   callbackUrl: string;
+  /**
+   * true ise ON-PROVIZYON (pre-auth/hold) baslatilir: kart, totalAmount kadar BLOKE edilir
+   * ama TAHSIL EDILMEZ. "Depoyu Doldur" gibi gercek tutarin dolum bitmeden bilinemedigi
+   * durumlarda kullanilir - musteri, dolum bitip capturePostAuth() cagrilana kadar kartindan
+   * hicbir sey odememis olur (bkz. capturePostAuth, cancelPreAuthHold). false/verilmezse
+   * (varsayilan), tutar aninda tahsil edilir - miktari onceden kesin bilinen (amount/liters
+   * modu) islemler icin dogru davranis budur.
+   */
+  preAuth?: boolean;
 }
 
 export interface InitCheckoutFormResult {
@@ -115,8 +124,10 @@ export function initializeCheckoutForm(input: InitCheckoutFormInput): Promise<In
     ],
   };
 
+  const resource = input.preAuth ? client.checkoutFormInitializePreAuth : client.checkoutFormInitialize;
+
   return new Promise((resolve, reject) => {
-    client.checkoutFormInitialize.create(request, (err, result) => {
+    resource.create(request, (err, result) => {
       if (err) return reject(new IyzicoError(`iyzico baglanti hatasi: ${err.message}`, 502));
       if (result.status !== "success" || !result.token || !result.checkoutFormContent) {
         return reject(new IyzicoError(result.errorMessage ?? "iyzico odeme formu baslatilamadi.", 502));
@@ -175,6 +186,81 @@ export function retrieveCheckoutForm(stationId: number, token: string): Promise<
         paidPrice: result.paidPrice ? Number(result.paidPrice) : null,
         message: paid ? "Odeme onaylandi." : `Odeme basarisiz (${result.paymentStatus ?? "bilinmiyor"}).`,
       });
+    });
+  });
+}
+
+export interface SettlementResult {
+  success: boolean;
+  message: string;
+}
+
+/**
+ * On-provizyon (pre-auth) ile tutulan bir odemeyi, dolum bitip GERCEK tutar belli olunca
+ * kapatir (capture). Yalnizca `paidPrice` kadari tahsil edilir; bloke edilenin geri kalani
+ * bankada otomatik serbest kalir - ayrica bir iade (refund) cagrisina gerek yoktur.
+ */
+export function capturePostAuth(stationId: number, transactionId: number, paymentId: string, paidPrice: number): Promise<SettlementResult> {
+  const { client, secretKey } = getClient(stationId);
+  const price = paidPrice.toFixed(2);
+  const request = {
+    locale: Iyzipay.LOCALE.TR,
+    conversationId: String(transactionId),
+    paymentId,
+    paidPrice: price,
+    currency: Iyzipay.CURRENCY.TRY,
+  };
+
+  return new Promise((resolve, reject) => {
+    client.paymentPostAuth.create(request, (err, result) => {
+      if (err) return reject(new IyzicoError(`iyzico post-auth baglanti hatasi: ${err.message}`, 502));
+      if (result.status !== "success") {
+        return reject(new IyzicoError(result.errorMessage ?? "iyzico post-auth (kapama) basarisiz.", 502));
+      }
+      if (
+        !verifySignature(
+          [result.paymentId, result.currency, result.basketId, result.conversationId, result.paidPrice, result.price],
+          secretKey,
+          result.signature
+        )
+      ) {
+        return reject(new IyzicoError("iyzico post-auth yaniti imzasi dogrulanamadi.", 502));
+      }
+      resolve({ success: true, message: "Odeme gercek tutar uzerinden kapatildi." });
+    });
+  });
+}
+
+/**
+ * Hic dolum gerceklesmeden (0 litre) islem iptal olursa, on-provizyonla tutulan blokajin
+ * TAMAMINI sifir tahsilatla serbest birakir - musterinin kartindan hicbir sey cekilmemis olur.
+ */
+export function cancelPreAuthHold(stationId: number, transactionId: number, paymentId: string): Promise<SettlementResult> {
+  const { client } = getClient(stationId);
+  const request = {
+    locale: Iyzipay.LOCALE.TR,
+    conversationId: String(transactionId),
+    paymentId,
+    ip: "127.0.0.1",
+  };
+
+  return new Promise((resolve, reject) => {
+    client.cancel.create(request, (err, result) => {
+      if (err) return reject(new IyzicoError(`iyzico iptal baglanti hatasi: ${err.message}`, 502));
+      if (result.status !== "success") {
+        return reject(new IyzicoError(result.errorMessage ?? "iyzico on-provizyon iptali basarisiz.", 502));
+      }
+      // NOT: iyzico'nun resmi dokumantasyonuna bu ortamdan (ag erisimi engelli) ulasilamadi;
+      // SDK'nin kendi ornek testlerinde de cancel.create() icin bir imza dogrulamasi
+      // gosterilmiyor (checkoutForm.retrieve/paymentPostAuth'un aksine). Bu yuzden burada
+      // ispatlanmamis bir imza alan sirasi UYDURMAK yerine, en azindan istenen paymentId ile
+      // donen paymentId'nin eslesip eslesmedigi kontrol ediliyor. Gercek bir iyzico sandbox
+      // ortaminda canli test edilip, eger yanit gercekten bir `signature` alani iceriyorsa
+      // dogru alan sirasiyla tam imza dogrulamasi buraya eklenmelidir.
+      if (result.paymentId && String(result.paymentId) !== paymentId) {
+        return reject(new IyzicoError("iyzico iptal yaniti beklenmeyen paymentId ile geldi.", 502));
+      }
+      resolve({ success: true, message: "On-provizyon blokaji tamamen serbest birakildi." });
     });
   });
 }

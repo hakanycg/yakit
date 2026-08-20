@@ -8,6 +8,8 @@ import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
 import { getDispenserDriver } from "./dispenserDriver.js";
+import { capturePostAuth, cancelPreAuthHold } from "./iyzicoService.js";
+import { logger } from "../utils/logger.js";
 import { safeCompare } from "../utils/safeCompare.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig, earnPoints, redeemPoints, refundPoints } from "./loyaltyService.js";
 import { validateCode, redeemCode, releaseCode } from "./discountService.js";
@@ -236,8 +238,14 @@ export function finalizeTransactionPayment(id: number, result: PaymentOutcome): 
     return updated;
   }
 
+  // "Depoyu Doldur" + iyzico'da gercek tutar dolum bitmeden bilinemez - bu yuzden burada
+  // TAHSILAT degil, yalnizca ON-PROVIZYON (hold) tamamlanmis olur. Gercek tahsilat, dolum
+  // bitip kesin tutar belli olunca settleIyzicoPreAuthIfNeeded() ile yapilir (bkz. asagida).
+  // Diger tum durumlarda (amount/liters modu, veya sanal kart) tutar zaten baştan kesindir,
+  // dogrudan tahsilat ("captured") dogru davranistir.
+  const isFullTankIyzicoPreAuth = t.amount_mode === "full_tank" && t.payment_method === "iyzico";
   const updated = touch(id, {
-    payment_status: "captured",
+    payment_status: isFullTankIyzicoPreAuth ? "authorized" : "captured",
     status: "authorized",
     payment_reference: result.reference,
     started_at: new Date().toISOString(),
@@ -246,6 +254,42 @@ export function finalizeTransactionPayment(id: number, result: PaymentOutcome): 
 
   startDispensing(id);
   return getTransactionOrThrow(id);
+}
+
+/**
+ * "Depoyu Doldur" + iyzico ile odenmis (on-provizyon/hold ile tutulan) bir islemi kapatir:
+ * gercekten yakit verildiyse (dispensed_liters > 0) yalnizca GERCEK tutari tahsil eder
+ * (capture) - bloke edilenin farki bankada otomatik serbest kalir. Hic yakit verilmediyse
+ * (0 litre) blokajin TAMAMINI sifir tahsilatla serbest birakir. Diger tum durumlarda
+ * (amount/liters modu, veya sanal kart) hicbir sey yapmaz - o akislarda tahsilat zaten
+ * gercek tutardir, ayrica bir kapama adimina gerek yoktur.
+ *
+ * Ateşle-ve-unut (fire-and-forget) olarak cagrilir: musteri pompadan ayrilmis olabilecegi
+ * icin bu adimin islem akisini bloklamasi/basarisiz olursa akisi durdurmasi dogru olmaz.
+ * Basarisizlik durumunda kritik bir alarm olusturulur - istasyon personeli iyzico panelinden
+ * manuel mudahale etmelidir.
+ */
+async function settleIyzicoPreAuthIfNeeded(t: TransactionRow): Promise<void> {
+  if (t.amount_mode !== "full_tank" || t.payment_method !== "iyzico" || t.payment_status !== "authorized") return;
+  if (!t.payment_reference) return;
+
+  try {
+    if (t.dispensed_liters > 0) {
+      await capturePostAuth(t.station_id, t.id, t.payment_reference, chargeAmount(t));
+      touch(t.id, { payment_status: "captured" });
+    } else {
+      await cancelPreAuthHold(t.station_id, t.id, t.payment_reference);
+      touch(t.id, { payment_status: "voided" });
+    }
+  } catch (err) {
+    logger.error({ err, transactionId: t.id }, "iyzico on-provizyon kapama/iptal islemi basarisiz - manuel mudahale gerekiyor.");
+    createAlarm({
+      stationId: t.station_id,
+      type: "payment_settlement_failed",
+      severity: "critical",
+      message: `Islem #${t.id} (Plaka ${t.plate}) icin iyzico on-provizyon kapama/iptal islemi basarisiz oldu - iyzico panelinden manuel kontrol edilmesi gerekiyor.`,
+    });
+  }
 }
 
 /** Musteriden gercekte tahsil edilecek tutar: total_amount (yakit degeri, raporlama icin
@@ -342,6 +386,7 @@ function startDispensing(id: number): void {
     setPumpStatus(current.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(completed);
     recordSaleMovement(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
+    void settleIyzicoPreAuthIfNeeded(completed);
   }, DISPENSE_TICK_MS);
 
   activeDispensers.set(id, interval);
@@ -368,6 +413,12 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
     status: wasDispensing ? "completed" : "cancelled",
     cancelled_reason: reason,
     completed_at: wasDispensing ? new Date().toISOString() : null,
+    // Hic yakit verilmediyse (0 litre) tutar da sifir olmalidir - aksi halde "Depoyu Doldur"
+    // icin baslangicta yazilmis TAHMINI tutar (ör. 2447,50 TL), gercekte hicbir sey
+    // dagitilmamis olsa bile islem gecmisinde oyle kalirdi. `touch()` Object.keys() ile tum
+    // alanlari (undefined dahil) SQL parametresine baglamaya calisip better-sqlite3'te hataya
+    // yol acacagindan, bu alan wasDispensing=true iken NESNEYE HIC EKLENMIYOR.
+    ...(wasDispensing ? {} : { total_amount: 0 }),
   });
   setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
   recordAudit({
@@ -384,6 +435,7 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
     // burada sadece o ana kadar dagitilan miktar icin ozet hareket kaydediliyor.
     recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
   }
+  void settleIyzicoPreAuthIfNeeded(updated);
   return updated;
 }
 
@@ -391,7 +443,9 @@ export function cancelPendingTransaction(id: number, accessToken: string, reason
   const t = getTransactionForKiosk(id, accessToken);
   if (t.status !== "created") throw new TransactionError("Bu islem artik iptal edilemez.", 409);
   refundReservations(t);
-  const updated = touch(id, { status: "cancelled", cancelled_reason: reason });
+  // Odeme hic alinmamisti (status "created") - dagitilan miktar da sifir, dolayisiyla tutar da
+  // sifir olmalidir (bkz. emergencyStopTransaction'daki ayni duzeltme).
+  const updated = touch(id, { status: "cancelled", cancelled_reason: reason, total_amount: 0 });
   setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
   broadcastTransaction(updated);
   return updated;

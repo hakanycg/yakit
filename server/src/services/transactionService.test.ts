@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import type { TransactionRow } from "../db/types.js";
-import { chargeAmount } from "./transactionService.js";
+import { createTestFuelPrice, createTestPump, createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
+import {
+  cancelPendingTransaction,
+  chargeAmount,
+  createTransaction,
+  emergencyStopTransaction,
+  finalizeTransactionPayment,
+  markIyzicoPending,
+  payTransaction,
+} from "./transactionService.js";
+
+const VALID_CARD = { cardNumber: "4242 4242 4242 4242", expiryMonth: 12, expiryYear: 2030, cvv: "123", holderName: "Test User" };
 
 function fakeTransaction(overrides: Partial<TransactionRow>): TransactionRow {
   return {
@@ -58,5 +69,81 @@ describe("chargeAmount", () => {
     const t = fakeTransaction({ total_amount: 500, discount_amount: 50 });
     chargeAmount(t);
     expect(t.total_amount).toBe(500);
+  });
+});
+
+function setUpStationForTransactions() {
+  const station = createTestStation();
+  const pumpId = createTestPump(station.id, ["benzin"]);
+  createTestFuelPrice(station.id, "benzin", 44.5);
+  setTankStock(station.id, "benzin", 500);
+  return { station, pumpId };
+}
+
+describe("finalizeTransactionPayment payment_status", () => {
+  // finalizeTransactionPayment/payTransaction basariyla biterse startDispensing() gercek bir
+  // setInterval zamanlayicisi kurar; test bitince bunu (henuz 0 litre dagitilmisken)
+  // emergencyStopTransaction ile hemen temizliyoruz - aksi halde arka planda calismaya
+  // devam edip test surecinin sonlanmasini geciktirir/gereksiz iyzico cagrilari dener.
+  const staff = createTestUser(null, "admin");
+
+  it("holds (does not capture) a full_tank + iyzico payment - the real amount is unknown until dispensing finishes", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34FUL001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    markIyzicoPending(transaction.id, accessToken, "iyzico-token-1");
+    const updated = finalizeTransactionPayment(transaction.id, { success: true, reference: "iyzico-payment-1", message: "ok" });
+    expect(updated.payment_status).toBe("authorized");
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
+  it("captures immediately for a liters-mode iyzico payment - the amount is already exact", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34FUL002",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    markIyzicoPending(transaction.id, accessToken, "iyzico-token-2");
+    const updated = finalizeTransactionPayment(transaction.id, { success: true, reference: "iyzico-payment-2", message: "ok" });
+    expect(updated.payment_status).toBe("captured");
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
+  it("captures immediately for a full_tank payment via the virtual (simulated) card - no real hold/capture concept applies there", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34FUL003", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const updated = payTransaction(transaction.id, accessToken, VALID_CARD);
+    expect(updated.payment_status).toBe("captured");
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+});
+
+describe("cancelling a transaction with zero dispensed liters resets total_amount to 0", () => {
+  it("cancelPendingTransaction (customer backs out before paying)", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34CAN001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    // full_tank tahmini tutar, henuz odeme/dolum olmadan zaten sifirdan buyuk olmali (yoksa test anlamsiz).
+    expect(transaction.total_amount).toBeGreaterThan(0);
+
+    const cancelled = cancelPendingTransaction(transaction.id, accessToken, "Musteri vazgecti.");
+    expect(cancelled.status).toBe("cancelled");
+    expect(cancelled.dispensed_liters).toBe(0);
+    expect(cancelled.total_amount).toBe(0);
+  });
+
+  it("emergencyStopTransaction on an authorized-but-not-yet-dispensing transaction", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const staff = createTestUser(null, "admin");
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34CAN002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    payTransaction(transaction.id, accessToken, VALID_CARD);
+    // payTransaction -> startDispensing hemen (senkron) dispensed_liters=0 ile "dispensing"
+    // durumuna gecirir; ilk tick henuz (500ms sonra) calismadigi icin burada hala 0'dir.
+    const stopped = emergencyStopTransaction(transaction.id, staff, "Operator tarafindan durduruldu.");
+    expect(stopped.status).toBe("cancelled");
+    expect(stopped.dispensed_liters).toBe(0);
+    expect(stopped.total_amount).toBe(0);
   });
 });

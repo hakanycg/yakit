@@ -226,6 +226,11 @@ router.post("/transactions/:id/iyzico/init", async (req, res) => {
       fuelLabel: FUEL_LABELS[t.fuel_type] ?? t.fuel_type,
       ip: req.ip ?? "0.0.0.0",
       callbackUrl,
+      // "Depoyu Doldur"da gercek tutar dolum bitmeden bilinemez: kart burada tahsil
+      // edilmez, yalnizca (o an gosterilen tahmini ust sinir kadar) bloke edilir. Gercek
+      // tahsilat, dolum bitip kesin tutar belli olunca settleIyzicoPreAuthIfNeeded() ile
+      // yapilir (bkz. transactionService.ts).
+      preAuth: t.amount_mode === "full_tank",
     });
 
     markIyzicoPending(id, token, result.token);
