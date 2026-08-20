@@ -91,7 +91,13 @@ export default function FuelStock() {
                   {m.liters > 0 ? "+" : ""}{formatLiters(m.liters)}
                 </td>
                 <td className="numeric">{formatLiters(m.balanceAfter)}</td>
-                <td>{m.deliveryRef ?? "-"}</td>
+                <td>
+                  {m.type === "delivery" ? (
+                    <DeliveryRefCell movement={m} onChanged={loadMovements} />
+                  ) : (
+                    m.deliveryRef ?? "-"
+                  )}
+                </td>
                 <td className="hint-text">
                   {[m.supplier, m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}
                 </td>
@@ -189,10 +195,6 @@ function Modal({ children, width = 420 }: { children: React.ReactNode; width?: n
   );
 }
 
-/** GIB'in e-belge numaralandirma kurali: 3 harf/rakam seri + 4 haneli yil + 9 haneli sira no. */
-const DELIVERY_REF_PATTERN = /^[A-Z0-9]{3}\d{13}$/;
-const DELIVERY_REF_FORMAT_HINT = "Format: 3 harf/rakam + yil (4 hane) + 9 haneli sira no (orn. MER2026000000001).";
-
 function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: () => void; onAdded: () => void }) {
   const [liters, setLiters] = useState("");
   const [supplier, setSupplier] = useState("");
@@ -202,12 +204,6 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    api.get<{ deliveryRef: string }>("/api/fuel-stock/next-delivery-ref").then((res) => setDeliveryRef(res.deliveryRef));
-  }, []);
-
-  const deliveryRefValid = DELIVERY_REF_PATTERN.test(deliveryRef);
-
   async function submit(force = false) {
     setSubmitting(true);
     setError(null);
@@ -216,7 +212,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       const res = await api.post<{ tank: FuelTank; overflow: number }>(`/api/fuel-stock/${tank.fuelType}/add`, {
         liters: Number(liters),
         supplier: supplier.trim(),
-        deliveryRef,
+        deliveryRef: deliveryRef.trim() || undefined,
         note: note.trim() || undefined,
         force: force || undefined,
       });
@@ -253,17 +249,14 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <label>Tedarikci</label>
       <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" required />
 
-      <label>Irsaliye / Fis No <span className="hint-text">(GIB e-belge formatinda otomatik olusturuldu; gercek irsaliye numaraniz ayni formattaysa uzerine yazabilirsiniz)</span></label>
+      <label>Irsaliye / Fis No <span className="hint-text">(opsiyonel; bos birakip Stok Hareketleri tablosundan sonradan da girebilirsiniz)</span></label>
       <input
         value={deliveryRef}
-        maxLength={16}
         onChange={(e) => {
-          setDeliveryRef(e.target.value.toUpperCase());
+          setDeliveryRef(e.target.value);
           setDuplicateWarning(null);
         }}
-        required
       />
-      {deliveryRef && !deliveryRefValid && <p className="hint-text" style={{ color: "var(--warning)" }}>{DELIVERY_REF_FORMAT_HINT}</p>}
 
       <label>Not (opsiyonel)</label>
       <input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -283,7 +276,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
         ) : (
           <button
             className="primary"
-            disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim() || !deliveryRefValid}
+            disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim()}
             onClick={() => submit(false)}
           >
             {submitting ? "Ekleniyor..." : "Stok Ekle"}
@@ -376,6 +369,87 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
         <button type="button" onClick={onClose} disabled={submitting}>Kapat</button>
       </div>
     </Modal>
+  );
+}
+
+function DeliveryRefCell({ movement, onChanged }: { movement: FuelStockMovement; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(movement.deliveryRef ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
+
+  async function save(force = false) {
+    setSaving(true);
+    setError(null);
+    if (!force) setDuplicateWarning(null);
+    try {
+      await api.patch(`/api/fuel-stock/movements/${movement.id}/delivery-ref`, {
+        deliveryRef: value.trim() || null,
+        force: force || undefined,
+      });
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 409 && err.details && typeof err.details === "object" && "duplicate" in err.details) {
+        const d = err.details as unknown as { existingCreatedAt: string };
+        setDuplicateWarning(`Bu numara ile daha once ${formatDateTime(d.existingCreatedAt)} tarihinde bir teslimat kaydedilmis. Yine de kaydedilsin mi?`);
+        return;
+      }
+      setError(err instanceof ApiError ? err.message : "Kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <div className="toolbar" style={{ gap: "0.4rem", flexWrap: "nowrap" }}>
+        <span>{movement.deliveryRef ?? "-"}</span>
+        <button
+          style={{ padding: "0.1rem 0.5rem", fontSize: "0.75rem" }}
+          onClick={() => {
+            setValue(movement.deliveryRef ?? "");
+            setError(null);
+            setDuplicateWarning(null);
+            setEditing(true);
+          }}
+        >
+          Duzenle
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ minWidth: 200 }}>
+      <div className="toolbar" style={{ gap: "0.35rem", flexWrap: "nowrap" }}>
+        <input
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setDuplicateWarning(null);
+          }}
+          placeholder="opsiyonel"
+          style={{ width: 150 }}
+          autoFocus
+        />
+        {duplicateWarning ? (
+          <button className="danger" disabled={saving} style={{ padding: "0.1rem 0.5rem", fontSize: "0.75rem" }} onClick={() => save(true)}>
+            {saving ? "..." : "Yine de Kaydet"}
+          </button>
+        ) : (
+          <button className="primary" disabled={saving} style={{ padding: "0.1rem 0.5rem", fontSize: "0.75rem" }} onClick={() => save(false)}>
+            {saving ? "..." : "Kaydet"}
+          </button>
+        )}
+        <button disabled={saving} style={{ padding: "0.1rem 0.5rem", fontSize: "0.75rem" }} onClick={() => setEditing(false)}>
+          Vazgec
+        </button>
+      </div>
+      {error && <div className="error-text" style={{ fontSize: "0.75rem" }}>{error}</div>}
+      {duplicateWarning && <div className="hint-text" style={{ color: "var(--warning)", fontSize: "0.75rem" }}>{duplicateWarning}</div>}
+    </div>
   );
 }
 

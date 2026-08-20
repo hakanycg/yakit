@@ -4,7 +4,6 @@ import { attachStationScope, csrfProtection, requireAuth, requireRole, requireSt
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import {
-  DELIVERY_REF_PATTERN,
   DuplicateDeliveryRefError,
   FuelStockError,
   addStock,
@@ -12,9 +11,9 @@ import {
   getMovementById,
   listMovements,
   listTanks,
-  nextDeliveryRef,
   serializeMovement,
   serializeTank,
+  setDeliveryRef,
   updateTankSettings,
 } from "../services/fuelStockService.js";
 import { createWaybill, WaybillError } from "../services/waybillService.js";
@@ -29,10 +28,6 @@ const fuelTypeEnum = z.enum(["benzin", "motorin", "lpg"]);
 
 router.get("/", (req, res) => {
   res.json({ tanks: listTanks(req.stationId!).map(serializeTank) });
-});
-
-router.get("/next-delivery-ref", (req, res) => {
-  res.json({ deliveryRef: nextDeliveryRef(req.stationId!) });
 });
 
 const movementsQuerySchema = z.object({
@@ -74,11 +69,7 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
 const addSchema = z.object({
   liters: z.number().positive().max(100000),
   supplier: z.string().trim().min(2, "Tedarikci zorunludur.").max(120),
-  deliveryRef: z
-    .string()
-    .trim()
-    .toUpperCase()
-    .regex(DELIVERY_REF_PATTERN, "Irsaliye/fis no formati: 3 harf/rakam + yil (4 hane) + 9 haneli sira no (orn. MER2026000000001)."),
+  deliveryRef: z.string().trim().max(60).optional(),
   note: z.string().max(300).optional(),
   force: z.boolean().optional(),
 });
@@ -89,7 +80,13 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
 
   try {
     const { liters, supplier, deliveryRef, note, force } = req.body as z.infer<typeof addSchema>;
-    const { tank, overflow } = addStock(req.stationId!, fuelType.data, liters, { supplier, deliveryRef, note, force }, req.user!);
+    const { tank, overflow } = addStock(
+      req.stationId!,
+      fuelType.data,
+      liters,
+      { supplier, deliveryRef: deliveryRef || null, note, force },
+      req.user!
+    );
     recordAudit({
       user: req.user!,
       action: "fuel_stock_added",
@@ -163,6 +160,39 @@ router.patch("/:fuelType/settings", csrfProtection, validateBody(settingsSchema)
     });
     res.json({ tank: serializeTank(tank) });
   } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const deliveryRefSchema = z.object({
+  deliveryRef: z.string().trim().max(60).nullable(),
+  force: z.boolean().optional(),
+});
+
+router.patch("/movements/:id/delivery-ref", csrfProtection, validateBody(deliveryRefSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hareket." });
+  try {
+    const { deliveryRef, force } = req.body as z.infer<typeof deliveryRefSchema>;
+    const movement = setDeliveryRef(id, req.stationId!, deliveryRef || null, !!force);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_stock_delivery_ref_updated",
+      entityType: "fuel_stock_movement",
+      entityId: String(movement.id),
+      details: { deliveryRef: movement.delivery_ref },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ deliveryRef: movement.delivery_ref });
+  } catch (err) {
+    if (err instanceof DuplicateDeliveryRefError) {
+      return void res.status(err.status).json({
+        error: err.message,
+        details: { duplicate: true, movementId: err.movementId, existingCreatedAt: err.existingCreatedAt },
+      });
+    }
     if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }

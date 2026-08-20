@@ -22,49 +22,6 @@ export class DuplicateDeliveryRefError extends FuelStockError {
   }
 }
 
-/**
- * Irsaliye/fis no alani, GIB'in e-belge (e-Fatura/e-Irsaliye) numaralandirma kuraliyla
- * ayni sekle zorlanir: 3 karakter seri (buyuk harf/rakam, Turkce karakter yok) + 4 haneli
- * yil + 9 haneli sira no = toplam 16 karakter (orn. MER2026000000001). Bu kural hem
- * otomatik uretilen varsayilan degere hem de operatorun elle girdigi/duzenledigi degere
- * uygulanir (bkz. routes/fuelStock.ts).
- */
-export const DELIVERY_REF_PATTERN = /^[A-Z0-9]{3}\d{13}$/;
-
-function deriveSeriesCode(stationSlug: string): string {
-  const cleaned = stationSlug
-    .toLocaleUpperCase("tr-TR")
-    .replace(/Ç/g, "C")
-    .replace(/Ğ/g, "G")
-    .replace(/İ/g, "I")
-    .replace(/Ö/g, "O")
-    .replace(/Ş/g, "S")
-    .replace(/Ü/g, "U")
-    .replace(/[^A-Z0-9]/g, "");
-  return (cleaned + "IST").slice(0, 3);
-}
-
-/** O istasyon icin GIB formatinda bir sonraki irsaliye/fis no'yu (seri+yil bazinda sirali) uretir. */
-export function nextDeliveryRef(stationId: number): string {
-  const station = db.prepare<[number], { slug: string }>("SELECT slug FROM stations WHERE id = ?").get(stationId);
-  const series = deriveSeriesCode(station?.slug ?? "IST");
-  const year = new Date().getFullYear();
-  const prefix = `${series}${year}`;
-
-  const rows = db
-    .prepare<[number, string], { delivery_ref: string }>(
-      "SELECT delivery_ref FROM fuel_stock_movements WHERE station_id = ? AND type = 'delivery' AND delivery_ref LIKE ?"
-    )
-    .all(stationId, `${prefix}%`);
-
-  let maxSeq = 0;
-  for (const row of rows) {
-    const suffix = row.delivery_ref.slice(prefix.length);
-    if (/^\d{9}$/.test(suffix)) maxSeq = Math.max(maxSeq, Number(suffix));
-  }
-  return `${prefix}${String(maxSeq + 1).padStart(9, "0")}`;
-}
-
 export const FUEL_TYPES: FuelType[] = ["benzin", "motorin", "lpg"];
 
 export type TankStatus = "ok" | "low" | "critical";
@@ -154,35 +111,43 @@ function insertMovement(params: {
   );
 }
 
-function findDuplicateDeliveryRef(stationId: number, fuelType: FuelType, deliveryRef: string): { id: number; createdAt: string } | undefined {
+/** excludeMovementId: bir hareketin kendi irsaliye no'sunu duzenlerken kendisiyle carpismasin diye. */
+function findDuplicateDeliveryRef(
+  stationId: number,
+  fuelType: FuelType,
+  deliveryRef: string,
+  excludeMovementId = -1
+): { id: number; createdAt: string } | undefined {
   const row = db
-    .prepare<[number, string, string], { id: number; created_at: string }>(
+    .prepare<[number, string, string, number], { id: number; created_at: string }>(
       `SELECT id, created_at FROM fuel_stock_movements
-       WHERE station_id = ? AND fuel_type = ? AND type = 'delivery' AND lower(trim(delivery_ref)) = lower(trim(?))
+       WHERE station_id = ? AND fuel_type = ? AND type = 'delivery' AND lower(trim(delivery_ref)) = lower(trim(?)) AND id != ?
        ORDER BY created_at DESC LIMIT 1`
     )
-    .get(stationId, fuelType, deliveryRef);
+    .get(stationId, fuelType, deliveryRef, excludeMovementId);
   return row ? { id: row.id, createdAt: row.created_at } : undefined;
 }
 
 /**
  * Depoya yakit teslimati (stok ekleme) kaydeder. Tank kapasitesini asan kisim eklenmez ("tasma").
- * Ayni istasyon+yakit tipinde daha once ayni irsaliye/fis no ile teslimat girilmisse (muhtemel
- * yanlislikla ikinci kez girme), `force` gecilmedigi surece DuplicateDeliveryRefError firlatilir -
- * cagiran taraf (route) bunu kullaniciya onaylatip force:true ile tekrar cagirabilir. Not: ayni
- * irsaliyenin FARKLI yakit tipleri icin tekrarlanmasi normaldir (tek tankerde birden fazla urun
- * ayni irsaliye ile gelebilir), bu yuzden kontrol yakit tipine ozeldir.
+ * Irsaliye/fis no opsiyoneldir - girilmemisse (veya sonradan Stok Hareketleri tablosundaki
+ * "Duzenle" ile eklenecekse) mukerrer kontrolu atlanir. Girilmisse ve ayni istasyon+yakit
+ * tipinde daha once ayni numarayla teslimat kaydedilmisse, `force` gecilmedigi surece
+ * DuplicateDeliveryRefError firlatilir - cagiran taraf (route) bunu kullaniciya onaylatip
+ * force:true ile tekrar cagirabilir. Not: ayni irsaliyenin FARKLI yakit tipleri icin
+ * tekrarlanmasi normaldir (tek tankerde birden fazla urun ayni irsaliye ile gelebilir), bu
+ * yuzden kontrol yakit tipine ozeldir.
  */
 export function addStock(
   stationId: number,
   fuelType: FuelType,
   liters: number,
-  meta: { supplier: string; deliveryRef: string; note?: string; force?: boolean },
+  meta: { supplier: string; deliveryRef?: string | null; note?: string; force?: boolean },
   actor: UserRow
 ): { tank: FuelTankRow; overflow: number } {
   if (liters <= 0) throw new FuelStockError("Eklenecek miktar sifirdan buyuk olmalidir.", 400);
 
-  if (!meta.force) {
+  if (meta.deliveryRef && !meta.force) {
     const duplicate = findDuplicateDeliveryRef(stationId, fuelType, meta.deliveryRef);
     if (duplicate) throw new DuplicateDeliveryRefError(duplicate.id, duplicate.createdAt);
   }
@@ -335,6 +300,24 @@ export function getMovementById(id: number, stationId: number): FuelStockMovemen
   const row = db.prepare<[number], FuelStockMovementRow>("SELECT * FROM fuel_stock_movements WHERE id = ?").get(id);
   if (!row || row.station_id !== stationId) throw new FuelStockError("Hareket bulunamadi.", 404);
   return row;
+}
+
+/**
+ * Bir teslimat hareketinin irsaliye/fis no'sunu sonradan ekler/duzenler/temizler (deliveryRef
+ * null gecilirse temizlenir). Yalnizca "delivery" tipi hareketlerde anlamli oldugundan diger
+ * tiplerde reddedilir. Ayni mukerrer-kontrolu addStock ile paylasilir (force ile atlanabilir).
+ */
+export function setDeliveryRef(id: number, stationId: number, deliveryRef: string | null, force: boolean): FuelStockMovementRow {
+  const movement = getMovementById(id, stationId);
+  if (movement.type !== "delivery") throw new FuelStockError("Irsaliye/fis no yalnizca teslimat hareketlerinde duzenlenebilir.", 400);
+
+  if (deliveryRef && !force) {
+    const duplicate = findDuplicateDeliveryRef(stationId, movement.fuel_type, deliveryRef, movement.id);
+    if (duplicate) throw new DuplicateDeliveryRefError(duplicate.id, duplicate.createdAt);
+  }
+
+  db.prepare("UPDATE fuel_stock_movements SET delivery_ref = ? WHERE id = ?").run(deliveryRef, id);
+  return getMovementById(id, stationId);
 }
 
 export function listMovements(stationId: number, filters: { fuelType?: FuelType; limit?: number }): (FuelStockMovementRow & { username: string | null })[] {
