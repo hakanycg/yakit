@@ -4,6 +4,30 @@ import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { FUEL_LABEL } from "../../shared/format";
 import type { FuelPrice } from "../../shared/types";
 
+function StatusToggle({
+  checked,
+  disabled,
+  onChange,
+  activeLabel = "Aktif",
+  inactiveLabel = "Pasif",
+}: {
+  checked: boolean;
+  disabled?: boolean;
+  onChange: () => void;
+  activeLabel?: string;
+  inactiveLabel?: string;
+}) {
+  return (
+    <label className={`switch-row${disabled ? " disabled" : ""}`}>
+      <span className="switch">
+        <input type="checkbox" checked={checked} disabled={disabled} onChange={onChange} />
+        <span className="track"><span className="thumb" /></span>
+      </span>
+      <span className="switch-label">{checked ? activeLabel : inactiveLabel}</span>
+    </label>
+  );
+}
+
 export default function Settings() {
   const stationId = useEffectiveStationId();
   const [prices, setPrices] = useState<FuelPrice[]>([]);
@@ -38,42 +62,48 @@ export default function Settings() {
   return (
     <div>
       <h2>Ayarlar</h2>
-      <div className="card" style={{ maxWidth: 560 }}>
-        <h3 style={{ marginTop: 0 }}>Yakit Fiyatlari</h3>
-        {error && <p className="error-text">{error}</p>}
-        {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
-        {prices.map((p) => (
-          <div key={p.fuelType} className="toolbar">
-            <span style={{ width: 140 }}>{p.label}</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={p.pricePerLiter}
-              onChange={(e) => setEdits((prev) => ({ ...prev, [p.fuelType]: e.target.value }))}
-              style={{ maxWidth: 140 }}
-            />
-            <span className="hint-text">TL / litre</span>
-            <div className="spacer" />
-            <button onClick={() => save(p.fuelType)}>Kaydet</button>
-          </div>
-        ))}
-        <p className="hint-text" style={{ marginTop: "0.75rem" }}>
-          Resmi fiyatları elle karşılaştırmak isterseniz:{" "}
-          <a
-            href="https://lisans.epdk.gov.tr/epvys-web/faces/pages/lisans/petrolBayilik/pompaFiyatlariOzetSorgula.xhtml"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            EPDK İstasyon Pompa Fiyatları sorgu sayfası
-          </a>{" "}
-          (il/ilçe/bayi bazında; CAPTCHA korumalı olduğundan otomatik çekilemiyor, elle sorgulanır).
-        </p>
-      </div>
+      <p className="hint-text settings-intro">
+        Istasyonunuzun yakit fiyatlarini ve entegrasyonlarini (odeme, sadakat, fatura/irsaliye) buradan yonetin.
+      </p>
 
-      <PaymentSettingsCard />
-      <LoyaltyConfigCard />
-      <InvoiceSettingsCard />
+      <div className="settings-grid">
+        <div className="card settings-card">
+          <div className="card-head">
+            <h3>Yakit Fiyatlari</h3>
+          </div>
+          {prices.map((p) => (
+            <div key={p.fuelType} className="fuel-price-row">
+              <span className="fuel-price-label">{p.label}</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                defaultValue={p.pricePerLiter}
+                onChange={(e) => setEdits((prev) => ({ ...prev, [p.fuelType]: e.target.value }))}
+              />
+              <span className="hint-text">TL/L</span>
+              <button onClick={() => save(p.fuelType)}>Kaydet</button>
+            </div>
+          ))}
+          {error && <p className="error-text">{error}</p>}
+          {savedMsg && <p className="success-text">{savedMsg}</p>}
+          <p className="hint-text" style={{ marginTop: "0.75rem" }}>
+            Resmi fiyatları elle karşılaştırmak isterseniz:{" "}
+            <a
+              href="https://lisans.epdk.gov.tr/epvys-web/faces/pages/lisans/petrolBayilik/pompaFiyatlariOzetSorgula.xhtml"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              EPDK İstasyon Pompa Fiyatları sorgu sayfası
+            </a>{" "}
+            (il/ilçe/bayi bazında; CAPTCHA korumalı olduğundan otomatik çekilemiyor, elle sorgulanır).
+          </p>
+        </div>
+
+        <PaymentSettingsCard />
+        <LoyaltyConfigCard />
+        <InvoiceSettingsCard />
+      </div>
     </div>
   );
 }
@@ -121,28 +151,29 @@ function LoyaltyConfigCard() {
   if (!config) return null;
 
   return (
-    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
-      <h3 style={{ marginTop: 0 }}>Sadakat / Puan Sistemi</h3>
-      <p className="hint-text">
+    <div className="card settings-card">
+      <div className="card-head">
+        <h3>Sadakat / Puan Sistemi</h3>
+        <StatusToggle checked={config.enabled} disabled={saving} onChange={() => update({ enabled: !config.enabled })} />
+      </div>
+      <p className="hint-text card-desc">
         Aktif oldugunda musteriler her dolumda plaka bazinda puan kazanir; kiosk'ta bir sonraki dolumda bu puanlari
         indirim olarak kullanabilirler.
       </p>
 
-      <label>Durum</label>
-      <div className="toolbar">
-        <button className={config.enabled ? "success" : ""} disabled={saving} onClick={() => update({ enabled: !config.enabled })}>
-          {config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
-        </button>
+      <div className="field-grid">
+        <div>
+          <label>Litre basina kazanilan puan</label>
+          <input type="number" min={0} step={0.1} value={pointsPerLiter} onChange={(e) => setPointsPerLiter(e.target.value)} />
+        </div>
+        <div>
+          <label>1 puanin TL degeri (kullanildiginda)</label>
+          <input type="number" min={0} step={0.01} value={pointValueTry} onChange={(e) => setPointValueTry(e.target.value)} />
+        </div>
       </div>
 
-      <label>Litre basina kazanilan puan</label>
-      <input type="number" min={0} step={0.1} value={pointsPerLiter} onChange={(e) => setPointsPerLiter(e.target.value)} style={{ maxWidth: 160 }} />
-
-      <label>1 puanin TL degeri (kullanildiginda)</label>
-      <input type="number" min={0} step={0.01} value={pointValueTry} onChange={(e) => setPointValueTry(e.target.value)} style={{ maxWidth: 160 }} />
-
       {error && <p className="error-text">{error}</p>}
-      {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
+      {savedMsg && <p className="success-text">{savedMsg}</p>}
 
       <div className="toolbar" style={{ marginTop: "0.75rem" }}>
         <div className="spacer" />
@@ -157,7 +188,6 @@ function LoyaltyConfigCard() {
     </div>
   );
 }
-
 
 interface PaymentConfig {
   enabled: boolean;
@@ -205,24 +235,16 @@ function PaymentSettingsCard() {
   if (!config) return null;
 
   return (
-    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
-      <h3 style={{ marginTop: 0 }}>Odeme Ayarlari (iyzico)</h3>
-      <p className="hint-text">
+    <div className="card settings-card">
+      <div className="card-head">
+        <h3>Odeme Ayarlari (iyzico)</h3>
+        <StatusToggle checked={config.enabled} disabled={saving} onChange={() => update({ enabled: !config.enabled })} />
+      </div>
+      <p className="hint-text card-desc">
         Kiosk'ta kart bilgisi toplanmaz; musteri iyzico'nun barindirdigi guvenli odeme formuna yonlendirilir. Bu
         gercek bir odeme altyapisi entegrasyonudur — test icin kendi iyzico magaza hesabinizin API anahtarlarina
         ihtiyaciniz vardir.
       </p>
-
-      <label>Durum</label>
-      <div className="toolbar">
-        <button
-          className={config.enabled ? "success" : ""}
-          disabled={saving}
-          onClick={() => update({ enabled: !config.enabled })}
-        >
-          {config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
-        </button>
-      </div>
 
       <label>Ortam</label>
       <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
@@ -230,23 +252,28 @@ function PaymentSettingsCard() {
         <option value="production">Production (canli)</option>
       </select>
 
-      <label>API Anahtari {config.apiKeySet && <span className="hint-text">(kayitli: {config.apiKeyMasked})</span>}</label>
-      <input
-        value={apiKey}
-        onChange={(e) => setApiKey(e.target.value)}
-        placeholder={config.apiKeySet ? "Degistirmek icin yeni deger girin" : "iyzico API anahtari"}
-      />
-
-      <label>Secret Anahtar {config.secretKeySet && <span className="hint-text">(kayitli: {config.secretKeyMasked})</span>}</label>
-      <input
-        type="password"
-        value={secretKey}
-        onChange={(e) => setSecretKey(e.target.value)}
-        placeholder={config.secretKeySet ? "Degistirmek icin yeni deger girin" : "iyzico secret anahtari"}
-      />
+      <div className="field-grid">
+        <div>
+          <label>API Anahtari {config.apiKeySet && <span className="hint-text">(kayitli: {config.apiKeyMasked})</span>}</label>
+          <input
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder={config.apiKeySet ? "Degistirmek icin yeni deger girin" : "iyzico API anahtari"}
+          />
+        </div>
+        <div>
+          <label>Secret Anahtar {config.secretKeySet && <span className="hint-text">(kayitli: {config.secretKeyMasked})</span>}</label>
+          <input
+            type="password"
+            value={secretKey}
+            onChange={(e) => setSecretKey(e.target.value)}
+            placeholder={config.secretKeySet ? "Degistirmek icin yeni deger girin" : "iyzico secret anahtari"}
+          />
+        </div>
+      </div>
 
       {error && <p className="error-text">{error}</p>}
-      {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
+      {savedMsg && <p className="success-text">{savedMsg}</p>}
 
       <div className="toolbar" style={{ marginTop: "0.75rem" }}>
         <div className="spacer" />
@@ -259,7 +286,7 @@ function PaymentSettingsCard() {
         </button>
       </div>
 
-      <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+      <div className="card-divider">
         {config.publicApiBaseUrlConfigured ? (
           <p className="hint-text">
             Geri bildirim (callback) adresi: <code>{config.publicApiBaseUrl}/api/kiosk/transactions/:id/iyzico/callback</code>
@@ -337,42 +364,47 @@ function InvoiceSettingsCard() {
   if (!config) return null;
 
   return (
-    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
-      <h3 style={{ marginTop: 0 }}>Fatura / Irsaliye Ayarlari (E-Fatura, e-Arsiv, E-Irsaliye)</h3>
-      <p className="hint-text">
+    <div className="card settings-card card-wide">
+      <div className="card-head">
+        <h3>Fatura / Irsaliye Ayarlari (E-Fatura, e-Arsiv, E-Irsaliye)</h3>
+        <StatusToggle checked={config.enabled} disabled={saving} onChange={() => update({ enabled: !config.enabled })} />
+      </div>
+      <p className="hint-text card-desc">
         Tamamlanan islemler icin e-Fatura/e-Arsiv, yakit teslimatlari icin ise E-Irsaliye olusturmak uzere ayni
         gercek Uyumsoft entegrasyon hesabi kullanilir (Yakit Stoku sayfasindaki "E-Irsaliye Olustur" butonu buradaki
         bilgileri kullanir). Bu bir simulasyon degildir — kendi Uyumsoft musteri hesabinizin kullanici adi/sifresini
         ve sirket vergi bilgilerinizi girmeden ne fatura ne de irsaliye kesilebilir.
       </p>
 
-      <label>Durum</label>
-      <div className="toolbar">
-        <button className={config.enabled ? "success" : ""} disabled={saving} onClick={() => update({ enabled: !config.enabled })}>
-          {config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
-        </button>
+      <div className="field-grid">
+        <div>
+          <label>Ortam</label>
+          <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
+            <option value="sandbox">Sandbox (test)</option>
+            <option value="production">Production (canli)</option>
+          </select>
+        </div>
       </div>
 
-      <label>Ortam</label>
-      <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
-        <option value="sandbox">Sandbox (test)</option>
-        <option value="production">Production (canli)</option>
-      </select>
-
-      <label>Uyumsoft Kullanici Adi {config.usernameSet && <span className="hint-text">(kayitli: {config.username})</span>}</label>
-      <input
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder={config.usernameSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft kullanici adi"}
-      />
-
-      <label>Uyumsoft Sifre {config.passwordSet && <span className="hint-text">(kayitli: {config.passwordMasked})</span>}</label>
-      <input
-        type="password"
-        value={password}
-        onChange={(e) => setPassword(e.target.value)}
-        placeholder={config.passwordSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft sifresi"}
-      />
+      <div className="field-grid">
+        <div>
+          <label>Uyumsoft Kullanici Adi {config.usernameSet && <span className="hint-text">(kayitli: {config.username})</span>}</label>
+          <input
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            placeholder={config.usernameSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft kullanici adi"}
+          />
+        </div>
+        <div>
+          <label>Uyumsoft Sifre {config.passwordSet && <span className="hint-text">(kayitli: {config.passwordMasked})</span>}</label>
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder={config.passwordSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft sifresi"}
+          />
+        </div>
+      </div>
 
       <div className="toolbar" style={{ marginTop: "0.5rem" }}>
         <div className="spacer" />
@@ -385,31 +417,35 @@ function InvoiceSettingsCard() {
         </button>
       </div>
 
-      <div style={{ marginTop: "1rem", paddingTop: "0.75rem", borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-        <label>Sirket VKN</label>
-        <input value={company.companyVkn} onChange={(e) => setCompany((p) => ({ ...p, companyVkn: e.target.value }))} placeholder="10 haneli vergi kimlik no" />
-
-        <label>Sirket Unvani</label>
-        <input value={company.companyTitle} onChange={(e) => setCompany((p) => ({ ...p, companyTitle: e.target.value }))} placeholder="Resmi sirket unvani" />
-
-        <label>Vergi Dairesi</label>
-        <input value={company.companyTaxOffice} onChange={(e) => setCompany((p) => ({ ...p, companyTaxOffice: e.target.value }))} />
-
-        <label>Adres</label>
-        <input value={company.companyAddress} onChange={(e) => setCompany((p) => ({ ...p, companyAddress: e.target.value }))} />
-
-        <div className="toolbar">
+      <div className="card-divider">
+        <div className="field-grid">
+          <div>
+            <label>Sirket VKN</label>
+            <input value={company.companyVkn} onChange={(e) => setCompany((p) => ({ ...p, companyVkn: e.target.value }))} placeholder="10 haneli vergi kimlik no" />
+          </div>
+          <div>
+            <label>Sirket Unvani</label>
+            <input value={company.companyTitle} onChange={(e) => setCompany((p) => ({ ...p, companyTitle: e.target.value }))} placeholder="Resmi sirket unvani" />
+          </div>
+          <div>
+            <label>Vergi Dairesi</label>
+            <input value={company.companyTaxOffice} onChange={(e) => setCompany((p) => ({ ...p, companyTaxOffice: e.target.value }))} />
+          </div>
+          <div>
+            <label>Adres</label>
+            <input value={company.companyAddress} onChange={(e) => setCompany((p) => ({ ...p, companyAddress: e.target.value }))} />
+          </div>
           <div>
             <label>Il</label>
-            <input value={company.companyCity} onChange={(e) => setCompany((p) => ({ ...p, companyCity: e.target.value }))} style={{ maxWidth: 160 }} />
+            <input value={company.companyCity} onChange={(e) => setCompany((p) => ({ ...p, companyCity: e.target.value }))} />
           </div>
           <div>
             <label>Ilce</label>
-            <input value={company.companyDistrict} onChange={(e) => setCompany((p) => ({ ...p, companyDistrict: e.target.value }))} style={{ maxWidth: 160 }} />
+            <input value={company.companyDistrict} onChange={(e) => setCompany((p) => ({ ...p, companyDistrict: e.target.value }))} />
           </div>
         </div>
 
-        <div className="toolbar" style={{ marginTop: "0.5rem" }}>
+        <div className="toolbar" style={{ marginTop: "0.75rem" }}>
           <div className="spacer" />
           <button className="primary" disabled={saving} onClick={() => update(company)}>
             Sirket Bilgilerini Kaydet
@@ -418,7 +454,7 @@ function InvoiceSettingsCard() {
       </div>
 
       {error && <p className="error-text">{error}</p>}
-      {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
+      {savedMsg && <p className="success-text">{savedMsg}</p>}
     </div>
   );
 }
