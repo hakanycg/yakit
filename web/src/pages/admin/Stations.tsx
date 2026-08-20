@@ -157,7 +157,7 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <form className="card" style={{ width: 460, maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
+      <form className="card" style={{ width: "min(460px, 92vw)", maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
         <h3 style={{ marginTop: 0 }}>Yeni Istasyon</h3>
 
         <label>Istasyon Adi</label>

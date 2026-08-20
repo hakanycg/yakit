@@ -89,7 +89,7 @@ function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <div className="card" style={{ width: 420 }}>
+      <div className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>
         <h3 style={{ marginTop: 0 }}>{pump.label} - Ariza Simulasyonu</h3>
         <label>Ariza Kodu</label>
         <input value={faultCode} onChange={(e) => setFaultCode(e.target.value)} />

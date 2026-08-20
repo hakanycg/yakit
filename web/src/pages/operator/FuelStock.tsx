@@ -188,7 +188,7 @@ function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }
 function Modal({ children, width = 420 }: { children: React.ReactNode; width?: number }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <div className="card" style={{ width, maxHeight: "90vh", overflowY: "auto" }}>
+      <div className="card" style={{ width: `min(${width}px, 92vw)`, maxHeight: "90vh", overflowY: "auto" }}>
         {children}
       </div>
     </div>

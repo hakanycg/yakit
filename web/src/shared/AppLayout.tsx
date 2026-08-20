@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
@@ -14,6 +15,7 @@ const ROLE_LABEL: Record<string, string> = {
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [menuOpen, setMenuOpen] = useState(false);
   useCriticalAlarmNotifications();
 
   async function handleLogout() {
@@ -28,10 +30,11 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
-      <aside className="sidebar">
+      {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
+      <aside className={`sidebar${menuOpen ? " open" : ""}`}>
         <h1>Yakit Istasyonu</h1>
         <p className="brand-sub">Yonetim Sistemi</p>
-        <nav>
+        <nav onClick={() => setMenuOpen(false)}>
           {isSuperAdmin && (
             <>
               <p className="section-label">Platform</p>
@@ -66,6 +69,9 @@ export default function AppLayout() {
       <div className="main-content">
         <header className="topbar">
           <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+            <button className="menu-toggle ghost" aria-label="Menu" onClick={() => setMenuOpen((v) => !v)}>
+              &#9776;
+            </button>
             <div>
               <strong>{user.displayName}</strong>{" "}
               <span className="hint-text">({ROLE_LABEL[user.role] ?? user.role})</span>

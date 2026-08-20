@@ -169,7 +169,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <form className="card" style={{ width: 420 }} onSubmit={submit}>
+      <form className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
         <h3 style={{ marginTop: 0 }}>Yeni Kullanici</h3>
         <label>Kullanici Adi</label>
         <input value={username} onChange={(e) => setUsername(e.target.value)} required />
