@@ -8,11 +8,16 @@ router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"
 router.get("/summary", (req, res) => {
   const stationId = req.stationId!;
 
+  // "revenue" alanlari, indirim/puan kullanimiyla dusen tutari CIKARILMIS gercek tahsilat
+  // tutarini (chargeAmount = MAX(0, total_amount - discount_amount)) yansitir - transactionService.ts
+  // ile ayni mantik. total_amount, yakit degerini (stok/rapor amacli) degismeden tutar; musteriden
+  // gercekte tahsil edilen ile karistirilmamasi icin ciro raporlarinda ayrica totalDiscount raporlanir.
   const totals = db
     .prepare(
       `SELECT
          COUNT(*) as transactionCount,
-         COALESCE(SUM(CASE WHEN status = 'completed' THEN total_amount ELSE 0 END), 0) as totalRevenue,
+         COALESCE(SUM(CASE WHEN status = 'completed' THEN MAX(0, total_amount - discount_amount) ELSE 0 END), 0) as totalRevenue,
+         COALESCE(SUM(CASE WHEN status = 'completed' THEN discount_amount ELSE 0 END), 0) as totalDiscount,
          COALESCE(SUM(CASE WHEN status = 'completed' THEN dispensed_liters ELSE 0 END), 0) as totalLiters,
          COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) as completedCount,
          COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0) as cancelledCount,
@@ -25,7 +30,9 @@ router.get("/summary", (req, res) => {
     .prepare(
       `SELECT fuel_type as fuelType,
               COUNT(*) as count,
-              COALESCE(SUM(total_amount), 0) as revenue,
+              COALESCE(SUM(MAX(0, total_amount - discount_amount)), 0) as revenue,
+              COALESCE(SUM(discount_amount), 0) as discount,
+              COALESCE(SUM(total_amount), 0) as grossRevenue,
               COALESCE(SUM(dispensed_liters), 0) as liters
        FROM transactions WHERE station_id = ? AND status = 'completed' GROUP BY fuel_type`
     )
@@ -35,7 +42,7 @@ router.get("/summary", (req, res) => {
     .prepare(
       `SELECT substr(created_at, 1, 10) as day,
               COUNT(*) as count,
-              COALESCE(SUM(total_amount), 0) as revenue
+              COALESCE(SUM(MAX(0, total_amount - discount_amount)), 0) as revenue
        FROM transactions WHERE station_id = ? AND status = 'completed'
        GROUP BY day ORDER BY day DESC LIMIT 30`
     )
@@ -45,7 +52,7 @@ router.get("/summary", (req, res) => {
     .prepare(
       `SELECT p.number as pumpNumber,
               COUNT(t.id) as count,
-              COALESCE(SUM(t.total_amount), 0) as revenue,
+              COALESCE(SUM(MAX(0, t.total_amount - t.discount_amount)), 0) as revenue,
               COALESCE(SUM(t.dispensed_liters), 0) as liters
        FROM pumps p LEFT JOIN transactions t ON t.pump_id = p.id AND t.status = 'completed'
        WHERE p.station_id = ?

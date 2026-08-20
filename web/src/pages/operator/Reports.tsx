@@ -7,12 +7,13 @@ interface SummaryResponse {
   totals: {
     transactionCount: number;
     totalRevenue: number;
+    totalDiscount: number;
     totalLiters: number;
     completedCount: number;
     cancelledCount: number;
     failedCount: number;
   };
-  byFuelType: Array<{ fuelType: string; count: number; revenue: number; liters: number }>;
+  byFuelType: Array<{ fuelType: string; count: number; revenue: number; discount: number; grossRevenue: number; liters: number }>;
   byDay: Array<{ day: string; count: number; revenue: number }>;
   byPump: Array<{ pumpNumber: number; count: number; revenue: number; liters: number }>;
 }
@@ -67,10 +68,16 @@ export default function Reports() {
     <div>
       <h2>Raporlama</h2>
 
-      <div className="grid cols-4">
+      <div className="grid cols-5">
         <div className="card stat">
           <span className="label">Toplam Ciro</span>
           <span className="value">{formatCurrency(data.totals.totalRevenue)}</span>
+          <span className="hint-text">Musteriden tahsil edilen gercek tutar (indirim dusulmus)</span>
+        </div>
+        <div className="card stat">
+          <span className="label">Toplam Indirim</span>
+          <span className="value" style={{ color: "var(--warning)" }}>{formatCurrency(data.totals.totalDiscount)}</span>
+          <span className="hint-text">Kampanya kodu + puan kullanimi</span>
         </div>
         <div className="card stat">
           <span className="label">Toplam Litre</span>
@@ -98,6 +105,7 @@ export default function Reports() {
                 <th className="numeric">Islem</th>
                 <th className="numeric">Litre</th>
                 <th className="numeric">Ort. Fiyat</th>
+                <th className="numeric">Indirim</th>
                 <th className="numeric">Ciro</th>
                 <th className="numeric">Pay</th>
               </tr>
@@ -108,18 +116,20 @@ export default function Reports() {
                   <td><span className={`fuel-dot ${f.fuelType}`} />{FUEL_LABEL[f.fuelType] ?? f.fuelType}</td>
                   <td className="numeric">{f.count}</td>
                   <td className="numeric">{f.liters.toFixed(1)} L</td>
-                  <td className="numeric">{formatCurrency(f.liters > 0 ? f.revenue / f.liters : 0)}</td>
+                  <td className="numeric">{formatCurrency(f.liters > 0 ? f.grossRevenue / f.liters : 0)}</td>
+                  <td className="numeric">{f.discount > 0 ? formatCurrency(f.discount) : "-"}</td>
                   <td className="numeric">{formatCurrency(f.revenue)}</td>
                   <td className="numeric"><span className="share-pill">{pct(f.revenue, data.totals.totalRevenue)}</span></td>
                 </tr>
               ))}
-              {data.byFuelType.length === 0 && <tr><td colSpan={6} className="hint-text">Veri yok.</td></tr>}
+              {data.byFuelType.length === 0 && <tr><td colSpan={7} className="hint-text">Veri yok.</td></tr>}
               {data.byFuelType.length > 0 && (
                 <tr className="table-total">
                   <td>Toplam</td>
                   <td className="numeric">{data.byFuelType.reduce((s, f) => s + f.count, 0)}</td>
                   <td className="numeric">{data.byFuelType.reduce((s, f) => s + f.liters, 0).toFixed(1)} L</td>
                   <td className="hint-text-cell numeric">-</td>
+                  <td className="numeric">{formatCurrency(data.byFuelType.reduce((s, f) => s + f.discount, 0))}</td>
                   <td className="numeric">{formatCurrency(data.byFuelType.reduce((s, f) => s + f.revenue, 0))}</td>
                   <td className="numeric">%100.0</td>
                 </tr>

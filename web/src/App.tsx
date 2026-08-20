@@ -16,6 +16,7 @@ import ChangePassword from "./pages/operator/ChangePassword";
 // import Shift from "./pages/operator/Shift";
 import FuelStock from "./pages/operator/FuelStock";
 import DiscountCodes from "./pages/admin/DiscountCodes";
+import LoyaltyLookup from "./pages/admin/LoyaltyLookup";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
 import Settings from "./pages/admin/Settings";
@@ -48,6 +49,7 @@ export default function App() {
             <Route path="/admin/ayarlar" element={<Settings />} />
             <Route path="/operator/stok" element={<FuelStock />} />
             <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
+            <Route path="/admin/sadakat-puanlari" element={<LoyaltyLookup />} />
           </Route>
 
           <Route element={<RequireRole roles={["super_admin"]} />}>

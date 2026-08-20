@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
-import { getTransactionById, listTransactions, serializeTransaction, TransactionError } from "../services/transactionService.js";
+import { chargeAmount, getTransactionById, listTransactions, serializeTransaction, TransactionError } from "../services/transactionService.js";
 import { recordAudit } from "../services/auditService.js";
 import { createInvoice, InvoiceError } from "../services/invoiceService.js";
 import { getInvoiceForTransaction, recordInvoiceFailure, recordInvoiceSuccess, serializeInvoice } from "../services/invoiceRecordService.js";
@@ -36,6 +36,11 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
     "price_per_liter",
     "dispensed_liters",
     "total_amount",
+    "discount_code",
+    "discount_amount",
+    "charge_amount",
+    "loyalty_points_redeemed",
+    "loyalty_points_earned",
     "payment_status",
     "status",
     "created_at",
@@ -57,6 +62,11 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
         t.price_per_liter,
         t.dispensed_liters,
         t.total_amount,
+        t.discount_code,
+        t.discount_amount,
+        chargeAmount(t),
+        t.loyalty_points_redeemed,
+        t.loyalty_points_earned,
         t.payment_status,
         t.status,
         t.created_at,

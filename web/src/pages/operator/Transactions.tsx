@@ -51,7 +51,7 @@ export default function Transactions() {
           <table>
             <thead>
               <tr>
-                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakit</th><th>Litre</th><th>Tutar</th><th>Durum</th><th>Olusturulma</th><th>E-Fatura</th>
+                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakit</th><th>Litre</th><th className="numeric">Tutar</th><th className="numeric">Indirim</th><th className="numeric">Puan</th><th>Durum</th><th>Olusturulma</th><th>E-Fatura</th>
               </tr>
             </thead>
             <tbody>
@@ -62,14 +62,32 @@ export default function Transactions() {
                   <td>{t.plate}</td>
                   <td>{FUEL_LABEL[t.fuelType]}</td>
                   <td>{formatLiters(t.dispensedLiters)}</td>
-                  <td>{formatCurrency(t.totalAmount)}</td>
+                  <td className="numeric">
+                    {formatCurrency(t.chargeAmount)}
+                    {t.discountAmount > 0 && (
+                      <div className="hint-text" style={{ marginTop: 0 }}>yakit degeri: {formatCurrency(t.totalAmount)}</div>
+                    )}
+                  </td>
+                  <td className="numeric">
+                    {t.discountAmount > 0 ? (
+                      <>
+                        -{formatCurrency(t.discountAmount)}
+                        {t.discountCode && <div className="hint-text" style={{ marginTop: 0 }}>{t.discountCode}</div>}
+                      </>
+                    ) : "-"}
+                  </td>
+                  <td className="numeric">
+                    {t.loyaltyPointsRedeemed > 0 && <div style={{ color: "var(--warning)" }}>-{t.loyaltyPointsRedeemed}</div>}
+                    {t.loyaltyPointsEarned > 0 && <div style={{ color: "var(--accent-2)" }}>+{t.loyaltyPointsEarned}</div>}
+                    {t.loyaltyPointsRedeemed <= 0 && t.loyaltyPointsEarned <= 0 && "-"}
+                  </td>
                   <td><span className={`badge ${t.status}`}>{TRANSACTION_STATUS_LABEL[t.status]}</span></td>
                   <td>{formatDateTime(t.createdAt)}</td>
                   <td>{t.status === "completed" && <InvoiceCell transactionId={t.id} />}</td>
                 </tr>
               ))}
               {transactions.length === 0 && (
-                <tr><td colSpan={9} className="hint-text">Kayit bulunamadi.</td></tr>
+                <tr><td colSpan={11} className="hint-text">Kayit bulunamadi.</td></tr>
               )}
             </tbody>
           </table>

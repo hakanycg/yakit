@@ -93,7 +93,7 @@ export default function DiscountCodes() {
 function Modal({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <div className="card" style={{ width: 440, maxHeight: "90vh", overflowY: "auto" }}>{children}</div>
+      <div className="card" style={{ width: "min(520px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>{children}</div>
     </div>
   );
 }
@@ -104,6 +104,7 @@ function CreateCodeDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   const [value, setValue] = useState("");
   const [fuelType, setFuelType] = useState("");
   const [maxUses, setMaxUses] = useState("");
+  const [startsAt, setStartsAt] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -118,6 +119,7 @@ function CreateCodeDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         value: Number(value),
         fuelType: fuelType || undefined,
         maxUses: maxUses ? Number(maxUses) : undefined,
+        startsAt: startsAt ? new Date(startsAt).toISOString() : undefined,
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
       });
       onCreated();
@@ -155,8 +157,16 @@ function CreateCodeDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       <label>Maksimum kullanim (opsiyonel)</label>
       <input type="number" min={1} value={maxUses} onChange={(e) => setMaxUses(e.target.value)} />
 
-      <label>Son kullanma tarihi (opsiyonel)</label>
-      <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+      <div className="field-grid">
+        <div>
+          <label>Baslangic tarihi (opsiyonel)</label>
+          <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} />
+        </div>
+        <div>
+          <label>Son kullanma tarihi (opsiyonel)</label>
+          <input type="datetime-local" value={expiresAt} onChange={(e) => setExpiresAt(e.target.value)} />
+        </div>
+      </div>
 
       {error && <p className="error-text">{error}</p>}
 
