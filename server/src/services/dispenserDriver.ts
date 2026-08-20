@@ -1,0 +1,75 @@
+/**
+ * Fiziksel pompa donanimiyla konusan katmanin soyutlamasi. Su an tek bir uygulamasi var
+ * (simulatedDispenserDriver) - gercek donanim yok, dolum tamamen yazilimsal olarak taklit
+ * ediliyor. Ileride gercek bir pompa/forecourt entegrasyonu (ör. IFSF veya uretici-ozel bir
+ * protokol uzerinden) yapildiginda, bu arayuzu uygulayan yeni bir surucu yazip
+ * setDispenserDriver() ile devreye alinabilir - transactionService.ts'in dolum dongusune
+ * dokunmaya gerek kalmaz.
+ *
+ * Not: gercek yakit sayaclari cogu ulkede (Turkiye dahil) metroloji/kalibrasyon
+ * sertifikasyonu gerektirir - bu, yazilimla asilamayacak yasal bir zorunluluktur; gercek bir
+ * surucu yazmadan once bunu saglayan sertifikali bir pompa/kontrolor gerekir.
+ */
+
+export interface DispenserTickResult {
+  /** Bu tick'te akan (heniz depo/tank kisitina karsi sinirlanmamis) litre miktari. */
+  liters: number;
+  /**
+   * true ise dolum bu tick'te sona erer - hedef litreye ulasilmamis olsa bile. Gercek
+   * donanimda bu, tabancanin fiziksel olarak (otomatik klik-off ile veya musteri elle)
+   * yerine takildigi anlamina gelir. Simulasyonda hic tetiklenmez (false).
+   */
+  nozzleStopped: boolean;
+}
+
+export interface DispenserDriver {
+  /**
+   * "Depoyu Doldur" (full_tank) modunda dolumun ne kadar surecegini belirler. Simulasyonda
+   * gercekci bir binek arac deposu araligindan (28-55L) rastgele bir hedef secilir. Gercek
+   * donanimda byle bir hedef ONCEDEN bilinemez - tabanca ne zaman klik-off yapacagini
+   * yalnizca fiziksel olarak gerceklestiginde belli eder - bu yuzden gercek bir surucu burada
+   * `null` donmelidir; bu durumda dolum yalnizca tick()'in nozzleStopped=true dondurdugu
+   * anda biter (bkz. DispenserTickResult).
+   */
+  pickFullTankTargetLiters(): number | null;
+
+  /** Bir dolum tick'inde (yaklasik `elapsedMs` sure icinde) ne kadar litre aktigini dondurur. */
+  tick(elapsedMs: number): DispenserTickResult;
+
+  /**
+   * "Depoyu Doldur" islemi baslamadan once (odeme yetkilendirmesi icin) gosterilecek/rezerve
+   * edilecek olasi EN YUKSEK litre tahmini. pickFullTankTargetLiters()'in aksine rastgele
+   * degildir - sabit, kotu-senaryo bir ust sinirdir (ödeme aginin bir tutar tutmasi/blokaj
+   * koymasi icin gercek dolum bitmeden bir rakama ihtiyaci vardir).
+   */
+  estimateMaxFullTankLiters(): number;
+}
+
+const FLOW_LITERS_PER_SEC_MIN = 0.45;
+const FLOW_LITERS_PER_SEC_MAX = 0.75;
+const FULL_TANK_MIN_LITERS = 28;
+const FULL_TANK_MAX_LITERS = 55;
+
+export const simulatedDispenserDriver: DispenserDriver = {
+  pickFullTankTargetLiters(): number {
+    return FULL_TANK_MIN_LITERS + Math.random() * (FULL_TANK_MAX_LITERS - FULL_TANK_MIN_LITERS);
+  },
+  tick(elapsedMs: number): DispenserTickResult {
+    const flowRate = FLOW_LITERS_PER_SEC_MIN + Math.random() * (FLOW_LITERS_PER_SEC_MAX - FLOW_LITERS_PER_SEC_MIN);
+    return { liters: flowRate * (elapsedMs / 1000), nozzleStopped: false };
+  },
+  estimateMaxFullTankLiters(): number {
+    return FULL_TANK_MAX_LITERS;
+  },
+};
+
+let activeDriver: DispenserDriver = simulatedDispenserDriver;
+
+export function getDispenserDriver(): DispenserDriver {
+  return activeDriver;
+}
+
+/** Gercek donanim entegrasyonu yapildiginda, sunucu baslangicinda bu fonksiyonla simulasyon surucusunun yerine gercek surucu takilir. */
+export function setDispenserDriver(driver: DispenserDriver): void {
+  activeDriver = driver;
+}

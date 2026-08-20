@@ -7,15 +7,12 @@ import { processVirtualPayment, type VirtualCardInput } from "./paymentService.j
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
+import { getDispenserDriver } from "./dispenserDriver.js";
 import { safeCompare } from "../utils/safeCompare.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig, earnPoints, redeemPoints, refundPoints } from "./loyaltyService.js";
 import { validateCode, redeemCode, releaseCode } from "./discountService.js";
 
 const DISPENSE_TICK_MS = 500;
-const FLOW_LITERS_PER_SEC_MIN = 0.45;
-const FLOW_LITERS_PER_SEC_MAX = 0.75;
-const FULL_TANK_MIN_LITERS = 28;
-const FULL_TANK_MAX_LITERS = 55;
 
 const activeDispensers = new Map<number, NodeJS.Timeout>();
 
@@ -131,7 +128,7 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
       ? input.requestedAmount!
       : input.amountMode === "liters"
         ? input.requestedLiters! * price.price_per_liter
-        : FULL_TANK_MAX_LITERS * price.price_per_liter;
+        : getDispenserDriver().estimateMaxFullTankLiters() * price.price_per_liter;
 
   const normalizedPlate = input.plate.toUpperCase().replace(/\s+/g, " ").trim();
 
@@ -287,13 +284,16 @@ function startDispensing(id: number): void {
   const t = getTransactionOrThrow(id);
   if (t.status !== "authorized") return;
 
-  const capLiters = t.amount_mode === "full_tank" ? FULL_TANK_MIN_LITERS + Math.random() * (FULL_TANK_MAX_LITERS - FULL_TANK_MIN_LITERS) : null;
-  const targetLiters =
+  const driver = getDispenserDriver();
+  // full_tank modunda hedef, gercek donanimda ONCEDEN bilinemeyebilir (bkz. DispenserDriver
+  // yorumu) - bu durumda targetLiters null kalir ve dolum yalnizca tick()'in
+  // nozzleStopped=true dondurdugu anda (veya depo tukendiginde) biter.
+  const targetLiters: number | null =
     t.amount_mode === "liters"
       ? t.requested_liters!
       : t.amount_mode === "amount"
         ? t.requested_amount! / t.price_per_liter
-        : capLiters!;
+        : driver.pickFullTankTargetLiters();
 
   touch(id, { status: "dispensing", dispensed_liters: 0, total_amount: 0 });
   setPumpStatus(t.pump_id, "dispensing", { currentTransactionId: id });
@@ -306,8 +306,9 @@ function startDispensing(id: number): void {
       return;
     }
 
-    const flowRate = FLOW_LITERS_PER_SEC_MIN + Math.random() * (FLOW_LITERS_PER_SEC_MAX - FLOW_LITERS_PER_SEC_MIN);
-    const desiredIncrement = Math.min(flowRate * (DISPENSE_TICK_MS / 1000), targetLiters - current.dispensed_liters);
+    const tick = driver.tick(DISPENSE_TICK_MS);
+    const remainingToTarget = targetLiters !== null ? targetLiters - current.dispensed_liters : Infinity;
+    const desiredIncrement = Math.max(0, Math.min(tick.liters, remainingToTarget));
 
     // Gercek fiziksel pompa gibi, dolum ANLIK olarak tanktan besleniyor — depo bu
     // ana kadar bosaldiysa (ör. ayni tanki paylasan baska bir pompa tuketmis olabilir)
@@ -315,8 +316,9 @@ function startDispensing(id: number): void {
     const { actual: actualIncrement, limited: ranDry } = deductAvailable(current.station_id, current.fuel_type, desiredIncrement);
 
     let nextLiters = current.dispensed_liters + actualIncrement;
-    const finished = nextLiters >= targetLiters - 0.0001 || ranDry;
-    if (finished) nextLiters = Math.min(nextLiters, targetLiters);
+    const reachedTarget = targetLiters !== null && nextLiters >= targetLiters - 0.0001;
+    const finished = reachedTarget || ranDry || tick.nozzleStopped;
+    if (targetLiters !== null && finished) nextLiters = Math.min(nextLiters, targetLiters);
 
     const nextAmount = nextLiters * current.price_per_liter;
 
