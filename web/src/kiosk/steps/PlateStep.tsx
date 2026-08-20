@@ -43,7 +43,15 @@ export default function PlateStep({ onNext }: { onNext: (plate: string, source: 
       <p className="hint-text">{t("plate.subtitle")}</p>
 
       <label>{t("plate.label")}</label>
-      <input value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} placeholder={t("plate.placeholder")} style={{ fontSize: "1.3rem", textAlign: "center", letterSpacing: "0.1em" }} />
+      <input
+        value={plate}
+        onChange={(e) => setPlate(e.target.value.toUpperCase())}
+        placeholder={t("plate.placeholder")}
+        // Plakalar arayuz dili ne olursa olsun her zaman soldan saga yazilir (harf+rakam
+        // karisimi, RTL bir sayfada - ör. Arapca'da - ters sirada gorunmesin diye).
+        dir="ltr"
+        style={{ fontSize: "1.3rem", textAlign: "center", letterSpacing: "0.1em" }}
+      />
       {error && <p className="error-text">{error}</p>}
 
       <div className="kiosk-actions">

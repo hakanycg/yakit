@@ -12,7 +12,7 @@ import DispenseStep from "./steps/DispenseStep";
 import ReceiptStep from "./steps/ReceiptStep";
 import { ApiError } from "../shared/api";
 import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./resumeStorage";
-import { KioskLangProvider, LanguageSwitcher, useKioskLang } from "./i18n";
+import { KioskLangProvider, LanguageSwitcher, RTL_LANGS, useKioskLang } from "./i18n";
 import PrivacyNoticeLink from "./PrivacyNotice";
 import { useIdleReset } from "./useIdleReset";
 
@@ -35,7 +35,8 @@ export default function KioskFlow() {
 }
 
 function KioskFlowInner() {
-  const { t } = useKioskLang();
+  const { t, lang } = useKioskLang();
+  const dir = RTL_LANGS.includes(lang) ? "rtl" : "ltr";
   const { slug } = useParams<{ slug: string }>();
   const [station, setStation] = useState<StationResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -184,7 +185,7 @@ function KioskFlowInner() {
 
   if (loadError) {
     return (
-      <div className="kiosk-shell">
+      <div className="kiosk-shell" dir={dir}>
         <div className="kiosk-card">
           <LanguageSwitcher />
           <h2>{t("stationNotFound.title")}</h2>
@@ -197,7 +198,7 @@ function KioskFlowInner() {
 
   if (!station) {
     return (
-      <div className="kiosk-shell">
+      <div className="kiosk-shell" dir={dir}>
         <div className="kiosk-card">
           <LanguageSwitcher />
           {t("loading")}
@@ -209,7 +210,7 @@ function KioskFlowInner() {
   const stepIndex = STEP_ORDER.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
 
   return (
-    <div className="kiosk-shell">
+    <div className="kiosk-shell" dir={dir}>
       <div className="kiosk-card">
         <LanguageSwitcher />
         <div className="kiosk-steps">

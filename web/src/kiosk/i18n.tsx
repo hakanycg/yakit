@@ -1,6 +1,20 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-export type KioskLang = "tr" | "en";
+export type KioskLang = "tr" | "en" | "ru" | "de" | "ar";
+
+/**
+ * Bir metin icinde her zaman soldan saga okunmasi gereken bir degeri (ör. plaka) sarmalar
+ * (Unicode LRI/PDI izolasyon karakterleri). RTL bir cumle icine interpolasyonla eklendiginde
+ * (ör. "{plate}" gibi tek bir cevrilmis sablon dizesinin parcasi oldugunda, ayri bir DOM
+ * elemanina `dir="ltr"` koymanin mumkun olmadigi durumlarda) harf+rakam karisimi degerlerin
+ * ters sirada gorunmesini onler.
+ */
+export function ltrIsolate(value: string | number): string {
+  return `⁦${value}⁩`;
+}
+
+/** Sagdan sola yazilan diller - kiosk kabugu bunlar icin dir="rtl" alir. */
+export const RTL_LANGS: readonly KioskLang[] = ["ar"];
 
 type Dict = Record<string, string>;
 
@@ -300,6 +314,441 @@ const DICTS: Record<KioskLang, Dict> = {
     "privacy.rightsBody": "You have the right to learn whether your data is processed, request information about it, request correction or deletion, and request that these actions be notified to third parties it was shared with. You may exercise these rights by submitting a written request to the station staff.",
     "privacy.close": "Close",
   },
+  ru: {
+    "loading": "Загрузка...",
+    "stationNotFound.title": "Станция не найдена",
+    "stationNotFound.hint": "Возможно, адрес этого киоска указан неверно. Пожалуйста, свяжитесь с администратором станции.",
+    "error.stationLoadFailed": "Не удалось загрузить станцию.",
+    "error.transactionCreateFailed": "Не удалось создать транзакцию.",
+    "error.paymentInfoLoadFailed": "Не удалось получить информацию о транзакции после оплаты. Пожалуйста, начните новую транзакцию.",
+    "creating.hint": "Резервирование колонки и переход к экрану оплаты...",
+    "iyzicoWait.title": "Ожидание результата оплаты",
+    "iyzicoWait.hint": "Проверяется результат оплаты iyzico, пожалуйста, подождите...",
+
+    "fuel.benzin": "Бензин",
+    "fuel.motorin": "Дизель",
+    "fuel.lpg": "СНГ (LPG)",
+    "pumpStatus.idle": "Свободна",
+    "pumpStatus.reserved": "Забронирована",
+    "pumpStatus.dispensing": "Идёт заправка",
+    "pumpStatus.fault": "Неисправность",
+    "pumpStatus.offline": "Отключена",
+    "transactionStatus.created": "Создано",
+    "transactionStatus.paid": "Оплачено",
+    "transactionStatus.authorized": "Авторизовано",
+    "transactionStatus.dispensing": "Идёт заправка",
+    "transactionStatus.completed": "Завершено",
+    "transactionStatus.cancelled": "Отменено",
+    "transactionStatus.failed": "Неудачно",
+
+    "plate.title": "Добро пожаловать",
+    "plate.subtitle": "Введите номер автомобиля вручную или отсканируйте его с помощью автоматического распознавания номеров (LPR).",
+    "plate.label": "Номерной знак",
+    "plate.placeholder": "06 ABC 123",
+    "plate.lprFailed": "Не удалось чётко распознать номер, пожалуйста, введите его вручную.",
+    "plate.invalid": "Введите корректный номерной знак (например, 06 ABC 123).",
+    "plate.scanning": "Сканирование камеры...",
+    "plate.scanButton": "Автоскан (LPR)",
+    "plate.continue": "Продолжить",
+    "plate.lprNote": "Примечание: в этой среде нет физической камеры, поэтому сканирование LPR симулируется.",
+    "action.back": "Назад",
+
+    "pump.title": "Выберите колонку",
+    "pump.subtitle": "Выберите свободную колонку, у которой находится ваш автомобиль.",
+
+    "fuelStep.title": "Выберите вид топлива",
+    "fuelStep.subtitle": "Виды топлива, доступные на {pump}.",
+    "fuelStep.outOfStockTitle": "Этот вид топлива временно отсутствует.",
+    "fuelStep.outOfStock": "Нет в наличии",
+    "fuelStep.perLiter": "{price} / л",
+
+    "amount.title": "Выберите количество",
+    "amount.modeAmount": "Ввести сумму",
+    "amount.modeLiters": "Ввести литры",
+    "amount.modeFullTank": "Полный бак",
+    "amount.customAmountLabel": "Произвольная сумма (TL)",
+    "amount.litersLabel": "Количество литров",
+    "amount.estimatedTotal": "Примерная сумма: {amount}",
+    "amount.fullTankHint": "Заправка автоматически остановится при срабатывании датчика полного бака. Максимальная предполагаемая сумма показана заранее.",
+    "amount.useLoyalty": "Использовать баллы лояльности ({points} баллов = скидка {value})",
+    "amount.discountCodeLabel": "Промокод (необязательно)",
+    "amount.discountCodePlaceholder": "напр.: YAZ2026",
+    "amount.checkingCode": "Проверка...",
+    "amount.applyCode": "Применить",
+    "error.codeInvalid": "Не удалось проверить код.",
+    "amount.codeApplied": "«{code}» применён: -{amount}",
+    "amount.estimatedCharge": "Примерная сумма к оплате: {amount}",
+    "amount.invalidAmount": "Введите корректную сумму.",
+    "amount.invalidLiters": "Введите корректное количество литров.",
+    "action.continue": "Продолжить",
+
+    "payment.iyzicoTitle": "Безопасная оплата (iyzico)",
+    "payment.discountApplied": "Скидка применена: -{discount} (исходная сумма: {total})",
+    "payment.estimateNote": "Это ориентировочная сумма; окончательная сумма определяется после завершения заправки.",
+    "payment.iyzicoSecureNote": "Данные вашей карты вводятся не в этом киоске, а непосредственно на защищённой странице оплаты iyzico.",
+    "payment.cancel": "Отменить транзакцию",
+    "payment.payWithCard": "Оплатить картой",
+    "payment.preparingForm": "Подготовка формы оплаты...",
+    "error.iyzicoStartFailed": "Не удалось запустить форму оплаты iyzico.",
+    "payment.simulatedTitle": "Виртуальная оплата",
+    "payment.cardHolderLabel": "Имя владельца карты",
+    "payment.cardNumberLabel": "Номер карты",
+    "payment.monthLabel": "Месяц",
+    "payment.yearLabel": "Год",
+    "payment.cvvLabel": "CVV",
+    "payment.confirm": "Подтвердить оплату",
+    "payment.processing": "Обработка оплаты...",
+    "error.paymentRejected": "Оплата отклонена.",
+    "error.paymentFailed": "Произошла ошибка при оплате.",
+    "payment.simulationNote": "Это симуляция виртуальной оплаты; реальное соединение с банком не устанавливается.",
+
+    "dispense.authorizing": "Авторизация колонки...",
+    "dispense.inProgress": "Идёт заправка",
+    "dispense.plateAndPump": "Номер: {plate} — Колонка №{pump}",
+    "dispense.amountLabel": "Заправлено",
+    "dispense.currentTotalLabel": "Текущая сумма",
+    "dispense.waitNote": "Пожалуйста, подождите, транзакция завершится автоматически по окончании заправки. Статус: {status}",
+
+    "receipt.failedTitle": "Транзакция не завершена",
+    "receipt.completedTitle": "Транзакция завершена",
+    "receipt.cancelledDefault": "Транзакция была отменена.",
+    "receipt.successNote": "Заправка вашего автомобиля успешно завершена.",
+    "receipt.tankFullNote": "Транзакция была ограничена {liters}, так как бак наполнился во время заправки. Благодарим за понимание.",
+    "receipt.plate": "Номер",
+    "receipt.fuel": "Топливо",
+    "receipt.amount": "Количество",
+    "receipt.pricePerLiter": "Цена за литр",
+    "receipt.fuelValue": "Стоимость топлива",
+    "receipt.discount": "Скидка",
+    "receipt.chargedAmount": "Оплаченная сумма",
+    "receipt.totalAmount": "Общая сумма",
+    "receipt.pointsEarned": "Начислено баллов",
+    "receipt.transactionNo": "№ транзакции",
+    "receipt.date": "Дата",
+    "receipt.restart": "Начать новую транзакцию",
+    "receipt.sendReceiptTitle": "Отправить чек",
+    "receipt.emailLabel": "Эл. почта (необязательно)",
+    "receipt.emailPlaceholder": "example@email.com",
+    "receipt.phoneLabel": "Телефон (необязательно)",
+    "receipt.phonePlaceholder": "05xx xxx xx xx",
+    "receipt.emailSent": "Письмо отправлено.",
+    "receipt.emailFailed": "Не удалось отправить письмо: {reason}",
+    "receipt.smsSent": "SMS отправлено.",
+    "receipt.smsFailed": "Не удалось отправить SMS: {reason}",
+    "receipt.sentGeneric": "Чек отправлен.",
+    "error.receiptSendFailed": "Не удалось отправить чек.",
+    "receipt.sending": "Отправка...",
+    "receipt.send": "Отправить",
+
+    "idle.title": "Вы всё ещё здесь?",
+    "idle.body": "Долгое время не было активности. Транзакция будет сброшена через {seconds} сек.",
+    "idle.continue": "Я всё ещё здесь",
+
+    "privacy.linkLabel": "О защите персональных данных",
+    "privacy.title": "Уведомление о защите персональных данных",
+    "privacy.controller": "Оператор данных: {station}. Используя этот терминал, вы соглашаетесь на обработку ваших персональных данных в описанном ниже объёме; по вопросам обращайтесь к персоналу станции.",
+    "privacy.dataHeading": "Обрабатываемые персональные данные",
+    "privacy.dataBody": "Номерной знак автомобиля (обязательно), по желанию — адрес эл. почты и/или номер телефона (только если вы запросите чек), а также сведения о сумме/количестве/дате транзакции.",
+    "privacy.purposeHeading": "Цели обработки",
+    "privacy.purposeBody": "Заключение и исполнение договора купли-продажи топлива, обработка платежа, оформление электронного счёта (юридическое обязательство по налоговому законодательству Турции), отправка чека по эл. почте/SMS по запросу, учёт баллов лояльности.",
+    "privacy.recipientsHeading": "Получатели данных",
+    "privacy.recipientsBody": "iyzico (платёжная организация) — для обработки платежа; Uyumsoft (уполномоченный оператор электронного документооборота) — для оформления электронных счетов/накладных. Ваши данные не передаются третьим лицам в иных коммерческих целях.",
+    "privacy.retentionHeading": "Срок хранения",
+    "privacy.retentionBody": "Счета/бухгалтерские записи хранятся 10 лет согласно налоговому законодательству Турции; остальные данные удаляются в разумный срок после достижения цели обработки.",
+    "privacy.rightsHeading": "Ваши права",
+    "privacy.rightsBody": "Вы имеете право узнать, обрабатываются ли ваши данные, запросить соответствующую информацию, потребовать исправления или удаления данных, а также потребовать уведомления об этом третьих лиц, которым данные были переданы. Для реализации этих прав вы можете подать письменное заявление персоналу станции.",
+    "privacy.close": "Закрыть",
+  },
+  de: {
+    "loading": "Wird geladen...",
+    "stationNotFound.title": "Tankstelle nicht gefunden",
+    "stationNotFound.hint": "Die Adresse dieses Kiosk-Terminals ist möglicherweise falsch. Bitte wenden Sie sich an Ihren Stationsleiter.",
+    "error.stationLoadFailed": "Tankstelle konnte nicht geladen werden.",
+    "error.transactionCreateFailed": "Transaktion konnte nicht erstellt werden.",
+    "error.paymentInfoLoadFailed": "Transaktionsinformationen nach der Zahlung konnten nicht abgerufen werden. Bitte starten Sie eine neue Transaktion.",
+    "creating.hint": "Zapfsäule wird reserviert, Sie werden zur Zahlungsseite weitergeleitet...",
+    "iyzicoWait.title": "Warten auf Zahlungsergebnis",
+    "iyzicoWait.hint": "Ihr iyzico-Zahlungsergebnis wird überprüft, bitte warten...",
+
+    "fuel.benzin": "Benzin",
+    "fuel.motorin": "Diesel",
+    "fuel.lpg": "Autogas (LPG)",
+    "pumpStatus.idle": "Verfügbar",
+    "pumpStatus.reserved": "Reserviert",
+    "pumpStatus.dispensing": "Betankung läuft",
+    "pumpStatus.fault": "Störung",
+    "pumpStatus.offline": "Außer Betrieb",
+    "transactionStatus.created": "Erstellt",
+    "transactionStatus.paid": "Bezahlt",
+    "transactionStatus.authorized": "Autorisiert",
+    "transactionStatus.dispensing": "Betankung läuft",
+    "transactionStatus.completed": "Abgeschlossen",
+    "transactionStatus.cancelled": "Storniert",
+    "transactionStatus.failed": "Fehlgeschlagen",
+
+    "plate.title": "Willkommen",
+    "plate.subtitle": "Geben Sie Ihr Kennzeichen ein, um zu beginnen, oder scannen Sie es mit der automatischen Kennzeichenerkennung (LPR).",
+    "plate.label": "Kennzeichen",
+    "plate.placeholder": "06 ABC 123",
+    "plate.lprFailed": "Das Kennzeichen konnte nicht eindeutig erkannt werden, bitte geben Sie es manuell ein.",
+    "plate.invalid": "Bitte geben Sie ein gültiges Kennzeichen ein (z. B. 06 ABC 123).",
+    "plate.scanning": "Kamera scannt...",
+    "plate.scanButton": "Automatisch mit LPR scannen",
+    "plate.continue": "Weiter",
+    "plate.lprNote": "Hinweis: Da in dieser Umgebung keine physische Kamera vorhanden ist, wird der LPR-Scan simuliert.",
+    "action.back": "Zurück",
+
+    "pump.title": "Zapfsäule auswählen",
+    "pump.subtitle": "Bitte wählen Sie die verfügbare Zapfsäule, an der sich Ihr Fahrzeug befindet.",
+
+    "fuelStep.title": "Kraftstoffart wählen",
+    "fuelStep.subtitle": "Von {pump} unterstützte Kraftstoffarten.",
+    "fuelStep.outOfStockTitle": "Diese Kraftstoffart ist derzeit nicht vorrätig.",
+    "fuelStep.outOfStock": "Nicht vorrätig",
+    "fuelStep.perLiter": "{price} / L",
+
+    "amount.title": "Menge auswählen",
+    "amount.modeAmount": "Betrag eingeben",
+    "amount.modeLiters": "Liter eingeben",
+    "amount.modeFullTank": "Volltanken",
+    "amount.customAmountLabel": "Individueller Betrag (TL)",
+    "amount.litersLabel": "Litermenge",
+    "amount.estimatedTotal": "Geschätzter Betrag: {amount}",
+    "amount.fullTankHint": "Die Betankung stoppt automatisch, sobald der Volltank-Sensor auslöst. Ein geschätzter Höchstbetrag wird vorab angezeigt.",
+    "amount.useLoyalty": "Treuepunkte verwenden ({points} Punkte = {value} Rabatt)",
+    "amount.discountCodeLabel": "Rabattcode (optional)",
+    "amount.discountCodePlaceholder": "z. B. YAZ2026",
+    "amount.checkingCode": "Wird geprüft...",
+    "amount.applyCode": "Anwenden",
+    "error.codeInvalid": "Code konnte nicht überprüft werden.",
+    "amount.codeApplied": "„{code}“ angewendet: -{amount}",
+    "amount.estimatedCharge": "Voraussichtlich fälliger Betrag: {amount}",
+    "amount.invalidAmount": "Bitte geben Sie einen gültigen Betrag ein.",
+    "amount.invalidLiters": "Bitte geben Sie eine gültige Litermenge ein.",
+    "action.continue": "Weiter",
+
+    "payment.iyzicoTitle": "Sichere Zahlung (iyzico)",
+    "payment.discountApplied": "Rabatt angewendet: -{discount} (ursprünglicher Betrag: {total})",
+    "payment.estimateNote": "Dies ist ein geschätzter Betrag; der endgültige Betrag steht nach Abschluss der Betankung fest.",
+    "payment.iyzicoSecureNote": "Ihre Kartendaten werden nicht auf diesem Kiosk, sondern direkt auf der sicheren Zahlungsseite von iyzico eingegeben.",
+    "payment.cancel": "Transaktion abbrechen",
+    "payment.payWithCard": "Mit Karte bezahlen",
+    "payment.preparingForm": "Zahlungsformular wird vorbereitet...",
+    "error.iyzicoStartFailed": "Das iyzico-Zahlungsformular konnte nicht gestartet werden.",
+    "payment.simulatedTitle": "Virtuelle Zahlung",
+    "payment.cardHolderLabel": "Name des Karteninhabers",
+    "payment.cardNumberLabel": "Kartennummer",
+    "payment.monthLabel": "Monat",
+    "payment.yearLabel": "Jahr",
+    "payment.cvvLabel": "CVV",
+    "payment.confirm": "Zahlung bestätigen",
+    "payment.processing": "Zahlung wird verarbeitet...",
+    "error.paymentRejected": "Zahlung abgelehnt.",
+    "error.paymentFailed": "Bei der Zahlung ist ein Fehler aufgetreten.",
+    "payment.simulationNote": "Dies ist eine simulierte virtuelle Zahlung; es wird keine echte Bankverbindung hergestellt.",
+
+    "dispense.authorizing": "Zapfsäule wird autorisiert...",
+    "dispense.inProgress": "Betankung läuft",
+    "dispense.plateAndPump": "Kennzeichen: {plate} — Zapfsäule Nr. {pump}",
+    "dispense.amountLabel": "Getankte Menge",
+    "dispense.currentTotalLabel": "Aktueller Betrag",
+    "dispense.waitNote": "Bitte warten Sie, die Transaktion wird nach Abschluss der Betankung automatisch beendet. Status: {status}",
+
+    "receipt.failedTitle": "Transaktion nicht abgeschlossen",
+    "receipt.completedTitle": "Transaktion abgeschlossen",
+    "receipt.cancelledDefault": "Die Transaktion wurde storniert.",
+    "receipt.successNote": "Ihr Fahrzeug wurde erfolgreich betankt.",
+    "receipt.tankFullNote": "Die Transaktion wurde auf {liters} begrenzt, da der Tank während der Betankung voll wurde. Vielen Dank für Ihr Verständnis.",
+    "receipt.plate": "Kennzeichen",
+    "receipt.fuel": "Kraftstoff",
+    "receipt.amount": "Menge",
+    "receipt.pricePerLiter": "Preis pro Liter",
+    "receipt.fuelValue": "Kraftstoffwert",
+    "receipt.discount": "Rabatt",
+    "receipt.chargedAmount": "Bezahlter Betrag",
+    "receipt.totalAmount": "Gesamtbetrag",
+    "receipt.pointsEarned": "Erhaltene Punkte",
+    "receipt.transactionNo": "Transaktionsnr.",
+    "receipt.date": "Datum",
+    "receipt.restart": "Neue Transaktion starten",
+    "receipt.sendReceiptTitle": "Beleg senden",
+    "receipt.emailLabel": "E-Mail (optional)",
+    "receipt.emailPlaceholder": "beispiel@email.com",
+    "receipt.phoneLabel": "Telefon (optional)",
+    "receipt.phonePlaceholder": "05xx xxx xx xx",
+    "receipt.emailSent": "E-Mail gesendet.",
+    "receipt.emailFailed": "E-Mail konnte nicht gesendet werden: {reason}",
+    "receipt.smsSent": "SMS gesendet.",
+    "receipt.smsFailed": "SMS konnte nicht gesendet werden: {reason}",
+    "receipt.sentGeneric": "Beleg gesendet.",
+    "error.receiptSendFailed": "Beleg konnte nicht gesendet werden.",
+    "receipt.sending": "Wird gesendet...",
+    "receipt.send": "Senden",
+
+    "idle.title": "Sind Sie noch da?",
+    "idle.body": "Seit einiger Zeit wurde keine Aktivität festgestellt. Diese Transaktion wird in {seconds} Sekunden zurückgesetzt.",
+    "idle.continue": "Ich bin noch da",
+
+    "privacy.linkLabel": "Zum Schutz personenbezogener Daten",
+    "privacy.title": "Hinweis zum Schutz personenbezogener Daten",
+    "privacy.controller": "Verantwortlicher: {station}. Durch die Nutzung dieses Terminals stimmen Sie der im Folgenden beschriebenen Verarbeitung Ihrer personenbezogenen Daten zu; bei Fragen wenden Sie sich bitte an das Stationspersonal.",
+    "privacy.dataHeading": "Verarbeitete personenbezogene Daten",
+    "privacy.dataBody": "Kfz-Kennzeichen (erforderlich), auf Wunsch E-Mail-Adresse und/oder Telefonnummer (nur wenn Sie einen Beleg anfordern), sowie Transaktionsbetrag/-menge/-datum.",
+    "privacy.purposeHeading": "Zwecke der Verarbeitung",
+    "privacy.purposeBody": "Abschluss und Erfüllung des Kraftstoffkaufvertrags, Zahlungsabwicklung, Ausstellung einer E-Rechnung (gesetzliche Verpflichtung nach türkischem Steuerrecht), Versand des Belegs per E-Mail/SMS auf Anfrage, Verwaltung von Treuepunkten.",
+    "privacy.recipientsHeading": "Empfänger",
+    "privacy.recipientsBody": "iyzico (Zahlungsdienstleister) für die Zahlungsabwicklung; Uyumsoft (autorisierter E-Transformationsintegrator) für die Ausstellung von E-Rechnungen/E-Lieferscheinen. Ihre Daten werden nicht zu anderen kommerziellen Zwecken an Dritte weitergegeben.",
+    "privacy.retentionHeading": "Aufbewahrungsdauer",
+    "privacy.retentionBody": "Rechnungs-/Buchhaltungsunterlagen werden gemäß türkischem Steuerrecht 10 Jahre lang aufbewahrt; andere Daten werden innerhalb einer angemessenen Frist nach Zweckerfüllung gelöscht.",
+    "privacy.rightsHeading": "Ihre Rechte",
+    "privacy.rightsBody": "Sie haben das Recht zu erfahren, ob Ihre Daten verarbeitet werden, entsprechende Auskunft zu verlangen, die Berichtigung oder Löschung zu verlangen sowie zu verlangen, dass Dritte, an die Ihre Daten weitergegeben wurden, hierüber informiert werden. Zur Ausübung dieser Rechte können Sie einen schriftlichen Antrag beim Stationspersonal stellen.",
+    "privacy.close": "Schließen",
+  },
+  ar: {
+    "loading": "جارٍ التحميل...",
+    "stationNotFound.title": "لم يتم العثور على المحطة",
+    "stationNotFound.hint": "قد يكون عنوان هذا الجهاز غير صحيح. يرجى التواصل مع مدير المحطة.",
+    "error.stationLoadFailed": "تعذر تحميل بيانات المحطة.",
+    "error.transactionCreateFailed": "تعذر إنشاء العملية.",
+    "error.paymentInfoLoadFailed": "تعذر استرجاع معلومات العملية بعد الدفع. يرجى بدء عملية جديدة.",
+    "creating.hint": "جارٍ حجز المضخة وتحويلك إلى شاشة الدفع...",
+    "iyzicoWait.title": "في انتظار نتيجة الدفع",
+    "iyzicoWait.hint": "يتم التحقق من نتيجة الدفع عبر iyzico، يرجى الانتظار...",
+
+    "fuel.benzin": "بنزين",
+    "fuel.motorin": "ديزل",
+    "fuel.lpg": "غاز البترول المسال",
+    "pumpStatus.idle": "متاحة",
+    "pumpStatus.reserved": "محجوزة",
+    "pumpStatus.dispensing": "جارٍ التعبئة",
+    "pumpStatus.fault": "عطل",
+    "pumpStatus.offline": "غير متصلة",
+    "transactionStatus.created": "تم الإنشاء",
+    "transactionStatus.paid": "تم الدفع",
+    "transactionStatus.authorized": "تم التفويض",
+    "transactionStatus.dispensing": "جارٍ التعبئة",
+    "transactionStatus.completed": "مكتملة",
+    "transactionStatus.cancelled": "ملغاة",
+    "transactionStatus.failed": "فشلت",
+
+    "plate.title": "مرحبًا بكم",
+    "plate.subtitle": "أدخل لوحة السيارة يدويًا للبدء، أو امسحها ضوئيًا باستخدام التعرف التلقائي على اللوحات (LPR).",
+    "plate.label": "لوحة السيارة",
+    "plate.placeholder": "06 ABC 123",
+    "plate.lprFailed": "تعذرت قراءة اللوحة بوضوح، يرجى إدخالها يدويًا.",
+    "plate.invalid": "يرجى إدخال رقم لوحة صحيح (مثال: 06 ABC 123).",
+    "plate.scanning": "جارٍ مسح الكاميرا...",
+    "plate.scanButton": "مسح تلقائي بالتعرف على اللوحات",
+    "plate.continue": "متابعة",
+    "plate.lprNote": "ملاحظة: نظرًا لعدم وجود كاميرا فعلية في هذه البيئة، يتم محاكاة مسح اللوحات.",
+    "action.back": "رجوع",
+
+    "pump.title": "اختر المضخة",
+    "pump.subtitle": "يرجى اختيار المضخة المتاحة التي تقف عندها سيارتك.",
+
+    "fuelStep.title": "اختر نوع الوقود",
+    "fuelStep.subtitle": "أنواع الوقود المتوفرة في {pump}.",
+    "fuelStep.outOfStockTitle": "هذا النوع من الوقود غير متوفر حاليًا.",
+    "fuelStep.outOfStock": "غير متوفر",
+    "fuelStep.perLiter": "{price} / لتر",
+
+    "amount.title": "اختر الكمية",
+    "amount.modeAmount": "إدخال مبلغ",
+    "amount.modeLiters": "إدخال لترات",
+    "amount.modeFullTank": "تعبئة الخزان بالكامل",
+    "amount.customAmountLabel": "مبلغ مخصص (ليرة تركية)",
+    "amount.litersLabel": "عدد اللترات",
+    "amount.estimatedTotal": "المبلغ التقديري: {amount}",
+    "amount.fullTankHint": "تتوقف التعبئة تلقائيًا عند تفعيل مستشعر امتلاء الخزان. يُعرض الحد الأقصى التقديري للمبلغ مسبقًا.",
+    "amount.useLoyalty": "استخدام نقاط الولاء ({points} نقطة = خصم {value})",
+    "amount.discountCodeLabel": "رمز الخصم (اختياري)",
+    "amount.discountCodePlaceholder": "مثال: YAZ2026",
+    "amount.checkingCode": "جارٍ التحقق...",
+    "amount.applyCode": "تطبيق",
+    "error.codeInvalid": "تعذر التحقق من الرمز.",
+    "amount.codeApplied": "تم تطبيق «{code}»: -{amount}",
+    "amount.estimatedCharge": "المبلغ التقديري المستحق: {amount}",
+    "amount.invalidAmount": "يرجى إدخال مبلغ صحيح.",
+    "amount.invalidLiters": "يرجى إدخال عدد لترات صحيح.",
+    "action.continue": "متابعة",
+
+    "payment.iyzicoTitle": "دفع آمن (iyzico)",
+    "payment.discountApplied": "تم تطبيق الخصم: -{discount} (المبلغ الأصلي: {total})",
+    "payment.estimateNote": "هذا مبلغ تقديري؛ يتم تحديد المبلغ النهائي عند اكتمال التعبئة.",
+    "payment.iyzicoSecureNote": "لا يتم إدخال بيانات بطاقتك في هذا الجهاز، بل مباشرة في صفحة الدفع الآمنة الخاصة بـ iyzico.",
+    "payment.cancel": "إلغاء العملية",
+    "payment.payWithCard": "الدفع بالبطاقة",
+    "payment.preparingForm": "جارٍ تجهيز نموذج الدفع...",
+    "error.iyzicoStartFailed": "تعذر بدء نموذج الدفع الخاص بـ iyzico.",
+    "payment.simulatedTitle": "دفع افتراضي",
+    "payment.cardHolderLabel": "اسم حامل البطاقة",
+    "payment.cardNumberLabel": "رقم البطاقة",
+    "payment.monthLabel": "الشهر",
+    "payment.yearLabel": "السنة",
+    "payment.cvvLabel": "رمز التحقق (CVV)",
+    "payment.confirm": "تأكيد الدفع",
+    "payment.processing": "جارٍ معالجة الدفع...",
+    "error.paymentRejected": "تم رفض عملية الدفع.",
+    "error.paymentFailed": "حدث خطأ أثناء الدفع.",
+    "payment.simulationNote": "هذه محاكاة لعملية دفع افتراضية؛ لا يتم إجراء أي اتصال حقيقي بالبنك.",
+
+    "dispense.authorizing": "جارٍ تفويض المضخة...",
+    "dispense.inProgress": "جارٍ التعبئة",
+    "dispense.plateAndPump": "اللوحة: {plate} — المضخة رقم {pump}",
+    "dispense.amountLabel": "الكمية المعبأة",
+    "dispense.currentTotalLabel": "المبلغ الحالي",
+    "dispense.waitNote": "يرجى الانتظار، ستنتهي العملية تلقائيًا عند اكتمال التعبئة. الحالة: {status}",
+
+    "receipt.failedTitle": "لم تكتمل العملية",
+    "receipt.completedTitle": "اكتملت العملية",
+    "receipt.cancelledDefault": "تم إلغاء العملية.",
+    "receipt.successNote": "تمت تعبئة سيارتك بالوقود بنجاح.",
+    "receipt.tankFullNote": "اقتصرت العملية على {liters} لأن الخزان امتلأ أثناء التعبئة. شكرًا لتفهمكم.",
+    "receipt.plate": "اللوحة",
+    "receipt.fuel": "الوقود",
+    "receipt.amount": "الكمية",
+    "receipt.pricePerLiter": "سعر اللتر",
+    "receipt.fuelValue": "قيمة الوقود",
+    "receipt.discount": "الخصم",
+    "receipt.chargedAmount": "المبلغ المدفوع",
+    "receipt.totalAmount": "المبلغ الإجمالي",
+    "receipt.pointsEarned": "النقاط المكتسبة",
+    "receipt.transactionNo": "رقم العملية",
+    "receipt.date": "التاريخ",
+    "receipt.restart": "بدء عملية جديدة",
+    "receipt.sendReceiptTitle": "إرسال الإيصال",
+    "receipt.emailLabel": "البريد الإلكتروني (اختياري)",
+    "receipt.emailPlaceholder": "example@email.com",
+    "receipt.phoneLabel": "رقم الهاتف (اختياري)",
+    "receipt.phonePlaceholder": "05xx xxx xx xx",
+    "receipt.emailSent": "تم إرسال البريد الإلكتروني.",
+    "receipt.emailFailed": "تعذر إرسال البريد الإلكتروني: {reason}",
+    "receipt.smsSent": "تم إرسال الرسالة النصية.",
+    "receipt.smsFailed": "تعذر إرسال الرسالة النصية: {reason}",
+    "receipt.sentGeneric": "تم إرسال الإيصال.",
+    "error.receiptSendFailed": "تعذر إرسال الإيصال.",
+    "receipt.sending": "جارٍ الإرسال...",
+    "receipt.send": "إرسال",
+
+    "idle.title": "هل ما زلت هناك؟",
+    "idle.body": "لم يتم رصد أي نشاط منذ فترة. سيتم إعادة ضبط العملية خلال {seconds} ثانية.",
+    "idle.continue": "ما زلت هنا",
+
+    "privacy.linkLabel": "حول حماية البيانات الشخصية",
+    "privacy.title": "إشعار حماية البيانات الشخصية",
+    "privacy.controller": "المتحكم بالبيانات: {station}. باستخدامك لهذا الجهاز، فإنك توافق على معالجة بياناتك الشخصية ضمن النطاق الموضح أدناه؛ لأي استفسارات، يرجى التواصل مع موظفي المحطة.",
+    "privacy.dataHeading": "البيانات الشخصية التي تتم معالجتها",
+    "privacy.dataBody": "لوحة السيارة (إلزامية)، وبشكل اختياري البريد الإلكتروني و/أو رقم الهاتف (فقط في حال طلب إيصال)، بالإضافة إلى بيانات مبلغ/كمية/تاريخ العملية.",
+    "privacy.purposeHeading": "أغراض المعالجة",
+    "privacy.purposeBody": "إبرام وتنفيذ عقد بيع الوقود، معالجة الدفع، إصدار فاتورة إلكترونية (التزام قانوني بموجب قانون الضرائب التركي)، إرسال الإيصال عبر البريد الإلكتروني/الرسائل القصيرة عند الطلب، وتتبع نقاط الولاء.",
+    "privacy.recipientsHeading": "الجهات المتلقية للبيانات",
+    "privacy.recipientsBody": "iyzico (مؤسسة الدفع) لمعالجة الدفع؛ Uyumsoft (وسيط التحول الرقمي المعتمد) لإصدار الفواتير الإلكترونية. لا تتم مشاركة بياناتك مع أي طرف ثالث آخر لأغراض تجارية.",
+    "privacy.retentionHeading": "مدة الاحتفاظ بالبيانات",
+    "privacy.retentionBody": "يتم الاحتفاظ بسجلات الفواتير/المحاسبة لمدة 10 سنوات وفقًا لقانون الضرائب التركي؛ أما البيانات الأخرى فتُحذف خلال مدة معقولة بعد تحقق الغرض منها.",
+    "privacy.rightsHeading": "حقوقك",
+    "privacy.rightsBody": "لديك الحق في معرفة ما إذا كانت بياناتك تتم معالجتها، وطلب معلومات بهذا الشأن، وطلب تصحيحها أو حذفها، وطلب إخطار الأطراف التي تم نقل البيانات إليها بذلك. يمكنك ممارسة هذه الحقوق من خلال تقديم طلب كتابي إلى موظفي المحطة.",
+    "privacy.close": "إغلاق",
+  },
 };
 
 interface KioskLangState {
@@ -317,7 +766,7 @@ export function KioskLangProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<KioskLang>(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
-      return stored === "en" ? "en" : "tr";
+      return stored === "en" || stored === "ru" || stored === "de" || stored === "ar" ? stored : "tr";
     } catch {
       return "tr";
     }
@@ -342,7 +791,8 @@ export function KioskLangProvider({ children }: { children: ReactNode }) {
     return str;
   }
 
-  const locale = lang === "en" ? "en-US" : "tr-TR";
+  const LOCALES: Record<KioskLang, string> = { tr: "tr-TR", en: "en-US", ru: "ru-RU", de: "de-DE", ar: "ar-SA" };
+  const locale = LOCALES[lang];
 
   return <KioskLangContext.Provider value={{ lang, setLang, t, locale }}>{children}</KioskLangContext.Provider>;
 }
@@ -353,16 +803,23 @@ export function useKioskLang(): KioskLangState {
   return ctx;
 }
 
+const LANG_OPTIONS: Array<{ code: KioskLang; label: string }> = [
+  { code: "tr", label: "TR" },
+  { code: "en", label: "EN" },
+  { code: "ru", label: "RU" },
+  { code: "de", label: "DE" },
+  { code: "ar", label: "AR" },
+];
+
 export function LanguageSwitcher() {
   const { lang, setLang } = useKioskLang();
   return (
     <div className="kiosk-lang-switcher">
-      <button type="button" className={lang === "tr" ? "active" : ""} onClick={() => setLang("tr")}>
-        TR
-      </button>
-      <button type="button" className={lang === "en" ? "active" : ""} onClick={() => setLang("en")}>
-        EN
-      </button>
+      {LANG_OPTIONS.map((opt) => (
+        <button key={opt.code} type="button" className={lang === opt.code ? "active" : ""} onClick={() => setLang(opt.code)}>
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { formatCurrency, formatLiters } from "../../shared/format";
 import type { Transaction } from "../../shared/types";
-import { useKioskLang } from "../i18n";
+import { ltrIsolate, useKioskLang } from "../i18n";
 
 export default function DispenseStep({ transaction, targetLiters }: { transaction: Transaction; targetLiters: number }) {
   const { t, locale } = useKioskLang();
@@ -10,7 +10,7 @@ export default function DispenseStep({ transaction, targetLiters }: { transactio
   return (
     <div>
       <h2>{waiting ? t("dispense.authorizing") : t("dispense.inProgress")}</h2>
-      <p className="hint-text">{t("dispense.plateAndPump", { plate: transaction.plate, pump: transaction.pumpId })}</p>
+      <p className="hint-text">{t("dispense.plateAndPump", { plate: ltrIsolate(transaction.plate), pump: transaction.pumpId })}</p>
 
       <div className="progress-bar" style={{ margin: "1.5rem 0" }}>
         <div className="fill" style={{ width: `${waiting ? 0 : percent}%` }} />

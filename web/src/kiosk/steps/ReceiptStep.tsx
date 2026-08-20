@@ -31,7 +31,7 @@ export default function ReceiptStep({
             </p>
           )}
           <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
-            <div className="toolbar"><span>{t("receipt.plate")}</span><div className="spacer" /><strong>{transaction.plate}</strong></div>
+            <div className="toolbar"><span>{t("receipt.plate")}</span><div className="spacer" /><strong dir="ltr">{transaction.plate}</strong></div>
             <div className="toolbar"><span>{t("receipt.fuel")}</span><div className="spacer" /><strong>{t(`fuel.${transaction.fuelType}`)}</strong></div>
             <div className="toolbar"><span>{t("receipt.amount")}</span><div className="spacer" /><strong>{formatLiters(transaction.dispensedLiters)}</strong></div>
             <div className="toolbar"><span>{t("receipt.pricePerLiter")}</span><div className="spacer" /><strong>{formatCurrency(transaction.pricePerLiter, locale)}</strong></div>
