@@ -3,7 +3,7 @@ import { z } from "zod";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
-import { DiscountError, createCode, listCodes, serializeCode, setCodeActive } from "../services/discountService.js";
+import { DiscountError, createCode, getUsageStats, listCodes, serializeCode, setCodeActive } from "../services/discountService.js";
 
 const router = Router();
 // Kampanya kodlari yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
@@ -11,7 +11,12 @@ const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/", (req, res) => {
-  res.json({ codes: listCodes(req.stationId!).map(serializeCode) });
+  const stats = getUsageStats(req.stationId!);
+  const codes = listCodes(req.stationId!).map((c) => ({
+    ...serializeCode(c),
+    stats: stats.get(c.id) ?? { completedUses: 0, totalDiscountGiven: 0, revenueGenerated: 0 },
+  }));
+  res.json({ codes });
 });
 
 const fuelTypeEnum = z.enum(["benzin", "motorin", "lpg"]);

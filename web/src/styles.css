@@ -388,6 +388,29 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   border: 1px solid var(--border);
   border-radius: 18px;
   padding: 2.5rem;
+  position: relative;
+}
+.kiosk-lang-switcher {
+  position: absolute;
+  top: 1.25rem;
+  right: 1.25rem;
+  display: flex;
+  gap: 0.25rem;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.2rem;
+}
+.kiosk-lang-switcher button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+}
+.kiosk-lang-switcher button.active {
+  background: var(--accent);
+  color: #fff;
 }
 .kiosk-card h2 { margin-top: 0; font-size: 1.5rem; }
 .kiosk-steps { display: flex; gap: 0.4rem; margin-bottom: 1.75rem; }

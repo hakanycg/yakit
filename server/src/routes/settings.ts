@@ -8,6 +8,7 @@ import { recordAudit } from "../services/auditService.js";
 import { resetDemoData } from "../services/demoResetService.js";
 import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
 import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
+import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -67,6 +68,19 @@ router.patch("/payment", validateBody(paymentConfigSchema), (req, res) => {
     stationId: req.stationId,
   });
   res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
+});
+
+router.get("/report-email", (req, res) => {
+  res.json(getReportEmailConfig(req.stationId!));
+});
+
+const reportEmailSchema = z.object({ frequency: z.enum(["none", "weekly", "monthly"]) });
+
+router.patch("/report-email", validateBody(reportEmailSchema), (req, res) => {
+  const { frequency } = req.body as z.infer<typeof reportEmailSchema>;
+  setReportEmailFrequency(req.stationId!, frequency, req.user!);
+  recordAudit({ user: req.user!, action: "report_email_frequency_updated", details: { frequency }, ip: req.ip, stationId: req.stationId });
+  res.json(getReportEmailConfig(req.stationId!));
 });
 
 router.get("/invoice", (req, res) => {

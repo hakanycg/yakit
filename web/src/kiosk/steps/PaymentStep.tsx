@@ -4,6 +4,7 @@ import { formatCurrency } from "../../shared/format";
 import { ApiError } from "../../shared/api";
 import { stashPendingKioskTransaction } from "../resumeStorage";
 import type { Transaction } from "../../shared/types";
+import { useKioskLang } from "../i18n";
 
 export default function PaymentStep({
   transaction,
@@ -33,6 +34,7 @@ function IyzicoPaymentPanel({
   accessToken: string;
   onCancel: () => void;
 }) {
+  const { t, locale } = useKioskLang();
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null);
@@ -53,7 +55,7 @@ function IyzicoPaymentPanel({
       }
       setCheckoutFormContent(res.checkoutFormContent);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "iyzico odeme formu baslatilamadi.");
+      setError(err instanceof ApiError ? err.message : t("error.iyzicoStartFailed"));
     } finally {
       setStarting(false);
     }
@@ -81,25 +83,26 @@ function IyzicoPaymentPanel({
 
   return (
     <div>
-      <h2>Guvenli Odeme (iyzico)</h2>
-      <p className="big-total">{formatCurrency(transaction.chargeAmount)}</p>
+      <h2>{t("payment.iyzicoTitle")}</h2>
+      <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
       {transaction.discountAmount > 0 && (
         <p className="hint-text" style={{ color: "var(--accent-2)" }}>
-          Indirim uygulandi: -{formatCurrency(transaction.discountAmount)} (asil tutar: {formatCurrency(transaction.totalAmount)})
+          {t("payment.discountApplied", {
+            discount: formatCurrency(transaction.discountAmount, locale),
+            total: formatCurrency(transaction.totalAmount, locale),
+          })}
         </p>
       )}
-      <p className="hint-text">Tahmini tutar; gercek tutar dolum tamamlandiginda kesinlesir.</p>
-      <p className="hint-text">
-        Kart bilgileriniz bu kiosk'a degil, dogrudan iyzico'nun guvenli odeme sayfasina girilir.
-      </p>
+      <p className="hint-text">{t("payment.estimateNote")}</p>
+      <p className="hint-text">{t("payment.iyzicoSecureNote")}</p>
 
       {error && <p className="error-text">{error}</p>}
 
       {!checkoutFormContent && (
         <div className="kiosk-actions">
-          <button type="button" onClick={onCancel} disabled={starting}>Islemi Iptal Et</button>
+          <button type="button" onClick={onCancel} disabled={starting}>{t("payment.cancel")}</button>
           <button type="button" className="primary" onClick={start} disabled={starting}>
-            {starting ? "Odeme formu hazirlaniyor..." : "Kart ile Ode"}
+            {starting ? t("payment.preparingForm") : t("payment.payWithCard")}
           </button>
         </div>
       )}
@@ -120,6 +123,7 @@ function SimulatedCardPanel({
   onPaid: (t: Transaction) => void;
   onCancel: () => void;
 }) {
+  const { t, locale } = useKioskLang();
   const [cardNumber, setCardNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [expiryMonth, setExpiryMonth] = useState("12");
@@ -141,12 +145,12 @@ function SimulatedCardPanel({
         cvv,
       });
       if (res.transaction.status === "failed") {
-        setError(res.transaction.cancelledReason ?? "Odeme reddedildi.");
+        setError(res.transaction.cancelledReason ?? t("error.paymentRejected"));
       } else {
         onPaid(res.transaction);
       }
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Odeme sirasinda hata olustu.");
+      setError(err instanceof ApiError ? err.message : t("error.paymentFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -162,19 +166,22 @@ function SimulatedCardPanel({
 
   return (
     <div>
-      <h2>Sanal Odeme</h2>
-      <p className="big-total">{formatCurrency(transaction.chargeAmount)}</p>
+      <h2>{t("payment.simulatedTitle")}</h2>
+      <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
       {transaction.discountAmount > 0 && (
         <p className="hint-text" style={{ color: "var(--accent-2)" }}>
-          Indirim uygulandi: -{formatCurrency(transaction.discountAmount)} (asil tutar: {formatCurrency(transaction.totalAmount)})
+          {t("payment.discountApplied", {
+            discount: formatCurrency(transaction.discountAmount, locale),
+            total: formatCurrency(transaction.totalAmount, locale),
+          })}
         </p>
       )}
-      <p className="hint-text">Tahmini tutar; gercek tutar dolum tamamlandiginda kesinlesir.</p>
+      <p className="hint-text">{t("payment.estimateNote")}</p>
 
       <form onSubmit={submit}>
-        <label>Kart Uzerindeki Isim</label>
+        <label>{t("payment.cardHolderLabel")}</label>
         <input value={holderName} onChange={(e) => setHolderName(e.target.value)} required />
-        <label>Kart Numarasi</label>
+        <label>{t("payment.cardNumberLabel")}</label>
         <input
           value={cardNumber}
           onChange={(e) => setCardNumber(e.target.value.replace(/[^\d ]/g, ""))}
@@ -184,15 +191,15 @@ function SimulatedCardPanel({
         />
         <div className="grid cols-3">
           <div>
-            <label>Ay</label>
+            <label>{t("payment.monthLabel")}</label>
             <input value={expiryMonth} onChange={(e) => setExpiryMonth(e.target.value)} maxLength={2} required />
           </div>
           <div>
-            <label>Yil</label>
+            <label>{t("payment.yearLabel")}</label>
             <input value={expiryYear} onChange={(e) => setExpiryYear(e.target.value)} maxLength={4} required />
           </div>
           <div>
-            <label>CVV</label>
+            <label>{t("payment.cvvLabel")}</label>
             <input value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))} maxLength={4} required />
           </div>
         </div>
@@ -200,13 +207,13 @@ function SimulatedCardPanel({
         {error && <p className="error-text">{error}</p>}
 
         <div className="kiosk-actions">
-          <button type="button" onClick={cancel} disabled={submitting}>Islemi Iptal Et</button>
+          <button type="button" onClick={cancel} disabled={submitting}>{t("payment.cancel")}</button>
           <button type="submit" className="primary" disabled={submitting}>
-            {submitting ? "Odeme isleniyor..." : "Odemeyi Onayla"}
+            {submitting ? t("payment.processing") : t("payment.confirm")}
           </button>
         </div>
       </form>
-      <p className="hint-text">Bu bir sanal odeme simulasyonudur; gercek banka baglantisi kurulmaz.</p>
+      <p className="hint-text">{t("payment.simulationNote")}</p>
     </div>
   );
 }

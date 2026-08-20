@@ -1,5 +1,6 @@
 import type { FuelPrice, FuelType, Pump } from "../../shared/types";
-import { FUEL_LABEL, formatCurrency } from "../../shared/format";
+import { formatCurrency } from "../../shared/format";
+import { useKioskLang } from "../i18n";
 
 export default function FuelStep({
   pump,
@@ -12,12 +13,13 @@ export default function FuelStep({
   onNext: (fuelType: FuelType) => void;
   onBack: () => void;
 }) {
+  const { t, locale } = useKioskLang();
   const available = fuelPrices.filter((f) => pump.fuelTypes.includes(f.fuelType));
 
   return (
     <div>
-      <h2>Yakit Tipi Secin</h2>
-      <p className="hint-text">{pump.label} icin desteklenen yakit tipleri.</p>
+      <h2>{t("fuelStep.title")}</h2>
+      <p className="hint-text">{t("fuelStep.subtitle", { pump: pump.label })}</p>
       <div className="option-grid">
         {available.map((f) => {
           const outOfStock = f.inStock === false;
@@ -27,21 +29,21 @@ export default function FuelStep({
               className="option-btn"
               disabled={outOfStock}
               onClick={() => onNext(f.fuelType)}
-              title={outOfStock ? "Bu yakit tipi su anda tukenmis." : undefined}
+              title={outOfStock ? t("fuelStep.outOfStockTitle") : undefined}
             >
-              <strong>{FUEL_LABEL[f.fuelType] ?? f.label}</strong>
+              <strong>{t(`fuel.${f.fuelType}`)}</strong>
               <br />
               {outOfStock ? (
-                <span className="error-text">Tukendi</span>
+                <span className="error-text">{t("fuelStep.outOfStock")}</span>
               ) : (
-                <span className="hint-text">{formatCurrency(f.pricePerLiter)} / L</span>
+                <span className="hint-text">{t("fuelStep.perLiter", { price: formatCurrency(f.pricePerLiter, locale) })}</span>
               )}
             </button>
           );
         })}
       </div>
       <div className="kiosk-actions">
-        <button onClick={onBack}>Geri</button>
+        <button onClick={onBack}>{t("action.back")}</button>
         <span />
       </div>
     </div>

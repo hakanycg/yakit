@@ -86,6 +86,34 @@ export function listCodes(stationId: number): DiscountCodeRow[] {
   return db.prepare<[number], DiscountCodeRow>("SELECT * FROM discount_codes WHERE station_id = ? ORDER BY created_at DESC").all(stationId);
 }
 
+export interface DiscountCodeStats {
+  completedUses: number;
+  totalDiscountGiven: number;
+  revenueGenerated: number;
+}
+
+/**
+ * Kod bazinda kullanim analitigi: yalnizca TAMAMLANMIS islemler uzerinden hesaplanir
+ * (discount_codes.used_count ise iptal edilse bile o ana kadarki tum redeemCode
+ * cagrilarini - kismen releaseCode ile geri alinanlari haric - sayar, yani "canli"
+ * bir sayactir; bu fonksiyon ise gercek/kesin ciro etkisini gosterir).
+ */
+export function getUsageStats(stationId: number): Map<number, DiscountCodeStats> {
+  const rows = db
+    .prepare<[number], { id: number; completedUses: number; totalDiscountGiven: number; revenueGenerated: number }>(
+      `SELECT dc.id as id,
+              COALESCE(SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END), 0) as completedUses,
+              COALESCE(SUM(CASE WHEN t.status = 'completed' THEN t.discount_amount ELSE 0 END), 0) as totalDiscountGiven,
+              COALESCE(SUM(CASE WHEN t.status = 'completed' THEN MAX(0, t.total_amount - t.discount_amount) ELSE 0 END), 0) as revenueGenerated
+       FROM discount_codes dc
+       LEFT JOIN transactions t ON t.station_id = dc.station_id AND t.discount_code = dc.code
+       WHERE dc.station_id = ?
+       GROUP BY dc.id`
+    )
+    .all(stationId);
+  return new Map(rows.map((r) => [r.id, { completedUses: r.completedUses, totalDiscountGiven: r.totalDiscountGiven, revenueGenerated: r.revenueGenerated }]));
+}
+
 export function setCodeActive(stationId: number, id: number, active: boolean): DiscountCodeRow {
   const result = db.prepare("UPDATE discount_codes SET active = ? WHERE station_id = ? AND id = ?").run(active ? 1 : 0, stationId, id);
   if (result.changes === 0) throw new DiscountError("Kod bulunamadi.", 404);

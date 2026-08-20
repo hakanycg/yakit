@@ -12,6 +12,7 @@ import DispenseStep from "./steps/DispenseStep";
 import ReceiptStep from "./steps/ReceiptStep";
 import { ApiError } from "../shared/api";
 import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./resumeStorage";
+import { KioskLangProvider, LanguageSwitcher, useKioskLang } from "./i18n";
 
 type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
@@ -24,6 +25,15 @@ function computeTargetLiters(t: Transaction): number {
 }
 
 export default function KioskFlow() {
+  return (
+    <KioskLangProvider>
+      <KioskFlowInner />
+    </KioskLangProvider>
+  );
+}
+
+function KioskFlowInner() {
+  const { t } = useKioskLang();
   const { slug } = useParams<{ slug: string }>();
   const [station, setStation] = useState<StationResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -47,7 +57,7 @@ export default function KioskFlow() {
         setLoadError(null);
       })
       .catch((err) => {
-        setLoadError(err instanceof ApiError ? err.message : "Istasyon yuklenemedi.");
+        setLoadError(err instanceof ApiError ? err.message : t("error.stationLoadFailed"));
       });
   }, [slug]);
 
@@ -105,7 +115,7 @@ export default function KioskFlow() {
         }
       })
       .catch(() => {
-        setError("Odeme sonrasi islem bilgisi alinamadi. Lutfen yeni bir islem baslatin.");
+        setError(t("error.paymentInfoLoadFailed"));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -159,7 +169,7 @@ export default function KioskFlow() {
       setAccessToken(res.accessToken);
       setStep("payment");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem olusturulamadi.");
+      setError(err instanceof ApiError ? err.message : t("error.transactionCreateFailed"));
       setStep("amount");
     }
   }
@@ -168,9 +178,10 @@ export default function KioskFlow() {
     return (
       <div className="kiosk-shell">
         <div className="kiosk-card">
-          <h2>Istasyon Bulunamadi</h2>
+          <LanguageSwitcher />
+          <h2>{t("stationNotFound.title")}</h2>
           <p className="error-text">{loadError}</p>
-          <p className="hint-text">Bu kiosk terminalinin adresi hatali olabilir. Lutfen istasyon yoneticinizle iletisime gecin.</p>
+          <p className="hint-text">{t("stationNotFound.hint")}</p>
         </div>
       </div>
     );
@@ -179,7 +190,10 @@ export default function KioskFlow() {
   if (!station) {
     return (
       <div className="kiosk-shell">
-        <div className="kiosk-card">Yukleniyor...</div>
+        <div className="kiosk-card">
+          <LanguageSwitcher />
+          {t("loading")}
+        </div>
       </div>
     );
   }
@@ -189,6 +203,7 @@ export default function KioskFlow() {
   return (
     <div className="kiosk-shell">
       <div className="kiosk-card">
+        <LanguageSwitcher />
         <div className="kiosk-steps">
           {STEP_ORDER.map((s, i) => (
             <div key={s} className={`step ${i <= stepIndex ? "done" : ""}`} />
@@ -225,7 +240,7 @@ export default function KioskFlow() {
           />
         )}
 
-        {step === "creating" && <p className="hint-text">Pompa rezerve ediliyor ve odeme ekranina yonlendiriliyorsunuz...</p>}
+        {step === "creating" && <p className="hint-text">{t("creating.hint")}</p>}
 
         {step === "payment" && transaction && accessToken && (
           <PaymentStep
@@ -239,8 +254,8 @@ export default function KioskFlow() {
 
         {step === "iyzico-wait" && transaction && (
           <div>
-            <h2>Odeme Sonucu Bekleniyor</h2>
-            <p className="hint-text">iyzico odeme sonucunuz dogrulaniyor, lutfen bekleyin...</p>
+            <h2>{t("iyzicoWait.title")}</h2>
+            <p className="hint-text">{t("iyzicoWait.hint")}</p>
           </div>
         )}
 

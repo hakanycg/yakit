@@ -3,6 +3,7 @@ import type { FuelPrice } from "../../shared/types";
 import { formatCurrency } from "../../shared/format";
 import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
+import { useKioskLang } from "../i18n";
 
 export type AmountSelection =
   | { mode: "amount"; amount: number; discountCode?: string; redeemPoints?: number }
@@ -24,6 +25,7 @@ export default function AmountStep({
   onNext: (selection: AmountSelection) => void;
   onBack: () => void;
 }) {
+  const { t, locale } = useKioskLang();
   const [mode, setMode] = useState<"amount" | "liters" | "full_tank">("amount");
   const [amount, setAmount] = useState<number | "">("");
   const [liters, setLiters] = useState<number | "">("");
@@ -60,7 +62,7 @@ export default function AmountStep({
       setAppliedCode({ code: codeInput.trim().toUpperCase(), discountAmount: res.discountAmount });
     } catch (err) {
       setAppliedCode(null);
-      setCodeError(err instanceof ApiError ? err.message : "Kod dogrulanamadi.");
+      setCodeError(err instanceof ApiError ? err.message : t("error.codeInvalid"));
     } finally {
       setCodeChecking(false);
     }
@@ -69,7 +71,7 @@ export default function AmountStep({
   function submit() {
     setError(null);
     if (mode === "amount") {
-      if (!amount || amount <= 0) return setError("Gecerli bir tutar giriniz.");
+      if (!amount || amount <= 0) return setError(t("amount.invalidAmount"));
       onNext({
         mode: "amount",
         amount,
@@ -77,7 +79,7 @@ export default function AmountStep({
         redeemPoints: useLoyalty && loyalty ? loyalty.points : undefined,
       });
     } else if (mode === "liters") {
-      if (!liters || liters <= 0) return setError("Gecerli bir litre miktari giriniz.");
+      if (!liters || liters <= 0) return setError(t("amount.invalidLiters"));
       onNext({
         mode: "liters",
         liters,
@@ -91,11 +93,11 @@ export default function AmountStep({
 
   return (
     <div>
-      <h2>Miktar Secin</h2>
+      <h2>{t("amount.title")}</h2>
       <div className="option-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-        <button className={`option-btn ${mode === "amount" ? "selected" : ""}`} onClick={() => setMode("amount")}>Tutar Gir</button>
-        <button className={`option-btn ${mode === "liters" ? "selected" : ""}`} onClick={() => setMode("liters")}>Litre Gir</button>
-        <button className={`option-btn ${mode === "full_tank" ? "selected" : ""}`} onClick={() => setMode("full_tank")}>Depoyu Doldur</button>
+        <button className={`option-btn ${mode === "amount" ? "selected" : ""}`} onClick={() => setMode("amount")}>{t("amount.modeAmount")}</button>
+        <button className={`option-btn ${mode === "liters" ? "selected" : ""}`} onClick={() => setMode("liters")}>{t("amount.modeLiters")}</button>
+        <button className={`option-btn ${mode === "full_tank" ? "selected" : ""}`} onClick={() => setMode("full_tank")}>{t("amount.modeFullTank")}</button>
       </div>
 
       {mode === "amount" && (
@@ -103,25 +105,25 @@ export default function AmountStep({
           <div className="option-grid">
             {QUICK_AMOUNTS.map((q) => (
               <button key={q} className={`option-btn ${amount === q ? "selected" : ""}`} onClick={() => setAmount(q)}>
-                {formatCurrency(q)}
+                {formatCurrency(q, locale)}
               </button>
             ))}
           </div>
-          <label>Ozel tutar (TL)</label>
+          <label>{t("amount.customAmountLabel")}</label>
           <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")} />
         </>
       )}
 
       {mode === "liters" && (
         <>
-          <label>Litre miktari</label>
+          <label>{t("amount.litersLabel")}</label>
           <input type="number" min={0.1} step={0.1} value={liters} onChange={(e) => setLiters(e.target.value ? Number(e.target.value) : "")} />
-          {liters !== "" && <p className="hint-text">Tahmini tutar: {formatCurrency(Number(liters) * price.pricePerLiter)}</p>}
+          {liters !== "" && <p className="hint-text">{t("amount.estimatedTotal", { amount: formatCurrency(Number(liters) * price.pricePerLiter, locale) })}</p>}
         </>
       )}
 
       {mode === "full_tank" && (
-        <p className="hint-text">Depo dolum sensoru algilandiginda otomatik olarak durdurulur. Maksimum tutar tahmini onceden gosterilir.</p>
+        <p className="hint-text">{t("amount.fullTankHint")}</p>
       )}
 
       {showDiscounts && (
@@ -129,11 +131,11 @@ export default function AmountStep({
           {loyalty?.enabled && loyalty.points > 0 && (
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
               <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />
-              Sadakat puanlarimi kullan ({loyalty.points} puan = {formatCurrency(loyalty.valueTry)} indirim)
+              {t("amount.useLoyalty", { points: loyalty.points, value: formatCurrency(loyalty.valueTry, locale) })}
             </label>
           )}
 
-          <label>Indirim Kodu (opsiyonel)</label>
+          <label>{t("amount.discountCodeLabel")}</label>
           <div className="toolbar" style={{ margin: 0 }}>
             <input
               value={codeInput}
@@ -142,19 +144,23 @@ export default function AmountStep({
                 setAppliedCode(null);
                 setCodeError(null);
               }}
-              placeholder="orn: YAZ2026"
+              placeholder={t("amount.discountCodePlaceholder")}
               style={{ textTransform: "uppercase" }}
             />
             <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={applyCode}>
-              {codeChecking ? "Kontrol ediliyor..." : "Uygula"}
+              {codeChecking ? t("amount.checkingCode") : t("amount.applyCode")}
             </button>
           </div>
           {codeError && <p className="error-text">{codeError}</p>}
-          {appliedCode && <p className="hint-text" style={{ color: "var(--accent-2)" }}>"{appliedCode.code}" uygulandi: -{formatCurrency(appliedCode.discountAmount)}</p>}
+          {appliedCode && (
+            <p className="hint-text" style={{ color: "var(--accent-2)" }}>
+              {t("amount.codeApplied", { code: appliedCode.code, amount: formatCurrency(appliedCode.discountAmount, locale) })}
+            </p>
+          )}
 
           {(loyaltyDiscount > 0 || codeDiscount > 0) && (
             <p style={{ marginTop: "0.5rem", marginBottom: 0 }}>
-              <strong>Odenecek tahmini tutar: {formatCurrency(estimatedCharge)}</strong>
+              <strong>{t("amount.estimatedCharge", { amount: formatCurrency(estimatedCharge, locale) })}</strong>
             </p>
           )}
         </div>
@@ -163,8 +169,8 @@ export default function AmountStep({
       {error && <p className="error-text">{error}</p>}
 
       <div className="kiosk-actions">
-        <button onClick={onBack}>Geri</button>
-        <button className="primary" onClick={submit}>Devam Et</button>
+        <button onClick={onBack}>{t("action.back")}</button>
+        <button className="primary" onClick={submit}>{t("action.continue")}</button>
       </div>
     </div>
   );

@@ -30,15 +30,21 @@ export interface SendResult {
   reason?: string;
 }
 
+export interface EmailAttachment {
+  filename: string;
+  content: Buffer;
+  contentType?: string;
+}
+
 /** SMTP yapilandirilmamissa sessizce (hata firlatmadan) atlanir; bu, ozelligin gelistirme ortaminda kirilmasini onler. */
-export async function sendEmail(to: string, subject: string, text: string, html?: string): Promise<SendResult> {
+export async function sendEmail(to: string, subject: string, text: string, html?: string, attachments?: EmailAttachment[]): Promise<SendResult> {
   const t = getTransporter();
   if (!t) {
     logger.warn({ to, subject }, "SMTP yapilandirilmadigi icin e-posta gonderilemedi (SMTP_HOST bos).");
     return { sent: false, reason: "SMTP yapilandirilmamis." };
   }
   try {
-    await t.sendMail({ from: env.SMTP_FROM, to, subject, text, html });
+    await t.sendMail({ from: env.SMTP_FROM, to, subject, text, html, attachments });
     return { sent: true };
   } catch (err) {
     logger.error({ err, to, subject }, "E-posta gonderimi basarisiz.");

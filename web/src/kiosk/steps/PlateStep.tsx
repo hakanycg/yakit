@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { kioskApi } from "../kioskApi";
+import { useKioskLang } from "../i18n";
 
 const SAMPLE_PLATES = ["06 ABC 123", "34 XY 4567", "35 CDE 89", "16 FGH 12", "42 KL 456"];
 
 export default function PlateStep({ onNext }: { onNext: (plate: string, source: "manual" | "lpr") => void }) {
+  const { t } = useKioskLang();
   const [plate, setPlate] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +20,7 @@ export default function PlateStep({ onNext }: { onNext: (plate: string, source: 
       if (res.valid) {
         setPlate(res.plate);
       } else {
-        setError("Plaka net okunamadi, lutfen manuel giriniz.");
+        setError(t("plate.lprFailed"));
       }
     } finally {
       setScanning(false);
@@ -29,7 +31,7 @@ export default function PlateStep({ onNext }: { onNext: (plate: string, source: 
     setError(null);
     const normalized = plate.toUpperCase().trim();
     if (!/^[A-Z0-9 ]{5,12}$/.test(normalized)) {
-      setError("Gecerli bir plaka giriniz (orn: 06 ABC 123).");
+      setError(t("plate.invalid"));
       return;
     }
     onNext(normalized, "manual");
@@ -37,22 +39,22 @@ export default function PlateStep({ onNext }: { onNext: (plate: string, source: 
 
   return (
     <div>
-      <h2>Hosgeldiniz</h2>
-      <p className="hint-text">Baslamak icin arac plakanizi girin veya otomatik plaka tanima (LPR) ile taratin.</p>
+      <h2>{t("plate.title")}</h2>
+      <p className="hint-text">{t("plate.subtitle")}</p>
 
-      <label>Plaka</label>
-      <input value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} placeholder="06 ABC 123" style={{ fontSize: "1.3rem", textAlign: "center", letterSpacing: "0.1em" }} />
+      <label>{t("plate.label")}</label>
+      <input value={plate} onChange={(e) => setPlate(e.target.value.toUpperCase())} placeholder={t("plate.placeholder")} style={{ fontSize: "1.3rem", textAlign: "center", letterSpacing: "0.1em" }} />
       {error && <p className="error-text">{error}</p>}
 
       <div className="kiosk-actions">
         <button onClick={scan} disabled={scanning}>
-          {scanning ? "Kamera taraniyor..." : "LPR ile Otomatik Tara"}
+          {scanning ? t("plate.scanning") : t("plate.scanButton")}
         </button>
         <button className="primary" onClick={submitManual} disabled={scanning}>
-          Devam Et
+          {t("plate.continue")}
         </button>
       </div>
-      <p className="hint-text">Not: Bu ortamda fiziksel kamera donanimi bulunmadigindan LPR taramasi simule edilmektedir.</p>
+      <p className="hint-text">{t("plate.lprNote")}</p>
     </div>
   );
 }

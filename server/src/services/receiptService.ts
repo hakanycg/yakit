@@ -2,6 +2,8 @@ import { db } from "../db/index.js";
 import type { StationRow, TransactionRow } from "../db/types.js";
 import { sendEmail, sendSms } from "./notificationService.js";
 import { TransactionError, getTransactionForKiosk } from "./transactionService.js";
+import { buildReceiptPdf } from "./receiptPdfService.js";
+import { logger } from "../utils/logger.js";
 
 const FUEL_LABEL: Record<string, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
 
@@ -75,11 +77,20 @@ export async function sendReceipt(
   const result: ReceiptResult = {};
 
   if (target.email) {
+    let attachments: { filename: string; content: Buffer; contentType?: string }[] | undefined;
+    try {
+      const pdf = await buildReceiptPdf(t, station);
+      attachments = [{ filename: `makbuz-${t.id}.pdf`, content: pdf, contentType: "application/pdf" }];
+    } catch (err) {
+      // PDF olusturulamasa da e-postanin (HTML/metin govdesiyle) gitmesini engellemiyoruz.
+      logger.error({ err, transactionId: t.id }, "Makbuz PDF'i olusturulamadi, e-posta ek olmadan gonderiliyor.");
+    }
     result.email = await sendEmail(
       target.email,
       `Yakit Makbuzu - Islem #${t.id}`,
       buildReceiptText(t, station),
-      buildReceiptHtml(t, station)
+      buildReceiptHtml(t, station),
+      attachments
     );
   }
   if (target.phone) {

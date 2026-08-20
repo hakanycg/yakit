@@ -5,6 +5,7 @@ import { logger } from "./utils/logger.js";
 import { initWebSocketHub } from "./ws/hub.js";
 import { purgeExpiredSessions } from "./services/sessionService.js";
 import { reconcileStuckTransactions } from "./services/transactionService.js";
+import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -35,6 +36,15 @@ initWebSocketHub(server);
 
 const sessionCleanupInterval = setInterval(purgeExpiredSessions, 10 * 60 * 1000);
 sessionCleanupInterval.unref();
+
+// Haftalik/aylik ozet raporu e-postalari: saatlik kontrol yeterli hassasiyette
+// (donem siniri gun bazinda, saniye hassasiyeti gerekmiyor). Hata durumunda
+// sunucuyu etkilememesi icin catch'leniyor.
+maybeSendScheduledReportEmails().catch((err) => logger.error({ err }, "Ozet raporu e-postasi gonderimi basarisiz."));
+const reportEmailInterval = setInterval(() => {
+  maybeSendScheduledReportEmails().catch((err) => logger.error({ err }, "Ozet raporu e-postasi gonderimi basarisiz."));
+}, 60 * 60 * 1000);
+reportEmailInterval.unref();
 
 server.listen(env.PORT, () => {
   logger.info(`Yakit istasyonu API sunucusu ${env.PORT} portunda calisiyor (${env.NODE_ENV}).`);

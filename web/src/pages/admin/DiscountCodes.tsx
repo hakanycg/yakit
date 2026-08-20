@@ -15,6 +15,7 @@ interface DiscountCode {
   expiresAt: string | null;
   active: boolean;
   createdAt: string;
+  stats: { completedUses: number; totalDiscountGiven: number; revenueGenerated: number };
 }
 
 export default function DiscountCodes() {
@@ -56,7 +57,9 @@ export default function DiscountCodes() {
         <thead>
           <tr>
             <th>Kod</th><th>Tip</th><th className="numeric">Deger</th><th>Yakit</th>
-            <th className="numeric">Kullanim</th><th>Baslangic</th><th>Bitis</th><th>Durum</th><th></th>
+            <th className="numeric">Kullanim</th><th className="numeric">Tamamlanan Satis</th>
+            <th className="numeric">Verilen Indirim</th><th className="numeric">Getirdigi Ciro</th>
+            <th>Baslangic</th><th>Bitis</th><th>Durum</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -67,13 +70,16 @@ export default function DiscountCodes() {
               <td className="numeric">{c.type === "percent" ? `%${c.value}` : formatCurrency(c.value)}</td>
               <td>{c.fuelType ? (FUEL_LABEL[c.fuelType] ?? c.fuelType) : "Tumu"}</td>
               <td className="numeric">{c.usedCount}{c.maxUses !== null ? ` / ${c.maxUses}` : ""}</td>
+              <td className="numeric">{c.stats.completedUses}</td>
+              <td className="numeric">{c.stats.totalDiscountGiven > 0 ? formatCurrency(c.stats.totalDiscountGiven) : "-"}</td>
+              <td className="numeric">{c.stats.revenueGenerated > 0 ? formatCurrency(c.stats.revenueGenerated) : "-"}</td>
               <td>{c.startsAt ? formatDateTime(c.startsAt) : "-"}</td>
               <td>{c.expiresAt ? formatDateTime(c.expiresAt) : "-"}</td>
               <td><span className={`badge ${c.active ? "resolved" : "critical"}`}>{c.active ? "Aktif" : "Pasif"}</span></td>
               <td><button onClick={() => toggleActive(c)}>{c.active ? "Pasife Al" : "Aktif Et"}</button></td>
             </tr>
           ))}
-          {codes.length === 0 && <tr><td colSpan={9} className="hint-text">Henuz kampanya kodu yok.</td></tr>}
+          {codes.length === 0 && <tr><td colSpan={12} className="hint-text">Henuz kampanya kodu yok.</td></tr>}
         </tbody>
       </table>
 

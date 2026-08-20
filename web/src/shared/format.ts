@@ -20,13 +20,13 @@ export const ALARM_SEVERITY_LABEL: Record<string, string> = { info: "Bilgi", war
 export const ALARM_STATUS_LABEL: Record<string, string> = { active: "Aktif", acknowledged: "Onaylandi", resolved: "Cozuldu" };
 export const FUEL_LABEL: Record<string, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
 
-export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
+export function formatCurrency(value: number, locale = "tr-TR"): string {
+  return new Intl.NumberFormat(locale, { style: "currency", currency: "TRY" }).format(value);
 }
 
-export function formatDateTime(value: string | null): string {
+export function formatDateTime(value: string | null, locale = "tr-TR"): string {
   if (!value) return "-";
-  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "medium" }).format(new Date(value));
+  return new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "medium" }).format(new Date(value));
 }
 
 export function formatLiters(value: number): string {
