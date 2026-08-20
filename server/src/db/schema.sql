@@ -35,11 +35,16 @@ CREATE TABLE IF NOT EXISTS users (
   phone TEXT,
   notify_email INTEGER NOT NULL DEFAULT 1, -- kritik alarm olustugunda e-posta gonderilsin mi
   notify_sms INTEGER NOT NULL DEFAULT 0,   -- kritik alarm olustugunda SMS gonderilsin mi
+  reset_token_hash TEXT,               -- sifre sifirlama bagi (sha256, ham token asla saklanmaz)
+  reset_token_expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_login_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_users_station ON users(station_id);
+-- idx_users_reset_token, reset_token_hash kolonu eski veritabanlarinda applyMigrations()
+-- ile sonradan eklendigi icin burada degil db/index.ts'deki migration adiminda olusturulur
+-- (aksi halde applySchema() bu index'i, kolon henuz yokken calistirmaya calisip hata verirdi).
 
 CREATE TABLE IF NOT EXISTS sessions (
   id TEXT PRIMARY KEY,                 -- rastgele opaque token (hash'i saklanir)

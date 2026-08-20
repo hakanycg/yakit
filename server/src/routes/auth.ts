@@ -5,9 +5,11 @@ import type { RoleRow, UserRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
 import { createSession, destroySession } from "../services/sessionService.js";
 import { recordAudit } from "../services/auditService.js";
+import { PasswordResetError, requestPasswordReset, resetPasswordWithToken } from "../services/passwordResetService.js";
 import { validateBody } from "../middleware/validate.js";
-import { loginRateLimit } from "../middleware/rateLimit.js";
+import { loginRateLimit, passwordResetRateLimit } from "../middleware/rateLimit.js";
 import { clearSessionCookies, csrfProtection, requireAuth, setSessionCookies } from "../middleware/auth.js";
+import { env } from "../config.js";
 
 const router = Router();
 
@@ -83,6 +85,36 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
       mustChangePassword: !!user.must_change_password,
     },
   });
+});
+
+const forgotPasswordSchema = z.object({ identifier: z.string().min(1).max(120) });
+
+router.post("/forgot-password", passwordResetRateLimit, validateBody(forgotPasswordSchema), async (req, res) => {
+  const { identifier } = req.body as z.infer<typeof forgotPasswordSchema>;
+  const baseUrl = env.PUBLIC_API_BASE_URL ?? `${req.protocol}://${req.get("host")}`;
+  await requestPasswordReset(identifier, baseUrl, req.ip);
+  // Hesap bulunsa da bulunmasa da HER ZAMAN ayni jenerik yanit - kullanici adi/e-posta
+  // varligini sizdirmamak icin (bkz. passwordResetService.ts).
+  res.json({ message: "Bu bilgilerle eslesen bir hesap varsa, sifre sifirlama talimatlari gonderildi." });
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1),
+  newPassword: z.string().min(1),
+});
+
+router.post("/reset-password", passwordResetRateLimit, validateBody(resetPasswordSchema), (req, res) => {
+  const { token, newPassword } = req.body as z.infer<typeof resetPasswordSchema>;
+  try {
+    resetPasswordWithToken(token, newPassword, req.ip);
+    res.status(204).end();
+  } catch (err) {
+    if (err instanceof PasswordResetError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 router.post("/logout", requireAuth, csrfProtection, (req, res) => {

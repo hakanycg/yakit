@@ -259,6 +259,13 @@ sağlayıcısının (Netgsm, İletimerkezi, Twilio vb.) REST endpoint bilgilerin
 girmeniz yeterlidir; SMS sağlayıcınızın istek formatı farklıysa
 `server/src/services/notificationService.ts` içindeki `sendSms` fonksiyonunu ona göre uyarlayın.
 
+Giriş ekranındaki **"Şifremi unuttum"** akışı (`passwordResetService.ts`) da aynı `sendEmail`/
+`sendSms` fonksiyonlarını kullanır: kullanıcının hesabına kayıtlı e-posta/telefon varsa tek
+kullanımlık, 30 dakika geçerli bir bağlantı gönderilir (bağ veritabanında yalnızca SHA-256
+özeti olarak saklanır, ham token hiçbir yerde tutulmaz). SMTP/SMS yapılandırılmamışsa bağlantı
+oluşturulur ama teslim edilemez — bu durumda hesabı olan bir yönetici, Kullanıcı Yönetimi
+sayfasındaki "Şifre Sıfırla" ile elle bir geçici şifre atayabilir.
+
 ## Kurulum
 
 ```bash

@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import KioskFlow from "./kiosk/KioskFlow";
 import Login from "./pages/Login";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import Unauthorized from "./pages/Unauthorized";
 import AppLayout from "./shared/AppLayout";
 import { RequireRole } from "./shared/RequireRole";
@@ -29,6 +31,8 @@ export default function App() {
       <Route path="/" element={<Navigate to="/giris" replace />} />
       <Route path="/kiosk/:slug" element={<KioskFlow />} />
       <Route path="/giris" element={<Login />} />
+      <Route path="/sifremi-unuttum" element={<ForgotPassword />} />
+      <Route path="/sifre-sifirla" element={<ResetPassword />} />
       <Route path="/yetkisiz" element={<Unauthorized />} />
 
       <Route element={<RequireRole roles={["admin", "operator", "viewer"]} />}>

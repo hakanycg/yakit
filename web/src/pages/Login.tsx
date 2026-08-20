@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../shared/AuthContext";
 import { ApiError } from "../shared/api";
 
@@ -49,6 +49,9 @@ export default function Login() {
             {submitting ? "Giris yapiliyor..." : "Giris Yap"}
           </button>
         </form>
+        <p className="hint-text" style={{ marginTop: "1rem", textAlign: "center" }}>
+          <Link to="/sifremi-unuttum">Sifremi unuttum</Link>
+        </p>
       </div>
     </div>
   );

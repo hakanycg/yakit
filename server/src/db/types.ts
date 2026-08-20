@@ -28,6 +28,8 @@ export interface UserRow {
   phone: string | null;
   notify_email: 0 | 1;
   notify_sms: 0 | 1;
+  reset_token_hash: string | null;
+  reset_token_expires_at: string | null;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;

@@ -36,6 +36,9 @@ export function applyMigrations(): void {
   ensureColumn("transactions", "discount_amount", "REAL NOT NULL DEFAULT 0");
   ensureColumn("transactions", "loyalty_points_redeemed", "REAL NOT NULL DEFAULT 0");
   ensureColumn("transactions", "loyalty_points_earned", "REAL NOT NULL DEFAULT 0");
+  ensureColumn("users", "reset_token_hash", "TEXT");
+  ensureColumn("users", "reset_token_expires_at", "TEXT");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token_hash)");
 }
 
 applySchema();
