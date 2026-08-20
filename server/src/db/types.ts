@@ -104,8 +104,48 @@ export interface TransactionRow {
   receipt_email: string | null;
   receipt_phone: string | null;
   receipt_sent_at: string | null;
+  discount_code: string | null;
+  discount_amount: number;
+  loyalty_points_redeemed: number;
+  loyalty_points_earned: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface LoyaltyAccountRow {
+  station_id: number;
+  plate: string;
+  points: number;
+  updated_at: string;
+}
+
+export interface LoyaltyMovementRow {
+  id: number;
+  station_id: number;
+  plate: string;
+  type: "earn" | "redeem" | "refund" | "adjustment";
+  points: number;
+  balance_after: number;
+  transaction_id: number | null;
+  note: string | null;
+  user_id: number | null;
+  created_at: string;
+}
+
+export interface DiscountCodeRow {
+  id: number;
+  station_id: number;
+  code: string;
+  type: "percent" | "fixed";
+  value: number;
+  fuel_type: FuelType | null;
+  max_uses: number | null;
+  used_count: number;
+  starts_at: string | null;
+  expires_at: string | null;
+  active: number;
+  created_at: string;
+  created_by: number | null;
 }
 
 export type AlarmSeverity = "info" | "warning" | "critical";

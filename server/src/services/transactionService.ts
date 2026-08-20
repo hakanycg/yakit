@@ -8,6 +8,8 @@ import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
 import { safeCompare } from "../utils/safeCompare.js";
+import { getBalance as getLoyaltyBalance, getLoyaltyConfig, earnPoints, redeemPoints, refundPoints } from "./loyaltyService.js";
+import { validateCode, redeemCode, releaseCode } from "./discountService.js";
 
 const DISPENSE_TICK_MS = 500;
 const FLOW_LITERS_PER_SEC_MIN = 0.45;
@@ -40,6 +42,11 @@ export function serializeTransaction(t: TransactionRow) {
     pricePerLiter: t.price_per_liter,
     dispensedLiters: Math.round(t.dispensed_liters * 1000) / 1000,
     totalAmount: Math.round(t.total_amount * 100) / 100,
+    discountCode: t.discount_code,
+    discountAmount: Math.round(t.discount_amount * 100) / 100,
+    loyaltyPointsRedeemed: t.loyalty_points_redeemed,
+    loyaltyPointsEarned: t.loyalty_points_earned,
+    chargeAmount: chargeAmount(t),
     paymentMethod: t.payment_method,
     paymentStatus: t.payment_status,
     status: t.status,
@@ -85,6 +92,15 @@ export interface CreateTransactionInput {
   amountMode: "amount" | "liters" | "full_tank";
   requestedAmount?: number;
   requestedLiters?: number;
+  discountCode?: string;
+  redeemPoints?: number;
+}
+
+/** Islem "created" durumundayken (odeme hic alinmadan) iptal/basarisiz olursa, rezerve edilmis
+ * indirim kodu kullanimini ve dusulen sadakat puanini musteriye iade eder. */
+function refundReservations(t: TransactionRow): void {
+  if (t.discount_code) releaseCode(t.station_id, t.discount_code);
+  if (t.loyalty_points_redeemed > 0) refundPoints(t.station_id, t.plate, t.loyalty_points_redeemed, t.id);
 }
 
 export function createTransaction(input: CreateTransactionInput): { transaction: TransactionRow; accessToken: string } {
@@ -117,30 +133,65 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
         ? input.requestedLiters! * price.price_per_liter
         : FULL_TANK_MAX_LITERS * price.price_per_liter;
 
+  const normalizedPlate = input.plate.toUpperCase().replace(/\s+/g, " ").trim();
+
+  // Indirim kodu/sadakat puani on-dogrulamasi: yan etkisiz (kullanim sayaci/puan henuz
+  // dusulmez), gecersizse islem hic olusturulmadan hata firlatilir.
+  let normalizedCode: string | null = null;
+  let codeDiscount = 0;
+  if (input.discountCode) {
+    const { row, discountAmount } = validateCode(pump.station_id, input.discountCode, input.fuelType, estimatedTotal);
+    normalizedCode = row.code;
+    codeDiscount = discountAmount;
+  }
+
+  const redeemPointsAmount = input.redeemPoints && input.redeemPoints > 0 ? Math.round(input.redeemPoints * 100) / 100 : 0;
+  let pointsDiscount = 0;
+  if (redeemPointsAmount > 0) {
+    const balance = getLoyaltyBalance(pump.station_id, normalizedPlate);
+    if (redeemPointsAmount > balance) throw new TransactionError("Yetersiz sadakat puani.", 409);
+    const { pointValueTry } = getLoyaltyConfig(pump.station_id);
+    pointsDiscount = Math.round(redeemPointsAmount * pointValueTry * 100) / 100;
+  }
+
+  const discountAmount = Math.min(estimatedTotal, Math.round((codeDiscount + pointsDiscount) * 100) / 100);
   const accessToken = randomBytes(24).toString("base64url");
 
-  const result = db
-    .prepare(
-      `INSERT INTO transactions
-        (station_id, pump_id, plate, plate_source, fuel_type, amount_mode, requested_amount, requested_liters,
-         price_per_liter, total_amount, kiosk_access_token, status, payment_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', 'pending')`
-    )
-    .run(
-      pump.station_id,
-      input.pumpId,
-      input.plate.toUpperCase().replace(/\s+/g, " ").trim(),
-      input.plateSource,
-      input.fuelType,
-      input.amountMode,
-      input.requestedAmount ?? null,
-      input.requestedLiters ?? null,
-      price.price_per_liter,
-      estimatedTotal,
-      accessToken
-    );
+  const transaction = db.transaction(() => {
+    const result = db
+      .prepare(
+        `INSERT INTO transactions
+          (station_id, pump_id, plate, plate_source, fuel_type, amount_mode, requested_amount, requested_liters,
+           price_per_liter, total_amount, kiosk_access_token, status, payment_status, discount_code, discount_amount, loyalty_points_redeemed)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created', 'pending', ?, ?, ?)`
+      )
+      .run(
+        pump.station_id,
+        input.pumpId,
+        normalizedPlate,
+        input.plateSource,
+        input.fuelType,
+        input.amountMode,
+        input.requestedAmount ?? null,
+        input.requestedLiters ?? null,
+        price.price_per_liter,
+        estimatedTotal,
+        accessToken,
+        normalizedCode,
+        discountAmount,
+        redeemPointsAmount
+      );
 
-  const transaction = getTransactionOrThrow(result.lastInsertRowid as number);
+    const txId = result.lastInsertRowid as number;
+    // Kod kullanimi/puan dusumu, satir eklendikten sonra (kayit id'sine referans verebilmek
+    // icin) ama hala ayni DB islemi icinde yapilir - herhangi biri (ör. es zamanli baska bir
+    // istekle bakiyenin tukenmesi) basarisiz olursa tum ekleme geri alinir.
+    if (normalizedCode) redeemCode(pump.station_id, normalizedCode);
+    if (redeemPointsAmount > 0) redeemPoints(pump.station_id, normalizedPlate, redeemPointsAmount, txId);
+
+    return getTransactionOrThrow(txId);
+  })();
+
   setPumpStatus(pump.id, "reserved", { currentTransactionId: transaction.id });
   broadcastTransaction(transaction);
   return { transaction, accessToken };
@@ -169,6 +220,7 @@ export function finalizeTransactionPayment(id: number, result: PaymentOutcome): 
   if (t.status !== "created") throw new TransactionError("Bu islem icin odeme sonucu islenemez.", 409);
 
   if (!result.success) {
+    refundReservations(t);
     const updated = touch(id, {
       payment_status: "failed",
       status: "failed",
@@ -199,11 +251,17 @@ export function finalizeTransactionPayment(id: number, result: PaymentOutcome): 
   return getTransactionOrThrow(id);
 }
 
+/** Musteriden gercekte tahsil edilecek tutar: total_amount (yakit degeri, raporlama icin
+ * degismeden kalir) eksi indirim kodu/sadakat puani indirimidir. */
+export function chargeAmount(t: TransactionRow): number {
+  return Math.max(0, Math.round((t.total_amount - t.discount_amount) * 100) / 100);
+}
+
 export function payTransaction(id: number, accessToken: string, card: VirtualCardInput): TransactionRow {
   const t = getTransactionForKiosk(id, accessToken);
   if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
 
-  const result = processVirtualPayment(card, t.total_amount);
+  const result = processVirtualPayment(card, chargeAmount(t));
   return finalizeTransactionPayment(id, result);
 }
 
@@ -270,12 +328,14 @@ function startDispensing(id: number): void {
 
     clearInterval(interval);
     activeDispensers.delete(id);
+    const pointsEarned = earnPoints(current.station_id, current.plate, nextLiters, id);
     const completed = touch(id, {
       dispensed_liters: nextLiters,
       total_amount: Math.round(nextAmount * 100) / 100,
       status: "completed",
       completed_at: new Date().toISOString(),
       cancelled_reason: ranDry ? "Depo dolum sirasinda tukendi; islem eldeki miktarla sonuclandirildi." : null,
+      loyalty_points_earned: pointsEarned,
     });
     setPumpStatus(current.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(completed);
@@ -299,6 +359,9 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
   }
 
   const wasDispensing = t.status === "dispensing" && t.dispensed_liters > 0;
+  // Odeme hic alinmamis (status "created") bir islem iptal ediliyorsa, rezerve edilmis
+  // indirim kodu/sadakat puani iade edilir - musteri bunlar icin hicbir sey odemedi.
+  if (t.status === "created") refundReservations(t);
   const updated = touch(id, {
     status: wasDispensing ? "completed" : "cancelled",
     cancelled_reason: reason,
@@ -325,6 +388,7 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
 export function cancelPendingTransaction(id: number, accessToken: string, reason: string): TransactionRow {
   const t = getTransactionForKiosk(id, accessToken);
   if (t.status !== "created") throw new TransactionError("Bu islem artik iptal edilemez.", 409);
+  refundReservations(t);
   const updated = touch(id, { status: "cancelled", cancelled_reason: reason });
   setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
   broadcastTransaction(updated);

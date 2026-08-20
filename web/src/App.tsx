@@ -15,6 +15,7 @@ import ChangePassword from "./pages/operator/ChangePassword";
 // sadece erisim kapatildi; geri acmak icin bu import'u ve ilgili <Route>'u geri getirin.
 // import Shift from "./pages/operator/Shift";
 import FuelStock from "./pages/operator/FuelStock";
+import DiscountCodes from "./pages/admin/DiscountCodes";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
 import Settings from "./pages/admin/Settings";
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/admin/kullanicilar" element={<Users />} />
             <Route path="/admin/ayarlar" element={<Settings />} />
             <Route path="/operator/stok" element={<FuelStock />} />
+            <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
           </Route>
 
           <Route element={<RequireRole roles={["super_admin"]} />}>

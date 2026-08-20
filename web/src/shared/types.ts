@@ -51,6 +51,11 @@ export interface Transaction {
   pricePerLiter: number;
   dispensedLiters: number;
   totalAmount: number;
+  discountCode: string | null;
+  discountAmount: number;
+  loyaltyPointsRedeemed: number;
+  loyaltyPointsEarned: number;
+  chargeAmount: number;
   paymentMethod: string;
   paymentStatus: string;
   status: TransactionStatus;

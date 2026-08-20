@@ -99,6 +99,10 @@ CREATE TABLE IF NOT EXISTS transactions (
   status TEXT NOT NULL DEFAULT 'created', -- created | paid | authorized | dispensing | completed | cancelled | failed
   kiosk_access_token TEXT NOT NULL,    -- kiosk terminalinin bu islemi sorgulamasi icin gereken tek kullanimlik token
   operator_user_id INTEGER REFERENCES users(id),
+  discount_code TEXT,                  -- kullanilan kampanya kodu (varsa)
+  discount_amount REAL NOT NULL DEFAULT 0, -- indirim/puan kullanimi ile dusen tutar (total_amount'tan degil, sadece odemeden dusulur)
+  loyalty_points_redeemed REAL NOT NULL DEFAULT 0, -- bu islemde kullanilan sadakat puani
+  loyalty_points_earned REAL NOT NULL DEFAULT 0,   -- bu islem tamamlaninca kazanilan sadakat puani
   started_at TEXT,
   completed_at TEXT,
   cancelled_reason TEXT,
@@ -196,6 +200,46 @@ CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_stock_movements_station ON fuel_stock_movements(station_id, created_at);
+
+CREATE TABLE IF NOT EXISTS loyalty_accounts (
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  plate TEXT NOT NULL,
+  points REAL NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (station_id, plate)
+);
+
+CREATE TABLE IF NOT EXISTS loyalty_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  plate TEXT NOT NULL,
+  type TEXT NOT NULL,                  -- earn | redeem | refund | adjustment
+  points REAL NOT NULL,                -- pozitif: bakiyeye eklenir, negatif: bakiyeden dusulur
+  balance_after REAL NOT NULL,
+  transaction_id INTEGER REFERENCES transactions(id),
+  note TEXT,
+  user_id INTEGER REFERENCES users(id), -- manuel duzeltmede kim yapti
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_loyalty_movements_station_plate ON loyalty_movements(station_id, plate, created_at);
+
+CREATE TABLE IF NOT EXISTS discount_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  code TEXT NOT NULL,
+  type TEXT NOT NULL,                  -- percent | fixed
+  value REAL NOT NULL,                 -- percent: 0-100, fixed: TL
+  fuel_type TEXT,                      -- NULL = tum yakit tipleri
+  max_uses INTEGER,                    -- NULL = sinirsiz
+  used_count INTEGER NOT NULL DEFAULT 0,
+  starts_at TEXT,
+  expires_at TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by INTEGER REFERENCES users(id),
+  UNIQUE(station_id, code)
+);
+CREATE INDEX IF NOT EXISTS idx_discount_codes_station ON discount_codes(station_id, active);
 
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta

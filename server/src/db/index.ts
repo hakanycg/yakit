@@ -21,4 +21,22 @@ export function applySchema(): void {
   db.exec(schema);
 }
 
+/** Halihazirda kurulu (schema.sql'deki CREATE TABLE ile olusmamis) veritabanlarina sonradan
+ * eklenen kolonlari, mevcut degilse ekler. Tablo/kolon adlari her zaman sabit degerlerdir
+ * (kullanici girdisinden gelmez), bu yuzden template string ile SQL'e yazilmalari guvenlidir. */
+function ensureColumn(table: string, column: string, definition: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+
+export function applyMigrations(): void {
+  ensureColumn("transactions", "discount_code", "TEXT");
+  ensureColumn("transactions", "discount_amount", "REAL NOT NULL DEFAULT 0");
+  ensureColumn("transactions", "loyalty_points_redeemed", "REAL NOT NULL DEFAULT 0");
+  ensureColumn("transactions", "loyalty_points_earned", "REAL NOT NULL DEFAULT 0");
+}
+
 applySchema();
+applyMigrations();

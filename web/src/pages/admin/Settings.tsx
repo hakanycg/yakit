@@ -73,6 +73,87 @@ export default function Settings() {
 
       <FuelSyncCard onPricesChanged={load} />
       <PaymentSettingsCard />
+      <LoyaltyConfigCard />
+    </div>
+  );
+}
+
+interface LoyaltyConfig {
+  enabled: boolean;
+  pointsPerLiter: number;
+  pointValueTry: number;
+}
+
+function LoyaltyConfigCard() {
+  const stationId = useEffectiveStationId();
+  const [config, setConfig] = useState<LoyaltyConfig | null>(null);
+  const [pointsPerLiter, setPointsPerLiter] = useState("");
+  const [pointValueTry, setPointValueTry] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function load() {
+    if (stationId === null) return;
+    api.get<{ config: LoyaltyConfig }>("/api/loyalty/config").then((res) => {
+      setConfig(res.config);
+      setPointsPerLiter(String(res.config.pointsPerLiter));
+      setPointValueTry(String(res.config.pointValueTry));
+    });
+  }
+  useEffect(load, [stationId]);
+
+  async function update(patch: Partial<LoyaltyConfig>) {
+    setSaving(true);
+    setError(null);
+    setSavedMsg(null);
+    try {
+      await api.patch("/api/loyalty/config", patch);
+      setSavedMsg("Sadakat ayarlari guncellendi.");
+      load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Ayar guncellenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!config) return null;
+
+  return (
+    <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
+      <h3 style={{ marginTop: 0 }}>Sadakat / Puan Sistemi</h3>
+      <p className="hint-text">
+        Aktif oldugunda musteriler her dolumda plaka bazinda puan kazanir; kiosk'ta bir sonraki dolumda bu puanlari
+        indirim olarak kullanabilirler.
+      </p>
+
+      <label>Durum</label>
+      <div className="toolbar">
+        <button className={config.enabled ? "success" : ""} disabled={saving} onClick={() => update({ enabled: !config.enabled })}>
+          {config.enabled ? "Aktif (kapatmak icin tikla)" : "Pasif (acmak icin tikla)"}
+        </button>
+      </div>
+
+      <label>Litre basina kazanilan puan</label>
+      <input type="number" min={0} step={0.1} value={pointsPerLiter} onChange={(e) => setPointsPerLiter(e.target.value)} style={{ maxWidth: 160 }} />
+
+      <label>1 puanin TL degeri (kullanildiginda)</label>
+      <input type="number" min={0} step={0.01} value={pointValueTry} onChange={(e) => setPointValueTry(e.target.value)} style={{ maxWidth: 160 }} />
+
+      {error && <p className="error-text">{error}</p>}
+      {savedMsg && <p className="hint-text" style={{ color: "#4ade80" }}>{savedMsg}</p>}
+
+      <div className="toolbar" style={{ marginTop: "0.75rem" }}>
+        <div className="spacer" />
+        <button
+          className="primary"
+          disabled={saving}
+          onClick={() => update({ pointsPerLiter: Number(pointsPerLiter), pointValueTry: Number(pointValueTry) })}
+        >
+          Kaydet
+        </button>
+      </div>
     </div>
   );
 }

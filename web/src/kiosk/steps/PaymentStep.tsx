@@ -82,7 +82,12 @@ function IyzicoPaymentPanel({
   return (
     <div>
       <h2>Guvenli Odeme (iyzico)</h2>
-      <p className="big-total">{formatCurrency(transaction.totalAmount)}</p>
+      <p className="big-total">{formatCurrency(transaction.chargeAmount)}</p>
+      {transaction.discountAmount > 0 && (
+        <p className="hint-text" style={{ color: "var(--accent-2)" }}>
+          Indirim uygulandi: -{formatCurrency(transaction.discountAmount)} (asil tutar: {formatCurrency(transaction.totalAmount)})
+        </p>
+      )}
       <p className="hint-text">Tahmini tutar; gercek tutar dolum tamamlandiginda kesinlesir.</p>
       <p className="hint-text">
         Kart bilgileriniz bu kiosk'a degil, dogrudan iyzico'nun guvenli odeme sayfasina girilir.
@@ -158,7 +163,12 @@ function SimulatedCardPanel({
   return (
     <div>
       <h2>Sanal Odeme</h2>
-      <p className="big-total">{formatCurrency(transaction.totalAmount)}</p>
+      <p className="big-total">{formatCurrency(transaction.chargeAmount)}</p>
+      {transaction.discountAmount > 0 && (
+        <p className="hint-text" style={{ color: "var(--accent-2)" }}>
+          Indirim uygulandi: -{formatCurrency(transaction.discountAmount)} (asil tutar: {formatCurrency(transaction.totalAmount)})
+        </p>
+      )}
       <p className="hint-text">Tahmini tutar; gercek tutar dolum tamamlandiginda kesinlesir.</p>
 
       <form onSubmit={submit}>

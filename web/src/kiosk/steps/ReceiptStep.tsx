@@ -34,7 +34,18 @@ export default function ReceiptStep({
             <div className="toolbar"><span>Yakit</span><div className="spacer" /><strong>{FUEL_LABEL[transaction.fuelType]}</strong></div>
             <div className="toolbar"><span>Miktar</span><div className="spacer" /><strong>{formatLiters(transaction.dispensedLiters)}</strong></div>
             <div className="toolbar"><span>Litre Fiyati</span><div className="spacer" /><strong>{formatCurrency(transaction.pricePerLiter)}</strong></div>
-            <div className="toolbar"><span>Toplam Tutar</span><div className="spacer" /><strong style={{ fontSize: "1.2rem" }}>{formatCurrency(transaction.totalAmount)}</strong></div>
+            {transaction.discountAmount > 0 ? (
+              <>
+                <div className="toolbar"><span>Yakit Degeri</span><div className="spacer" /><strong>{formatCurrency(transaction.totalAmount)}</strong></div>
+                <div className="toolbar"><span>Indirim</span><div className="spacer" /><strong>-{formatCurrency(transaction.discountAmount)}</strong></div>
+                <div className="toolbar"><span>Odenen Tutar</span><div className="spacer" /><strong style={{ fontSize: "1.2rem" }}>{formatCurrency(transaction.chargeAmount)}</strong></div>
+              </>
+            ) : (
+              <div className="toolbar"><span>Toplam Tutar</span><div className="spacer" /><strong style={{ fontSize: "1.2rem" }}>{formatCurrency(transaction.totalAmount)}</strong></div>
+            )}
+            {transaction.loyaltyPointsEarned > 0 && (
+              <div className="toolbar"><span>Kazanilan Puan</span><div className="spacer" /><strong>{transaction.loyaltyPointsEarned}</strong></div>
+            )}
             <div className="toolbar"><span>Islem No</span><div className="spacer" /><strong>#{transaction.id}</strong></div>
             <div className="toolbar"><span>Tarih</span><div className="spacer" /><strong>{formatDateTime(transaction.completedAt)}</strong></div>
           </div>

@@ -152,6 +152,8 @@ export default function KioskFlow() {
         amountMode: selection.mode,
         requestedAmount: selection.mode === "amount" ? selection.amount : undefined,
         requestedLiters: selection.mode === "liters" ? selection.liters : undefined,
+        discountCode: selection.mode !== "full_tank" ? selection.discountCode : undefined,
+        redeemPoints: selection.mode !== "full_tank" ? selection.redeemPoints : undefined,
       });
       setTransaction(res.transaction);
       setAccessToken(res.accessToken);
@@ -216,6 +218,8 @@ export default function KioskFlow() {
         {step === "amount" && fuelType && (
           <AmountStep
             price={station.fuelPrices.find((f) => f.fuelType === fuelType)!}
+            stationId={station.station.id}
+            plate={plate}
             onNext={handleAmount}
             onBack={() => setStep("fuel")}
           />

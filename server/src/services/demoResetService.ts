@@ -10,11 +10,14 @@ import { broadcast } from "../ws/hub.js";
  */
 export function resetDemoData(stationId: number): void {
   const reset = db.transaction(() => {
-    // fuel_stock_movements.transaction_id, transactions(id)'e FK ile bagli oldugundan
-    // (ON DELETE CASCADE yok), once hareket kayitlari, sonra islemler silinmeli -
-    // aksi halde tamamlanmis bir satisin hareket kaydi asilda kalip
+    // fuel_stock_movements/loyalty_movements.transaction_id, transactions(id)'e FK ile
+    // bagli oldugundan (ON DELETE CASCADE yok), once hareket kayitlari, sonra islemler
+    // silinmeli - aksi halde tamamlanmis bir satisin hareket kaydi asilda kalip
     // SQLITE_CONSTRAINT_FOREIGNKEY ile silme islemini bastan sona basarisiz kilar.
     db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(stationId);
+    db.prepare("DELETE FROM loyalty_movements WHERE station_id = ?").run(stationId);
+    db.prepare("DELETE FROM loyalty_accounts WHERE station_id = ?").run(stationId);
+    db.prepare("DELETE FROM discount_codes WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM transactions WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM alarms WHERE station_id = ?").run(stationId);
     db.prepare(

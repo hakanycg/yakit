@@ -22,7 +22,18 @@ export const kioskApi = {
     amountMode: "amount" | "liters" | "full_tank";
     requestedAmount?: number;
     requestedLiters?: number;
+    discountCode?: string;
+    redeemPoints?: number;
   }) => api.post<{ transaction: Transaction; accessToken: string }>("/api/kiosk/transactions", input),
+
+  getLoyaltyBalance: (stationId: number, plate: string) =>
+    api.get<{ enabled: boolean; points: number; valueTry: number }>(
+      `/api/kiosk/loyalty/balance?stationId=${stationId}&plate=${encodeURIComponent(plate)}`
+    ),
+
+  // Kod gecersizse backend 404/409 doner - cagiran taraf ApiError'i yakalayip .message'i gostermeli.
+  previewDiscountCode: (stationId: number, code: string, fuelType: FuelType, totalAmount: number) =>
+    api.post<{ valid: true; discountAmount: number }>("/api/kiosk/discount/preview", { stationId, code, fuelType, totalAmount }),
 
   getTransaction: (id: number, token: string) =>
     kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}`, token),

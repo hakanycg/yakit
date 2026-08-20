@@ -1,20 +1,26 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FuelPrice } from "../../shared/types";
 import { formatCurrency } from "../../shared/format";
+import { kioskApi } from "../kioskApi";
+import { ApiError } from "../../shared/api";
 
 export type AmountSelection =
-  | { mode: "amount"; amount: number }
-  | { mode: "liters"; liters: number }
+  | { mode: "amount"; amount: number; discountCode?: string; redeemPoints?: number }
+  | { mode: "liters"; liters: number; discountCode?: string; redeemPoints?: number }
   | { mode: "full_tank" };
 
 const QUICK_AMOUNTS = [200, 500, 1000, 2000];
 
 export default function AmountStep({
   price,
+  stationId,
+  plate,
   onNext,
   onBack,
 }: {
   price: FuelPrice;
+  stationId: number;
+  plate: string;
   onNext: (selection: AmountSelection) => void;
   onBack: () => void;
 }) {
@@ -23,14 +29,61 @@ export default function AmountStep({
   const [liters, setLiters] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
 
+  const [loyalty, setLoyalty] = useState<{ enabled: boolean; points: number; valueTry: number } | null>(null);
+  const [useLoyalty, setUseLoyalty] = useState(false);
+
+  const [codeInput, setCodeInput] = useState("");
+  const [appliedCode, setAppliedCode] = useState<{ code: string; discountAmount: number } | null>(null);
+  const [codeError, setCodeError] = useState<string | null>(null);
+  const [codeChecking, setCodeChecking] = useState(false);
+
+  useEffect(() => {
+    if (!plate) return;
+    kioskApi
+      .getLoyaltyBalance(stationId, plate)
+      .then((res) => setLoyalty(res))
+      .catch(() => setLoyalty(null));
+  }, [stationId, plate]);
+
+  const baseTotal = mode === "amount" ? Number(amount) || 0 : mode === "liters" ? (Number(liters) || 0) * price.pricePerLiter : 0;
+  const loyaltyDiscount = useLoyalty && loyalty ? loyalty.valueTry : 0;
+  const codeDiscount = appliedCode?.discountAmount ?? 0;
+  const estimatedCharge = Math.max(0, baseTotal - loyaltyDiscount - codeDiscount);
+  const showDiscounts = mode !== "full_tank" && baseTotal > 0;
+
+  async function applyCode() {
+    setCodeError(null);
+    if (!codeInput.trim()) return;
+    setCodeChecking(true);
+    try {
+      const res = await kioskApi.previewDiscountCode(stationId, codeInput.trim(), price.fuelType, baseTotal);
+      setAppliedCode({ code: codeInput.trim().toUpperCase(), discountAmount: res.discountAmount });
+    } catch (err) {
+      setAppliedCode(null);
+      setCodeError(err instanceof ApiError ? err.message : "Kod dogrulanamadi.");
+    } finally {
+      setCodeChecking(false);
+    }
+  }
+
   function submit() {
     setError(null);
     if (mode === "amount") {
       if (!amount || amount <= 0) return setError("Gecerli bir tutar giriniz.");
-      onNext({ mode: "amount", amount });
+      onNext({
+        mode: "amount",
+        amount,
+        discountCode: appliedCode?.code,
+        redeemPoints: useLoyalty && loyalty ? loyalty.points : undefined,
+      });
     } else if (mode === "liters") {
       if (!liters || liters <= 0) return setError("Gecerli bir litre miktari giriniz.");
-      onNext({ mode: "liters", liters });
+      onNext({
+        mode: "liters",
+        liters,
+        discountCode: appliedCode?.code,
+        redeemPoints: useLoyalty && loyalty ? loyalty.points : undefined,
+      });
     } else {
       onNext({ mode: "full_tank" });
     }
@@ -69,6 +122,42 @@ export default function AmountStep({
 
       {mode === "full_tank" && (
         <p className="hint-text">Depo dolum sensoru algilandiginda otomatik olarak durdurulur. Maksimum tutar tahmini onceden gosterilir.</p>
+      )}
+
+      {showDiscounts && (
+        <div className="card" style={{ marginTop: "1rem", padding: "0.75rem" }}>
+          {loyalty?.enabled && loyalty.points > 0 && (
+            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+              <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />
+              Sadakat puanlarimi kullan ({loyalty.points} puan = {formatCurrency(loyalty.valueTry)} indirim)
+            </label>
+          )}
+
+          <label>Indirim Kodu (opsiyonel)</label>
+          <div className="toolbar" style={{ margin: 0 }}>
+            <input
+              value={codeInput}
+              onChange={(e) => {
+                setCodeInput(e.target.value);
+                setAppliedCode(null);
+                setCodeError(null);
+              }}
+              placeholder="orn: YAZ2026"
+              style={{ textTransform: "uppercase" }}
+            />
+            <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={applyCode}>
+              {codeChecking ? "Kontrol ediliyor..." : "Uygula"}
+            </button>
+          </div>
+          {codeError && <p className="error-text">{codeError}</p>}
+          {appliedCode && <p className="hint-text" style={{ color: "var(--accent-2)" }}>"{appliedCode.code}" uygulandi: -{formatCurrency(appliedCode.discountAmount)}</p>}
+
+          {(loyaltyDiscount > 0 || codeDiscount > 0) && (
+            <p style={{ marginTop: "0.5rem", marginBottom: 0 }}>
+              <strong>Odenecek tahmini tutar: {formatCurrency(estimatedCharge)}</strong>
+            </p>
+          )}
+        </div>
       )}
 
       {error && <p className="error-text">{error}</p>}

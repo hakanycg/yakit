@@ -22,6 +22,8 @@ import { reportsRouter } from "./routes/reports.js";
 import { stationsRouter } from "./routes/stations.js";
 import { shiftsRouter } from "./routes/shifts.js";
 import { fuelStockRouter } from "./routes/fuelStock.js";
+import { loyaltyRouter } from "./routes/loyalty.js";
+import { discountCodesRouter } from "./routes/discountCodes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
@@ -82,6 +84,8 @@ export function createApp() {
   app.use("/api/stations", stationsRouter);
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/fuel-stock", fuelStockRouter);
+  app.use("/api/loyalty", loyaltyRouter);
+  app.use("/api/discount-codes", discountCodesRouter);
 
   app.use("/api", notFoundHandler);
 

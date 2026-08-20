@@ -6,6 +6,7 @@ import { kioskRateLimit } from "../middleware/rateLimit.js";
 import {
   TransactionError,
   cancelPendingTransaction,
+  chargeAmount,
   createTransaction,
   finalizeTransactionPayment,
   getTransactionForIyzicoCallback,
@@ -19,9 +20,11 @@ import { sendReceipt } from "../services/receiptService.js";
 import { initializeCheckoutForm, retrieveCheckoutForm, IyzicoError } from "../services/iyzicoService.js";
 import { isIyzicoReady } from "../services/paymentSettingsService.js";
 import { getAvailableLiters } from "../services/fuelStockService.js";
+import { getBalance as getLoyaltyBalance, getLoyaltyConfig } from "../services/loyaltyService.js";
+import { DiscountError, validateCode } from "../services/discountService.js";
 import { env } from "../config.js";
 import { db } from "../db/index.js";
-import type { FuelPriceRow, StationRow } from "../db/types.js";
+import type { FuelPriceRow, FuelType, StationRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
 
 const router = Router();
@@ -78,6 +81,49 @@ router.post("/lpr/recognize", validateBody(lprSchema), (req, res) => {
   });
 });
 
+function getStationOrThrow(stationId: number): StationRow {
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ? AND active = 1").get(stationId);
+  if (!station) throw new TransactionError("Istasyon bulunamadi.", 404);
+  return station;
+}
+
+const loyaltyBalanceSchema = z.object({ stationId: z.coerce.number().int().positive(), plate: z.string().min(1).max(15) });
+
+router.get("/loyalty/balance", (req, res) => {
+  const parsed = loyaltyBalanceSchema.safeParse(req.query);
+  if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
+  try {
+    getStationOrThrow(parsed.data.stationId);
+  } catch {
+    return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  }
+  const { enabled, pointValueTry } = getLoyaltyConfig(parsed.data.stationId);
+  const points = enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
+  res.json({ enabled, points, valueTry: Math.round(points * pointValueTry * 100) / 100 });
+});
+
+const discountPreviewSchema = z.object({
+  stationId: z.number().int().positive(),
+  code: z.string().trim().min(1).max(30),
+  fuelType: z.enum(["benzin", "motorin", "lpg"]),
+  totalAmount: z.number().positive().max(1000000),
+});
+
+router.post("/discount/preview", validateBody(discountPreviewSchema), (req, res) => {
+  const { stationId, code, fuelType, totalAmount } = req.body as z.infer<typeof discountPreviewSchema>;
+  try {
+    getStationOrThrow(stationId);
+    const { discountAmount } = validateCode(stationId, code, fuelType as FuelType, totalAmount);
+    res.json({ valid: true, discountAmount });
+  } catch (err) {
+    if (err instanceof DiscountError || err instanceof TransactionError) {
+      res.status(err.status).json({ valid: false, error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
 const createSchema = z.object({
   pumpId: z.number().int().positive(),
   plate: z.string().regex(plateRegex, "Gecersiz plaka formati."),
@@ -86,6 +132,8 @@ const createSchema = z.object({
   amountMode: z.enum(["amount", "liters", "full_tank"]),
   requestedAmount: z.number().positive().max(50000).optional(),
   requestedLiters: z.number().positive().max(300).optional(),
+  discountCode: z.string().trim().min(1).max(30).optional(),
+  redeemPoints: z.number().positive().max(1000000).optional(),
 });
 
 router.post("/transactions", validateBody(createSchema), (req, res) => {
@@ -173,7 +221,7 @@ router.post("/transactions/:id/iyzico/init", async (req, res) => {
     const result = await initializeCheckoutForm({
       stationId: t.station_id,
       transactionId: id,
-      totalAmount: t.total_amount,
+      totalAmount: chargeAmount(t),
       plate: t.plate,
       fuelLabel: FUEL_LABELS[t.fuel_type] ?? t.fuel_type,
       ip: req.ip ?? "0.0.0.0",
