@@ -77,7 +77,7 @@ function ChangePasswordCard() {
 
 function TwoFactorCard() {
   const { user, refresh } = useAuth();
-  const [setupData, setSetupData] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [setupData, setSetupData] = useState<{ secret: string; otpauthUri: string; qrDataUrl: string } | null>(null);
   const [enableCode, setEnableCode] = useState("");
   const [disablePassword, setDisablePassword] = useState("");
   const [showDisableForm, setShowDisableForm] = useState(false);
@@ -90,7 +90,7 @@ function TwoFactorCard() {
     setSuccess(null);
     setSubmitting(true);
     try {
-      const res = await api.post<{ secret: string; otpauthUri: string }>("/api/auth/2fa/setup");
+      const res = await api.post<{ secret: string; otpauthUri: string; qrDataUrl: string }>("/api/auth/2fa/setup");
       setSetupData(res);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Kurulum baslatilamadi.");
@@ -156,12 +156,20 @@ function TwoFactorCard() {
       {!user?.totpEnabled && setupData && (
         <form onSubmit={confirmEnable} style={{ marginTop: "0.75rem" }}>
           <p className="hint-text">
-            Authenticator uygulamanizda yeni bir hesap ekleyin ve asagidaki anahtari manuel olarak girin (veya cihazinizda
-            uygulama yuklu ise <a href={setupData.otpauthUri}>bu baglantiya</a> dokunun):
+            Authenticator uygulamanizda yeni bir hesap eklemek icin asagidaki QR kodu tarayin:
           </p>
-          <p>
-            <code style={{ wordBreak: "break-all" }}>{setupData.secret}</code>
+          <p style={{ textAlign: "center" }}>
+            <img src={setupData.qrDataUrl} alt="Authenticator kurulum QR kodu" width={200} height={200} style={{ background: "#fff", padding: "0.5rem", borderRadius: "0.5rem" }} />
           </p>
+          <details>
+            <summary className="hint-text" style={{ cursor: "pointer" }}>Kamera ile tarayamiyorsaniz: anahtari elle girin</summary>
+            <p className="hint-text" style={{ marginTop: "0.5rem" }}>
+              Authenticator uygulamanizda hesabi "zaman tabanli (TOTP)" secerek elle ekleyin:
+            </p>
+            <p>
+              <code style={{ wordBreak: "break-all" }}>{setupData.secret}</code>
+            </p>
+          </details>
           <label htmlFor="totp-enable-code">Uygulamada gorunen 6 haneli kod</label>
           <input
             id="totp-enable-code"

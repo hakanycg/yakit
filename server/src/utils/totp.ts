@@ -1,4 +1,5 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import QRCode from "qrcode";
 
 const BASE32_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
 const STEP_SECONDS = 30;
@@ -58,6 +59,16 @@ export function buildOtpauthUri(secret: string, accountLabel: string, issuer = "
   const label = encodeURIComponent(`${issuer}:${accountLabel}`);
   const params = new URLSearchParams({ secret, issuer, algorithm: "SHA1", digits: String(DIGITS), period: String(STEP_SECONDS) });
   return `otpauth://totp/${label}?${params.toString()}`;
+}
+
+/**
+ * otpauth:// baglantisini taranabilir bir QR kod resmine (PNG, data: URI) cevirir. Kullanicinin
+ * anahtari elle girmesi gerekmesin diye - elle girise dayali kurulum bazi authenticator
+ * uygulamalarinda "zaman tabanli / sayac tabanli" gibi gereksiz bir secim sorabiliyor; QR tarama
+ * otpauth URI'daki `totp` tipini/algoritmayi/periyodu otomatik ve tartismasiz sekilde aktarir.
+ */
+export async function generateQrDataUrl(otpauthUri: string): Promise<string> {
+  return QRCode.toDataURL(otpauthUri, { errorCorrectionLevel: "M", margin: 1, width: 240 });
 }
 
 /** RFC 6238 TOTP: verilen zamana gore (varsayilan: simdi) 6 haneli dogrulama kodu uretir. Testler icin timeMs disaridan verilebilir. */

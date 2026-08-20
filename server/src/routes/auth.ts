@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import type { RoleRow, UserRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
-import { buildOtpauthUri, generateTotpSecret, verifyTotpCode } from "../utils/totp.js";
+import { buildOtpauthUri, generateQrDataUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.js";
 import {
   createSession,
   destroyOtherSessionsForUser,
@@ -314,11 +314,13 @@ router.post("/sessions/revoke-others", requireAuth, csrfProtection, (req, res) =
 });
 
 /** Kurulumu baslatir: yeni bir "pending" sir uretir (henuz etkinlestirilmez) ve authenticator uygulamasina eklenecek bilgileri dondurur. Tekrar cagrilirsa onceki pending sir gecersizlenir. */
-router.post("/2fa/setup", requireAuth, csrfProtection, (req, res) => {
+router.post("/2fa/setup", requireAuth, csrfProtection, async (req, res) => {
   const user = req.user!;
   const secret = generateTotpSecret();
   db.prepare("UPDATE users SET totp_pending_secret = ?, updated_at = ? WHERE id = ?").run(secret, new Date().toISOString(), user.id);
-  res.json({ secret, otpauthUri: buildOtpauthUri(secret, user.username) });
+  const otpauthUri = buildOtpauthUri(secret, user.username);
+  const qrDataUrl = await generateQrDataUrl(otpauthUri);
+  res.json({ secret, otpauthUri, qrDataUrl });
 });
 
 const totpEnableSchema = z.object({ code: z.string().min(4).max(10) });
