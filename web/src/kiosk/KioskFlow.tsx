@@ -13,6 +13,8 @@ import ReceiptStep from "./steps/ReceiptStep";
 import { ApiError } from "../shared/api";
 import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./resumeStorage";
 import { KioskLangProvider, LanguageSwitcher, useKioskLang } from "./i18n";
+import PrivacyNoticeLink from "./PrivacyNotice";
+import { useIdleReset } from "./useIdleReset";
 
 type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
@@ -143,6 +145,12 @@ function KioskFlowInner() {
     loadStation();
   }
 
+  // Odeme/dolum surerken bosta-kalma sifirlamasi devre disi: fiziksel dolum veya kart
+  // odemesi ekrandan bagimsiz surer, ekranin kendiliginden basa donmesi musteriyi yanlis
+  // yonlendirir (ör. odeme onaylanmisken "iptal edildi" izlenimi verir).
+  const idleEnabled = step === "plate" || step === "pump" || step === "fuel" || step === "amount" || step === "receipt";
+  const idle = useIdleReset(idleEnabled, reset, 60_000, 20_000);
+
   async function handleAmount(selection: AmountSelection) {
     if (!pump || !fuelType || !station) return;
     setAmountSelection(selection);
@@ -264,7 +272,22 @@ function KioskFlowInner() {
         {step === "receipt" && transaction && (
           <ReceiptStep transaction={transaction} accessToken={accessToken} onRestart={reset} />
         )}
+
+        <PrivacyNoticeLink stationName={station.station.name} />
       </div>
+
+      {idle.warning && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30 }}>
+          <div className="card" style={{ width: "min(420px, 92vw)", textAlign: "center" }}>
+            <h3 style={{ marginTop: 0 }}>{t("idle.title")}</h3>
+            <div className="kiosk-idle-countdown">{idle.secondsLeft}</div>
+            <p className="hint-text">{t("idle.body", { seconds: idle.secondsLeft })}</p>
+            <button className="primary" style={{ width: "100%", marginTop: "0.5rem" }} onClick={idle.dismiss}>
+              {t("idle.continue")}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
