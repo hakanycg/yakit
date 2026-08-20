@@ -189,24 +189,24 @@ function Modal({ children, width = 420 }: { children: React.ReactNode; width?: n
   );
 }
 
-/** Elle girilmesi zorunlu olmasin diye varsayilan bir irsaliye/fis no uretir; operatorun
- *  tankerle gelen gercek fiziksel irsaliye numarasi varsa alan yine de duzenlenebilir. */
-function generateDeliveryRef(): string {
-  const now = new Date();
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `OTO-${stamp}-${suffix}`;
-}
+/** GIB'in e-belge numaralandirma kurali: 3 harf/rakam seri + 4 haneli yil + 9 haneli sira no. */
+const DELIVERY_REF_PATTERN = /^[A-Z0-9]{3}\d{13}$/;
+const DELIVERY_REF_FORMAT_HINT = "Format: 3 harf/rakam + yil (4 hane) + 9 haneli sira no (orn. MER2026000000001).";
 
 function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: () => void; onAdded: () => void }) {
   const [liters, setLiters] = useState("");
   const [supplier, setSupplier] = useState("");
-  const [deliveryRef, setDeliveryRef] = useState(generateDeliveryRef);
+  const [deliveryRef, setDeliveryRef] = useState("");
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    api.get<{ deliveryRef: string }>("/api/fuel-stock/next-delivery-ref").then((res) => setDeliveryRef(res.deliveryRef));
+  }, []);
+
+  const deliveryRefValid = DELIVERY_REF_PATTERN.test(deliveryRef);
 
   async function submit(force = false) {
     setSubmitting(true);
@@ -216,7 +216,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       const res = await api.post<{ tank: FuelTank; overflow: number }>(`/api/fuel-stock/${tank.fuelType}/add`, {
         liters: Number(liters),
         supplier: supplier.trim(),
-        deliveryRef: deliveryRef.trim(),
+        deliveryRef,
         note: note.trim() || undefined,
         force: force || undefined,
       });
@@ -253,15 +253,17 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <label>Tedarikci</label>
       <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" required />
 
-      <label>Irsaliye / Fis No <span className="hint-text">(otomatik olusturuldu; gercek fiziksel irsaliye numaraniz varsa degistirebilirsiniz)</span></label>
+      <label>Irsaliye / Fis No <span className="hint-text">(GIB e-belge formatinda otomatik olusturuldu; gercek irsaliye numaraniz ayni formattaysa uzerine yazabilirsiniz)</span></label>
       <input
         value={deliveryRef}
+        maxLength={16}
         onChange={(e) => {
-          setDeliveryRef(e.target.value);
+          setDeliveryRef(e.target.value.toUpperCase());
           setDuplicateWarning(null);
         }}
         required
       />
+      {deliveryRef && !deliveryRefValid && <p className="hint-text" style={{ color: "var(--warning)" }}>{DELIVERY_REF_FORMAT_HINT}</p>}
 
       <label>Not (opsiyonel)</label>
       <input value={note} onChange={(e) => setNote(e.target.value)} />
@@ -281,7 +283,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
         ) : (
           <button
             className="primary"
-            disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim() || !deliveryRef.trim()}
+            disabled={submitting || !liters || Number(liters) <= 0 || !supplier.trim() || !deliveryRefValid}
             onClick={() => submit(false)}
           >
             {submitting ? "Ekleniyor..." : "Stok Ekle"}

@@ -22,6 +22,49 @@ export class DuplicateDeliveryRefError extends FuelStockError {
   }
 }
 
+/**
+ * Irsaliye/fis no alani, GIB'in e-belge (e-Fatura/e-Irsaliye) numaralandirma kuraliyla
+ * ayni sekle zorlanir: 3 karakter seri (buyuk harf/rakam, Turkce karakter yok) + 4 haneli
+ * yil + 9 haneli sira no = toplam 16 karakter (orn. MER2026000000001). Bu kural hem
+ * otomatik uretilen varsayilan degere hem de operatorun elle girdigi/duzenledigi degere
+ * uygulanir (bkz. routes/fuelStock.ts).
+ */
+export const DELIVERY_REF_PATTERN = /^[A-Z0-9]{3}\d{13}$/;
+
+function deriveSeriesCode(stationSlug: string): string {
+  const cleaned = stationSlug
+    .toLocaleUpperCase("tr-TR")
+    .replace(/Ç/g, "C")
+    .replace(/Ğ/g, "G")
+    .replace(/İ/g, "I")
+    .replace(/Ö/g, "O")
+    .replace(/Ş/g, "S")
+    .replace(/Ü/g, "U")
+    .replace(/[^A-Z0-9]/g, "");
+  return (cleaned + "IST").slice(0, 3);
+}
+
+/** O istasyon icin GIB formatinda bir sonraki irsaliye/fis no'yu (seri+yil bazinda sirali) uretir. */
+export function nextDeliveryRef(stationId: number): string {
+  const station = db.prepare<[number], { slug: string }>("SELECT slug FROM stations WHERE id = ?").get(stationId);
+  const series = deriveSeriesCode(station?.slug ?? "IST");
+  const year = new Date().getFullYear();
+  const prefix = `${series}${year}`;
+
+  const rows = db
+    .prepare<[number, string], { delivery_ref: string }>(
+      "SELECT delivery_ref FROM fuel_stock_movements WHERE station_id = ? AND type = 'delivery' AND delivery_ref LIKE ?"
+    )
+    .all(stationId, `${prefix}%`);
+
+  let maxSeq = 0;
+  for (const row of rows) {
+    const suffix = row.delivery_ref.slice(prefix.length);
+    if (/^\d{9}$/.test(suffix)) maxSeq = Math.max(maxSeq, Number(suffix));
+  }
+  return `${prefix}${String(maxSeq + 1).padStart(9, "0")}`;
+}
+
 export const FUEL_TYPES: FuelType[] = ["benzin", "motorin", "lpg"];
 
 export type TankStatus = "ok" | "low" | "critical";

@@ -4,6 +4,7 @@ import { attachStationScope, csrfProtection, requireAuth, requireRole, requireSt
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import {
+  DELIVERY_REF_PATTERN,
   DuplicateDeliveryRefError,
   FuelStockError,
   addStock,
@@ -11,6 +12,7 @@ import {
   getMovementById,
   listMovements,
   listTanks,
+  nextDeliveryRef,
   serializeMovement,
   serializeTank,
   updateTankSettings,
@@ -27,6 +29,10 @@ const fuelTypeEnum = z.enum(["benzin", "motorin", "lpg"]);
 
 router.get("/", (req, res) => {
   res.json({ tanks: listTanks(req.stationId!).map(serializeTank) });
+});
+
+router.get("/next-delivery-ref", (req, res) => {
+  res.json({ deliveryRef: nextDeliveryRef(req.stationId!) });
 });
 
 const movementsQuerySchema = z.object({
@@ -68,7 +74,11 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
 const addSchema = z.object({
   liters: z.number().positive().max(100000),
   supplier: z.string().trim().min(2, "Tedarikci zorunludur.").max(120),
-  deliveryRef: z.string().trim().min(1, "Irsaliye/fis no zorunludur.").max(60),
+  deliveryRef: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(DELIVERY_REF_PATTERN, "Irsaliye/fis no formati: 3 harf/rakam + yil (4 hane) + 9 haneli sira no (orn. MER2026000000001)."),
   note: z.string().max(300).optional(),
   force: z.boolean().optional(),
 });
