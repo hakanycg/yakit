@@ -99,12 +99,17 @@ export function serializeInvoiceConfig(config: InvoiceConfig) {
   };
 }
 
-/** Bir istasyonda gercek e-Fatura/e-Arsiv olusturmak icin gerekli tum bilgilerin girilip girilmedigini kontrol eder. */
+/**
+ * Bir istasyonda gercek e-Fatura/e-Arsiv/E-Irsaliye olusturmak icin gerekli tum bilgilerin
+ * girilip girilmedigini kontrol eder. Bu ayni Uyumsoft hesap bilgileri hem fatura hem de
+ * irsaliye olusturmak icin kullanildigindan (invoiceService.ts, waybillService.ts) kontrol
+ * ve mesajlar belgeye ozel degil, saglayici baglantisina ozeldir.
+ */
 export function isInvoiceReady(stationId: number): { ready: boolean; reason?: string } {
   const config = getInvoiceConfig(stationId);
-  if (!config.enabled) return { ready: false, reason: "E-fatura entegrasyonu bu istasyon icin devre disi." };
+  if (!config.enabled) return { ready: false, reason: "Uyumsoft e-belge entegrasyonu bu istasyon icin devre disi." };
   if (!config.username || !config.password) {
-    return { ready: false, reason: "E-fatura saglayicisi (Uyumsoft) kullanici adi/sifresi tanimlanmamis." };
+    return { ready: false, reason: "E-belge saglayicisi (Uyumsoft) kullanici adi/sifresi tanimlanmamis." };
   }
   if (!config.companyVkn || !config.companyTitle) {
     return { ready: false, reason: "Sirket VKN/unvan bilgisi eksik." };

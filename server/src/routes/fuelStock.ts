@@ -8,12 +8,15 @@ import {
   FuelStockError,
   addStock,
   adjustStock,
+  getMovementById,
   listMovements,
   listTanks,
   serializeMovement,
   serializeTank,
   updateTankSettings,
 } from "../services/fuelStockService.js";
+import { createWaybill, WaybillError } from "../services/waybillService.js";
+import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, serializeWaybill } from "../services/waybillRecordService.js";
 
 const router = Router();
 // Yakit stogu yalnizca istasyon yoneticisine (admin) ve platform yoneticisine (super_admin,
@@ -152,6 +155,59 @@ router.patch("/:fuelType/settings", csrfProtection, validateBody(settingsSchema)
   } catch (err) {
     if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
     throw err;
+  }
+});
+
+router.get("/movements/:id/waybill", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hareket." });
+  try {
+    const movement = getMovementById(id, req.stationId!);
+    const waybill = getWaybillForMovement(movement.id);
+    res.json({ waybill: waybill ? serializeWaybill(waybill) : null });
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.post("/movements/:id/waybill", csrfProtection, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hareket." });
+  let movement;
+  try {
+    movement = getMovementById(id, req.stationId!);
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+  try {
+    const result = await createWaybill(movement);
+    const waybill = recordWaybillSuccess(movement.station_id, movement.id, result.providerWaybillId, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "waybill_created",
+      entityType: "fuel_stock_movement",
+      entityId: String(movement.id),
+      details: { providerWaybillId: result.providerWaybillId },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ waybill: serializeWaybill(waybill) });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Irsaliye olusturulamadi.";
+    const status = err instanceof WaybillError ? err.status : 502;
+    recordWaybillFailure(movement.station_id, movement.id, message, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "waybill_failed",
+      entityType: "fuel_stock_movement",
+      entityId: String(movement.id),
+      details: { error: message },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(status).json({ error: message });
   }
 });
 

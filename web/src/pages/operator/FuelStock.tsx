@@ -78,6 +78,7 @@ export default function FuelStock() {
               <th>Irsaliye/Fis No</th>
               <th>Detay</th>
               <th>Kullanici</th>
+              <th>E-Irsaliye</th>
             </tr>
           </thead>
           <tbody>
@@ -95,9 +96,10 @@ export default function FuelStock() {
                   {[m.supplier, m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}
                 </td>
                 <td>{m.username ?? "-"}</td>
+                <td>{m.type === "delivery" && <WaybillCell movementId={m.id} />}</td>
               </tr>
             ))}
-            {movements.length === 0 && <tr><td colSpan={8} className="hint-text">Kayit yok.</td></tr>}
+            {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayit yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -362,5 +364,51 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
         <button type="button" onClick={onClose} disabled={submitting}>Kapat</button>
       </div>
     </Modal>
+  );
+}
+
+interface WaybillInfo {
+  status: "pending" | "sent" | "failed";
+  providerWaybillId: string | null;
+  errorMessage: string | null;
+}
+
+function WaybillCell({ movementId }: { movementId: number }) {
+  const [waybill, setWaybill] = useState<WaybillInfo | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  function load() {
+    api.get<{ waybill: WaybillInfo | null }>(`/api/fuel-stock/movements/${movementId}/waybill`).then((res) => setWaybill(res.waybill));
+  }
+  useEffect(load, [movementId]);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ waybill: WaybillInfo }>(`/api/fuel-stock/movements/${movementId}/waybill`);
+      setWaybill(res.waybill);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Irsaliye olusturulamadi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (waybill === undefined) return <span className="hint-text">...</span>;
+
+  if (waybill?.status === "sent") {
+    return <span className="badge resolved" title={waybill.providerWaybillId ?? undefined}>Kesildi</span>;
+  }
+
+  return (
+    <div>
+      <button onClick={create} disabled={busy}>{busy ? "..." : "E-Irsaliye Olustur"}</button>
+      {error && <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{error}</div>}
+      {!error && waybill?.status === "failed" && (
+        <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{waybill.errorMessage}</div>
+      )}
+    </div>
   );
 }

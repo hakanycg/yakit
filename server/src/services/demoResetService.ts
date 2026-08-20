@@ -14,6 +14,7 @@ export function resetDemoData(stationId: number): void {
     // bagli oldugundan (ON DELETE CASCADE yok), once hareket kayitlari, sonra islemler
     // silinmeli - aksi halde tamamlanmis bir satisin hareket kaydi asilda kalip
     // SQLITE_CONSTRAINT_FOREIGNKEY ile silme islemini bastan sona basarisiz kilar.
+    db.prepare("DELETE FROM waybills WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM loyalty_movements WHERE station_id = ?").run(stationId);
     db.prepare("DELETE FROM loyalty_accounts WHERE station_id = ?").run(stationId);

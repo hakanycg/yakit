@@ -255,6 +255,20 @@ CREATE TABLE IF NOT EXISTS invoices (
 );
 CREATE INDEX IF NOT EXISTS idx_invoices_station ON invoices(station_id, created_at);
 
+CREATE TABLE IF NOT EXISTS waybills (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  movement_id INTEGER NOT NULL REFERENCES fuel_stock_movements(id),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | sent | failed
+  provider TEXT NOT NULL DEFAULT 'uyumsoft',
+  provider_waybill_id TEXT,
+  error_message TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(movement_id)
+);
+CREATE INDEX IF NOT EXISTS idx_waybills_station ON waybills(station_id, created_at);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

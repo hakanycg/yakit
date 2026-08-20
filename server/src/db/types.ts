@@ -160,6 +160,18 @@ export interface InvoiceRow {
   created_at: string;
 }
 
+export interface WaybillRow {
+  id: number;
+  station_id: number;
+  movement_id: number;
+  status: "pending" | "sent" | "failed";
+  provider: string;
+  provider_waybill_id: string | null;
+  error_message: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export type AlarmSeverity = "info" | "warning" | "critical";
 export type AlarmStatus = "active" | "acknowledged" | "resolved";
 

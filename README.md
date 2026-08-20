@@ -204,6 +204,33 @@ istemci kodudur ve UBL-TR standardına uygun tam bir fatura gövdesi (`Accountin
   kesimi **sizin tarafınızdan test edilmelidir**. KDV oranı kodda %20 olarak sabitlenmiştir
   (`invoiceService.ts` içindeki `VAT_RATE`); oran değişirse orası güncellenmelidir.
 
+## Gerçek e-İrsaliye altyapısı: Uyumsoft (yakıt teslimatları için)
+
+e-Fatura ile aynı Uyumsoft hesabı (Ayarlar → "Fatura / İrsaliye Ayarları"), istasyona gelen
+yakıt teslimatları (tanker sevkiyatları) için de gerçek bir **e-İrsaliye** (UBL-TR
+`DespatchAdvice`) oluşturmak üzere kullanılır. `server/src/services/waybillService.ts`,
+Uyumsoft'un aynı `BasicIntegrationApi`'sini `Action: "SendDespatchAdvice"` ile çağırır ve
+OASIS UBL 2.1 `DespatchAdvice` örneğine göre yapılandırılmış (`DespatchSupplierParty`,
+`DeliveryCustomerParty`, `Shipment`/`Delivery`, `DespatchLine`/`DeliveredQuantity`) bir
+belge gövdesi gönderir — bu da simülasyon değildir.
+
+- **Nereden tetiklenir:** Operatör panelinde Yakıt Stoku sayfasındaki Stok Hareketleri
+  tablosunda, yalnızca `delivery` (teslimat) tipi satırlarda bir "E-İrsaliye Oluştur"
+  düğmesi bulunur. Teslimat kaydedilirken zaten girilen tedarikçi adı ve irsaliye/fiş
+  numarası (`fuel_stock_movements.supplier` / `delivery_ref`) belge içeriğine taşınır.
+- **Ayrı bir ayar ekranı yoktur:** e-Fatura ile tamamen aynı Uyumsoft kullanıcı adı/şifresi
+  ve şirket vergi bilgileri kullanılır (`invoiceSettingsService.ts` — `isInvoiceReady()`
+  her iki belge türü için de aynı hazırlık kontrolünü yapar); bu bilgiler eksikken
+  `POST /api/fuel-stock/movements/:id/waybill` net bir Türkçe hata mesajıyla (`409`) reddedilir.
+- **Gerçek dünya notu:** Türkiye'de e-İrsaliye'yi genelde malı sevk eden taraf (tedarikçi/
+  taşıyıcı) düzenler; burada istasyon, kendi kayıtlarında (isteğe bağlı) resmi bir teslim
+  alma belgesi oluşturmak için kendi Uyumsoft hesabından bu belgeyi üretir.
+- **Bu ortamda canlı test edilemedi:** e-Fatura'da olduğu gibi, sahte kimlik bilgileriyle
+  Uyumsoft'un test sunucusuna gerçek bir istek atılıp gerçek bir HTTP 403 yanıtı alındığı
+  (düzgün şekilde 502'ye çevrilip sunucu çökmediği) ve hazır-olmama (409) red yolunun
+  doğru çalıştığı doğrulandı — gerçek bir Uyumsoft hesabıyla uçtan uca başarılı irsaliye
+  kesimi sizin tarafınızdan test edilmelidir.
+
 ## Simülasyon olarak uygulanan bileşenler (donanım gerektirdiği için / iyzico yapılandırılmadığında)
 
 1. **LPR / plaka tanıma:** Gerçek bir kamera donanımı olmadığından, `POST /api/kiosk/lpr/recognize`

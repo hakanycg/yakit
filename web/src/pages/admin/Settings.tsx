@@ -467,11 +467,12 @@ function InvoiceSettingsCard() {
 
   return (
     <div className="card" style={{ maxWidth: 560, marginTop: "1rem" }}>
-      <h3 style={{ marginTop: 0 }}>Fatura Ayarlari (E-Fatura / e-Arsiv)</h3>
+      <h3 style={{ marginTop: 0 }}>Fatura / Irsaliye Ayarlari (E-Fatura, e-Arsiv, E-Irsaliye)</h3>
       <p className="hint-text">
-        Tamamlanan islemler icin gercek Uyumsoft e-Fatura/e-Arsiv entegrasyon API'sine baglanir. Bu bir simulasyon
-        degildir — kendi Uyumsoft musteri hesabinizin kullanici adi/sifresini ve sirket vergi bilgilerinizi
-        girmeden fatura kesilemez.
+        Tamamlanan islemler icin e-Fatura/e-Arsiv, yakit teslimatlari icin ise E-Irsaliye olusturmak uzere ayni
+        gercek Uyumsoft entegrasyon hesabi kullanilir (Yakit Stoku sayfasindaki "E-Irsaliye Olustur" butonu buradaki
+        bilgileri kullanir). Bu bir simulasyon degildir — kendi Uyumsoft musteri hesabinizin kullanici adi/sifresini
+        ve sirket vergi bilgilerinizi girmeden ne fatura ne de irsaliye kesilebilir.
       </p>
 
       <label>Durum</label>

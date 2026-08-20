@@ -287,6 +287,13 @@ export function updateTankSettings(
   return getTank(stationId, fuelType);
 }
 
+/** Istasyon kapsamli tekil hareket sorgusu (IDOR korumali - baska istasyonun hareketi 404 doner). */
+export function getMovementById(id: number, stationId: number): FuelStockMovementRow {
+  const row = db.prepare<[number], FuelStockMovementRow>("SELECT * FROM fuel_stock_movements WHERE id = ?").get(id);
+  if (!row || row.station_id !== stationId) throw new FuelStockError("Hareket bulunamadi.", 404);
+  return row;
+}
+
 export function listMovements(stationId: number, filters: { fuelType?: FuelType; limit?: number }): (FuelStockMovementRow & { username: string | null })[] {
   const clauses = ["m.station_id = ?"];
   const params: unknown[] = [stationId];
