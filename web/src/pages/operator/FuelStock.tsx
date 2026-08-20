@@ -189,10 +189,20 @@ function Modal({ children, width = 420 }: { children: React.ReactNode; width?: n
   );
 }
 
+/** Elle girilmesi zorunlu olmasin diye varsayilan bir irsaliye/fis no uretir; operatorun
+ *  tankerle gelen gercek fiziksel irsaliye numarasi varsa alan yine de duzenlenebilir. */
+function generateDeliveryRef(): string {
+  const now = new Date();
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const stamp = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `OTO-${stamp}-${suffix}`;
+}
+
 function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: () => void; onAdded: () => void }) {
   const [liters, setLiters] = useState("");
   const [supplier, setSupplier] = useState("");
-  const [deliveryRef, setDeliveryRef] = useState("");
+  const [deliveryRef, setDeliveryRef] = useState(generateDeliveryRef);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
@@ -243,7 +253,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <label>Tedarikci</label>
       <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" required />
 
-      <label>Irsaliye / Fis No</label>
+      <label>Irsaliye / Fis No <span className="hint-text">(otomatik olusturuldu; gercek fiziksel irsaliye numaraniz varsa degistirebilirsiniz)</span></label>
       <input
         value={deliveryRef}
         onChange={(e) => {
