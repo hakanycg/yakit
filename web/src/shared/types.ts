@@ -21,6 +21,7 @@ export interface CurrentUser {
   phone: string | null;
   notifyEmail: boolean;
   notifySms: boolean;
+  totpEnabled: boolean;
 }
 
 export interface Pump {

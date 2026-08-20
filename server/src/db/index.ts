@@ -39,6 +39,9 @@ export function applyMigrations(): void {
   ensureColumn("users", "reset_token_hash", "TEXT");
   ensureColumn("users", "reset_token_expires_at", "TEXT");
   db.exec("CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token_hash)");
+  ensureColumn("users", "totp_secret", "TEXT");
+  ensureColumn("users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("users", "totp_pending_secret", "TEXT");
 }
 
 applySchema();

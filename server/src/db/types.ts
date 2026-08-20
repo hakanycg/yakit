@@ -30,6 +30,9 @@ export interface UserRow {
   notify_sms: 0 | 1;
   reset_token_hash: string | null;
   reset_token_expires_at: string | null;
+  totp_secret: string | null;
+  totp_enabled: 0 | 1;
+  totp_pending_secret: string | null;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;

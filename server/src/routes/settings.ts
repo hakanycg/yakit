@@ -38,7 +38,7 @@ router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => 
     action: "fuel_price_updated",
     entityType: "fuel_price",
     entityId: fuelType,
-    details: { pricePerLiter },
+    details: { oldPricePerLiter: existing.price_per_liter, newPricePerLiter: pricePerLiter },
     ip: req.ip,
     stationId: req.stationId,
   });

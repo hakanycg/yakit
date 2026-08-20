@@ -51,8 +51,7 @@ export default function AppLayout() {
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
           <NavLink to="/operator/harita">Istasyon Haritasi</NavLink>
           <NavLink to="/operator/raporlar">Raporlama</NavLink>
-          {/* Vardiya sistemi gecici olarak devre disi - bkz. App.tsx. */}
-          {/* <NavLink to="/operator/vardiya">Vardiya</NavLink> */}
+          <NavLink to="/operator/vardiya">Vardiya</NavLink>
 
           {isStationAdmin && (
             <>

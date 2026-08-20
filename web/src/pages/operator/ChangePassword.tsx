@@ -7,6 +7,7 @@ export default function ChangePassword() {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "1rem", maxWidth: 480 }}>
       <ChangePasswordCard />
+      <TwoFactorCard />
       <NotificationSettingsCard />
     </div>
   );
@@ -68,6 +69,137 @@ function ChangePasswordCard() {
           {submitting ? "Kaydediliyor..." : "Sifreyi Guncelle"}
         </button>
       </form>
+    </div>
+  );
+}
+
+function TwoFactorCard() {
+  const { user, refresh } = useAuth();
+  const [setupData, setSetupData] = useState<{ secret: string; otpauthUri: string } | null>(null);
+  const [enableCode, setEnableCode] = useState("");
+  const [disablePassword, setDisablePassword] = useState("");
+  const [showDisableForm, setShowDisableForm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function startSetup() {
+    setError(null);
+    setSuccess(null);
+    setSubmitting(true);
+    try {
+      const res = await api.post<{ secret: string; otpauthUri: string }>("/api/auth/2fa/setup");
+      setSetupData(res);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kurulum baslatilamadi.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function confirmEnable(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.post("/api/auth/2fa/enable", { code: enableCode });
+      setSetupData(null);
+      setEnableCode("");
+      setSuccess("Iki adimli dogrulama etkinlestirildi.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kod dogrulanamadi.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function confirmDisable(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await api.post("/api/auth/2fa/disable", { password: disablePassword });
+      setDisablePassword("");
+      setShowDisableForm(false);
+      setSuccess("Iki adimli dogrulama kapatildi.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kapatilamadi.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="card">
+      <div className="toolbar" style={{ marginBottom: "0.5rem" }}>
+        <h2 style={{ margin: 0 }}>Iki Adimli Dogrulama</h2>
+        <div className="spacer" />
+        <span className={`badge ${user?.totpEnabled ? "dispensing" : "offline"}`}>{user?.totpEnabled ? "Etkin" : "Kapali"}</span>
+      </div>
+      <p className="hint-text">
+        Google Authenticator, Microsoft Authenticator gibi bir uygulamayla girislerinize ek bir dogrulama katmani ekler.
+      </p>
+
+      {error && <p className="error-text">{error}</p>}
+      {success && <p className="hint-text" style={{ color: "#4ade80" }}>{success}</p>}
+
+      {!user?.totpEnabled && !setupData && (
+        <button className="primary" disabled={submitting} onClick={startSetup}>
+          {submitting ? "Hazirlaniyor..." : "Etkinlestir"}
+        </button>
+      )}
+
+      {!user?.totpEnabled && setupData && (
+        <form onSubmit={confirmEnable} style={{ marginTop: "0.75rem" }}>
+          <p className="hint-text">
+            Authenticator uygulamanizda yeni bir hesap ekleyin ve asagidaki anahtari manuel olarak girin (veya cihazinizda
+            uygulama yuklu ise <a href={setupData.otpauthUri}>bu baglantiya</a> dokunun):
+          </p>
+          <p>
+            <code style={{ wordBreak: "break-all" }}>{setupData.secret}</code>
+          </p>
+          <label htmlFor="totp-enable-code">Uygulamada gorunen 6 haneli kod</label>
+          <input
+            id="totp-enable-code"
+            inputMode="numeric"
+            maxLength={6}
+            value={enableCode}
+            onChange={(e) => setEnableCode(e.target.value.replace(/\D/g, ""))}
+            required
+          />
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <button type="submit" className="primary" disabled={submitting}>
+              {submitting ? "Dogrulaniyor..." : "Kodu Dogrula ve Etkinlestir"}
+            </button>
+            <button type="button" className="ghost" onClick={() => setSetupData(null)}>
+              Vazgec
+            </button>
+          </div>
+        </form>
+      )}
+
+      {user?.totpEnabled && !showDisableForm && (
+        <button className="danger" onClick={() => setShowDisableForm(true)}>
+          Kapat
+        </button>
+      )}
+
+      {user?.totpEnabled && showDisableForm && (
+        <form onSubmit={confirmDisable} style={{ marginTop: "0.75rem" }}>
+          <label htmlFor="totp-disable-password">Kapatmak icin sifrenizi girin</label>
+          <input id="totp-disable-password" type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} required />
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
+            <button type="submit" className="danger" disabled={submitting}>
+              {submitting ? "Kapatiliyor..." : "Iki Adimli Dogrulamayi Kapat"}
+            </button>
+            <button type="button" className="ghost" onClick={() => setShowDisableForm(false)}>
+              Vazgec
+            </button>
+          </div>
+        </form>
+      )}
     </div>
   );
 }

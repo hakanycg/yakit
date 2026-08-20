@@ -37,6 +37,9 @@ CREATE TABLE IF NOT EXISTS users (
   notify_sms INTEGER NOT NULL DEFAULT 0,   -- kritik alarm olustugunda SMS gonderilsin mi
   reset_token_hash TEXT,               -- sifre sifirlama bagi (sha256, ham token asla saklanmaz)
   reset_token_expires_at TEXT,
+  totp_secret TEXT,                    -- etkin 2FA sirri (base32); enable edilene kadar NULL
+  totp_enabled INTEGER NOT NULL DEFAULT 0,
+  totp_pending_secret TEXT,            -- kurulum sirasinda uretilen, henuz dogrulanmamis sir
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_login_at TEXT

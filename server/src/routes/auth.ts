@@ -3,9 +3,11 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import type { RoleRow, UserRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
+import { buildOtpauthUri, generateTotpSecret, verifyTotpCode } from "../utils/totp.js";
 import { createSession, destroySession } from "../services/sessionService.js";
 import { recordAudit } from "../services/auditService.js";
 import { PasswordResetError, requestPasswordReset, resetPasswordWithToken } from "../services/passwordResetService.js";
+import { createTotpChallenge, deleteTotpChallenge, peekTotpChallenge, registerFailedTotpAttempt } from "../services/totpChallengeService.js";
 import { validateBody } from "../middleware/validate.js";
 import { loginRateLimit, passwordResetRateLimit } from "../middleware/rateLimit.js";
 import { clearSessionCookies, csrfProtection, requireAuth, setSessionCookies } from "../middleware/auth.js";
@@ -15,6 +17,17 @@ const router = Router();
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
+
+function loginResponseUser(user: UserRow, role: RoleRow) {
+  return {
+    id: user.id,
+    username: user.username,
+    displayName: user.display_name,
+    role: role.name,
+    stationId: user.station_id,
+    mustChangePassword: !!user.must_change_password,
+  };
+}
 
 const loginSchema = z.object({
   username: z.string().min(1).max(64),
@@ -69,22 +82,58 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
     "UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = ? WHERE id = ?"
   ).run(new Date().toISOString(), user.id);
 
+  if (user.totp_enabled) {
+    // Sifre dogru ama hesapta 2FA acik: oturum HENUZ acilmaz, once dogrulama kodu istenir.
+    const challengeToken = createTotpChallenge(user.id);
+    recordAudit({ user, action: "login_totp_challenge_issued", ip });
+    res.json({ requiresTotp: true, challengeToken });
+    return;
+  }
+
   const { token, csrfToken } = createSession(user, ip, req.headers["user-agent"]);
   setSessionCookies(res, token, csrfToken);
 
   const role = db.prepare<[number], RoleRow>("SELECT * FROM roles WHERE id = ?").get(user.role_id)!;
   recordAudit({ user, action: "login_success", ip });
 
-  res.json({
-    user: {
-      id: user.id,
-      username: user.username,
-      displayName: user.display_name,
-      role: role.name,
-      stationId: user.station_id,
-      mustChangePassword: !!user.must_change_password,
-    },
-  });
+  res.json({ user: loginResponseUser(user, role) });
+});
+
+const totpLoginSchema = z.object({
+  challengeToken: z.string().min(1),
+  code: z.string().min(4).max(10),
+});
+
+router.post("/login/totp", loginRateLimit, validateBody(totpLoginSchema), (req, res) => {
+  const { challengeToken, code } = req.body as z.infer<typeof totpLoginSchema>;
+  const ip = req.ip;
+
+  const userId = peekTotpChallenge(challengeToken);
+  const user = userId ? db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(userId) : undefined;
+
+  if (!user || !user.active || !user.totp_enabled || !user.totp_secret) {
+    deleteTotpChallenge(challengeToken);
+    res.status(401).json({ error: "Oturum acma suresi doldu. Lutfen tekrar giris yapin." });
+    return;
+  }
+
+  if (!verifyTotpCode(user.totp_secret, code)) {
+    const hasMoreAttempts = registerFailedTotpAttempt(challengeToken);
+    recordAudit({ user, action: "login_totp_failed", ip });
+    res.status(401).json({
+      error: hasMoreAttempts ? "Gecersiz dogrulama kodu." : "Cok fazla hatali deneme. Lutfen tekrar giris yapin.",
+    });
+    return;
+  }
+
+  deleteTotpChallenge(challengeToken);
+  const { token, csrfToken } = createSession(user, ip, req.headers["user-agent"]);
+  setSessionCookies(res, token, csrfToken);
+
+  const role = db.prepare<[number], RoleRow>("SELECT * FROM roles WHERE id = ?").get(user.role_id)!;
+  recordAudit({ user, action: "login_success", details: { totp: true }, ip });
+
+  res.json({ user: loginResponseUser(user, role) });
 });
 
 const forgotPasswordSchema = z.object({ identifier: z.string().min(1).max(120) });
@@ -139,6 +188,7 @@ router.get("/me", requireAuth, (req, res) => {
       phone: user.phone,
       notifyEmail: !!user.notify_email,
       notifySms: !!user.notify_sms,
+      totpEnabled: !!user.totp_enabled,
     },
     csrfToken: req.csrfToken,
   });
@@ -215,6 +265,59 @@ router.post("/change-password", requireAuth, csrfProtection, validateBody(change
   ).run(hashed.hash, hashed.salt, hashed.iterations, new Date().toISOString(), user.id);
 
   recordAudit({ user, action: "password_changed", ip: req.ip });
+  res.status(204).end();
+});
+
+/** Kurulumu baslatir: yeni bir "pending" sir uretir (henuz etkinlestirilmez) ve authenticator uygulamasina eklenecek bilgileri dondurur. Tekrar cagrilirsa onceki pending sir gecersizlenir. */
+router.post("/2fa/setup", requireAuth, csrfProtection, (req, res) => {
+  const user = req.user!;
+  const secret = generateTotpSecret();
+  db.prepare("UPDATE users SET totp_pending_secret = ?, updated_at = ? WHERE id = ?").run(secret, new Date().toISOString(), user.id);
+  res.json({ secret, otpauthUri: buildOtpauthUri(secret, user.username) });
+});
+
+const totpEnableSchema = z.object({ code: z.string().min(4).max(10) });
+
+/** Kurulumu, authenticator uygulamasinda uretilen kodu dogrulatarak tamamlar. */
+router.post("/2fa/enable", requireAuth, csrfProtection, validateBody(totpEnableSchema), (req, res) => {
+  const user = req.user!;
+  const { code } = req.body as z.infer<typeof totpEnableSchema>;
+
+  if (!user.totp_pending_secret) {
+    res.status(400).json({ error: "Once kurulumu baslatmalisiniz." });
+    return;
+  }
+  if (!verifyTotpCode(user.totp_pending_secret, code)) {
+    res.status(400).json({ error: "Gecersiz dogrulama kodu." });
+    return;
+  }
+
+  db.prepare(
+    "UPDATE users SET totp_secret = ?, totp_enabled = 1, totp_pending_secret = NULL, updated_at = ? WHERE id = ?"
+  ).run(user.totp_pending_secret, new Date().toISOString(), user.id);
+
+  recordAudit({ user, action: "totp_enabled", ip: req.ip });
+  res.status(204).end();
+});
+
+const totpDisableSchema = z.object({ password: z.string().min(1) });
+
+/** 2FA'yi kapatir - hesabin ele gecirilmis bir oturumdan kolayca kapatilamamasi icin mevcut sifre yeniden istenir. */
+router.post("/2fa/disable", requireAuth, csrfProtection, validateBody(totpDisableSchema), (req, res) => {
+  const user = req.user!;
+  const { password } = req.body as z.infer<typeof totpDisableSchema>;
+
+  const ok = verifyPassword(password, { hash: user.password_hash, salt: user.password_salt, iterations: user.password_iterations });
+  if (!ok) {
+    res.status(401).json({ error: "Sifre hatali." });
+    return;
+  }
+
+  db.prepare(
+    "UPDATE users SET totp_secret = NULL, totp_enabled = 0, totp_pending_secret = NULL, updated_at = ? WHERE id = ?"
+  ).run(new Date().toISOString(), user.id);
+
+  recordAudit({ user, action: "totp_disabled", ip: req.ip });
   res.status(204).end();
 });
 

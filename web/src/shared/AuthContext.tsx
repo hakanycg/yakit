@@ -3,10 +3,16 @@ import { api, ApiError } from "./api";
 import { setCurrentStationId } from "./stationScope";
 import type { CurrentUser } from "./types";
 
+export interface LoginResult {
+  requiresTotp: boolean;
+  challengeToken?: string;
+}
+
 interface AuthState {
   user: CurrentUser | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<LoginResult>;
+  loginWithTotp: (challengeToken: string, code: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
 }
@@ -36,8 +42,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(async (username: string, password: string) => {
-    await api.post("/api/auth/login", { username, password });
+  const login = useCallback(async (username: string, password: string): Promise<LoginResult> => {
+    const res = await api.post<{ user?: CurrentUser; requiresTotp?: boolean; challengeToken?: string }>("/api/auth/login", {
+      username,
+      password,
+    });
+    if (res.requiresTotp) {
+      return { requiresTotp: true, challengeToken: res.challengeToken };
+    }
+    await refresh();
+    return { requiresTotp: false };
+  }, [refresh]);
+
+  const loginWithTotp = useCallback(async (challengeToken: string, code: string) => {
+    await api.post("/api/auth/login/totp", { challengeToken, code });
     await refresh();
   }, [refresh]);
 
@@ -47,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentStationId(null);
   }, []);
 
-  return <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, loginWithTotp, logout, refresh }}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth(): AuthState {

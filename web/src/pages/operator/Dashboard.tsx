@@ -5,6 +5,12 @@ import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { api } from "../../shared/api";
 import { PUMP_STATUS_LABEL, FUEL_LABEL, formatCurrency } from "../../shared/format";
 
+interface DayPoint {
+  day: string;
+  count: number;
+  revenue: number;
+}
+
 interface Summary {
   totals: {
     transactionCount: number;
@@ -14,6 +20,47 @@ interface Summary {
     cancelledCount: number;
     failedCount: number;
   };
+  byDay: DayPoint[];
+}
+
+/** API en yeni gunu once dondurur (DESC); grafik icin kronolojik siraya cevirip basit bir alan/cizgi grafik ciziyoruz. Harici kutuphane kullanilmiyor. */
+function RevenueTrendChart({ data }: { data: DayPoint[] }) {
+  const points = [...data].reverse();
+  if (points.length < 2) {
+    return <p className="hint-text">Grafik icin yeterli veri yok (en az 2 gunluk satis gerekiyor).</p>;
+  }
+
+  const width = 600;
+  const height = 160;
+  const pad = 10;
+  const max = Math.max(...points.map((p) => p.revenue), 1);
+  const stepX = (width - pad * 2) / (points.length - 1);
+  const coords = points.map((p, i) => ({
+    x: pad + i * stepX,
+    y: height - pad - (p.revenue / max) * (height - pad * 2),
+    p,
+  }));
+  const linePoints = coords.map((c) => `${c.x},${c.y}`).join(" ");
+  const areaPoints = `${pad},${height - pad} ${linePoints} ${width - pad},${height - pad}`;
+
+  return (
+    <div>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "160px", display: "block" }} preserveAspectRatio="none">
+        <polygon points={areaPoints} fill="rgba(96,165,250,0.15)" />
+        <polyline points={linePoints} fill="none" stroke="#60a5fa" strokeWidth="2" />
+        {coords.map((c) => (
+          <circle key={c.p.day} cx={c.x} cy={c.y} r="3" fill="#60a5fa">
+            <title>{`${c.p.day}: ${formatCurrency(c.p.revenue)} (${c.p.count} islem)`}</title>
+          </circle>
+        ))}
+      </svg>
+      <div className="toolbar hint-text" style={{ marginTop: "0.4rem" }}>
+        <span>{points[0].day}</span>
+        <div className="spacer" />
+        <span>{points[points.length - 1].day}</span>
+      </div>
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -25,8 +72,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (stationId === null) return;
     api.get<Summary>("/api/reports/summary").then(setSummary);
-    // Vardiya sistemi gecici olarak devre disi (bkz. App.tsx) - vardiyasiz satis
-    // bildirimi de bununla birlikte kapatildi, sayfaya link verecek bir yeri kalmadi.
   }, [stationId]);
 
   const dispensing = pumps.filter((p) => p.status === "dispensing").length;
@@ -52,6 +97,11 @@ export default function Dashboard() {
           <span className="label">Aktif Alarm</span>
           <span className="value" style={{ color: alarms.length ? "#f87171" : undefined }}>{alarms.length}</span>
         </div>
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem" }}>
+        <h3 style={{ marginTop: 0 }}>Son 30 Gun Ciro Trendi</h3>
+        {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yukleniyor...</p>}
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
