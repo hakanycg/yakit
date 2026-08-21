@@ -7,6 +7,7 @@ import { purgeExpiredSessions } from "./services/sessionService.js";
 import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { runBackup } from "./services/backupService.js";
+import { checkOfflineStations } from "./services/syncService.js";
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -43,6 +44,11 @@ initWebSocketHub(server);
 
 const sessionCleanupInterval = setInterval(purgeExpiredSessions, 10 * 60 * 1000);
 sessionCleanupInterval.unref();
+
+// Istasyon ajaniyla haberlesme kesilirse (offline-queue mimarisi) alarm uretir.
+// Esik 15 dakika oldugundan 5 dakikada bir kontrol yeterince hassastir.
+const offlineStationInterval = setInterval(checkOfflineStations, 5 * 60 * 1000);
+offlineStationInterval.unref();
 
 // Haftalik/aylik ozet raporu e-postalari: saatlik kontrol yeterli hassasiyette
 // (donem siniri gun bazinda, saniye hassasiyeti gerekmiyor). Hata durumunda

@@ -8,6 +8,7 @@ export interface StationRow {
   latitude: number | null;
   longitude: number | null;
   active: 0 | 1;
+  sync_token: string | null;
   created_at: string;
 }
 
@@ -315,4 +316,24 @@ export interface PumpMaintenanceLogRow {
   description: string;
   user_id: number | null;
   created_at: string;
+}
+
+export interface StationSyncStateRow {
+  station_id: number;
+  last_heartbeat_at: string | null;
+  last_synced_at: string | null;
+  updated_at: string;
+}
+
+export type StationSyncEventStatus = "received" | "applied" | "failed";
+
+export interface StationSyncEventRow {
+  id: number;
+  station_id: number;
+  client_event_id: string;
+  event_type: string;
+  payload: string;
+  status: StationSyncEventStatus;
+  error_message: string | null;
+  received_at: string;
 }

@@ -15,8 +15,10 @@ CREATE TABLE IF NOT EXISTS stations (
   latitude REAL,
   longitude REAL,
   active INTEGER NOT NULL DEFAULT 1,
+  sync_token TEXT,                     -- istasyon ajaninin /api/sync/* uclarinda kimlik dogrulamasi icin (bkz. syncService.ts)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_sync_token ON stations(sync_token) WHERE sync_token IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -344,6 +346,36 @@ CREATE INDEX IF NOT EXISTS idx_fuel_price_history_station_fuel ON fuel_price_his
 -- Ayni plakanin kisa surede tekrarlanan islemlerini (anormal siklik) tespit
 -- etmek icin - bkz. transactionService.ts checkPlateFrequencyAnomaly().
 CREATE INDEX IF NOT EXISTS idx_transactions_station_plate_created ON transactions(station_id, plate, created_at);
+
+-- Offline-queue mimarisi: istasyondaki yerel ajanin merkez sunucuyla en son ne
+-- zaman haberlestigini izler. last_heartbeat_at ajanin "hayattayim" sinyali,
+-- last_synced_at ise kuyruktaki olaylarin merkeze basariyla ulastigi son andir.
+-- Hic satiri olmayan bir istasyon, ajan henuz kurulmamis demektir (offline
+-- alarmi bu yuzden yalniz burada satiri OLAN istasyonlar icin uretilir - bkz.
+-- syncService.ts checkOfflineStations()).
+CREATE TABLE IF NOT EXISTS station_sync_state (
+  station_id INTEGER PRIMARY KEY REFERENCES stations(id),
+  last_heartbeat_at TEXT,
+  last_synced_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+
+-- Istasyon ajaninin, baglanti kesintisi sirasinda yerel kuyruguna aldigi islem
+-- olaylarini merkeze gonderdiginde islenen kayit. client_event_id ajanin
+-- urettigi UUID'dir; ayni olay baglanti kararsizligi yuzunden tekrar
+-- gonderilirse (retry) UNIQUE kisiti sayesinde iki kez islenmez (idempotency).
+CREATE TABLE IF NOT EXISTS station_sync_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  client_event_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,            -- ör. transaction_created | dispensing_started | transaction_completed | payment_result
+  payload TEXT NOT NULL,               -- JSON
+  status TEXT NOT NULL DEFAULT 'received', -- received | applied | failed
+  error_message TEXT,
+  received_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(station_id, client_event_id)
+);
+CREATE INDEX IF NOT EXISTS idx_station_sync_events_station ON station_sync_events(station_id, received_at);
 
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta

@@ -174,6 +174,8 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     db.prepare("DELETE FROM fuel_stock_movements WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM fuel_tanks WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM settings WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM station_sync_events WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM station_sync_state WHERE station_id = ?").run(id);
 
     // Istasyona bagli kullanici hesaplarini da kalici olarak sil (islem kaydi
     // olmadigi icin bu hesaplarin baska bir istasyona tasinmasi anlamsiz).

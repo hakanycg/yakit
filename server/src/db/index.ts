@@ -44,6 +44,8 @@ export function applyMigrations(): void {
   ensureColumn("users", "totp_pending_secret", "TEXT");
   ensureColumn("fuel_tanks", "average_cost_per_liter", "REAL NOT NULL DEFAULT 0");
   ensureColumn("fuel_stock_movements", "unit_cost", "REAL");
+  ensureColumn("stations", "sync_token", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_sync_token ON stations(sync_token) WHERE sync_token IS NOT NULL");
 }
 
 applySchema();

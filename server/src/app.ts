@@ -26,6 +26,7 @@ import { fuelStockRouter } from "./routes/fuelStock.js";
 import { loyaltyRouter } from "./routes/loyalty.js";
 import { discountCodesRouter } from "./routes/discountCodes.js";
 import { fleetAccountsRouter } from "./routes/fleetAccounts.js";
+import { syncRouter } from "./routes/sync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
@@ -63,7 +64,7 @@ export function createApp() {
       origin: env.WEB_ORIGIN,
       credentials: true,
       methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
-      allowedHeaders: ["Content-Type", "X-CSRF-Token", "X-Kiosk-Token"],
+      allowedHeaders: ["Content-Type", "X-CSRF-Token", "X-Kiosk-Token", "X-Station-Sync-Token"],
     })
   );
 
@@ -100,6 +101,7 @@ export function createApp() {
   app.use("/api/loyalty", loyaltyRouter);
   app.use("/api/discount-codes", discountCodesRouter);
   app.use("/api/fleet-accounts", fleetAccountsRouter);
+  app.use("/api/sync", syncRouter);
 
   app.use("/api", notFoundHandler);
 
