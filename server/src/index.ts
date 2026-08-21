@@ -8,6 +8,7 @@ import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from ".
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
+import { checkSafetySensors } from "./services/safetyMonitorService.js";
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -49,6 +50,13 @@ sessionCleanupInterval.unref();
 // Esik 15 dakika oldugundan 5 dakikada bir kontrol yeterince hassastir.
 const offlineStationInterval = setInterval(checkOfflineStations, 5 * 60 * 1000);
 offlineStationInterval.unref();
+
+// Yangin/gaz alarm sistemi (bkz. safetySensorDriver.ts) - can guvenligi soz konusu
+// oldugundan cok daha sik kontrol edilir (diger periyodik islerin aksine saniyeler
+// mertebesinde). Su an noop surucu ile hicbir sey yapmaz, gercek donanim baglaninca
+// devreye girer.
+const safetySensorInterval = setInterval(checkSafetySensors, 10 * 1000);
+safetySensorInterval.unref();
 
 // Haftalik/aylik ozet raporu e-postalari: saatlik kontrol yeterli hassasiyette
 // (donem siniri gun bazinda, saniye hassasiyeti gerekmiyor). Hata durumunda

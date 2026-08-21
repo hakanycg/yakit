@@ -454,7 +454,7 @@ function startDispensing(id: number): void {
 }
 
 /** Operator tarafindan acil durdurma: dolum kismen tamamlanmis olsa bile o ana kadarki miktar uzerinden islem sonlandirilir. */
-export function emergencyStopTransaction(id: number, byUser: UserRow, reason: string): TransactionRow {
+export function emergencyStopTransaction(id: number, byUser: UserRow | null, reason: string): TransactionRow {
   const t = getTransactionOrThrow(id);
   if (t.status !== "dispensing" && t.status !== "authorized" && t.status !== "created") {
     throw new TransactionError("Islem zaten sonlanmis.", 409);
@@ -508,7 +508,7 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
  * islem baslatilamaz. Gorevli fiziksel olarak mudahale edip durumu netlestirene
  * kadar istasyon tamamen kapali kalir.
  */
-export function emergencyStopStation(stationId: number, byUser: UserRow, reason: string): { stoppedTransactions: number } {
+export function emergencyStopStation(stationId: number, byUser: UserRow | null, reason: string): { stoppedTransactions: number } {
   const pumps = listPumps(stationId);
   let stoppedTransactions = 0;
 
@@ -524,11 +524,12 @@ export function emergencyStopStation(stationId: number, byUser: UserRow, reason:
     setPumpStatus(pump.id, "fault", { faultCode: "EMERGENCY_STOP", faultMessage: reason, currentTransactionId: null });
   }
 
+  const triggeredBy = byUser ? byUser.display_name : "Otomatik guvenlik sistemi";
   createAlarm({
     stationId,
     type: "emergency_stop",
     severity: "critical",
-    message: `Istasyon geneli acil durdurma tetiklendi (${byUser.display_name}): ${reason}`,
+    message: `Istasyon geneli acil durdurma tetiklendi (${triggeredBy}): ${reason}`,
   });
   recordAudit({
     user: byUser,
