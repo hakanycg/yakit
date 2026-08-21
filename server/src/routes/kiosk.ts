@@ -294,6 +294,9 @@ router.post(
 
     try {
       const result = await retrieveCheckoutForm(t.station_id, token);
+      // Gecici teshis logu: conversationId uyumsuzlugunun tam olarak neden oldugunu (iyzico
+      // ne dondurdu, ne bekliyorduk) gormek icin. Sorun cozulunce kaldirilabilir.
+      logger.info({ id, expectedConversationId: String(id), result }, "iyzico checkoutForm.retrieve yaniti.");
       if (result.conversationId !== String(id)) {
         throw new IyzicoError("iyzico conversationId uyumsuz.", 502);
       }
