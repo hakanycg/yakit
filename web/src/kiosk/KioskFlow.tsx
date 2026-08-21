@@ -170,7 +170,11 @@ function KioskFlowInner() {
   // Odeme/dolum surerken bosta-kalma sifirlamasi devre disi: fiziksel dolum veya kart
   // odemesi ekrandan bagimsiz surer, ekranin kendiliginden basa donmesi musteriyi yanlis
   // yonlendirir (ör. odeme onaylanmisken "iptal edildi" izlenimi verir).
-  const idleEnabled = step === "plate" || step === "pump" || step === "fuel" || step === "amount" || step === "receipt";
+  // "plate" adiminda henuz hicbir sey girilmemisse (bos/karsilama ekrani) korunacak bir
+  // musteri verisi yoktur - bosta-kalma uyarisini burada da gostermek anlamsiz/rahatsiz
+  // edicidir. Sadece musteri plaka yazmaya/LPR ile taramaya basladiktan sonra devreye girer.
+  const idleEnabled =
+    (step === "plate" && plate.length > 0) || step === "pump" || step === "fuel" || step === "amount" || step === "receipt";
   const idle = useIdleReset(idleEnabled, reset, 60_000, 20_000);
 
   async function handleAmount(selection: AmountSelection) {
