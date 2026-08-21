@@ -16,6 +16,16 @@ export default function ReceiptStep({
 }) {
   const { t, locale } = useKioskLang();
   const failed = transaction.status === "failed" || transaction.status === "cancelled";
+  // "completed" durumundaki bir islemin cancelledReason'i dolduysa, dagitilan miktar
+  // hedeflenenden az kalmis demektir - ama bunun sebebi FARKLI olabilir: depo gercekten
+  // tukendi (musteriye bildirilmesi gereken, beklenen bir durum) veya operator/sunucu
+  // islemi durdurdu (ör. Acil Durdur, restart sonrasi kurtarma) - bu ikincisi musteri
+  // acisindan "depo doldu" degildir, yanlis izlenim verir. Sunucunun bu iki tam olarak
+  // ayni metni urettigi TEK yer startDispensing()'teki ranDry dalidir (bkz.
+  // transactionService.ts); digger tum "completed + cancelledReason" durumlari
+  // (operator durdurmasi, pompa sifirlama, ariza, sunucu restart kurtarmasi) buraya
+  // dahil degildir ve genel bir "kismi dolum" notuyla gosterilir.
+  const isTankDepletionNote = transaction.cancelledReason === "Depo dolum sirasinda tukendi; islem eldeki miktarla sonuclandirildi.";
 
   return (
     <div style={{ textAlign: "center" }}>
@@ -27,7 +37,9 @@ export default function ReceiptStep({
           <p className="hint-text">{t("receipt.successNote")}</p>
           {transaction.cancelledReason && (
             <p className="error-text">
-              {t("receipt.tankFullNote", { liters: formatLiters(transaction.dispensedLiters) })}
+              {isTankDepletionNote
+                ? t("receipt.tankFullNote", { liters: formatLiters(transaction.dispensedLiters) })
+                : t("receipt.partialFillNote", { liters: formatLiters(transaction.dispensedLiters) })}
             </p>
           )}
           <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
