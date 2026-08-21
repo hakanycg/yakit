@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { kioskApi, type StationResponse } from "./kioskApi";
 import { useTopicSubscription } from "../shared/useWebSocket";
 import type { FuelTank, FuelType, Pump, Transaction } from "../shared/types";
+import WelcomeStep from "./steps/WelcomeStep";
 import PlateStep from "./steps/PlateStep";
 import PumpStep from "./steps/PumpStep";
 import FuelStep from "./steps/FuelStep";
@@ -16,7 +17,7 @@ import { KioskLangProvider, LanguageSwitcher, RTL_LANGS, useKioskLang } from "./
 import PrivacyNoticeLink from "./PrivacyNotice";
 import { useIdleReset } from "./useIdleReset";
 
-type Step = "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
+type Step = "welcome" | "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
 const STEP_ORDER: Step[] = ["plate", "pump", "fuel", "amount", "payment", "dispense", "receipt"];
 
@@ -40,7 +41,7 @@ function KioskFlowInner() {
   const { slug } = useParams<{ slug: string }>();
   const [station, setStation] = useState<StationResponse | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [step, setStep] = useState<Step>("plate");
+  const [step, setStep] = useState<Step>("welcome");
   const [plate, setPlate] = useState("");
   const [plateSource, setPlateSource] = useState<"manual" | "lpr">("manual");
   const [pump, setPump] = useState<Pump | null>(null);
@@ -156,7 +157,9 @@ function KioskFlowInner() {
   }, [step, transaction, accessToken, applyTransactionUpdate]);
 
   function reset() {
-    setStep("plate");
+    // Bir sonraki musteri icin kiosk her zaman karsilama/dil secim ekranina doner - onceki
+    // musterinin plakasi/bilgileri gorunmez, dil secimi de sifirdan yapilir (bkz. WelcomeStep).
+    setStep("welcome");
     setPlate("");
     setPump(null);
     setFuelType(null);
@@ -232,19 +235,27 @@ function KioskFlowInner() {
     );
   }
 
-  const stepIndex = STEP_ORDER.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
+  const stepIndex =
+    step === "welcome" ? -1 : STEP_ORDER.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
 
   return (
     <div className="kiosk-shell" dir={dir}>
       <div className="kiosk-card">
-        <LanguageSwitcher />
-        <div className="kiosk-steps">
-          {STEP_ORDER.map((s, i) => (
-            <div key={s} className={`step ${i <= stepIndex ? "done" : ""}`} />
-          ))}
-        </div>
+        {/* Karsilama ekraninin kendi buyuk dil secim karti var (bkz. WelcomeStep) - ayni
+            ekranda kucuk kose anahtarini ve henuz hicbir seyin baslamadigi adim cubugunu
+            tekrar gostermek gereksiz/karmasik olurdu. */}
+        {step !== "welcome" && <LanguageSwitcher />}
+        {step !== "welcome" && (
+          <div className="kiosk-steps">
+            {STEP_ORDER.map((s, i) => (
+              <div key={s} className={`step ${i <= stepIndex ? "done" : ""}`} />
+            ))}
+          </div>
+        )}
 
         {error && step !== "amount" && <p className="error-text">{error}</p>}
+
+        {step === "welcome" && <WelcomeStep stationName={station.station.name} onNext={() => setStep("plate")} />}
 
         {step === "plate" && (
           <PlateStep

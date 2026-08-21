@@ -51,6 +51,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "transactionStatus.cancelled": "Iptal Edildi",
     "transactionStatus.failed": "Basarisiz",
 
+    "welcome.title": "Hosgeldiniz",
+    "welcome.chooseLanguage": "Devam etmek icin lutfen dilinizi secin",
+
     "plate.title": "Hosgeldiniz",
     "plate.subtitle": "Baslamak icin arac plakanizi girin veya otomatik plaka tanima (LPR) ile taratin.",
     "plate.label": "Plaka",
@@ -196,6 +199,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "transactionStatus.completed": "Completed",
     "transactionStatus.cancelled": "Cancelled",
     "transactionStatus.failed": "Failed",
+
+    "welcome.title": "Welcome",
+    "welcome.chooseLanguage": "Please select your language to continue",
 
     "plate.title": "Welcome",
     "plate.subtitle": "Enter your license plate to begin, or scan it with automatic plate recognition (LPR).",
@@ -343,6 +349,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "transactionStatus.cancelled": "Отменено",
     "transactionStatus.failed": "Неудачно",
 
+    "welcome.title": "Добро пожаловать",
+    "welcome.chooseLanguage": "Пожалуйста, выберите язык, чтобы продолжить",
+
     "plate.title": "Добро пожаловать",
     "plate.subtitle": "Введите номер автомобиля вручную или отсканируйте его с помощью автоматического распознавания номеров (LPR).",
     "plate.label": "Номерной знак",
@@ -489,6 +498,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "transactionStatus.cancelled": "Storniert",
     "transactionStatus.failed": "Fehlgeschlagen",
 
+    "welcome.title": "Willkommen",
+    "welcome.chooseLanguage": "Bitte wählen Sie Ihre Sprache, um fortzufahren",
+
     "plate.title": "Willkommen",
     "plate.subtitle": "Geben Sie Ihr Kennzeichen ein, um zu beginnen, oder scannen Sie es mit der automatischen Kennzeichenerkennung (LPR).",
     "plate.label": "Kennzeichen",
@@ -634,6 +646,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "transactionStatus.completed": "مكتملة",
     "transactionStatus.cancelled": "ملغاة",
     "transactionStatus.failed": "فشلت",
+
+    "welcome.title": "مرحبًا بكم",
+    "welcome.chooseLanguage": "الرجاء اختيار لغتك للمتابعة",
 
     "plate.title": "مرحبًا بكم",
     "plate.subtitle": "أدخل لوحة السيارة يدويًا للبدء، أو امسحها ضوئيًا باستخدام التعرف التلقائي على اللوحات (LPR).",
@@ -808,13 +823,22 @@ export function useKioskLang(): KioskLangState {
   return ctx;
 }
 
-const LANG_OPTIONS: Array<{ code: KioskLang; label: string }> = [
+export const LANG_OPTIONS: Array<{ code: KioskLang; label: string }> = [
   { code: "tr", label: "TR" },
   { code: "en", label: "EN" },
   { code: "ru", label: "RU" },
   { code: "de", label: "DE" },
   { code: "ar", label: "AR" },
 ];
+
+/** Karsilama ekranindaki buyuk dil secim kartlarinda kisaltma yerine kendi dilinde tam ad gosterilir. */
+export const LANG_NATIVE_NAMES: Record<KioskLang, string> = {
+  tr: "Türkçe",
+  en: "English",
+  ru: "Русский",
+  de: "Deutsch",
+  ar: "العربية",
+};
 
 export function LanguageSwitcher() {
   const { lang, setLang } = useKioskLang();
