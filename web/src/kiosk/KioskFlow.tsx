@@ -57,6 +57,7 @@ function KioskFlowInner() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [targetLiters, setTargetLiters] = useState(0);
+  const [estimatedPricePerLiter, setEstimatedPricePerLiter] = useState<number | null>(null);
   const online = useConnectivity();
 
   const loadStation = useCallback(() => {
@@ -91,6 +92,15 @@ function KioskFlowInner() {
         ),
       };
     });
+  });
+
+  // Kiosk sayfasi genelde saatlerce/gunlerce hic yenilenmeden ayni sekmede acik
+  // kalir; fiyat degisikligi (manuel veya zamanlanmis) ile ekranda gorunen fiyat
+  // arasinda uzun bir bayatlama penceresi olusmamasi icin fiyatlar da (stok gibi)
+  // canli izlenir - musteri her zaman guncel fiyati gorur.
+  useTopicSubscription(station ? `fuel-prices:${station.station.id}` : null, (payload) => {
+    const prices = payload as StationResponse["fuelPrices"];
+    setStation((prev) => (prev ? { ...prev, fuelPrices: prices } : prev));
   });
 
   // iyzico odemesi tamamlandiginda musteri, sunucunun sonucu dogruladigi callback
@@ -174,6 +184,7 @@ function KioskFlowInner() {
     setTransaction(null);
     setAccessToken(null);
     setError(null);
+    setEstimatedPricePerLiter(null);
     loadStation();
   }
 
@@ -226,6 +237,10 @@ function KioskFlowInner() {
     const price = station.fuelPrices.find((f) => f.fuelType === fuelType)!;
     const liters = selection.mode === "liters" ? selection.liters : selection.mode === "amount" ? selection.amount / price.pricePerLiter : 55;
     setTargetLiters(liters);
+    // Musterinin tutar secimi yaparken ekranda gordugu fiyat - islem olusturulurken
+    // (sunucuda) fiyat degismis olabilir; PaymentStep bu farki tespit edip musteriye
+    // acikca bildirir (bkz. asagidaki "priceChangedNote").
+    setEstimatedPricePerLiter(price.pricePerLiter);
 
     try {
       const res = await kioskApi.createTransaction({
@@ -345,6 +360,7 @@ function KioskFlowInner() {
             transaction={transaction}
             accessToken={accessToken}
             iyzicoEnabled={station.iyzicoEnabled}
+            estimatedPricePerLiter={estimatedPricePerLiter}
             onPaid={(t) => { setTransaction(t); setStep("dispense"); }}
             onCancel={reset}
           />

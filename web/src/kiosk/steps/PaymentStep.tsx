@@ -6,16 +6,31 @@ import { stashPendingKioskTransaction } from "../resumeStorage";
 import type { Transaction } from "../../shared/types";
 import { useKioskLang } from "../i18n";
 
+/** Musterinin tutar secimi ekraninda gordugu fiyat ile islemin sunucuda kilitlendigi
+ * gercek fiyat farkliysa (nadiren, tam o sirada fiyat degistiyse), odeme ekraninda
+ * bunu acikca belirten kisa bir not dondurur; aksi halde null. */
+function usePriceChangeNote(estimatedPricePerLiter: number | null, transaction: Transaction): string | null {
+  const { t, locale } = useKioskLang();
+  if (estimatedPricePerLiter === null) return null;
+  if (Math.abs(estimatedPricePerLiter - transaction.pricePerLiter) < 0.005) return null;
+  return t("payment.priceChangedNote", {
+    oldPrice: formatCurrency(estimatedPricePerLiter, locale),
+    newPrice: formatCurrency(transaction.pricePerLiter, locale),
+  });
+}
+
 export default function PaymentStep({
   transaction,
   accessToken,
   iyzicoEnabled,
+  estimatedPricePerLiter,
   onPaid,
   onCancel,
 }: {
   transaction: Transaction;
   accessToken: string;
   iyzicoEnabled: boolean;
+  estimatedPricePerLiter: number | null;
   onPaid: (t: Transaction) => void;
   onCancel: () => void;
 }) {
@@ -52,6 +67,7 @@ export default function PaymentStep({
         account={fleetAccount}
         transaction={transaction}
         accessToken={accessToken}
+        estimatedPricePerLiter={estimatedPricePerLiter}
         onPaid={onPaid}
         onCancel={onCancel}
         onUseCard={() => setSkipFleet(true)}
@@ -60,15 +76,31 @@ export default function PaymentStep({
   }
 
   if (iyzicoEnabled) {
-    return <IyzicoPaymentPanel transaction={transaction} accessToken={accessToken} onCancel={onCancel} />;
+    return (
+      <IyzicoPaymentPanel
+        transaction={transaction}
+        accessToken={accessToken}
+        estimatedPricePerLiter={estimatedPricePerLiter}
+        onCancel={onCancel}
+      />
+    );
   }
-  return <SimulatedCardPanel transaction={transaction} accessToken={accessToken} onPaid={onPaid} onCancel={onCancel} />;
+  return (
+    <SimulatedCardPanel
+      transaction={transaction}
+      accessToken={accessToken}
+      estimatedPricePerLiter={estimatedPricePerLiter}
+      onPaid={onPaid}
+      onCancel={onCancel}
+    />
+  );
 }
 
 function FleetChoicePanel({
   account,
   transaction,
   accessToken,
+  estimatedPricePerLiter,
   onPaid,
   onCancel,
   onUseCard,
@@ -76,11 +108,13 @@ function FleetChoicePanel({
   account: FleetAccountSummary;
   transaction: Transaction;
   accessToken: string;
+  estimatedPricePerLiter: number | null;
   onPaid: (t: Transaction) => void;
   onCancel: () => void;
   onUseCard: () => void;
 }) {
   const { t, locale } = useKioskLang();
+  const priceChangeNote = usePriceChangeNote(estimatedPricePerLiter, transaction);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,6 +143,7 @@ function FleetChoicePanel({
     <div>
       <h2>{t("payment.fleetTitle")}</h2>
       <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
+      {priceChangeNote && <p className="hint-text" style={{ color: "var(--accent-2)" }}>{priceChangeNote}</p>}
       <p className="hint-text">{t("payment.estimateNote")}</p>
 
       <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
@@ -134,13 +169,16 @@ function FleetChoicePanel({
 function IyzicoPaymentPanel({
   transaction,
   accessToken,
+  estimatedPricePerLiter,
   onCancel,
 }: {
   transaction: Transaction;
   accessToken: string;
+  estimatedPricePerLiter: number | null;
   onCancel: () => void;
 }) {
   const { t, locale } = useKioskLang();
+  const priceChangeNote = usePriceChangeNote(estimatedPricePerLiter, transaction);
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null);
@@ -199,6 +237,7 @@ function IyzicoPaymentPanel({
           })}
         </p>
       )}
+      {priceChangeNote && <p className="hint-text" style={{ color: "var(--accent-2)" }}>{priceChangeNote}</p>}
       <p className="hint-text">{t("payment.estimateNote")}</p>
       <p className="hint-text">{t("payment.iyzicoSecureNote")}</p>
 
@@ -221,15 +260,18 @@ function IyzicoPaymentPanel({
 function SimulatedCardPanel({
   transaction,
   accessToken,
+  estimatedPricePerLiter,
   onPaid,
   onCancel,
 }: {
   transaction: Transaction;
   accessToken: string;
+  estimatedPricePerLiter: number | null;
   onPaid: (t: Transaction) => void;
   onCancel: () => void;
 }) {
   const { t, locale } = useKioskLang();
+  const priceChangeNote = usePriceChangeNote(estimatedPricePerLiter, transaction);
   const [cardNumber, setCardNumber] = useState("");
   const [holderName, setHolderName] = useState("");
   const [expiryMonth, setExpiryMonth] = useState("12");
@@ -282,6 +324,7 @@ function SimulatedCardPanel({
           })}
         </p>
       )}
+      {priceChangeNote && <p className="hint-text" style={{ color: "var(--accent-2)" }}>{priceChangeNote}</p>}
       <p className="hint-text">{t("payment.estimateNote")}</p>
 
       <form onSubmit={submit}>

@@ -2,6 +2,7 @@ import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, ScheduledPriceChangeRow, UserRow } from "../db/types.js";
 import { recordAudit } from "./auditService.js";
 import { logger } from "../utils/logger.js";
+import { broadcastFuelPrices } from "./fuelPriceService.js";
 
 export class ScheduledPriceError extends Error {
   constructor(
@@ -89,6 +90,7 @@ export function applyDuePriceChanges(): void {
         details: { pricePerLiter: schedule.price_per_liter, scheduleId: schedule.id },
         stationId: schedule.station_id,
       });
+      broadcastFuelPrices(schedule.station_id);
     } catch (err) {
       logger.error({ err, scheduleId: schedule.id }, "Planlanmis fiyat degisikligi uygulanamadi.");
     }

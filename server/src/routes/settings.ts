@@ -10,6 +10,7 @@ import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../serv
 import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
 import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
 import { ScheduledPriceError, cancelSchedule, createSchedule, listSchedules, serializeSchedule } from "../services/scheduledPriceService.js";
+import { broadcastFuelPrices } from "../services/fuelPriceService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -51,6 +52,7 @@ router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => 
     ip: req.ip,
     stationId: req.stationId,
   });
+  broadcastFuelPrices(req.stationId!);
   res.json({ ok: true });
 });
 

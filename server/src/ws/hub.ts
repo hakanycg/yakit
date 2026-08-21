@@ -67,10 +67,10 @@ function isStaffForStation(state: ClientState, stationId: number): boolean {
   return state.stationId === stationId;
 }
 
-/** "pumps:<id>"/"fuel-stock:<id>" herkese acik (kiosk dahil); "transactions:<id>"/"alarms:<id>" o istasyonun personeline veya super_admin'e ozeldir. */
+/** "pumps:<id>"/"fuel-stock:<id>"/"fuel-prices:<id>" herkese acik (kiosk dahil); "transactions:<id>"/"alarms:<id>" o istasyonun personeline veya super_admin'e ozeldir. */
 function isTopicAllowed(topic: string, state: ClientState, accessToken?: string): boolean {
-  if (topic.startsWith("pumps:") || topic.startsWith("fuel-stock:")) {
-    const prefix = topic.startsWith("pumps:") ? "pumps:" : "fuel-stock:";
+  if (topic.startsWith("pumps:") || topic.startsWith("fuel-stock:") || topic.startsWith("fuel-prices:")) {
+    const prefix = topic.startsWith("pumps:") ? "pumps:" : topic.startsWith("fuel-stock:") ? "fuel-stock:" : "fuel-prices:";
     const stationId = Number(topic.slice(prefix.length));
     return Number.isInteger(stationId);
   }
