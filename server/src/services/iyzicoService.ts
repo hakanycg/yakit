@@ -89,7 +89,12 @@ export function initializeCheckoutForm(input: InitCheckoutFormInput): Promise<In
       name: "Kiosk",
       surname: "Musteri",
       gsmNumber: "+905000000000",
-      email: "kiosk-musteri@yakit-istasyonu.local",
+      // NOT: ".local" gecerli/kayit edilebilir bir TLD degildir (RFC 6762 - yerel ag/mDNS
+      // icin ayrilmis sozde bir uzanti); iyzico bunu gecersiz e-posta formati olarak
+      // reddediyordu ("email hatali format ile gonderilmistir"). Kiosk'ta gercek musteri
+      // e-postasi odemeden ONCE toplanmadigi icin (makbuz adiminda, odemeden SONRA
+      // opsiyonel olarak istenir), burada gecerli FORMATTA sabit bir yer tutucu kullanilir.
+      email: "kiosk-musteri@yakit-istasyonu.com",
       identityNumber: "11111111111",
       lastLoginDate: new Date().toISOString().replace("T", " ").slice(0, 19),
       registrationDate: new Date().toISOString().replace("T", " ").slice(0, 19),
