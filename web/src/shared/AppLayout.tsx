@@ -60,6 +60,7 @@ export default function AppLayout() {
               <NavLink to="/admin/kampanyalar">Kampanyalar</NavLink>
               <NavLink to="/admin/filo-hesaplari">Filo Hesaplari</NavLink>
               <NavLink to="/admin/sadakat-puanlari">Sadakat Puanlari</NavLink>
+              <NavLink to="/admin/kvkk">KVKK Basvurulari</NavLink>
               <NavLink to="/admin/kullanicilar">Kullanici / Rol Yonetimi</NavLink>
               <NavLink to="/admin/ayarlar">Ayarlar</NavLink>
             </>

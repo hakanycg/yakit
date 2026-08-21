@@ -18,6 +18,7 @@ import FuelStock from "./pages/operator/FuelStock";
 import DiscountCodes from "./pages/admin/DiscountCodes";
 import FleetAccounts from "./pages/admin/FleetAccounts";
 import LoyaltyLookup from "./pages/admin/LoyaltyLookup";
+import KvkkRequests from "./pages/admin/KvkkRequests";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
 import Settings from "./pages/admin/Settings";
@@ -53,6 +54,7 @@ export default function App() {
             <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
             <Route path="/admin/filo-hesaplari" element={<FleetAccounts />} />
             <Route path="/admin/sadakat-puanlari" element={<LoyaltyLookup />} />
+            <Route path="/admin/kvkk" element={<KvkkRequests />} />
           </Route>
 
           <Route element={<RequireRole roles={["super_admin"]} />}>

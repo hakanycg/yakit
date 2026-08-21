@@ -27,6 +27,7 @@ import { loyaltyRouter } from "./routes/loyalty.js";
 import { discountCodesRouter } from "./routes/discountCodes.js";
 import { fleetAccountsRouter } from "./routes/fleetAccounts.js";
 import { syncRouter } from "./routes/sync.js";
+import { kvkkRouter } from "./routes/kvkk.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
@@ -102,6 +103,7 @@ export function createApp() {
   app.use("/api/discount-codes", discountCodesRouter);
   app.use("/api/fleet-accounts", fleetAccountsRouter);
   app.use("/api/sync", syncRouter);
+  app.use("/api/kvkk", kvkkRouter);
 
   app.use("/api", notFoundHandler);
 
