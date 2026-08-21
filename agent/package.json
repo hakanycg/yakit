@@ -1,0 +1,33 @@
+{
+  "name": "yakit-agent",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Istasyonda calisan yerel ajan: merkez sunucuyla kimlik dogrulamasini (sync_token) tek basina o tutar, yerel outbox'i arka planda senkronlar ve kiosk/pompa yazilimlarinin kullanabilecegi bir onbellek + cevrimdisi durumu sunar.",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.3.0",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "pino": "^9.4.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.14.0",
+    "@typescript-eslint/eslint-plugin": "^7.18.0",
+    "@typescript-eslint/parser": "^7.18.0",
+    "eslint": "^8.57.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.4",
+    "vitest": "^4.1.11"
+  }
+}
