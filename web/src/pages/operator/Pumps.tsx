@@ -14,6 +14,7 @@ export default function Pumps() {
   const [maintenanceTarget, setMaintenanceTarget] = useState<Pump | null>(null);
 
   const canOperate = user?.role === "admin" || user?.role === "operator" || user?.role === "super_admin";
+  const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
 
   async function runAction(id: number, action: "start" | "stop" | "reset") {
     setBusyId(id);
@@ -29,7 +30,15 @@ export default function Pumps() {
 
   return (
     <div>
-      <h2>Pompalar</h2>
+      <div className="toolbar">
+        <h2 style={{ margin: 0 }}>Pompalar</h2>
+        <div className="spacer" />
+        {canOperate && (
+          <button className="danger" onClick={() => setShowEmergencyDialog(true)}>
+            🛑 ACIL DURDUR (Tum Istasyon)
+          </button>
+        )}
+      </div>
       {error && <p className="error-text">{error}</p>}
       <div className="grid cols-2">
         {pumps.map((p) => (
@@ -69,6 +78,66 @@ export default function Pumps() {
 
       {faultTarget && <FaultDialog pump={faultTarget} onClose={() => setFaultTarget(null)} />}
       {maintenanceTarget && <MaintenanceDialog pump={maintenanceTarget} onClose={() => setMaintenanceTarget(null)} />}
+      {showEmergencyDialog && <EmergencyStopDialog onClose={() => setShowEmergencyDialog(false)} />}
+    </div>
+  );
+}
+
+function EmergencyStopDialog({ onClose }: { onClose: () => void }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [done, setDone] = useState<number | null>(null);
+
+  async function submit() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await api.post<{ stoppedTransactions: number }>("/api/pumps/emergency-stop-all", reason.trim() ? { reason: reason.trim() } : {});
+      setDone(res.stoppedTransactions);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Acil durdurma basarisiz.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}>
+      <div className="card" style={{ width: "min(460px, 92vw)" }}>
+        {done === null ? (
+          <>
+            <h3 style={{ marginTop: 0 }}>Tum Istasyonu Acil Durdur</h3>
+            <p className="error-text">
+              Bu islem istasyondaki TUM pompalari (bosta olanlar dahil) aninda devre disi birakir. Hicbir yeni
+              islem baslatilamaz, aktif dolumlar durdurulur. Yalnizca yangin, dokulme veya benzeri gercek bir acil
+              durumda kullanin.
+            </p>
+            <label>Sebep (opsiyonel)</label>
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="orn: Yangin suphesi, pompa 2 civari" />
+            {error && <p className="error-text">{error}</p>}
+            <div className="toolbar" style={{ marginTop: "1.25rem" }}>
+              <button onClick={onClose} disabled={submitting}>Vazgec</button>
+              <div className="spacer" />
+              <button className="danger" onClick={submit} disabled={submitting}>
+                {submitting ? "Durduruluyor..." : "Evet, Tum Istasyonu Durdur"}
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <h3 style={{ marginTop: 0 }}>Istasyon Durduruldu</h3>
+            <p>
+              Tum pompalar devre disi birakildi{done > 0 ? ` (${done} aktif islem sonlandirildi)` : ""}. Durum
+              netlesince her pompayi tek tek "Reset" ile tekrar hizmete alabilirsiniz.
+            </p>
+            <div className="toolbar" style={{ marginTop: "1.25rem" }}>
+              <div className="spacer" />
+              <button className="primary" onClick={onClose}>Kapat</button>
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }

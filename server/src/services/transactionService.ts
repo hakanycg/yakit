@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, TransactionRow, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
-import { getPump, setPumpStatus } from "./pumpService.js";
+import { getPump, listPumps, setPumpStatus } from "./pumpService.js";
 import { processVirtualPayment, type VirtualCardInput } from "./paymentService.js";
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
@@ -499,6 +499,47 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
   void settleIyzicoPreAuthIfNeeded(updated);
   refundFleetChargeIfNeeded(t, wasDispensing);
   return updated;
+}
+
+/**
+ * Yangin/dokulme gibi acil bir durumda istasyondaki TUM pompalari tek seferde
+ * devre disi birakir - tekli emergencyStopTransaction'in aksine, aktif islemi
+ * olmayan bosta (idle) pompalari da "fault" durumuna alir, boylece hicbir yeni
+ * islem baslatilamaz. Gorevli fiziksel olarak mudahale edip durumu netlestirene
+ * kadar istasyon tamamen kapali kalir.
+ */
+export function emergencyStopStation(stationId: number, byUser: UserRow, reason: string): { stoppedTransactions: number } {
+  const pumps = listPumps(stationId);
+  let stoppedTransactions = 0;
+
+  for (const pump of pumps) {
+    if (pump.current_transaction_id) {
+      try {
+        emergencyStopTransaction(pump.current_transaction_id, byUser, reason);
+        stoppedTransactions += 1;
+      } catch (err) {
+        if (!(err instanceof TransactionError)) throw err;
+      }
+    }
+    setPumpStatus(pump.id, "fault", { faultCode: "EMERGENCY_STOP", faultMessage: reason, currentTransactionId: null });
+  }
+
+  createAlarm({
+    stationId,
+    type: "emergency_stop",
+    severity: "critical",
+    message: `Istasyon geneli acil durdurma tetiklendi (${byUser.display_name}): ${reason}`,
+  });
+  recordAudit({
+    user: byUser,
+    action: "station_emergency_stop",
+    entityType: "station",
+    entityId: stationId,
+    details: { reason, stoppedTransactions, pumpCount: pumps.length },
+    stationId,
+  });
+
+  return { stoppedTransactions };
 }
 
 /** Filo hesabindan tahsil edilmis ama hic yakit dagitilmadan durdurulan bir islemde tahsilati geri alir. */

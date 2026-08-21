@@ -7,6 +7,7 @@ import {
   cancelPendingTransaction,
   chargeAmount,
   createTransaction,
+  emergencyStopStation,
   emergencyStopTransaction,
   finalizeTransactionPayment,
   markIyzicoPending,
@@ -318,5 +319,48 @@ describe("plate frequency anomaly detection", () => {
       .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
       .all(station.station_id, "plate_frequency_anomaly");
     expect(alarms.length).toBe(0);
+  });
+});
+
+describe("emergencyStopStation", () => {
+  it("stops the active transaction and faults every pump at the station, including idle ones", () => {
+    const { station, pumpId } = setUpStationForTransactions();
+    const idlePumpId = createTestPump(station.id, ["benzin"]);
+    const staff = createTestUser(null, "admin");
+
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34ACL001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    payTransaction(transaction.id, accessToken, VALID_CARD);
+
+    const result = emergencyStopStation(station.id, staff, "Yangin suphesi");
+    expect(result.stoppedTransactions).toBe(1);
+
+    const activePump = db.prepare("SELECT * FROM pumps WHERE id = ?").get(pumpId) as { status: string; fault_code: string | null; current_transaction_id: number | null };
+    expect(activePump.status).toBe("fault");
+    expect(activePump.fault_code).toBe("EMERGENCY_STOP");
+    expect(activePump.current_transaction_id).toBeNull();
+
+    const idlePump = db.prepare("SELECT * FROM pumps WHERE id = ?").get(idlePumpId) as { status: string; fault_code: string | null };
+    expect(idlePump.status).toBe("fault");
+    expect(idlePump.fault_code).toBe("EMERGENCY_STOP");
+
+    const stoppedTransaction = db.prepare("SELECT status FROM transactions WHERE id = ?").get(transaction.id) as { status: string };
+    expect(stoppedTransaction.status).toBe("cancelled");
+
+    const alarms = db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+      .all(station.id, "emergency_stop");
+    expect(alarms.length).toBe(1);
+    expect(alarms[0]!.severity).toBe("critical");
+  });
+
+  it("faults every pump even when none has an active transaction", () => {
+    const { station, pumpId } = setUpStationForTransactions();
+    const staff = createTestUser(null, "admin");
+
+    const result = emergencyStopStation(station.id, staff, "Test - islem yokken tetiklendi");
+    expect(result.stoppedTransactions).toBe(0);
+
+    const pump = db.prepare("SELECT status FROM pumps WHERE id = ?").get(pumpId) as { status: string };
+    expect(pump.status).toBe("fault");
   });
 });

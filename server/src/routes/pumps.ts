@@ -3,7 +3,7 @@ import { z } from "zod";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { getPump, listPumps, serializePump, setPumpStatus } from "../services/pumpService.js";
-import { emergencyStopTransaction, TransactionError } from "../services/transactionService.js";
+import { emergencyStopStation, emergencyStopTransaction, TransactionError } from "../services/transactionService.js";
 import { createAlarm } from "../services/alarmService.js";
 import { recordAudit } from "../services/auditService.js";
 import { addMaintenanceLog, listMaintenanceLogs, serializeMaintenanceLog } from "../services/pumpMaintenanceService.js";
@@ -19,6 +19,18 @@ function pumpInScope(req: { stationId?: number }, pumpId: number) {
 
 router.get("/", (req, res) => {
   res.json({ pumps: listPumps(req.stationId!).map(serializePump) });
+});
+
+const emergencyStopAllSchema = z.object({ reason: z.string().trim().max(300).optional() });
+
+// Yangin/dokulme gibi acil bir durumda tek tikla istasyondaki TUM pompalari devre
+// disi birakir - bkz. transactionService.ts emergencyStopStation(). Gorevli fiziksel
+// olarak mudahale edip her pompayi tek tek /reset ile tekrar hizmete alana kadar
+// istasyon tamamen kapali kalir.
+router.post("/emergency-stop-all", requireRole("admin", "operator"), validateBody(emergencyStopAllSchema), (req, res) => {
+  const { reason } = req.body as z.infer<typeof emergencyStopAllSchema>;
+  const result = emergencyStopStation(req.stationId!, req.user!, reason?.trim() || "Acil durdurma butonuna basildi.");
+  res.json({ pumps: listPumps(req.stationId!).map(serializePump), stoppedTransactions: result.stoppedTransactions });
 });
 
 router.post("/:id/stop", requireRole("admin", "operator"), (req, res) => {
