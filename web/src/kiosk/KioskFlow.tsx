@@ -21,6 +21,7 @@ import { playClickSound, speak } from "./voiceGuidance";
 import { useAttractMode } from "./useAttractMode";
 import AttractMode from "./AttractMode";
 import { useIdleReset } from "./useIdleReset";
+import { useConnectivity } from "./useConnectivity";
 
 type Step = "welcome" | "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
@@ -56,6 +57,7 @@ function KioskFlowInner() {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [targetLiters, setTargetLiters] = useState(0);
+  const online = useConnectivity();
 
   const loadStation = useCallback(() => {
     if (!slug) return;
@@ -292,9 +294,14 @@ function KioskFlowInner() {
           </div>
         )}
 
+        {!online && <p className="error-text kiosk-offline-banner">{t("offline.banner")}</p>}
+
         {error && step !== "amount" && <p className="error-text">{error}</p>}
 
-        {step === "welcome" && <WelcomeStep stationName={station.station.name} onNext={() => setStep("plate")} />}
+        {step === "welcome" && !online && <p className="hint-text">{t("offline.welcomeBlocked")}</p>}
+        {step === "welcome" && (
+          <WelcomeStep stationName={station.station.name} onNext={() => online && setStep("plate")} />
+        )}
 
         {step === "plate" && (
           <PlateStep

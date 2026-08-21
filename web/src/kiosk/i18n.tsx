@@ -173,6 +173,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "attract.percentOff": "%{value} indirim",
     "attract.fixedOff": "{value} indirim",
     "attract.tapToStart": "Baslamak icin ekrana dokunun",
+    "offline.banner": "Baglanti sorunu - fiyatlar/islemler guncel olmayabilir.",
+    "offline.welcomeBlocked": "Sistem su anda baglanti kuramiyor. Lutfen birkac dakika icinde tekrar deneyin veya istasyon gorevlisine bildirin.",
 
     "voice.toggleOnLabel": "Sesli yonlendirmeyi ac",
     "voice.toggleOffLabel": "Sesli yonlendirmeyi kapat",
@@ -349,6 +351,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "attract.percentOff": "{value}% off",
     "attract.fixedOff": "{value} off",
     "attract.tapToStart": "Tap the screen to start",
+    "offline.banner": "Connection issue - prices/transactions may be outdated.",
+    "offline.welcomeBlocked": "The system cannot connect right now. Please try again in a few minutes or notify station staff.",
 
     "voice.toggleOnLabel": "Turn on voice guidance",
     "voice.toggleOffLabel": "Turn off voice guidance",
@@ -525,6 +529,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "attract.percentOff": "скидка {value}%",
     "attract.fixedOff": "скидка {value}",
     "attract.tapToStart": "Коснитесь экрана, чтобы начать",
+    "offline.banner": "Проблема с подключением - цены/операции могут быть устаревшими.",
+    "offline.welcomeBlocked": "Система сейчас не может подключиться. Попробуйте снова через несколько минут или сообщите персоналу станции.",
 
     "voice.toggleOnLabel": "Включить голосовое сопровождение",
     "voice.toggleOffLabel": "Выключить голосовое сопровождение",
@@ -701,6 +707,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "attract.percentOff": "{value}% Rabatt",
     "attract.fixedOff": "{value} Rabatt",
     "attract.tapToStart": "Berühren Sie den Bildschirm, um zu beginnen",
+    "offline.banner": "Verbindungsproblem - Preise/Transaktionen könnten veraltet sein.",
+    "offline.welcomeBlocked": "Das System kann sich gerade nicht verbinden. Bitte versuchen Sie es in ein paar Minuten erneut oder informieren Sie das Stationspersonal.",
 
     "voice.toggleOnLabel": "Sprachführung einschalten",
     "voice.toggleOffLabel": "Sprachführung ausschalten",
@@ -877,6 +885,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "attract.percentOff": "خصم {value}%",
     "attract.fixedOff": "خصم {value}",
     "attract.tapToStart": "المس الشاشة للبدء",
+    "offline.banner": "مشكلة في الاتصال - قد تكون الأسعار/المعاملات غير محدثة.",
+    "offline.welcomeBlocked": "لا يمكن للنظام الاتصال حاليًا. يرجى المحاولة مرة أخرى خلال بضع دقائق أو إبلاغ موظفي المحطة.",
 
     "voice.toggleOnLabel": "تشغيل الإرشاد الصوتي",
     "voice.toggleOffLabel": "إيقاف الإرشاد الصوتي",
