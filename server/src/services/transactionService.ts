@@ -275,11 +275,14 @@ async function settleIyzicoPreAuthIfNeeded(t: TransactionRow): Promise<void> {
 
   try {
     if (t.dispensed_liters > 0) {
-      await capturePostAuth(t.station_id, t.id, t.payment_reference, chargeAmount(t));
+      const captured = chargeAmount(t);
+      await capturePostAuth(t.station_id, t.id, t.payment_reference, captured);
       touch(t.id, { payment_status: "captured" });
+      logger.info({ transactionId: t.id, capturedAmount: captured }, "iyzico on-provizyon gercek tutar uzerinden kapatildi (postAuth).");
     } else {
       await cancelPreAuthHold(t.station_id, t.id, t.payment_reference);
       touch(t.id, { payment_status: "voided" });
+      logger.info({ transactionId: t.id }, "iyzico on-provizyon blokaji sifir tahsilatla serbest birakildi (cancel).");
     }
   } catch (err) {
     logger.error({ err, transactionId: t.id }, "iyzico on-provizyon kapama/iptal islemi basarisiz - manuel mudahale gerekiyor.");
