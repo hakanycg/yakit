@@ -5,6 +5,7 @@ import { openAgentDb } from "./db.js";
 import { createAgentApp } from "./server.js";
 import { saveCacheSnapshot } from "./cacheStore.js";
 import { resetConnectivityState } from "./connectivity.js";
+import { noopPrinterDriver, setPrinterDriver } from "./printerDriver.js";
 
 describe("agent local HTTP server", () => {
   let server: Server;
@@ -13,6 +14,7 @@ describe("agent local HTTP server", () => {
 
   beforeEach(async () => {
     resetConnectivityState();
+    setPrinterDriver(noopPrinterDriver);
     db = openAgentDb(":memory:");
     const app = createAgentApp(db);
     await new Promise<void>((resolve) => {
@@ -70,5 +72,46 @@ describe("agent local HTTP server", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: unknown };
     expect(body.data).toEqual({ fuelPrices: [{ fuelType: "benzin", pricePerLiter: 44.5 }] });
+  });
+
+  it("POST /print returns printed:false with the noop driver (no physical printer yet)", async () => {
+    const res = await fetch(`${baseUrl}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Fis",
+        lines: [{ label: "Plaka", value: "34ABC123" }],
+        transactionId: 1,
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { printed: boolean };
+    expect(body.printed).toBe(false);
+  });
+
+  it("POST /print returns printed:true once a real driver is wired in", async () => {
+    setPrinterDriver({ print: async () => true });
+    const res = await fetch(`${baseUrl}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 2 }),
+    });
+    const body = (await res.json()) as { printed: boolean };
+    expect(body.printed).toBe(true);
+  });
+
+  it("POST /print rejects a request without a title", async () => {
+    const res = await fetch(`${baseUrl}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ lines: [], transactionId: 1 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("responds to CORS preflight (OPTIONS) requests", async () => {
+    const res = await fetch(`${baseUrl}/print`, { method: "OPTIONS", headers: { Origin: "https://station.example.com" } });
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://station.example.com");
   });
 });

@@ -4,6 +4,7 @@ import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
 import type { Transaction } from "../../shared/types";
 import { useKioskLang } from "../i18n";
+import { tryPrintViaAgent, type ReceiptLine } from "../localAgentPrint";
 
 export default function ReceiptStep({
   transaction,
@@ -27,17 +28,57 @@ export default function ReceiptStep({
   // dahil degildir ve genel bir "kismi dolum" notuyla gosterilir.
   const isTankDepletionNote = transaction.cancelledReason === "Depo dolum sirasinda tukendi; islem eldeki miktarla sonuclandirildi.";
 
-  // Fiziksel fis yazicisi (kiosk PC'sinde varsayilan yazici olarak ayarlanmis, Chromium
-  // "--kiosk-printing" bayragiyla acilmis bir termal yazici) tarayicinin kendi yazdirma
-  // ozelligiyle (window.print) tetiklenir - ayri bir donanim kutuphanesine gerek yok.
-  // Basarili bir dolumda fis otomatik olarak bir kez yazdirilir; her ihtimale karsi
-  // (kagit sikismasi, musterinin ikinci nusha istemesi) manuel "Yazdir" butonu da kalir.
+  // Fisi ONCE ayni kiosk PC'sindeki istasyon ajaninin gercek termal yazicisina
+  // (varsa) yazdirmayi dener (bkz. agent/src/printerDriver.ts); henuz hicbir
+  // istasyonda gercek yazici baglanmadigindan bu her zaman basarisiz doner ve
+  // tarayicinin kendi yazdirma ozelligine (window.print - kiosk PC'sinde varsayilan
+  // yazici olarak ayarlanmis, Chromium "--kiosk-printing" bayragiyla acilmis bir
+  // termal yazici varsayimiyla) duser - yani bugunku davranista degisiklik yok,
+  // gercek yazici baglaninca otomatik olarak devreye girer. Basarili bir dolumda
+  // fis otomatik olarak bir kez yazdirilir; her ihtimale karsi (kagit sikismasi,
+  // musterinin ikinci nusha istemesi) manuel "Yazdir" butonu da kalir.
+  function buildReceiptLines(): ReceiptLine[] {
+    const lines: ReceiptLine[] = [
+      { label: t("receipt.plate"), value: transaction.plate },
+      { label: t("receipt.fuel"), value: t(`fuel.${transaction.fuelType}`) },
+      { label: t("receipt.amount"), value: formatLiters(transaction.dispensedLiters) },
+      { label: t("receipt.pricePerLiter"), value: formatCurrency(transaction.pricePerLiter, locale) },
+    ];
+    if (transaction.discountAmount > 0) {
+      lines.push(
+        { label: t("receipt.fuelValue"), value: formatCurrency(transaction.totalAmount, locale) },
+        { label: t("receipt.discount"), value: `-${formatCurrency(transaction.discountAmount, locale)}` },
+        { label: t("receipt.chargedAmount"), value: formatCurrency(transaction.chargeAmount, locale) }
+      );
+    } else {
+      lines.push({ label: t("receipt.totalAmount"), value: formatCurrency(transaction.totalAmount, locale) });
+    }
+    if (transaction.loyaltyPointsEarned > 0) {
+      lines.push({ label: t("receipt.pointsEarned"), value: String(transaction.loyaltyPointsEarned) });
+    }
+    lines.push(
+      { label: t("receipt.transactionNo"), value: `#${transaction.id}` },
+      { label: t("receipt.date"), value: formatDateTime(transaction.completedAt, locale) }
+    );
+    return lines;
+  }
+
+  async function printReceipt() {
+    const printedByAgent = await tryPrintViaAgent({
+      title: t("receipt.printTitle"),
+      lines: buildReceiptLines(),
+      transactionId: transaction.id,
+    });
+    if (!printedByAgent) window.print();
+  }
+
   const printedRef = useRef<number | null>(null);
   useEffect(() => {
     if (failed) return;
     if (printedRef.current === transaction.id) return;
     printedRef.current = transaction.id;
-    window.print();
+    printReceipt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failed, transaction.id]);
 
   return (
@@ -77,7 +118,7 @@ export default function ReceiptStep({
             <div className="toolbar"><span>{t("receipt.date")}</span><div className="spacer" /><strong>{formatDateTime(transaction.completedAt, locale)}</strong></div>
           </div>
 
-          <button style={{ marginTop: "0.5rem" }} onClick={() => window.print()}>{t("receipt.print")}</button>
+          <button style={{ marginTop: "0.5rem" }} onClick={printReceipt}>{t("receipt.print")}</button>
 
           {accessToken && <ReceiptSender transactionId={transaction.id} accessToken={accessToken} />}
         </>
