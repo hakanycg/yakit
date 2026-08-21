@@ -2,8 +2,42 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { usePumps, useActiveAlarms } from "../../shared/hooks";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
+import { useAuth } from "../../shared/AuthContext";
 import { api } from "../../shared/api";
 import { PUMP_STATUS_LABEL, FUEL_LABEL, formatCurrency } from "../../shared/format";
+
+interface SyncStatus {
+  lastHeartbeatAt: string | null;
+  lastSyncedAt: string | null;
+  agentConfigured: boolean;
+}
+
+function SyncStatusCard() {
+  const stationId = useEffectiveStationId();
+  const [status, setStatus] = useState<SyncStatus | null>(null);
+
+  useEffect(() => {
+    if (stationId === null) return;
+    api.get<SyncStatus>("/api/sync/status").then(setStatus).catch(() => setStatus(null));
+  }, [stationId]);
+
+  if (!status) return null;
+
+  let label = "Istasyon ajani kurulmadi";
+  let color: string | undefined;
+  if (status.agentConfigured && status.lastHeartbeatAt) {
+    const minutesAgo = (Date.now() - new Date(status.lastHeartbeatAt).getTime()) / 60000;
+    label = minutesAgo < 5 ? "Senkron: az once" : `Senkron: ${Math.round(minutesAgo)} dk once`;
+    color = minutesAgo >= 15 ? "#f87171" : minutesAgo >= 5 ? "#e0b96a" : undefined;
+  }
+
+  return (
+    <div className="card stat">
+      <span className="label">Istasyon Ajani</span>
+      <span className="value" style={{ fontSize: "1.1rem", color }}>{label}</span>
+    </div>
+  );
+}
 
 interface DayPoint {
   day: string;
@@ -66,8 +100,10 @@ function RevenueTrendChart({ data }: { data: DayPoint[] }) {
 export default function Dashboard() {
   const { pumps } = usePumps();
   const { alarms } = useActiveAlarms();
+  const { user } = useAuth();
   const stationId = useEffectiveStationId();
   const [summary, setSummary] = useState<Summary | null>(null);
+  const canSeeSyncStatus = user?.role === "admin" || user?.role === "super_admin";
 
   useEffect(() => {
     if (stationId === null) return;
@@ -97,6 +133,7 @@ export default function Dashboard() {
           <span className="label">Aktif Alarm</span>
           <span className="value" style={{ color: alarms.length ? "#f87171" : undefined }}>{alarms.length}</span>
         </div>
+        {canSeeSyncStatus && <SyncStatusCard />}
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>

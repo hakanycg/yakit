@@ -142,6 +142,9 @@ export interface Station {
   transactionCount?: number;
   activeAlarms?: number;
   userCount?: number;
+  lastHeartbeatAt?: string | null;
+  lastSyncedAt?: string | null;
+  agentConfigured?: boolean;
 }
 
 export interface AdminUser {

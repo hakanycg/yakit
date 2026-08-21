@@ -37,7 +37,21 @@ router.get("/", requireRole("super_admin"), (_req, res) => {
     ).c;
     const userCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE station_id = ?").get(s.id) as { c: number }).c;
     const transactionCount = (db.prepare("SELECT COUNT(*) as c FROM transactions WHERE station_id = ?").get(s.id) as { c: number }).c;
-    return { ...serializeStation(s), pumpCount, activeAlarms, userCount, transactionCount };
+    const syncState = db
+      .prepare<[number], { last_heartbeat_at: string | null; last_synced_at: string | null }>(
+        "SELECT last_heartbeat_at, last_synced_at FROM station_sync_state WHERE station_id = ?"
+      )
+      .get(s.id);
+    return {
+      ...serializeStation(s),
+      pumpCount,
+      activeAlarms,
+      userCount,
+      transactionCount,
+      lastHeartbeatAt: syncState?.last_heartbeat_at ?? null,
+      lastSyncedAt: syncState?.last_synced_at ?? null,
+      agentConfigured: syncState !== undefined,
+    };
   });
   res.json({ stations: withStats });
 });

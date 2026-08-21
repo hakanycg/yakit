@@ -4,6 +4,15 @@ import { formatDateTime } from "../../shared/format";
 import { useCurrentStationId } from "../../shared/useCurrentStation";
 import type { Station } from "../../shared/types";
 
+function syncBadge(s: Station): { label: string; className: string } | null {
+  if (!s.agentConfigured) return { label: "Ajan kurulmadi", className: "info" };
+  if (!s.lastHeartbeatAt) return { label: "Ajan kurulmadi", className: "info" };
+  const minutesAgo = (Date.now() - new Date(s.lastHeartbeatAt).getTime()) / 60000;
+  if (minutesAgo < 5) return { label: "Senkron: az once", className: "resolved" };
+  if (minutesAgo < 15) return { label: `Senkron: ${Math.round(minutesAgo)} dk once`, className: "warning" };
+  return { label: `Senkron: ${Math.round(minutesAgo)} dk once`, className: "critical" };
+}
+
 function slugify(name: string): string {
   return name
     .toLowerCase()
@@ -56,6 +65,7 @@ export default function Stations() {
             <div className="toolbar">
               <strong>{s.name}</strong>
               <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
+              {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
               <div className="spacer" />
               <button className="ghost" onClick={() => setCurrentStationId(s.id)}>Bu istasyona gec</button>
             </div>
