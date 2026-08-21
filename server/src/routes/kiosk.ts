@@ -14,6 +14,7 @@ import {
   getTransactionForKiosk,
   markIyzicoPending,
   payTransaction,
+  payWithFleetAccount,
   serializeTransaction,
 } from "../services/transactionService.js";
 import { listPumps, serializePump } from "../services/pumpService.js";
@@ -23,6 +24,7 @@ import { isIyzicoReady } from "../services/paymentSettingsService.js";
 import { getAvailableLiters } from "../services/fuelStockService.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig } from "../services/loyaltyService.js";
 import { DiscountError, validateCode } from "../services/discountService.js";
+import { getAccountForPlate as getFleetAccountForPlate, serializeAccount as serializeFleetAccount } from "../services/fleetService.js";
 import { env } from "../config.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, StationRow } from "../db/types.js";
@@ -114,6 +116,55 @@ router.get("/plate/last-fuel-type", (req, res) => {
   res.json({ fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate) });
 });
 
+const priceHistorySchema = z.object({
+  stationId: z.coerce.number().int().positive(),
+  fuelType: z.enum(["benzin", "motorin", "lpg"]),
+  days: z.coerce.number().int().positive().max(365).optional(),
+});
+
+/** Fiyat seffafligi ekrani: musteriye son N gunun fiyat degisim gecmisini gosterir. */
+router.get("/fuel-prices/history", (req, res) => {
+  const parsed = priceHistorySchema.safeParse(req.query);
+  if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
+  try {
+    getStationOrThrow(parsed.data.stationId);
+  } catch {
+    return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  }
+  const cutoff = new Date(Date.now() - (parsed.data.days ?? 30) * 24 * 60 * 60 * 1000).toISOString();
+  const rows = db
+    .prepare<[number, string, string], { price_per_liter: number; created_at: string }>(
+      `SELECT price_per_liter, created_at FROM fuel_price_history
+       WHERE station_id = ? AND fuel_type = ? AND created_at >= ?
+       ORDER BY created_at ASC`
+    )
+    .all(parsed.data.stationId, parsed.data.fuelType, cutoff);
+  res.json({ history: rows.map((r) => ({ pricePerLiter: r.price_per_liter, changedAt: r.created_at })) });
+});
+
+/** Bosta-kalma ekraninda (attract mode) gosterilecek, o an aktif olan kampanyalarin herkese acik ozeti. */
+router.get("/campaigns/active", (req, res) => {
+  const stationId = z.coerce.number().int().positive().safeParse(req.query.stationId);
+  if (!stationId.success) return void res.status(400).json({ error: "Gecersiz istek." });
+  try {
+    getStationOrThrow(stationId.data);
+  } catch {
+    return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  }
+  const now = new Date().toISOString();
+  const rows = db
+    .prepare<[number, string, string], { code: string; type: "percent" | "fixed"; value: number; fuel_type: FuelType | null }>(
+      `SELECT code, type, value, fuel_type FROM discount_codes
+       WHERE station_id = ? AND active = 1
+         AND (starts_at IS NULL OR starts_at <= ?)
+         AND (expires_at IS NULL OR expires_at >= ?)
+         AND (max_uses IS NULL OR used_count < max_uses)
+       ORDER BY created_at DESC LIMIT 10`
+    )
+    .all(stationId.data, now, now);
+  res.json({ campaigns: rows.map((r) => ({ code: r.code, type: r.type, value: r.value, fuelType: r.fuel_type })) });
+});
+
 const discountPreviewSchema = z.object({
   stationId: z.number().int().positive(),
   code: z.string().trim().min(1).max(30),
@@ -198,6 +249,34 @@ router.post("/transactions/:id/pay", validateBody(paySchema), (req, res) => {
   if (!token) return;
   try {
     const updated = payTransaction(Number(req.params.id), token, req.body as z.infer<typeof paySchema>);
+    res.json({ transaction: serializeTransaction(updated) });
+  } catch (err) {
+    if (err instanceof TransactionError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
+});
+
+router.get("/fleet-account", (req, res) => {
+  const parsed = loyaltyBalanceSchema.safeParse(req.query);
+  if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
+  try {
+    getStationOrThrow(parsed.data.stationId);
+  } catch {
+    return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  }
+  const account = getFleetAccountForPlate(parsed.data.stationId, parsed.data.plate);
+  res.json({ account: account ? serializeFleetAccount(account) : null });
+});
+
+router.post("/transactions/:id/pay-fleet", validateBody(z.object({ fleetAccountId: z.number().int().positive() })), (req, res) => {
+  const token = requireAccessToken(req, res);
+  if (!token) return;
+  try {
+    const { fleetAccountId } = req.body as { fleetAccountId: number };
+    const updated = payWithFleetAccount(Number(req.params.id), token, fleetAccountId);
     res.json({ transaction: serializeTransaction(updated) });
   } catch (err) {
     if (err instanceof TransactionError) {

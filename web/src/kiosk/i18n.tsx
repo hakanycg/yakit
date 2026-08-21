@@ -108,6 +108,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.preparingForm": "Odeme formu hazirlaniyor...",
     "error.iyzicoStartFailed": "iyzico odeme formu baslatilamadi.",
     "payment.simulatedTitle": "Sanal Odeme",
+    "payment.fleetTitle": "Filo Hesabi ile Odeme",
+    "payment.fleetCompany": "Sirket",
+    "payment.fleetAvailable": "Kullanilabilir Bakiye",
+    "payment.fleetPayButton": "Filo Hesabi ile Ode",
+    "payment.fleetUseCardInstead": "Kart ile Ode",
     "payment.cardHolderLabel": "Kart Uzerindeki Isim",
     "payment.cardNumberLabel": "Kart Numarasi",
     "payment.monthLabel": "Ay",
@@ -163,6 +168,22 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.title": "Hala orada misiniz?",
     "idle.body": "Uzun suredir bir islem yapilmadi. {seconds} saniye icinde islem sifirlanacak.",
     "idle.continue": "Devam Ediyorum",
+
+    "attract.campaignTitle": "Kampanya Kodu",
+    "attract.percentOff": "%{value} indirim",
+    "attract.fixedOff": "{value} indirim",
+    "attract.tapToStart": "Baslamak icin ekrana dokunun",
+
+    "voice.toggleOnLabel": "Sesli yonlendirmeyi ac",
+    "voice.toggleOffLabel": "Sesli yonlendirmeyi kapat",
+    "voice.enabledAnnouncement": "Sesli yonlendirme acildi.",
+    "voice.paymentStep": "Odeme ekrani.",
+    "voice.dispenseStep": "Dolum yapiliyor, lutfen bekleyin.",
+
+    "priceHistory.linkLabel": "Fiyat Gecmisi",
+    "priceHistory.title": "Yakit Fiyat Gecmisi (Son 30 Gun)",
+    "priceHistory.close": "Kapat",
+    "priceHistory.noHistory": "Bu donemde fiyat degisikligi kaydi yok.",
 
     "privacy.linkLabel": "Kisisel Verilerin Korunmasi Hakkinda",
     "privacy.title": "Kisisel Verilerin Korunmasi Hakkinda Aydinlatma Metni",
@@ -263,6 +284,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.preparingForm": "Preparing payment form...",
     "error.iyzicoStartFailed": "Could not start the iyzico payment form.",
     "payment.simulatedTitle": "Virtual Payment",
+    "payment.fleetTitle": "Pay with Fleet Account",
+    "payment.fleetCompany": "Company",
+    "payment.fleetAvailable": "Available Balance",
+    "payment.fleetPayButton": "Pay with Fleet Account",
+    "payment.fleetUseCardInstead": "Pay with Card Instead",
     "payment.cardHolderLabel": "Cardholder Name",
     "payment.cardNumberLabel": "Card Number",
     "payment.monthLabel": "Month",
@@ -318,6 +344,22 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.title": "Are you still there?",
     "idle.body": "No activity has been detected for a while. This transaction will be reset in {seconds} seconds.",
     "idle.continue": "I'm Still Here",
+
+    "attract.campaignTitle": "Promo Code",
+    "attract.percentOff": "{value}% off",
+    "attract.fixedOff": "{value} off",
+    "attract.tapToStart": "Tap the screen to start",
+
+    "voice.toggleOnLabel": "Turn on voice guidance",
+    "voice.toggleOffLabel": "Turn off voice guidance",
+    "voice.enabledAnnouncement": "Voice guidance enabled.",
+    "voice.paymentStep": "Payment screen.",
+    "voice.dispenseStep": "Dispensing fuel, please wait.",
+
+    "priceHistory.linkLabel": "Price History",
+    "priceHistory.title": "Fuel Price History (Last 30 Days)",
+    "priceHistory.close": "Close",
+    "priceHistory.noHistory": "No price changes recorded in this period.",
 
     "privacy.linkLabel": "About the Protection of Personal Data",
     "privacy.title": "Personal Data Protection Notice",
@@ -418,6 +460,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.preparingForm": "Подготовка формы оплаты...",
     "error.iyzicoStartFailed": "Не удалось запустить форму оплаты iyzico.",
     "payment.simulatedTitle": "Виртуальная оплата",
+    "payment.fleetTitle": "Оплата корпоративным счетом",
+    "payment.fleetCompany": "Компания",
+    "payment.fleetAvailable": "Доступный баланс",
+    "payment.fleetPayButton": "Оплатить корпоративным счетом",
+    "payment.fleetUseCardInstead": "Оплатить картой",
     "payment.cardHolderLabel": "Имя владельца карты",
     "payment.cardNumberLabel": "Номер карты",
     "payment.monthLabel": "Месяц",
@@ -473,6 +520,22 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.title": "Вы всё ещё здесь?",
     "idle.body": "Долгое время не было активности. Транзакция будет сброшена через {seconds} сек.",
     "idle.continue": "Я всё ещё здесь",
+
+    "attract.campaignTitle": "Промокод",
+    "attract.percentOff": "скидка {value}%",
+    "attract.fixedOff": "скидка {value}",
+    "attract.tapToStart": "Коснитесь экрана, чтобы начать",
+
+    "voice.toggleOnLabel": "Включить голосовое сопровождение",
+    "voice.toggleOffLabel": "Выключить голосовое сопровождение",
+    "voice.enabledAnnouncement": "Голосовое сопровождение включено.",
+    "voice.paymentStep": "Экран оплаты.",
+    "voice.dispenseStep": "Идёт заправка, пожалуйста, подождите.",
+
+    "priceHistory.linkLabel": "История цен",
+    "priceHistory.title": "История цен на топливо (последние 30 дней)",
+    "priceHistory.close": "Закрыть",
+    "priceHistory.noHistory": "За этот период изменений цен не зафиксировано.",
 
     "privacy.linkLabel": "О защите персональных данных",
     "privacy.title": "Уведомление о защите персональных данных",
@@ -573,6 +636,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.preparingForm": "Zahlungsformular wird vorbereitet...",
     "error.iyzicoStartFailed": "Das iyzico-Zahlungsformular konnte nicht gestartet werden.",
     "payment.simulatedTitle": "Virtuelle Zahlung",
+    "payment.fleetTitle": "Zahlung mit Flottenkonto",
+    "payment.fleetCompany": "Firma",
+    "payment.fleetAvailable": "Verfügbares Guthaben",
+    "payment.fleetPayButton": "Mit Flottenkonto zahlen",
+    "payment.fleetUseCardInstead": "Stattdessen mit Karte zahlen",
     "payment.cardHolderLabel": "Name des Karteninhabers",
     "payment.cardNumberLabel": "Kartennummer",
     "payment.monthLabel": "Monat",
@@ -628,6 +696,22 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.title": "Sind Sie noch da?",
     "idle.body": "Seit einiger Zeit wurde keine Aktivität festgestellt. Diese Transaktion wird in {seconds} Sekunden zurückgesetzt.",
     "idle.continue": "Ich bin noch da",
+
+    "attract.campaignTitle": "Aktionscode",
+    "attract.percentOff": "{value}% Rabatt",
+    "attract.fixedOff": "{value} Rabatt",
+    "attract.tapToStart": "Berühren Sie den Bildschirm, um zu beginnen",
+
+    "voice.toggleOnLabel": "Sprachführung einschalten",
+    "voice.toggleOffLabel": "Sprachführung ausschalten",
+    "voice.enabledAnnouncement": "Sprachführung aktiviert.",
+    "voice.paymentStep": "Zahlungsbildschirm.",
+    "voice.dispenseStep": "Betankung läuft, bitte warten.",
+
+    "priceHistory.linkLabel": "Preisverlauf",
+    "priceHistory.title": "Kraftstoffpreisverlauf (letzte 30 Tage)",
+    "priceHistory.close": "Schließen",
+    "priceHistory.noHistory": "In diesem Zeitraum wurden keine Preisänderungen erfasst.",
 
     "privacy.linkLabel": "Zum Schutz personenbezogener Daten",
     "privacy.title": "Hinweis zum Schutz personenbezogener Daten",
@@ -728,6 +812,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.preparingForm": "جارٍ تجهيز نموذج الدفع...",
     "error.iyzicoStartFailed": "تعذر بدء نموذج الدفع الخاص بـ iyzico.",
     "payment.simulatedTitle": "دفع افتراضي",
+    "payment.fleetTitle": "الدفع عبر حساب الأسطول",
+    "payment.fleetCompany": "الشركة",
+    "payment.fleetAvailable": "الرصيد المتاح",
+    "payment.fleetPayButton": "الدفع عبر حساب الأسطول",
+    "payment.fleetUseCardInstead": "الدفع بالبطاقة بدلاً من ذلك",
     "payment.cardHolderLabel": "اسم حامل البطاقة",
     "payment.cardNumberLabel": "رقم البطاقة",
     "payment.monthLabel": "الشهر",
@@ -783,6 +872,22 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.title": "هل ما زلت هناك؟",
     "idle.body": "لم يتم رصد أي نشاط منذ فترة. سيتم إعادة ضبط العملية خلال {seconds} ثانية.",
     "idle.continue": "ما زلت هنا",
+
+    "attract.campaignTitle": "رمز العرض",
+    "attract.percentOff": "خصم {value}%",
+    "attract.fixedOff": "خصم {value}",
+    "attract.tapToStart": "المس الشاشة للبدء",
+
+    "voice.toggleOnLabel": "تشغيل الإرشاد الصوتي",
+    "voice.toggleOffLabel": "إيقاف الإرشاد الصوتي",
+    "voice.enabledAnnouncement": "تم تفعيل الإرشاد الصوتي.",
+    "voice.paymentStep": "شاشة الدفع.",
+    "voice.dispenseStep": "جارٍ التعبئة، يرجى الانتظار.",
+
+    "priceHistory.linkLabel": "سجل الأسعار",
+    "priceHistory.title": "سجل أسعار الوقود (آخر 30 يومًا)",
+    "priceHistory.close": "إغلاق",
+    "priceHistory.noHistory": "لا توجد تغييرات في الأسعار مسجلة خلال هذه الفترة.",
 
     "privacy.linkLabel": "حول حماية البيانات الشخصية",
     "privacy.title": "إشعار حماية البيانات الشخصية",
@@ -870,7 +975,7 @@ export const LANG_NATIVE_NAMES: Record<KioskLang, string> = {
   ar: "العربية",
 };
 
-export function LanguageSwitcher() {
+export function LanguageSwitcher({ children }: { children?: ReactNode } = {}) {
   const { lang, setLang } = useKioskLang();
   return (
     <div className="kiosk-lang-switcher">
@@ -879,6 +984,7 @@ export function LanguageSwitcher() {
           {opt.label}
         </button>
       ))}
+      {children}
     </div>
   );
 }

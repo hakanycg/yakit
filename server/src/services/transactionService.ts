@@ -13,6 +13,12 @@ import { logger } from "../utils/logger.js";
 import { safeCompare } from "../utils/safeCompare.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig, earnPoints, redeemPoints, refundPoints } from "./loyaltyService.js";
 import { validateCode, redeemCode, releaseCode } from "./discountService.js";
+import {
+  FleetError,
+  chargeAccount as chargeFleetAccount,
+  getAccountForPlate as getFleetAccountForPlate,
+  refundChargeForTransaction as refundFleetChargeForTransaction,
+} from "./fleetService.js";
 
 const DISPENSE_TICK_MS = 500;
 
@@ -193,7 +199,35 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
 
   setPumpStatus(pump.id, "reserved", { currentTransactionId: transaction.id });
   broadcastTransaction(transaction);
+  checkPlateFrequencyAnomaly(pump.station_id, normalizedPlate, pump.id);
   return { transaction, accessToken };
+}
+
+const PLATE_FREQUENCY_WINDOW_MS = 30 * 60 * 1000;
+const PLATE_FREQUENCY_THRESHOLD = 3;
+
+/**
+ * Dolandiricilik/anormal davranis tespiti: kart bilgisi saklanmadigi icin "ayni kart
+ * farkli plakalarda" gibi bir sinyal kullanilamiyor (bkz. arastirma) - bunun yerine
+ * elimizdeki tek gercek sinyal kullanilir: AYNI PLAKA kisa surede (30 dakika) tekrar
+ * tekrar islem baslatiyorsa (basarili/iptal fark etmeksizin) bu, operatorun goz atmasi
+ * gereken bir siklik anormalligidir - kesin bir dolandiricilik kaniti degildir.
+ */
+function checkPlateFrequencyAnomaly(stationId: number, plate: string, pumpId: number): void {
+  const cutoff = new Date(Date.now() - PLATE_FREQUENCY_WINDOW_MS).toISOString();
+  const row = db
+    .prepare<[number, string, string], { count: number }>(
+      "SELECT COUNT(*) as count FROM transactions WHERE station_id = ? AND plate = ? AND created_at >= ?"
+    )
+    .get(stationId, plate, cutoff)!;
+  if (row.count < PLATE_FREQUENCY_THRESHOLD) return;
+  createAlarm({
+    stationId,
+    pumpId,
+    type: "plate_frequency_anomaly",
+    severity: "warning",
+    message: `Plaka ${plate}, son 30 dakikada ${row.count}. kez islem baslatti - anormal siklik, kontrol edilmesi onerilir.`,
+  });
 }
 
 export function getTransactionForKiosk(id: number, accessToken: string): TransactionRow {
@@ -307,6 +341,30 @@ export function payTransaction(id: number, accessToken: string, card: VirtualCar
 
   const result = processVirtualPayment(card, chargeAmount(t));
   return finalizeTransactionPayment(id, result);
+}
+
+/**
+ * Filo/kurumsal hesap ile odeme: kart bilgisi toplanmaz, tutar dogrudan sirketin
+ * bakiyesinden/kredi limitinden dusulur. "Depoyu Doldur" modunda gercek tutar dolum
+ * bitmeden bilinemedigi icin (bkz. iyzico on-provizyon yorumu) bu odeme yontemi
+ * yalnizca tutari BASTAN KESIN bilinen modlarda (amount/liters) sunulur.
+ */
+export function payWithFleetAccount(id: number, accessToken: string, fleetAccountId: number): TransactionRow {
+  const t = getTransactionForKiosk(id, accessToken);
+  if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
+  if (t.amount_mode === "full_tank") throw new TransactionError("Filo hesabi ile odeme, 'Depoyu Doldur' modunda kullanilamaz.", 409);
+
+  const account = getFleetAccountForPlate(t.station_id, t.plate);
+  if (!account || account.id !== fleetAccountId) throw new TransactionError("Bu plaka icin gecerli bir filo hesabi bulunamadi.", 403);
+
+  try {
+    chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(t), id);
+  } catch (err) {
+    if (err instanceof FleetError) throw new TransactionError(err.message, err.status);
+    throw err;
+  }
+  touch(id, { payment_method: "fleet" });
+  return finalizeTransactionPayment(id, { success: true, reference: `FLEET-${fleetAccountId}`, message: "Filo hesabindan tahsil edildi." });
 }
 
 /** Kiosk iyzico odeme formuna yonlendirmeden once, islemi "iyzico odemesi bekleniyor" durumuna alir. */
@@ -439,7 +497,18 @@ export function emergencyStopTransaction(id: number, byUser: UserRow, reason: st
     recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
   }
   void settleIyzicoPreAuthIfNeeded(updated);
+  refundFleetChargeIfNeeded(t, wasDispensing);
   return updated;
+}
+
+/** Filo hesabindan tahsil edilmis ama hic yakit dagitilmadan durdurulan bir islemde tahsilati geri alir. */
+function refundFleetChargeIfNeeded(t: TransactionRow, wasDispensing: boolean): void {
+  if (wasDispensing || t.status === "created" || t.payment_method !== "fleet") return;
+  try {
+    refundFleetChargeForTransaction(t.id);
+  } catch (err) {
+    logger.error({ err, transactionId: t.id }, "Filo hesabi tahsilat iadesi basarisiz.");
+  }
 }
 
 export function cancelPendingTransaction(id: number, accessToken: string, reason: string): TransactionRow {
@@ -527,6 +596,7 @@ export function reconcileStuckTransactions(): void {
       recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
     }
     void settleIyzicoPreAuthIfNeeded(updated);
+    refundFleetChargeIfNeeded(t, wasDispensing);
   }
 }
 

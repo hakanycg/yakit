@@ -34,6 +34,13 @@ router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => 
     req.stationId!,
     fuelType
   );
+  // Kiosk'taki fiyat seffafligi ekrani icin - bkz. GET /api/kiosk/fuel-prices/history.
+  db.prepare("INSERT INTO fuel_price_history (station_id, fuel_type, price_per_liter, changed_by) VALUES (?, ?, ?, ?)").run(
+    req.stationId!,
+    fuelType,
+    pricePerLiter,
+    req.user!.id
+  );
   recordAudit({
     user: req.user!,
     action: "fuel_price_updated",

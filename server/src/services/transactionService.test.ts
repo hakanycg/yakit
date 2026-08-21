@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { db } from "../db/index.js";
-import type { TransactionRow } from "../db/types.js";
+import type { AlarmRow, TransactionRow } from "../db/types.js";
 import { createTestFuelPrice, createTestPump, createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
+import { createAccount as createFleetAccount, addPlate as addFleetPlate, topUp as topUpFleetAccount } from "./fleetService.js";
 import {
   cancelPendingTransaction,
   chargeAmount,
@@ -10,6 +11,7 @@ import {
   finalizeTransactionPayment,
   markIyzicoPending,
   payTransaction,
+  payWithFleetAccount,
   reconcileStaleCreatedTransactions,
   reconcileStuckTransactions,
 } from "./transactionService.js";
@@ -225,5 +227,96 @@ describe("reconcileStaleCreatedTransactions", () => {
     expect(after.status).toBe("created");
     const pump = db.prepare("SELECT status FROM pumps WHERE id = ?").get(pumpId) as { status: string };
     expect(pump.status).toBe("reserved");
+  });
+});
+
+describe("payWithFleetAccount", () => {
+  it("charges the fleet account and finalizes the payment as 'captured'", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Test Filo", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34FLT001");
+    topUpFleetAccount(station.station_id, fleet.id, 1000, undefined, staff);
+
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34FLT001",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    const updated = payWithFleetAccount(transaction.id, accessToken, fleet.id);
+    expect(updated.payment_method).toBe("fleet");
+    expect(updated.payment_status).toBe("captured");
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
+  it("rejects full_tank mode (real amount unknown upfront, same limitation as discount codes)", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Test Filo 2", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34FLT002");
+    topUpFleetAccount(station.station_id, fleet.id, 10000, undefined, staff);
+
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34FLT002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    expect(() => payWithFleetAccount(transaction.id, accessToken, fleet.id)).toThrow();
+  });
+
+  it("refunds the fleet charge if the transaction is emergency-stopped before any fuel is dispensed", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Test Filo 3", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34FLT003");
+    topUpFleetAccount(station.station_id, fleet.id, 1000, undefined, staff);
+
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34FLT003",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    payWithFleetAccount(transaction.id, accessToken, fleet.id);
+    emergencyStopTransaction(transaction.id, staff, "test - stop before any dispensing");
+
+    const account = db.prepare("SELECT balance FROM fleet_accounts WHERE id = ?").get(fleet.id) as { balance: number };
+    expect(account.balance).toBe(1000);
+  });
+});
+
+describe("plate frequency anomaly detection", () => {
+  it("creates a warning alarm once the same plate starts too many transactions in a short window", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+
+    for (let i = 0; i < 3; i++) {
+      const { transaction } = createTransaction({ pumpId, plate: "34ANM001", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 1 });
+      emergencyStopTransaction(transaction.id, staff, "test cleanup");
+    }
+
+    const alarms = db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+      .all(station.station_id, "plate_frequency_anomaly");
+    expect(alarms.length).toBeGreaterThan(0);
+  });
+
+  it("does not alarm for a plate with only a couple of transactions", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+
+    const { transaction } = createTransaction({ pumpId, plate: "34ANM002", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 1 });
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+
+    const alarms = db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+      .all(station.station_id, "plate_frequency_anomaly");
+    expect(alarms.length).toBe(0);
   });
 });

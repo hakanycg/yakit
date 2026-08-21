@@ -428,6 +428,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   display: block; text-align: center; width: 100%;
 }
 .kiosk-privacy-link:hover { color: var(--text); }
+.toolbar .kiosk-privacy-link { width: auto; margin-top: 0; }
 .kiosk-idle-countdown { font-size: 2.5rem; font-weight: 700; text-align: center; margin: 0.5rem 0 1rem; }
 .big-total { font-size: 2.2rem; font-weight: 700; margin: 0.5rem 0; }
 .progress-bar { height: 22px; border-radius: 11px; background: var(--panel-2); overflow: hidden; border: 1px solid var(--border); }

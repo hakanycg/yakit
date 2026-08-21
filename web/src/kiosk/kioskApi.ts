@@ -67,4 +67,34 @@ export const kioskApi = {
       token,
       { method: "POST", body: JSON.stringify(target) }
     ),
+
+  getFleetAccount: (stationId: number, plate: string) =>
+    api.get<{ account: FleetAccountSummary | null }>(`/api/kiosk/fleet-account?stationId=${stationId}&plate=${encodeURIComponent(plate)}`),
+
+  payFleet: (id: number, token: string, fleetAccountId: number) =>
+    kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}/pay-fleet`, token, {
+      method: "POST",
+      body: JSON.stringify({ fleetAccountId }),
+    }),
+
+  getPriceHistory: (stationId: number, fuelType: FuelType, days = 30) =>
+    api.get<{ history: { pricePerLiter: number; changedAt: string }[] }>(
+      `/api/kiosk/fuel-prices/history?stationId=${stationId}&fuelType=${fuelType}&days=${days}`
+    ),
+
+  getActiveCampaigns: (stationId: number) =>
+    api.get<{ campaigns: { code: string; type: "percent" | "fixed"; value: number; fuelType: FuelType | null }[] }>(
+      `/api/kiosk/campaigns/active?stationId=${stationId}`
+    ),
 };
+
+export interface FleetAccountSummary {
+  id: number;
+  companyName: string;
+  billingType: "prepaid" | "postpaid";
+  balance: number;
+  creditLimit: number | null;
+  availableAmount: number | null;
+  active: boolean;
+  createdAt: string;
+}

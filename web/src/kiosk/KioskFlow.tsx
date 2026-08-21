@@ -15,6 +15,11 @@ import { ApiError } from "../shared/api";
 import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./resumeStorage";
 import { KioskLangProvider, LanguageSwitcher, RTL_LANGS, useKioskLang } from "./i18n";
 import PrivacyNoticeLink from "./PrivacyNotice";
+import PriceHistoryLink from "./PriceHistory";
+import VoiceGuidanceToggle from "./VoiceGuidanceToggle";
+import { playClickSound, speak } from "./voiceGuidance";
+import { useAttractMode } from "./useAttractMode";
+import AttractMode from "./AttractMode";
 import { useIdleReset } from "./useIdleReset";
 
 type Step = "welcome" | "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
@@ -36,7 +41,7 @@ export default function KioskFlow() {
 }
 
 function KioskFlowInner() {
-  const { t, lang } = useKioskLang();
+  const { t, lang, locale } = useKioskLang();
   const dir = RTL_LANGS.includes(lang) ? "rtl" : "ltr";
   const { slug } = useParams<{ slug: string }>();
   const [station, setStation] = useState<StationResponse | null>(null);
@@ -179,6 +184,36 @@ function KioskFlowInner() {
   const idleEnabled =
     (step === "plate" && plate.length > 0) || step === "pump" || step === "fuel" || step === "amount" || step === "receipt";
   const idle = useIdleReset(idleEnabled, reset, 60_000, 20_000);
+  const attracting = useAttractMode(step === "welcome", 20_000);
+
+  // Erisilebilirlik: sesli yonlendirme acikken her adim degisiminde (ve dil degisiminde)
+  // o ekranin basligi sesli olarak okunur - musteri (voiceGuidance.ts icinde no-op oldugu
+  // icin) bunu hic acmadiysa performans/davranis etkilenmez.
+  useEffect(() => {
+    const announcement: Partial<Record<Step, string>> = {
+      welcome: t("welcome.title"),
+      plate: t("plate.title"),
+      pump: t("pump.title"),
+      fuel: t("fuelStep.title"),
+      amount: t("amount.title"),
+      payment: t("voice.paymentStep"),
+      dispense: t("voice.dispenseStep"),
+      receipt: transaction && (transaction.status === "failed" || transaction.status === "cancelled") ? t("receipt.failedTitle") : t("receipt.completedTitle"),
+    };
+    const text = announcement[step];
+    if (text) speak(text, locale);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, lang]);
+
+  // Erisilebilirlik: her buton tiklamasinda kisa bir sesli geri bildirim (voiceGuidance.ts
+  // icinde sesli yonlendirme kapaliyken zaten no-op'tur).
+  useEffect(() => {
+    function onClick(e: MouseEvent) {
+      if ((e.target as HTMLElement | null)?.closest("button")) playClickSound();
+    }
+    document.addEventListener("click", onClick);
+    return () => document.removeEventListener("click", onClick);
+  }, []);
 
   async function handleAmount(selection: AmountSelection) {
     if (!pump || !fuelType || !station) return;
@@ -244,7 +279,11 @@ function KioskFlowInner() {
         {/* Karsilama ekraninin kendi buyuk dil secim karti var (bkz. WelcomeStep) - ayni
             ekranda kucuk kose anahtarini ve henuz hicbir seyin baslamadigi adim cubugunu
             tekrar gostermek gereksiz/karmasik olurdu. */}
-        {step !== "welcome" && <LanguageSwitcher />}
+        {step !== "welcome" && (
+          <LanguageSwitcher>
+            <VoiceGuidanceToggle />
+          </LanguageSwitcher>
+        )}
         {step !== "welcome" && (
           <div className="kiosk-steps">
             {STEP_ORDER.map((s, i) => (
@@ -317,7 +356,10 @@ function KioskFlowInner() {
           <ReceiptStep transaction={transaction} accessToken={accessToken} onRestart={reset} />
         )}
 
-        <PrivacyNoticeLink stationName={station.station.name} />
+        <div className="toolbar" style={{ justifyContent: "center", gap: "1rem" }}>
+          <PriceHistoryLink stationId={station.station.id} fuelPrices={station.fuelPrices} />
+          <PrivacyNoticeLink stationName={station.station.name} />
+        </div>
       </div>
 
       {idle.warning && (
@@ -332,6 +374,8 @@ function KioskFlowInner() {
           </div>
         </div>
       )}
+
+      {attracting && <AttractMode stationId={station.station.id} stationName={station.station.name} fuelPrices={station.fuelPrices} />}
     </div>
   );
 }

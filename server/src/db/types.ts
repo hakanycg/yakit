@@ -153,6 +153,47 @@ export interface DiscountCodeRow {
   created_by: number | null;
 }
 
+export interface FleetAccountRow {
+  id: number;
+  station_id: number;
+  company_name: string;
+  vkn: string | null;
+  billing_type: "prepaid" | "postpaid";
+  balance: number;
+  credit_limit: number | null;
+  active: number;
+  created_at: string;
+  created_by: number | null;
+}
+
+export interface FleetPlateRow {
+  id: number;
+  fleet_account_id: number;
+  plate: string;
+  created_at: string;
+}
+
+export interface FleetMovementRow {
+  id: number;
+  fleet_account_id: number;
+  type: "topup" | "charge" | "refund" | "adjustment";
+  amount: number;
+  balance_after: number;
+  transaction_id: number | null;
+  note: string | null;
+  user_id: number | null;
+  created_at: string;
+}
+
+export interface FuelPriceHistoryRow {
+  id: number;
+  station_id: number;
+  fuel_type: FuelType;
+  price_per_liter: number;
+  changed_by: number | null;
+  created_at: string;
+}
+
 export interface InvoiceRow {
   id: number;
   station_id: number;

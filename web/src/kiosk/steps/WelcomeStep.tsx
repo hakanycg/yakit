@@ -1,10 +1,14 @@
 import { LANG_OPTIONS, LANG_NATIVE_NAMES, useKioskLang } from "../i18n";
+import VoiceGuidanceToggle from "../VoiceGuidanceToggle";
 
 export default function WelcomeStep({ stationName, onNext }: { stationName: string; onNext: () => void }) {
   const { t, lang, setLang } = useKioskLang();
 
   return (
     <div style={{ textAlign: "center" }}>
+      <div style={{ position: "absolute", top: "1.25rem", left: "1.25rem" }}>
+        <VoiceGuidanceToggle />
+      </div>
       <h1 style={{ fontSize: "2.2rem", margin: "0 0 0.4rem" }}>{t("welcome.title")}</h1>
       <p className="hint-text" style={{ fontSize: "1.1rem", marginBottom: "2rem" }}>{stationName}</p>
 

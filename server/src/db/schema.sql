@@ -290,6 +290,61 @@ CREATE TABLE IF NOT EXISTS pump_maintenance_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_pump_maintenance_pump ON pump_maintenance_logs(pump_id, created_at);
 
+-- Filo/kurumsal musteri hesaplari: sirketlerin birden fazla plakasini tek bir
+-- bakiyeye (on odemeli) veya kredi limitine (sonradan faturalandirma) baglar.
+CREATE TABLE IF NOT EXISTS fleet_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  company_name TEXT NOT NULL,
+  vkn TEXT,
+  billing_type TEXT NOT NULL DEFAULT 'prepaid', -- prepaid | postpaid
+  balance REAL NOT NULL DEFAULT 0,     -- prepaid: kalan bakiye; postpaid: faturalandirilmamis birikmis borc
+  credit_limit REAL,                   -- yalnizca postpaid icin ust sinir (NULL = sinirsiz)
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_accounts_station ON fleet_accounts(station_id, active);
+
+CREATE TABLE IF NOT EXISTS fleet_plates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id),
+  plate TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(fleet_account_id, plate)
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_plates_plate ON fleet_plates(plate);
+
+CREATE TABLE IF NOT EXISTS fleet_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id),
+  type TEXT NOT NULL,                  -- topup | charge | refund | adjustment
+  amount REAL NOT NULL,                -- topup/refund/pozitif adjustment bakiyeyi ARTIRIR, charge DUSURUR
+  balance_after REAL NOT NULL,
+  transaction_id INTEGER REFERENCES transactions(id),
+  note TEXT,
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_movements_account ON fleet_movements(fleet_account_id, created_at);
+
+-- Fiyat seffafligi ekrani icin yakit fiyati her degistiginde bir satir eklenir
+-- (audit_log genel amacli oldugundan station+fuel_type bazinda sorgulamak icin
+-- ayri, indeksli bir tablo daha uygundur).
+CREATE TABLE IF NOT EXISTS fuel_price_history (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,
+  price_per_liter REAL NOT NULL,
+  changed_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fuel_price_history_station_fuel ON fuel_price_history(station_id, fuel_type, created_at);
+
+-- Ayni plakanin kisa surede tekrarlanan islemlerini (anormal siklik) tespit
+-- etmek icin - bkz. transactionService.ts checkPlateFrequencyAnomaly().
+CREATE INDEX IF NOT EXISTS idx_transactions_station_plate_created ON transactions(station_id, plate, created_at);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

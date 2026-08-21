@@ -58,6 +58,7 @@ export default function AppLayout() {
               <p className="section-label">Istasyon Yonetimi</p>
               <NavLink to="/operator/stok">Yakit Stoku</NavLink>
               <NavLink to="/admin/kampanyalar">Kampanyalar</NavLink>
+              <NavLink to="/admin/filo-hesaplari">Filo Hesaplari</NavLink>
               <NavLink to="/admin/sadakat-puanlari">Sadakat Puanlari</NavLink>
               <NavLink to="/admin/kullanicilar">Kullanici / Rol Yonetimi</NavLink>
               <NavLink to="/admin/ayarlar">Ayarlar</NavLink>

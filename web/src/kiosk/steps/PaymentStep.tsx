@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { kioskApi } from "../kioskApi";
+import { kioskApi, type FleetAccountSummary } from "../kioskApi";
 import { formatCurrency } from "../../shared/format";
 import { ApiError } from "../../shared/api";
 import { stashPendingKioskTransaction } from "../resumeStorage";
@@ -19,10 +19,116 @@ export default function PaymentStep({
   onPaid: (t: Transaction) => void;
   onCancel: () => void;
 }) {
+  const { t } = useKioskLang();
+  const [fleetAccount, setFleetAccount] = useState<FleetAccountSummary | null>(null);
+  const [fleetChecked, setFleetChecked] = useState(false);
+  const [skipFleet, setSkipFleet] = useState(false);
+
+  useEffect(() => {
+    // Filo hesabi ile odeme, tutari basindan kesin bilinmeyen "Depoyu Doldur" modunda
+    // sunulmaz - bkz. payWithFleetAccount yorumu (iyzico on-provizyon ile ayni sinirlama).
+    if (transaction.amountMode === "full_tank") {
+      setFleetChecked(true);
+      return;
+    }
+    kioskApi
+      .getFleetAccount(transaction.stationId, transaction.plate)
+      .then((res) => setFleetAccount(res.account))
+      .catch(() => setFleetAccount(null))
+      .finally(() => setFleetChecked(true));
+  }, [transaction.stationId, transaction.plate, transaction.amountMode]);
+
+  if (!fleetChecked) return <p className="hint-text">{t("loading")}</p>;
+
+  const canUseFleet =
+    !skipFleet &&
+    !!fleetAccount &&
+    fleetAccount.active &&
+    (fleetAccount.availableAmount === null || fleetAccount.availableAmount >= transaction.chargeAmount);
+
+  if (canUseFleet && fleetAccount) {
+    return (
+      <FleetChoicePanel
+        account={fleetAccount}
+        transaction={transaction}
+        accessToken={accessToken}
+        onPaid={onPaid}
+        onCancel={onCancel}
+        onUseCard={() => setSkipFleet(true)}
+      />
+    );
+  }
+
   if (iyzicoEnabled) {
     return <IyzicoPaymentPanel transaction={transaction} accessToken={accessToken} onCancel={onCancel} />;
   }
   return <SimulatedCardPanel transaction={transaction} accessToken={accessToken} onPaid={onPaid} onCancel={onCancel} />;
+}
+
+function FleetChoicePanel({
+  account,
+  transaction,
+  accessToken,
+  onPaid,
+  onCancel,
+  onUseCard,
+}: {
+  account: FleetAccountSummary;
+  transaction: Transaction;
+  accessToken: string;
+  onPaid: (t: Transaction) => void;
+  onCancel: () => void;
+  onUseCard: () => void;
+}) {
+  const { t, locale } = useKioskLang();
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function payWithFleet() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const res = await kioskApi.payFleet(transaction.id, accessToken, account.id);
+      onPaid(res.transaction);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t("error.paymentFailed"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function cancel() {
+    try {
+      await kioskApi.cancel(transaction.id, accessToken);
+    } finally {
+      onCancel();
+    }
+  }
+
+  return (
+    <div>
+      <h2>{t("payment.fleetTitle")}</h2>
+      <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
+      <p className="hint-text">{t("payment.estimateNote")}</p>
+
+      <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
+        <div className="toolbar"><span>{t("payment.fleetCompany")}</span><div className="spacer" /><strong>{account.companyName}</strong></div>
+        {account.availableAmount !== null && (
+          <div className="toolbar"><span>{t("payment.fleetAvailable")}</span><div className="spacer" /><strong>{formatCurrency(account.availableAmount, locale)}</strong></div>
+        )}
+      </div>
+
+      {error && <p className="error-text">{error}</p>}
+
+      <div className="kiosk-actions">
+        <button type="button" onClick={cancel} disabled={submitting}>{t("payment.cancel")}</button>
+        <button type="button" onClick={onUseCard} disabled={submitting}>{t("payment.fleetUseCardInstead")}</button>
+        <button type="button" className="primary" onClick={payWithFleet} disabled={submitting}>
+          {submitting ? t("payment.processing") : t("payment.fleetPayButton")}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function IyzicoPaymentPanel({
