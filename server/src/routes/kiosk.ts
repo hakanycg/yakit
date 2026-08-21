@@ -294,10 +294,15 @@ router.post(
 
     try {
       const result = await retrieveCheckoutForm(t.station_id, token);
-      // Gecici teshis logu: conversationId uyumsuzlugunun tam olarak neden oldugunu (iyzico
-      // ne dondurdu, ne bekliyorduk) gormek icin. Sorun cozulunce kaldirilabilir.
-      logger.info({ id, expectedConversationId: String(id), result }, "iyzico checkoutForm.retrieve yaniti.");
-      if (result.conversationId !== String(id)) {
+      // NOT: gercek iyzico sandbox testinde gorduk ki on-provizyon (pre-auth) ile baslatilan
+      // checkout formlarinda iyzico conversationId'yi retrieve yanitinda BOS (null) dondurebiliyor
+      // - odeme gercekten basarili olsa bile. Asil guvenlik garantisi zaten `token` uzerinden
+      // geliyor: getTransactionForIyzicoCallback() bu token'in DOGRU islem kaydina ait oldugunu
+      // (payment_reference eslesmesiyle) onceden dogruladi, ve retrieveCheckoutForm() de ayni
+      // token'i iyzico'ya sunucu-sunucu sorgulayarak SADECE o token'a ait sonucu getiriyor -
+      // yani conversationId olmadan da carpraz islem riski yok. Bu yuzden conversationId
+      // yalnizca MEVCUTSA ve UYUSMUYORSA hata sayilir; hic donmemesi (null) engellenmez.
+      if (result.conversationId && result.conversationId !== String(id)) {
         throw new IyzicoError("iyzico conversationId uyumsuz.", 502);
       }
       finalizeTransactionPayment(id, {
