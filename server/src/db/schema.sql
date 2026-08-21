@@ -173,6 +173,8 @@ CREATE TABLE IF NOT EXISTS shifts (
   ended_at TEXT,
   opening_note TEXT,
   closing_note TEXT,
+  counted_cash REAL,
+  variance REAL,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_shifts_station ON shifts(station_id);

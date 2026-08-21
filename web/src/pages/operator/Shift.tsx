@@ -31,6 +31,8 @@ interface Shift {
   endedAt: string | null;
   openingNote: string | null;
   closingNote: string | null;
+  countedCash: number | null;
+  variance: number | null;
   createdAt: string;
   stats: ShiftStats | null;
 }
@@ -52,7 +54,9 @@ export default function Shift() {
   const [unassigned, setUnassigned] = useState<ShiftStats | null>(null);
   const [openingNote, setOpeningNote] = useState("");
   const [closingNote, setClosingNote] = useState("");
+  const [countedCash, setCountedCash] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [lastClosed, setLastClosed] = useState<Shift | null>(null);
   const [busy, setBusy] = useState(false);
   const [tick, setTick] = useState(0);
 
@@ -94,8 +98,14 @@ export default function Shift() {
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/api/shifts/${current.id}/end`, { closingNote: closingNote.trim() || undefined });
+      const trimmedCash = countedCash.trim();
+      const res = await api.post<{ shift: Shift }>(`/api/shifts/${current.id}/end`, {
+        closingNote: closingNote.trim() || undefined,
+        countedCash: trimmedCash ? Number(trimmedCash) : undefined,
+      });
       setClosingNote("");
+      setCountedCash("");
+      setLastClosed(res.shift);
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Vardiya kapatilamadi.");
@@ -140,7 +150,16 @@ export default function Shift() {
 
             {canManage && (current.userId === user?.id || user?.role !== "operator") && (
               <>
-                <label style={{ marginTop: "1rem" }}>Kapanis notu (opsiyonel)</label>
+                <label style={{ marginTop: "1rem" }}>Sayilan Nakit/Tutar (opsiyonel)</label>
+                <input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={countedCash}
+                  onChange={(e) => setCountedCash(e.target.value)}
+                  placeholder={`Sistem kaydi: ${formatCurrency(current.stats?.revenue ?? 0)}`}
+                />
+                <label style={{ marginTop: "0.5rem" }}>Kapanis notu (opsiyonel)</label>
                 <input value={closingNote} onChange={(e) => setClosingNote(e.target.value)} />
                 <button className="danger" style={{ marginTop: "0.75rem" }} disabled={busy} onClick={endShift}>
                   {busy ? "Kapatiliyor..." : "Vardiyayi Kapat"}
@@ -151,6 +170,16 @@ export default function Shift() {
         ) : (
           <>
             <p className="hint-text">Su anda acik bir vardiyaniz yok.</p>
+            {lastClosed && (
+              <p className={lastClosed.variance !== null && Math.abs(lastClosed.variance) > 0.01 ? "error-text" : "hint-text"}>
+                Kapatilan vardiyada {lastClosed.countedCash !== null ? (
+                  <>sayilan nakit {formatCurrency(lastClosed.countedCash)}, sistem kaydi {formatCurrency(lastClosed.stats?.revenue ?? 0)}
+                  {" "}— fark: {formatCurrency(lastClosed.variance ?? 0)}</>
+                ) : (
+                  "nakit sayimi girilmedi."
+                )}
+              </p>
+            )}
             {canManage && (
               <>
                 <label>Acilis notu (opsiyonel)</label>
@@ -220,7 +249,7 @@ export default function Shift() {
         </div>
         <table>
           <thead>
-            <tr><th>Personel</th><th>Baslangic</th><th>Bitis</th><th>Sure</th><th>Islem</th><th>Ciro</th><th>Litre</th></tr>
+            <tr><th>Personel</th><th>Baslangic</th><th>Bitis</th><th>Sure</th><th>Islem</th><th>Ciro</th><th>Litre</th><th>Sayilan Nakit</th><th>Fark</th></tr>
           </thead>
           <tbody>
             {history.map((s) => (
@@ -232,9 +261,13 @@ export default function Shift() {
                 <td>{s.stats?.transactionCount ?? 0}</td>
                 <td>{formatCurrency(s.stats?.revenue ?? 0)}</td>
                 <td>{formatLiters(s.stats?.liters ?? 0)}</td>
+                <td>{s.countedCash !== null ? formatCurrency(s.countedCash) : "-"}</td>
+                <td style={{ color: s.variance !== null && Math.abs(s.variance) > 0.01 ? "#f87171" : undefined }}>
+                  {s.variance !== null ? formatCurrency(s.variance) : "-"}
+                </td>
               </tr>
             ))}
-            {history.length === 0 && <tr><td colSpan={7} className="hint-text">Kayit yok.</td></tr>}
+            {history.length === 0 && <tr><td colSpan={9} className="hint-text">Kayit yok.</td></tr>}
           </tbody>
         </table>
       </div>
