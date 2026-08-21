@@ -385,6 +385,21 @@ CREATE TABLE IF NOT EXISTS station_sync_events (
 );
 CREATE INDEX IF NOT EXISTS idx_station_sync_events_station ON station_sync_events(station_id, received_at);
 
+-- Admin, bir yakit fiyatini ileri bir tarih/saatte otomatik devreye girecek sekilde
+-- planlayabilir - bkz. scheduledPriceService.ts applyDuePriceChanges().
+CREATE TABLE IF NOT EXISTS scheduled_price_changes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,
+  price_per_liter REAL NOT NULL,
+  scheduled_for TEXT NOT NULL,          -- ISO tarih/saat - bu an gelince fiyat otomatik uygulanir
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | applied | cancelled
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by INTEGER REFERENCES users(id),
+  applied_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_scheduled_price_changes_station ON scheduled_price_changes(station_id, status, scheduled_for);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

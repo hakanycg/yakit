@@ -9,6 +9,7 @@ import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js
 import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
+import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -57,6 +58,11 @@ offlineStationInterval.unref();
 // devreye girer.
 const safetySensorInterval = setInterval(checkSafetySensors, 10 * 1000);
 safetySensorInterval.unref();
+
+// Zamanlanmis yakit fiyati degisiklikleri - dakika hassasiyeti yeterli.
+applyDuePriceChanges();
+const scheduledPriceInterval = setInterval(applyDuePriceChanges, 60 * 1000);
+scheduledPriceInterval.unref();
 
 // Haftalik/aylik ozet raporu e-postalari: saatlik kontrol yeterli hassasiyette
 // (donem siniri gun bazinda, saniye hassasiyeti gerekmiyor). Hata durumunda

@@ -321,6 +321,20 @@ export interface PumpMaintenanceLogRow {
   created_at: string;
 }
 
+export type ScheduledPriceChangeStatus = "pending" | "applied" | "cancelled";
+
+export interface ScheduledPriceChangeRow {
+  id: number;
+  station_id: number;
+  fuel_type: FuelType;
+  price_per_liter: number;
+  scheduled_for: string;
+  status: ScheduledPriceChangeStatus;
+  created_at: string;
+  created_by: number | null;
+  applied_at: string | null;
+}
+
 export interface StationSyncStateRow {
   station_id: number;
   last_heartbeat_at: string | null;

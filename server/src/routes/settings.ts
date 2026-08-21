@@ -9,6 +9,7 @@ import { resetDemoData } from "../services/demoResetService.js";
 import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
 import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
 import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
+import { ScheduledPriceError, cancelSchedule, createSchedule, listSchedules, serializeSchedule } from "../services/scheduledPriceService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -51,6 +52,49 @@ router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => 
     stationId: req.stationId,
   });
   res.json({ ok: true });
+});
+
+router.get("/fuel-prices/scheduled", (req, res) => {
+  res.json({ schedules: listSchedules(req.stationId!).map(serializeSchedule) });
+});
+
+const scheduleSchema = z.object({
+  fuelType: z.enum(["benzin", "motorin", "lpg"]),
+  pricePerLiter: z.number().positive().max(1000),
+  scheduledFor: z.string().datetime({ message: "Gecerli bir ISO tarih/saat giriniz." }).or(z.string().min(1)),
+});
+
+router.post("/fuel-prices/scheduled", validateBody(scheduleSchema), (req, res) => {
+  const body = req.body as z.infer<typeof scheduleSchema>;
+  try {
+    const schedule = createSchedule(req.stationId!, body.fuelType, body.pricePerLiter, body.scheduledFor, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_price_scheduled",
+      entityType: "fuel_price",
+      entityId: body.fuelType,
+      details: body,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ schedule: serializeSchedule(schedule) });
+  } catch (err) {
+    if (err instanceof ScheduledPriceError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.delete("/fuel-prices/scheduled/:id", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz planlama kimligi." });
+  try {
+    cancelSchedule(req.stationId!, id);
+    recordAudit({ user: req.user!, action: "fuel_price_schedule_cancelled", entityType: "fuel_price", entityId: id, ip: req.ip, stationId: req.stationId });
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof ScheduledPriceError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 router.get("/payment", (req, res) => {

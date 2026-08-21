@@ -1,8 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
-import { FUEL_LABEL } from "../../shared/format";
+import { FUEL_LABEL, formatCurrency, formatDateTime } from "../../shared/format";
 import type { FuelPrice } from "../../shared/types";
+
+interface ScheduledPriceChange {
+  id: number;
+  fuelType: string;
+  pricePerLiter: number;
+  scheduledFor: string;
+  status: "pending" | "applied" | "cancelled";
+  createdAt: string;
+  appliedAt: string | null;
+}
 
 function StatusToggle({
   checked,
@@ -34,12 +44,56 @@ export default function Settings() {
   const [edits, setEdits] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [schedules, setSchedules] = useState<ScheduledPriceChange[]>([]);
+  const [scheduleFuelType, setScheduleFuelType] = useState("");
+  const [schedulePrice, setSchedulePrice] = useState("");
+  const [scheduleAt, setScheduleAt] = useState("");
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
   function load() {
     if (stationId === null) return;
     api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => setPrices(res.fuelPrices));
+    api.get<{ schedules: ScheduledPriceChange[] }>("/api/settings/fuel-prices/scheduled").then((res) => setSchedules(res.schedules));
   }
   useEffect(load, [stationId]);
+
+  async function submitSchedule() {
+    setScheduleError(null);
+    const price = Number(schedulePrice);
+    if (!scheduleFuelType || !schedulePrice || Number.isNaN(price) || price <= 0 || !scheduleAt) {
+      setScheduleError("Yakit tipi, fiyat ve tarih/saat gereklidir.");
+      return;
+    }
+    setScheduleSubmitting(true);
+    try {
+      await api.post("/api/settings/fuel-prices/scheduled", {
+        fuelType: scheduleFuelType,
+        pricePerLiter: price,
+        scheduledFor: new Date(scheduleAt).toISOString(),
+      });
+      setScheduleFuelType("");
+      setSchedulePrice("");
+      setScheduleAt("");
+      load();
+    } catch (err) {
+      setScheduleError(err instanceof ApiError ? err.message : "Planlanamadi.");
+    } finally {
+      setScheduleSubmitting(false);
+    }
+  }
+
+  async function cancelScheduleRow(id: number) {
+    setScheduleError(null);
+    try {
+      await api.delete(`/api/settings/fuel-prices/scheduled/${id}`);
+      load();
+    } catch (err) {
+      setScheduleError(err instanceof ApiError ? err.message : "Iptal edilemedi.");
+    }
+  }
+
+  const pendingSchedules = schedules.filter((s) => s.status === "pending");
 
   async function save(fuelType: string) {
     const raw = edits[fuelType];
@@ -98,6 +152,41 @@ export default function Settings() {
             </a>{" "}
             (il/ilçe/bayi bazında; CAPTCHA korumalı olduğundan otomatik çekilemiyor, elle sorgulanır).
           </p>
+
+          <h4 style={{ marginTop: "1.25rem" }}>Zamanlanmis Fiyat Degisikligi</h4>
+          <p className="hint-text">Ileri bir tarih/saat belirleyin, o an geldiginde fiyat otomatik devreye girer.</p>
+          <div className="toolbar" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
+            <select value={scheduleFuelType} onChange={(e) => setScheduleFuelType(e.target.value)}>
+              <option value="">Yakit tipi secin</option>
+              {prices.map((p) => (
+                <option key={p.fuelType} value={p.fuelType}>{p.label}</option>
+              ))}
+            </select>
+            <input type="number" step="0.01" min="0" placeholder="Yeni fiyat (TL/L)" value={schedulePrice} onChange={(e) => setSchedulePrice(e.target.value)} style={{ width: "10rem" }} />
+            <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
+            <button className="primary" onClick={submitSchedule} disabled={scheduleSubmitting}>
+              {scheduleSubmitting ? "Planlaniyor..." : "Planla"}
+            </button>
+          </div>
+          {scheduleError && <p className="error-text">{scheduleError}</p>}
+
+          {pendingSchedules.length > 0 && (
+            <table style={{ marginTop: "0.75rem" }}>
+              <thead>
+                <tr><th>Yakit</th><th className="numeric">Yeni Fiyat</th><th>Planlanan Zaman</th><th></th></tr>
+              </thead>
+              <tbody>
+                {pendingSchedules.map((s) => (
+                  <tr key={s.id}>
+                    <td>{FUEL_LABEL[s.fuelType] ?? s.fuelType}</td>
+                    <td className="numeric">{formatCurrency(s.pricePerLiter)}</td>
+                    <td>{formatDateTime(s.scheduledFor)}</td>
+                    <td><button onClick={() => cancelScheduleRow(s.id)}>Iptal Et</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
         <PaymentSettingsCard />
