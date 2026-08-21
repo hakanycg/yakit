@@ -31,6 +31,13 @@ export const kioskApi = {
       `/api/kiosk/loyalty/balance?stationId=${stationId}&plate=${encodeURIComponent(plate)}`
     ),
 
+  // Yanlis yakit onleme: bu plaka bu istasyonda daha once hangi yakit turuyle basariyla
+  // dolum yapmis - resmi bir ruhsat/tescil kaydi degil, kendi gecmisimize dayali bir sinyal.
+  getLastFuelType: (stationId: number, plate: string) =>
+    api.get<{ fuelType: FuelType | null }>(
+      `/api/kiosk/plate/last-fuel-type?stationId=${stationId}&plate=${encodeURIComponent(plate)}`
+    ),
+
   // Kod gecersizse backend 404/409 doner - cagiran taraf ApiError'i yakalayip .message'i gostermeli.
   previewDiscountCode: (stationId: number, code: string, fuelType: FuelType, totalAmount: number) =>
     api.post<{ valid: true; discountAmount: number }>("/api/kiosk/discount/preview", { stationId, code, fuelType, totalAmount }),

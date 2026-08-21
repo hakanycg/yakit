@@ -485,6 +485,23 @@ export function getTransactionById(id: number, stationId: number): TransactionRo
 }
 
 /**
+ * Yanlis yakit onleme: bu plaka bu istasyonda daha once basariyla dolum yaptiysa, en
+ * son kullandigi yakit turunu doner (yoksa null). Gercek ruhsat/tescil verisine
+ * (resmi bir kaynaga) erisimimiz olmadigi icin bu, aracin motor tipinin pratikte
+ * neredeyse hic degismemesi varsayimina dayanan bir sezgiseldir - kesin bir dogrulama
+ * degildir, sadece musteriye "emin misiniz?" diye sormak icin bir sinyaldir.
+ */
+export function getLastFuelTypeForPlate(stationId: number, plate: string): FuelType | null {
+  const normalized = plate.toUpperCase().replace(/\s+/g, " ").trim();
+  const row = db
+    .prepare<[number, string], { fuel_type: FuelType }>(
+      "SELECT fuel_type FROM transactions WHERE station_id = ? AND plate = ? AND status = 'completed' ORDER BY created_at DESC LIMIT 1"
+    )
+    .get(stationId, normalized);
+  return row?.fuel_type ?? null;
+}
+
+/**
  * Sunucu yeniden baslatildiginda yarim kalmis dolum simulasyonlarini emniyetli sekilde
  * temizler. emergencyStopTransaction() ile AYNI mantik: gercekten yakit verildiyse
  * (dispensed_liters > 0) "completed" olarak sonuclandirilir (musteri gercek fuel aldi,

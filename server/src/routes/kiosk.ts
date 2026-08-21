@@ -9,6 +9,7 @@ import {
   chargeAmount,
   createTransaction,
   finalizeTransactionPayment,
+  getLastFuelTypeForPlate,
   getTransactionForIyzicoCallback,
   getTransactionForKiosk,
   markIyzicoPending,
@@ -100,6 +101,17 @@ router.get("/loyalty/balance", (req, res) => {
   const { enabled, pointValueTry } = getLoyaltyConfig(parsed.data.stationId);
   const points = enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
   res.json({ enabled, points, valueTry: Math.round(points * pointValueTry * 100) / 100 });
+});
+
+router.get("/plate/last-fuel-type", (req, res) => {
+  const parsed = loyaltyBalanceSchema.safeParse(req.query);
+  if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
+  try {
+    getStationOrThrow(parsed.data.stationId);
+  } catch {
+    return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  }
+  res.json({ fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate) });
 });
 
 const discountPreviewSchema = z.object({

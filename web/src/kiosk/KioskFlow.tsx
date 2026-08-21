@@ -272,7 +272,14 @@ function KioskFlowInner() {
         )}
 
         {step === "fuel" && pump && (
-          <FuelStep pump={pump} fuelPrices={station.fuelPrices} onNext={(f) => { setFuelType(f); setStep("amount"); }} onBack={() => setStep("pump")} />
+          <FuelStep
+            pump={pump}
+            fuelPrices={station.fuelPrices}
+            stationId={station.station.id}
+            plate={plate}
+            onNext={(f) => { setFuelType(f); setStep("amount"); }}
+            onBack={() => setStep("pump")}
+          />
         )}
 
         {step === "amount" && fuelType && (
