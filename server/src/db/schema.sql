@@ -18,7 +18,12 @@ CREATE TABLE IF NOT EXISTS stations (
   sync_token TEXT,                     -- istasyon ajaninin /api/sync/* uclarinda kimlik dogrulamasi icin (bkz. syncService.ts)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_sync_token ON stations(sync_token) WHERE sync_token IS NOT NULL;
+-- sync_token indeksi burada DEGIL, db/index.ts'deki applyMigrations()'da olusturuluyor:
+-- CREATE TABLE IF NOT EXISTS, halihazirda var olan (production) 'stations' tablosunu
+-- DEGISTIRMEZ (no-op), yani sync_token kolonu bu blokla eklenmis olmaz. Bu indeksi
+-- burada, CREATE TABLE'in hemen ardinda olusturmaya calismak, mevcut veritabanlarinda
+-- kolon henuz yokken calisip "no such column: sync_token" hatasiyla applySchema()'yi
+-- (ve dolayisiyla tum sunucu baslatmasini) crash-loop'a sokar - bu gercekten yasandi.
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
