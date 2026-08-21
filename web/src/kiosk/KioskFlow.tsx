@@ -123,8 +123,7 @@ function KioskFlowInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useTopicSubscription(transaction ? `transaction:${transaction.id}` : null, (payload) => {
-    const t = payload as Transaction;
+  const applyTransactionUpdate = useCallback((t: Transaction) => {
     setTransaction(t);
     if (t.status === "completed" || t.status === "cancelled" || t.status === "failed") {
       setStep("receipt");
@@ -132,7 +131,29 @@ function KioskFlowInner() {
       setTargetLiters((prev) => (prev > 0 ? prev : computeTargetLiters(t)));
       setStep((prev) => (prev === "payment" || prev === "iyzico-wait" ? "dispense" : prev));
     }
-  }, accessToken ?? undefined);
+  }, []);
+
+  useTopicSubscription(
+    transaction ? `transaction:${transaction.id}` : null,
+    (payload) => applyTransactionUpdate(payload as Transaction),
+    accessToken ?? undefined
+  );
+
+  // WebSocket, tam bu dolumun bittigi anda kisa bir baglanti kopmasina denk gelirse
+  // (ör. proxy/yeniden baslatma), musteri "Dolum Yapiliyor" ekraninda sonsuza dek
+  // takili kalabilir - operator uzaktan (Acil Durdur) islemi bitirmis olsa bile. Bu
+  // yuzden dolum adiminda WS'e ek olarak periyodik bir REST sorgusu da yapilir; WS
+  // olayi kacsa bile en gec birkac saniye icinde gercek durum yakalanir.
+  useEffect(() => {
+    if (step !== "dispense" || !transaction || !accessToken) return;
+    const interval = setInterval(() => {
+      kioskApi
+        .getTransaction(transaction.id, accessToken)
+        .then((res) => applyTransactionUpdate(res.transaction))
+        .catch(() => {});
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [step, transaction, accessToken, applyTransactionUpdate]);
 
   function reset() {
     setStep("plate");
