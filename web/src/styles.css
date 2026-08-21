@@ -435,3 +435,20 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 
 .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
 .login-card { width: min(380px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 2rem; }
+
+/* Kiosk fis yazdirma: normalde ekranda (koyu tema, genis kart) gorunen makbuz, yazdirma
+   sirasinda dar bir termal fis genisligine (80mm) donusur; sayfadaki geri kalan her sey
+   (dil secici, adim cubugu, e-posta/SMS formu, butonlar) yazdirmada gizlenir. */
+@media print {
+  body * { visibility: hidden; }
+  .kiosk-receipt-print, .kiosk-receipt-print * { visibility: visible; }
+  .kiosk-receipt-print {
+    position: absolute; left: 0; top: 0; width: 80mm;
+    background: #fff !important; color: #000 !important;
+    border: none; box-shadow: none; padding: 2mm 3mm; margin: 0;
+    font-size: 11px;
+  }
+  .kiosk-receipt-print * { background: transparent !important; color: #000 !important; border-color: #000 !important; }
+  .kiosk-receipt-print h3 { font-size: 13px; text-align: center; margin: 0 0 2mm; }
+  .kiosk-receipt-print .toolbar { padding: 0.5mm 0; }
+}

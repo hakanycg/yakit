@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
@@ -27,6 +27,19 @@ export default function ReceiptStep({
   // dahil degildir ve genel bir "kismi dolum" notuyla gosterilir.
   const isTankDepletionNote = transaction.cancelledReason === "Depo dolum sirasinda tukendi; islem eldeki miktarla sonuclandirildi.";
 
+  // Fiziksel fis yazicisi (kiosk PC'sinde varsayilan yazici olarak ayarlanmis, Chromium
+  // "--kiosk-printing" bayragiyla acilmis bir termal yazici) tarayicinin kendi yazdirma
+  // ozelligiyle (window.print) tetiklenir - ayri bir donanim kutuphanesine gerek yok.
+  // Basarili bir dolumda fis otomatik olarak bir kez yazdirilir; her ihtimale karsi
+  // (kagit sikismasi, musterinin ikinci nusha istemesi) manuel "Yazdir" butonu da kalir.
+  const printedRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (failed) return;
+    if (printedRef.current === transaction.id) return;
+    printedRef.current = transaction.id;
+    window.print();
+  }, [failed, transaction.id]);
+
   return (
     <div style={{ textAlign: "center" }}>
       <h2>{failed ? t("receipt.failedTitle") : t("receipt.completedTitle")}</h2>
@@ -42,7 +55,8 @@ export default function ReceiptStep({
                 : t("receipt.partialFillNote", { liters: formatLiters(transaction.dispensedLiters) })}
             </p>
           )}
-          <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
+          <div className="card kiosk-receipt-print" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
+            <h3 style={{ marginTop: 0, textAlign: "center" }}>{t("receipt.printTitle")}</h3>
             <div className="toolbar"><span>{t("receipt.plate")}</span><div className="spacer" /><strong dir="ltr">{transaction.plate}</strong></div>
             <div className="toolbar"><span>{t("receipt.fuel")}</span><div className="spacer" /><strong>{t(`fuel.${transaction.fuelType}`)}</strong></div>
             <div className="toolbar"><span>{t("receipt.amount")}</span><div className="spacer" /><strong>{formatLiters(transaction.dispensedLiters)}</strong></div>
@@ -62,6 +76,8 @@ export default function ReceiptStep({
             <div className="toolbar"><span>{t("receipt.transactionNo")}</span><div className="spacer" /><strong>#{transaction.id}</strong></div>
             <div className="toolbar"><span>{t("receipt.date")}</span><div className="spacer" /><strong>{formatDateTime(transaction.completedAt, locale)}</strong></div>
           </div>
+
+          <button style={{ marginTop: "0.5rem" }} onClick={() => window.print()}>{t("receipt.print")}</button>
 
           {accessToken && <ReceiptSender transactionId={transaction.id} accessToken={accessToken} />}
         </>
