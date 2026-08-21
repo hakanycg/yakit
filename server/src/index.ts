@@ -4,7 +4,7 @@ import { env, isProd } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { initWebSocketHub } from "./ws/hub.js";
 import { purgeExpiredSessions } from "./services/sessionService.js";
-import { reconcileStuckTransactions } from "./services/transactionService.js";
+import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { runBackup } from "./services/backupService.js";
 
@@ -30,6 +30,12 @@ process.on("unhandledRejection", (reason) => {
 });
 
 reconcileStuckTransactions();
+
+// Odemesini hic tamamlamadan kiosk'tan ayrilan musterilerin pompayi sonsuza dek
+// "reserved" tutmasini engeller (bkz. reconcileStaleCreatedTransactions yorumu).
+reconcileStaleCreatedTransactions();
+const staleTransactionInterval = setInterval(reconcileStaleCreatedTransactions, 2 * 60 * 1000);
+staleTransactionInterval.unref();
 
 const app = createApp();
 const server = createServer(app);

@@ -512,3 +512,32 @@ export function reconcileStuckTransactions(): void {
     void settleIyzicoPreAuthIfNeeded(updated);
   }
 }
+
+/**
+ * Musteri bir islem baslatip (pompa "reserved" olur) odemeyi hic tamamlamadan
+ * kiosk'tan ayrilirsa (sekmeyi kapatir, uzaklasir, vb.) - "Islemi Iptal Et"
+ * butonuna basmadigi surece transactions.status "created" olarak sonsuza dek
+ * kalir ve pompa hicbir zaman "idle"'a donmezdi (bir sonraki musteri o pompayi
+ * KULLANAMAZDI, operator elle Reset basana kadar). Bu, belirli bir sureden
+ * (maxAgeMs) daha eski hala "created" durumundaki islemleri, gercek bir odeme
+ * hic alinmamis gibi (rezerve edilmis indirim kodu/puan iade edilerek) iptal
+ * edip pompayi serbest birakir. Sunucu tarafinda periyodik olarak cagrilir
+ * (bkz. index.ts) - client-side idle-reset (useIdleReset) sadece kiosk
+ * ekranini sifirlar, sunucudaki kaydi/pompayi etkilemez.
+ */
+export function reconcileStaleCreatedTransactions(maxAgeMs = 10 * 60 * 1000): void {
+  const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
+  const stale = db
+    .prepare<[string], TransactionRow>("SELECT * FROM transactions WHERE status = 'created' AND created_at < ?")
+    .all(cutoff);
+  for (const t of stale) {
+    refundReservations(t);
+    const updated = touch(t.id, {
+      status: "cancelled",
+      cancelled_reason: "Odeme suresi doldu (musteri islemi tamamlamadi).",
+      total_amount: 0,
+    });
+    setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
+    broadcastTransaction(updated);
+  }
+}

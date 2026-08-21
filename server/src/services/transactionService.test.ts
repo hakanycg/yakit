@@ -10,6 +10,7 @@ import {
   finalizeTransactionPayment,
   markIyzicoPending,
   payTransaction,
+  reconcileStaleCreatedTransactions,
   reconcileStuckTransactions,
 } from "./transactionService.js";
 
@@ -186,5 +187,43 @@ describe("reconcileStuckTransactions", () => {
     const after = db.prepare("SELECT * FROM transactions WHERE id = ?").get(transaction.id) as TransactionRow;
     expect(after.status).toBe("cancelled");
     expect(after.total_amount).toBe(0);
+  });
+});
+
+describe("reconcileStaleCreatedTransactions", () => {
+  // Musteri odemeyi hic baslatmadan (status "created") kiosk'tan ayrilirsa, pompa
+  // sonsuza dek "reserved" kalirdi - bunu simule etmek icin created_at'i elle
+  // gecmise cekiyoruz (gercek zamanlayici beklemeden ayni etkiyi elde etmek icin).
+  it("cancels a 'created' transaction older than the cutoff and frees the pump", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction } = createTransaction({ pumpId, plate: "34STA001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    expect(transaction.total_amount).toBeGreaterThan(0);
+    db.prepare("UPDATE transactions SET created_at = strftime('%Y-%m-%dT%H:%M:%fZ','now','-20 minutes') WHERE id = ?").run(
+      transaction.id
+    );
+
+    reconcileStaleCreatedTransactions(10 * 60 * 1000);
+
+    const after = db.prepare("SELECT * FROM transactions WHERE id = ?").get(transaction.id) as TransactionRow;
+    expect(after.status).toBe("cancelled");
+    expect(after.total_amount).toBe(0);
+    const pump = db.prepare("SELECT status, current_transaction_id FROM pumps WHERE id = ?").get(pumpId) as {
+      status: string;
+      current_transaction_id: number | null;
+    };
+    expect(pump.status).toBe("idle");
+    expect(pump.current_transaction_id).toBeNull();
+  });
+
+  it("leaves a recently-created transaction untouched", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction } = createTransaction({ pumpId, plate: "34STA002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+
+    reconcileStaleCreatedTransactions(10 * 60 * 1000);
+
+    const after = db.prepare("SELECT * FROM transactions WHERE id = ?").get(transaction.id) as TransactionRow;
+    expect(after.status).toBe("created");
+    const pump = db.prepare("SELECT status FROM pumps WHERE id = ?").get(pumpId) as { status: string };
+    expect(pump.status).toBe("reserved");
   });
 });
