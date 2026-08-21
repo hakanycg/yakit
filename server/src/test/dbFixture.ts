@@ -74,3 +74,22 @@ export function createTestFuelPrice(stationId: number, fuelType: FuelType, price
 export function setTankStock(stationId: number, fuelType: FuelType, liters: number): void {
   db.prepare("UPDATE fuel_tanks SET current_liters = ? WHERE station_id = ? AND fuel_type = ?").run(liters, stationId, fuelType);
 }
+
+/**
+ * fleet_movements.transaction_id gibi bazi tablolar transactions(id)'e FOREIGN KEY
+ * referansi verir. Testler baska bir islem akisini simule etmeden sadece bu FK'yi
+ * tatmin edecek bir transactionId'ye ihtiyac duydugunda (ör. chargeAccount testleri),
+ * rastgele bir sayi (1, 2...) kullanmak yerine bu yardimciyla GERCEK bir satir
+ * olusturulmali - aksi halde test dosyalarinin calisma SIRASINA bagli, kirilgan bir
+ * varsayima (baska bir test dosyasinin daha once "sanslica" ayni id'de bir islem
+ * olusturmus olmasina) dayanilmis olur.
+ */
+export function createTestTransaction(stationId: number, pumpId: number): number {
+  const result = db
+    .prepare(
+      `INSERT INTO transactions (station_id, pump_id, plate, fuel_type, amount_mode, price_per_liter, kiosk_access_token)
+       VALUES (?, ?, 'TEST0001', 'benzin', 'amount', 44.5, ?)`
+    )
+    .run(stationId, pumpId, `test-token-${stationId}-${pumpId}-${Date.now()}-${Math.random()}`);
+  return result.lastInsertRowid as number;
+}

@@ -1,5 +1,8 @@
 import { db } from "../db/index.js";
 import type { FleetAccountRow, FleetMovementRow, FleetPlateRow, UserRow } from "../db/types.js";
+import { createAlarm, broadcastAlarms } from "./alarmService.js";
+import { sendEmail, sendSms } from "./notificationService.js";
+import { logger } from "../utils/logger.js";
 
 export class FleetError extends Error {
   constructor(
@@ -45,16 +48,50 @@ export interface CreateFleetAccountInput {
   vkn?: string;
   billingType: "prepaid" | "postpaid";
   creditLimit?: number;
+  contactEmail?: string;
+  contactPhone?: string;
+  lowBalanceThreshold?: number;
 }
 
 export function createAccount(stationId: number, input: CreateFleetAccountInput, actor: UserRow): FleetAccountRow {
   const result = db
     .prepare(
-      `INSERT INTO fleet_accounts (station_id, company_name, vkn, billing_type, credit_limit, created_by)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO fleet_accounts (station_id, company_name, vkn, billing_type, credit_limit, contact_email, contact_phone, low_balance_threshold, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(stationId, input.companyName.trim(), input.vkn?.trim() || null, input.billingType, input.creditLimit ?? null, actor.id);
+    .run(
+      stationId,
+      input.companyName.trim(),
+      input.vkn?.trim() || null,
+      input.billingType,
+      input.creditLimit ?? null,
+      input.contactEmail?.trim() || null,
+      input.contactPhone?.trim() || null,
+      input.lowBalanceThreshold ?? null,
+      actor.id
+    );
   return getAccountById(stationId, result.lastInsertRowid as number);
+}
+
+export interface UpdateFleetContactInput {
+  contactEmail?: string | null;
+  contactPhone?: string | null;
+  lowBalanceThreshold?: number | null;
+}
+
+/** Dusuk bakiye uyarisi icin iletisim bilgilerini/esigini gunceller. */
+export function updateContact(stationId: number, id: number, input: UpdateFleetContactInput): FleetAccountRow {
+  getAccountById(stationId, id);
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  if ("contactEmail" in input) { fields.push("contact_email = ?"); values.push(input.contactEmail?.trim() || null); }
+  if ("contactPhone" in input) { fields.push("contact_phone = ?"); values.push(input.contactPhone?.trim() || null); }
+  if ("lowBalanceThreshold" in input) { fields.push("low_balance_threshold = ?"); values.push(input.lowBalanceThreshold ?? null); }
+  if (fields.length > 0) {
+    values.push(id);
+    db.prepare(`UPDATE fleet_accounts SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+  }
+  return getAccountById(stationId, id);
 }
 
 export function setAccountActive(stationId: number, id: number, active: boolean): FleetAccountRow {
@@ -108,6 +145,46 @@ export function getAvailableAmount(account: FleetAccountRow): number {
   return Math.max(0, account.credit_limit - account.balance);
 }
 
+function fleetLowBalanceAlarmType(accountId: number): string {
+  return `fleet_low_balance_${accountId}`;
+}
+
+/**
+ * Prepaid bir hesabin bakiyesi esigin altina dusunce bir kez kritik alarm + (varsa)
+ * dogrudan sirket yetkilisine e-posta/SMS gonderir - tekrar tekrar spam olmamasi icin
+ * alarm zaten aktifse yeniden gonderilmez. Bakiye esigin uzerine cikinca (topup ile)
+ * alarm otomatik cozulur, boylece bir sonraki dususte tekrar uyarabilir.
+ */
+function checkLowBalance(account: FleetAccountRow): void {
+  if (account.billing_type !== "prepaid" || account.low_balance_threshold === null) return;
+  const alarmType = fleetLowBalanceAlarmType(account.id);
+
+  if (account.balance > account.low_balance_threshold) {
+    const result = db
+      .prepare("UPDATE alarms SET status = 'resolved', resolved_at = ? WHERE station_id = ? AND type = ? AND status != 'resolved'")
+      .run(new Date().toISOString(), account.station_id, alarmType);
+    if (result.changes > 0) broadcastAlarms(account.station_id);
+    return;
+  }
+
+  const existing = db
+    .prepare<[number, string], { id: number }>("SELECT id FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1")
+    .get(account.station_id, alarmType);
+  if (existing) return;
+
+  const message = `${account.company_name} filo hesabinin bakiyesi dusuk (${account.balance.toFixed(2)} TL kaldi, esik: ${account.low_balance_threshold.toFixed(2)} TL).`;
+  createAlarm({ stationId: account.station_id, type: alarmType, severity: "critical", message });
+
+  if (account.contact_email) {
+    sendEmail(account.contact_email, `[Dusuk Bakiye] ${account.company_name}`, message).catch((err) =>
+      logger.error({ err, accountId: account.id }, "Filo dusuk bakiye e-postasi gonderilemedi.")
+    );
+  }
+  if (account.contact_phone) {
+    sendSms(account.contact_phone, message).catch((err) => logger.error({ err, accountId: account.id }, "Filo dusuk bakiye SMS'i gonderilemedi."));
+  }
+}
+
 /** Yonetici/operator tarafindan bakiye yuklemesi (prepaid) veya borc kapama kaydi (postpaid). */
 export function topUp(stationId: number, accountId: number, amount: number, note: string | undefined, actor: UserRow): FleetAccountRow {
   if (amount <= 0) throw new FleetError("Gecersiz tutar.", 400);
@@ -117,7 +194,9 @@ export function topUp(stationId: number, accountId: number, amount: number, note
 
   db.prepare("UPDATE fleet_accounts SET balance = ? WHERE id = ?").run(newBalance, accountId);
   insertMovement({ accountId, type: "topup", amount, balanceAfter: newBalance, note: note ?? null, userId: actor.id });
-  return getAccountById(stationId, accountId);
+  const updated = getAccountById(stationId, accountId);
+  checkLowBalance(updated);
+  return updated;
 }
 
 /** Kiosk odemesinde filo hesabindan tahsilat yapar. Yetersiz bakiye/limit asimi durumunda hata firlatir. */
@@ -136,7 +215,9 @@ export function chargeAccount(stationId: number, accountId: number, amount: numb
 
   db.prepare("UPDATE fleet_accounts SET balance = ? WHERE id = ?").run(newBalance, accountId);
   insertMovement({ accountId, type: "charge", amount, balanceAfter: newBalance, transactionId });
-  return getAccountById(stationId, accountId);
+  const updated = getAccountById(stationId, accountId);
+  checkLowBalance(updated);
+  return updated;
 }
 
 /** Odenmis ama hic yakit dagitilmadan iptal olan bir islemde tahsilati geri alir. */
@@ -192,6 +273,16 @@ export function serializeAccount(a: FleetAccountRow) {
     availableAmount: getAvailableAmount(a) === Number.POSITIVE_INFINITY ? null : getAvailableAmount(a),
     active: !!a.active,
     createdAt: a.created_at,
+  };
+}
+
+/** Kiosk'a (public) degil, yalnizca admin panelindeki iletisim/uyari ayarlarina ozel alanlari ekler. */
+export function serializeAccountAdmin(a: FleetAccountRow) {
+  return {
+    ...serializeAccount(a),
+    contactEmail: a.contact_email,
+    contactPhone: a.contact_phone,
+    lowBalanceThreshold: a.low_balance_threshold,
   };
 }
 

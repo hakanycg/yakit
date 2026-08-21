@@ -308,6 +308,9 @@ CREATE TABLE IF NOT EXISTS fleet_accounts (
   balance REAL NOT NULL DEFAULT 0,     -- prepaid: kalan bakiye; postpaid: faturalandirilmamis birikmis borc
   credit_limit REAL,                   -- yalnizca postpaid icin ust sinir (NULL = sinirsiz)
   active INTEGER NOT NULL DEFAULT 1,
+  contact_email TEXT,                  -- dusuk bakiye uyarisinin gonderilecegi sirket yetkilisi e-postasi
+  contact_phone TEXT,                  -- dusuk bakiye uyarisinin gonderilecegi sirket yetkilisi telefonu (SMS)
+  low_balance_threshold REAL,          -- yalnizca prepaid: bakiye bunun altina dusunce uyari gonderilir (NULL = kapali)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   created_by INTEGER REFERENCES users(id)
 );

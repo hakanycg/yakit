@@ -163,6 +163,9 @@ export interface FleetAccountRow {
   balance: number;
   credit_limit: number | null;
   active: number;
+  contact_email: string | null;
+  contact_phone: string | null;
+  low_balance_threshold: number | null;
   created_at: string;
   created_by: number | null;
 }

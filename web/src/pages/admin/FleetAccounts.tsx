@@ -18,6 +18,9 @@ interface FleetAccount {
   creditLimit: number | null;
   availableAmount: number | null;
   active: boolean;
+  contactEmail: string | null;
+  contactPhone: string | null;
+  lowBalanceThreshold: number | null;
   createdAt: string;
   plates: FleetPlate[];
 }
@@ -133,6 +136,9 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [vkn, setVkn] = useState("");
   const [billingType, setBillingType] = useState<"prepaid" | "postpaid">("prepaid");
   const [creditLimit, setCreditLimit] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [lowBalanceThreshold, setLowBalanceThreshold] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -145,6 +151,9 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
         vkn: vkn.trim() || undefined,
         billingType,
         creditLimit: billingType === "postpaid" && creditLimit ? Number(creditLimit) : undefined,
+        contactEmail: contactEmail.trim() || undefined,
+        contactPhone: contactPhone.trim() || undefined,
+        lowBalanceThreshold: billingType === "prepaid" && lowBalanceThreshold ? Number(lowBalanceThreshold) : undefined,
       });
       onCreated();
     } catch (err) {
@@ -177,6 +186,20 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
         </>
       )}
 
+      <label>Yetkili E-posta (opsiyonel)</label>
+      <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="ornek@sirket.com" />
+
+      <label>Yetkili Telefon (opsiyonel)</label>
+      <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="05XX XXX XX XX" />
+
+      {billingType === "prepaid" && (
+        <>
+          <label>Dusuk Bakiye Esigi (opsiyonel, TL - bos = uyari kapali)</label>
+          <input type="number" min={0} step={0.01} value={lowBalanceThreshold} onChange={(e) => setLowBalanceThreshold(e.target.value)} />
+          <p className="hint-text">Bakiye bu tutarin altina dusunce yetkiliye otomatik e-posta/SMS gonderilir.</p>
+        </>
+      )}
+
       {error && <p className="error-text">{error}</p>}
 
       <div className="toolbar" style={{ marginTop: "1.25rem" }}>
@@ -205,6 +228,10 @@ function AccountDetailDialog({
   const [newPlate, setNewPlate] = useState("");
   const [topUpAmount, setTopUpAmount] = useState("");
   const [topUpNote, setTopUpNote] = useState("");
+  const [contactEmail, setContactEmail] = useState(account?.contactEmail ?? "");
+  const [contactPhone, setContactPhone] = useState(account?.contactPhone ?? "");
+  const [lowBalanceThreshold, setLowBalanceThreshold] = useState(account?.lowBalanceThreshold?.toString() ?? "");
+  const [contactSaved, setContactSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -236,6 +263,25 @@ function AccountDetailDialog({
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Plaka silinemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveContact() {
+    setBusy(true);
+    setError(null);
+    setContactSaved(false);
+    try {
+      await api.patch(`/api/fleet-accounts/${accountId}/contact`, {
+        contactEmail: contactEmail.trim() || null,
+        contactPhone: contactPhone.trim() || null,
+        lowBalanceThreshold: lowBalanceThreshold ? Number(lowBalanceThreshold) : null,
+      });
+      setContactSaved(true);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Iletisim bilgileri kaydedilemedi.");
     } finally {
       setBusy(false);
     }
@@ -302,6 +348,29 @@ function AccountDetailDialog({
             {account.billingType === "prepaid" ? "Bakiye Yukle" : "Odeme Kaydet"}
           </button>
         </div>
+      </div>
+
+      <h4 style={{ marginTop: "1.5rem" }}>Iletisim / Dusuk Bakiye Uyarisi</h4>
+      <div className="grid cols-2" style={{ alignItems: "start" }}>
+        <div>
+          <label>Yetkili E-posta</label>
+          <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="ornek@sirket.com" />
+        </div>
+        <div>
+          <label>Yetkili Telefon</label>
+          <input value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="05XX XXX XX XX" />
+        </div>
+      </div>
+      {account.billingType === "prepaid" && (
+        <>
+          <label>Dusuk Bakiye Esigi (TL, bos = uyari kapali)</label>
+          <input type="number" min={0} step={0.01} value={lowBalanceThreshold} onChange={(e) => setLowBalanceThreshold(e.target.value)} />
+        </>
+      )}
+      <div className="toolbar" style={{ marginTop: "0.75rem" }}>
+        {contactSaved && <span className="hint-text">Kaydedildi.</span>}
+        <div className="spacer" />
+        <button onClick={saveContact} disabled={busy}>Iletisim Bilgilerini Kaydet</button>
       </div>
 
       <h4 style={{ marginTop: "1.5rem" }}>Hareket Gecmisi</h4>

@@ -11,11 +11,12 @@ import {
   listMovements,
   listPlates,
   removePlate,
-  serializeAccount,
+  serializeAccountAdmin,
   serializeMovement,
   serializePlate,
   setAccountActive,
   topUp,
+  updateContact,
 } from "../services/fleetService.js";
 
 const router = Router();
@@ -24,7 +25,7 @@ const router = Router();
 router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/", (req, res) => {
-  const accounts = listAccounts(req.stationId!).map((a) => ({ ...serializeAccount(a), plates: listPlates(a.id).map(serializePlate) }));
+  const accounts = listAccounts(req.stationId!).map((a) => ({ ...serializeAccountAdmin(a), plates: listPlates(a.id).map(serializePlate) }));
   res.json({ accounts });
 });
 
@@ -45,6 +46,9 @@ const createSchema = z.object({
   vkn: z.string().trim().max(20).optional(),
   billingType: z.enum(["prepaid", "postpaid"]),
   creditLimit: z.number().positive().max(10000000).optional(),
+  contactEmail: z.string().trim().email("Gecerli bir e-posta girin.").max(200).optional(),
+  contactPhone: z.string().trim().max(20).optional(),
+  lowBalanceThreshold: z.number().positive().max(10000000).optional(),
 });
 
 router.post("/", csrfProtection, validateBody(createSchema), (req, res) => {
@@ -59,7 +63,35 @@ router.post("/", csrfProtection, validateBody(createSchema), (req, res) => {
     ip: req.ip,
     stationId: req.stationId,
   });
-  res.status(201).json({ account: serializeAccount(account) });
+  res.status(201).json({ account: serializeAccountAdmin(account) });
+});
+
+const contactSchema = z.object({
+  contactEmail: z.string().trim().email("Gecerli bir e-posta girin.").max(200).nullable().optional(),
+  contactPhone: z.string().trim().max(20).nullable().optional(),
+  lowBalanceThreshold: z.number().positive().max(10000000).nullable().optional(),
+});
+
+router.patch("/:id/contact", csrfProtection, validateBody(contactSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    const body = req.body as z.infer<typeof contactSchema>;
+    const account = updateContact(req.stationId!, id, body);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_account_contact_updated",
+      entityType: "fleet_account",
+      entityId: id,
+      details: body,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ account: serializeAccountAdmin(account) });
+  } catch (err) {
+    if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 const activeSchema = z.object({ active: z.boolean() });
@@ -78,7 +110,7 @@ router.patch("/:id/active", csrfProtection, validateBody(activeSchema), (req, re
       ip: req.ip,
       stationId: req.stationId,
     });
-    res.json({ account: serializeAccount(account) });
+    res.json({ account: serializeAccountAdmin(account) });
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
     throw err;
@@ -132,7 +164,7 @@ router.post("/:id/topup", csrfProtection, validateBody(topUpSchema), (req, res) 
       ip: req.ip,
       stationId: req.stationId,
     });
-    res.json({ account: serializeAccount(account) });
+    res.json({ account: serializeAccountAdmin(account) });
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
     throw err;

@@ -46,6 +46,9 @@ export function applyMigrations(): void {
   ensureColumn("fuel_stock_movements", "unit_cost", "REAL");
   ensureColumn("stations", "sync_token", "TEXT");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_sync_token ON stations(sync_token) WHERE sync_token IS NOT NULL");
+  ensureColumn("fleet_accounts", "contact_email", "TEXT");
+  ensureColumn("fleet_accounts", "contact_phone", "TEXT");
+  ensureColumn("fleet_accounts", "low_balance_threshold", "REAL");
 }
 
 applySchema();
