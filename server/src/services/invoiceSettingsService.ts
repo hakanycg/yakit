@@ -1,5 +1,6 @@
 import type { UserRow } from "../db/types.js";
 import { getSetting, setSetting } from "./settingsStore.js";
+import { decryptSecret, encryptSecret } from "../utils/secretsCrypto.js";
 
 export type InvoiceEnvironment = "sandbox" | "production";
 
@@ -32,7 +33,7 @@ export function getInvoiceConfig(stationId: number): InvoiceConfig {
     enabled: getSetting(stationId, "invoice_enabled") === "true",
     environment: environmentRaw === "production" ? "production" : "sandbox",
     username: getSetting(stationId, "invoice_username"),
-    password: getSetting(stationId, "invoice_password"),
+    password: decryptSecret(getSetting(stationId, "invoice_password")),
     companyVkn: getSetting(stationId, "invoice_company_vkn"),
     companyTitle: getSetting(stationId, "invoice_company_title"),
     companyTaxOffice: getSetting(stationId, "invoice_company_tax_office"),
@@ -71,7 +72,8 @@ export function setInvoiceConfig(stationId: number, input: InvoiceConfigInput, a
   if (input.environment !== undefined) setSetting(stationId, "invoice_environment", input.environment, actor);
   for (const [field, key] of Object.entries(STRING_FIELD_KEYS) as [keyof typeof STRING_FIELD_KEYS, string][]) {
     const value = input[field];
-    if (value !== undefined && value !== "") setSetting(stationId, key, value, actor);
+    if (value === undefined || value === "") continue;
+    setSetting(stationId, key, field === "password" ? encryptSecret(value) : value, actor);
   }
 }
 

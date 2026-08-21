@@ -1,6 +1,7 @@
 import type { UserRow } from "../db/types.js";
 import { getSetting, setSetting } from "./settingsStore.js";
 import { env } from "../config.js";
+import { decryptSecret, encryptSecret } from "../utils/secretsCrypto.js";
 
 export type IyzicoEnvironment = "sandbox" | "production";
 
@@ -24,8 +25,8 @@ export function getIyzicoConfig(stationId: number): IyzicoConfig {
   const enabled = getSetting(stationId, "iyzico_enabled") === "true";
   const environmentRaw = getSetting(stationId, "iyzico_environment");
   const environment: IyzicoEnvironment = environmentRaw === "production" ? "production" : "sandbox";
-  const apiKey = getSetting(stationId, "iyzico_api_key");
-  const secretKey = getSetting(stationId, "iyzico_secret_key");
+  const apiKey = decryptSecret(getSetting(stationId, "iyzico_api_key"));
+  const secretKey = decryptSecret(getSetting(stationId, "iyzico_secret_key"));
   return { enabled, environment, apiKey, secretKey };
 }
 
@@ -39,8 +40,9 @@ export interface IyzicoConfigInput {
 export function setIyzicoConfig(stationId: number, input: IyzicoConfigInput, actor: UserRow | null): void {
   if (input.enabled !== undefined) setSetting(stationId, "iyzico_enabled", String(input.enabled), actor);
   if (input.environment !== undefined) setSetting(stationId, "iyzico_environment", input.environment, actor);
-  if (input.apiKey !== undefined && input.apiKey !== "") setSetting(stationId, "iyzico_api_key", input.apiKey, actor);
-  if (input.secretKey !== undefined && input.secretKey !== "") setSetting(stationId, "iyzico_secret_key", input.secretKey, actor);
+  if (input.apiKey !== undefined && input.apiKey !== "") setSetting(stationId, "iyzico_api_key", encryptSecret(input.apiKey), actor);
+  if (input.secretKey !== undefined && input.secretKey !== "")
+    setSetting(stationId, "iyzico_secret_key", encryptSecret(input.secretKey), actor);
 }
 
 function mask(secret: string | null): string | null {

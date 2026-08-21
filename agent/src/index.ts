@@ -26,8 +26,13 @@ const cacheInterval = setInterval(() => pullCache(db, env.CENTRAL_API_URL, env.S
 cacheInterval.unref();
 
 const app = createAgentApp(db);
-const server = app.listen(env.PORT, () => {
-  logger.info(`Istasyon ajani ${env.PORT} portunda calisiyor (merkez: ${env.CENTRAL_API_URL}).`);
+// Bu yerel API kimliksizdir (bkz. server.ts yorumu) - ayni makine disina ASLA
+// acilmamali. Varsayilan app.listen(port) tum aglara (0.0.0.0) baglanirdi; ayni
+// yerel agdaki baska bir cihazin outbox'a sahte olay enjekte edebilmesini veya
+// /cache uzerinden filo bakiyeleri gibi ticari verileri okuyabilmesini onlemek
+// icin acikca sadece loopback'e (127.0.0.1) baglaniyoruz.
+const server = app.listen(env.PORT, "127.0.0.1", () => {
+  logger.info(`Istasyon ajani ${env.PORT} portunda (yalnizca localhost) calisiyor (merkez: ${env.CENTRAL_API_URL}).`);
 });
 
 function shutdown(signal: string) {

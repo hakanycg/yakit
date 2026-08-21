@@ -45,6 +45,13 @@ const envSchema = z.object({
   BACKUP_DIR: optionalString(),
   BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(14),
+
+  // iyzico/Uyumsoft API anahtarlarini veritabaninda sifrelemek icin kullanilan anahtar
+  // (bkz. utils/secretsCrypto.ts). Opsiyoneldir - bos birakilirsa SESSION_SECRET'tan
+  // turetilir, boylece mevcut dagitimlarda yeni bir zorunlu degisken eklemeden
+  // sifreleme otomatik calisir. Ayri bir anahtar rotasyonu isteniyorsa
+  // `openssl rand -hex 32` ile ayarlanabilir.
+  SETTINGS_ENCRYPTION_KEY: optionalString(),
 });
 
 const parsed = envSchema.safeParse(process.env);

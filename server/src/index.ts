@@ -10,6 +10,7 @@ import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
+import { encryptLegacyPlaintextSecrets } from "./utils/secretsCrypto.js";
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -31,6 +32,10 @@ process.on("uncaughtException", (err) => {
 process.on("unhandledRejection", (reason) => {
   logger.error({ err: reason }, "Yakalanmamis promise reddi (unhandledRejection) - sunucu calismaya devam ediyor.");
 });
+
+// iyzico/Uyumsoft sirlarini durumda (at-rest) sifreler (bkz. secretsCrypto.ts) -
+// idempotenttir, zaten sifreli satirlari atlar; her baslangicta guvenle calisir.
+encryptLegacyPlaintextSecrets();
 
 reconcileStuckTransactions();
 
