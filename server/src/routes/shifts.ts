@@ -130,8 +130,6 @@ function serializeShift(s: ShiftRow, username: string, displayName: string, stat
     endedAt: s.ended_at,
     openingNote: s.opening_note,
     closingNote: s.closing_note,
-    countedCash: s.counted_cash,
-    variance: s.variance,
     createdAt: s.created_at,
     stats: stats ?? null,
   };
@@ -175,10 +173,10 @@ router.get("/export.csv", (req, res) => {
     )
     .all(req.stationId!, limit);
 
-  const header = ["id", "personel", "kullanici_adi", "baslangic", "bitis", "acilis_notu", "kapanis_notu", "islem_sayisi", "ciro", "litre", "sayilan_nakit", "fark"];
+  const header = ["id", "personel", "kullanici_adi", "baslangic", "bitis", "acilis_notu", "kapanis_notu", "islem_sayisi", "ciro", "litre"];
   const csvRows = rows.map((r) => {
     const stats = computeShiftStats(r.station_id, r.started_at, r.ended_at);
-    return [r.id, r.display_name, r.username, r.started_at, r.ended_at, r.opening_note, r.closing_note, stats.transactionCount, stats.revenue, stats.liters, r.counted_cash, r.variance];
+    return [r.id, r.display_name, r.username, r.started_at, r.ended_at, r.opening_note, r.closing_note, stats.transactionCount, stats.revenue, stats.liters];
   });
 
   recordAudit({ user: req.user!, action: "shifts_exported", details: { count: rows.length }, ip: req.ip, stationId: req.stationId });
@@ -242,10 +240,7 @@ router.post("/start", requireRole("admin", "operator"), csrfProtection, validate
   res.status(201).json({ shift: serializeShift(shift, req.user!.username, req.user!.display_name) });
 });
 
-const endSchema = z.object({
-  closingNote: z.string().max(300).optional(),
-  countedCash: z.number().min(0).optional(),
-});
+const endSchema = z.object({ closingNote: z.string().max(300).optional() });
 
 router.post("/:id/end", requireRole("admin", "operator"), csrfProtection, validateBody(endSchema), (req, res) => {
   const id = Number(req.params.id);
@@ -258,26 +253,19 @@ router.post("/:id/end", requireRole("admin", "operator"), csrfProtection, valida
     return void res.status(403).json({ error: "Sadece kendi vardiyanizi kapatabilirsiniz." });
   }
 
-  const { closingNote, countedCash } = req.body as z.infer<typeof endSchema>;
+  const { closingNote } = req.body as z.infer<typeof endSchema>;
   const endedAt = new Date().toISOString();
-  const stats = computeShiftStats(shift.station_id, shift.started_at, endedAt);
-  const variance = countedCash !== undefined ? countedCash - stats.revenue : null;
-  db.prepare("UPDATE shifts SET ended_at = ?, closing_note = ?, counted_cash = ?, variance = ? WHERE id = ?").run(
-    endedAt,
-    closingNote ?? null,
-    countedCash ?? null,
-    variance,
-    id
-  );
+  db.prepare("UPDATE shifts SET ended_at = ?, closing_note = ? WHERE id = ?").run(endedAt, closingNote ?? null, id);
 
   const owner = db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(shift.user_id)!;
+  const stats = computeShiftStats(shift.station_id, shift.started_at, endedAt);
 
   recordAudit({
     user: req.user!,
     action: "shift_ended",
     entityType: "shift",
     entityId: id,
-    details: { ...stats, countedCash: countedCash ?? null, variance },
+    details: stats,
     ip: req.ip,
     stationId: req.stationId,
   });

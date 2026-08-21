@@ -269,8 +269,6 @@ export interface ShiftRow {
   ended_at: string | null;
   opening_note: string | null;
   closing_note: string | null;
-  counted_cash: number | null;
-  variance: number | null;
   created_at: string;
 }
 
