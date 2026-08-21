@@ -484,13 +484,31 @@ export function getTransactionById(id: number, stationId: number): TransactionRo
   return t;
 }
 
-/** Sunucu yeniden baslatildiginda yarim kalmis dolum simulasyonlarini emniyetli sekilde temizler. */
+/**
+ * Sunucu yeniden baslatildiginda yarim kalmis dolum simulasyonlarini emniyetli sekilde
+ * temizler. emergencyStopTransaction() ile AYNI mantik: gercekten yakit verildiyse
+ * (dispensed_liters > 0) "completed" olarak sonuclandirilir (musteri gercek fuel aldi,
+ * bunun karsiligi tahsil edilmeli - bkz. asagida), hic verilmediyse "cancelled" olur ve
+ * tutar sifirlanir. full_tank + iyzico ile odenmis (on-provizyon/hold ile tutulan) bir
+ * islem bu sekilde yarim kalirsa, blokaj hicbir zaman kapatilmaz/serbest birakilmazdi -
+ * bu yuzden burada da settleIyzicoPreAuthIfNeeded() cagrilir (ateşle-ve-unut).
+ */
 export function reconcileStuckTransactions(): void {
   const stuck = db
     .prepare<[], TransactionRow>("SELECT * FROM transactions WHERE status IN ('authorized','dispensing')")
     .all();
   for (const t of stuck) {
-    touch(t.id, { status: "cancelled", cancelled_reason: "Sunucu yeniden baslatildi." });
+    const wasDispensing = t.status === "dispensing" && t.dispensed_liters > 0;
+    const updated = touch(t.id, {
+      status: wasDispensing ? "completed" : "cancelled",
+      cancelled_reason: "Sunucu yeniden baslatildi.",
+      completed_at: wasDispensing ? new Date().toISOString() : null,
+      ...(wasDispensing ? {} : { total_amount: 0 }),
+    });
     setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
+    if (wasDispensing) {
+      recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
+    }
+    void settleIyzicoPreAuthIfNeeded(updated);
   }
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { db } from "../db/index.js";
 import type { TransactionRow } from "../db/types.js";
 import { createTestFuelPrice, createTestPump, createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
 import {
@@ -9,6 +10,7 @@ import {
   finalizeTransactionPayment,
   markIyzicoPending,
   payTransaction,
+  reconcileStuckTransactions,
 } from "./transactionService.js";
 
 const VALID_CARD = { cardNumber: "4242 4242 4242 4242", expiryMonth: 12, expiryYear: 2030, cvv: "123", holderName: "Test User" };
@@ -145,5 +147,44 @@ describe("cancelling a transaction with zero dispensed liters resets total_amoun
     expect(stopped.status).toBe("cancelled");
     expect(stopped.dispensed_liters).toBe(0);
     expect(stopped.total_amount).toBe(0);
+  });
+});
+
+describe("reconcileStuckTransactions", () => {
+  // Sunucu (ornegin Railway redeploy'u) dolum devam ederken yeniden baslarsa, dolumu
+  // yuruten setInterval yok olur ve islem 'authorized'/'dispensing' durumunda asili kalir.
+  // reconcileStuckTransactions() sunucu ac1lisinda bunlari temizler; testte de ayni
+  // senaryoyu simule etmek icin gercek zamanlayiciyi emergencyStopTransaction ile hemen
+  // durdurup, sonra durumu elle asili duruma geri donduruyoruz.
+  it("marks a stuck transaction with dispensed fuel as completed (not cancelled) and keeps the real amount", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const staff = createTestUser(null, "admin");
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34REC001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    payTransaction(transaction.id, accessToken, VALID_CARD);
+    emergencyStopTransaction(transaction.id, staff, "test setup - stop the real timer");
+    db.prepare("UPDATE transactions SET status = 'dispensing', dispensed_liters = 12.5, total_amount = 556.25 WHERE id = ?").run(transaction.id);
+
+    reconcileStuckTransactions();
+
+    const after = db.prepare("SELECT * FROM transactions WHERE id = ?").get(transaction.id) as TransactionRow;
+    expect(after.status).toBe("completed");
+    expect(after.dispensed_liters).toBe(12.5);
+    expect(after.total_amount).toBe(556.25);
+    expect(after.cancelled_reason).toBe("Sunucu yeniden baslatildi.");
+  });
+
+  it("marks a stuck transaction with zero dispensed fuel as cancelled with total_amount reset to 0", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const staff = createTestUser(null, "admin");
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34REC002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    payTransaction(transaction.id, accessToken, VALID_CARD);
+    emergencyStopTransaction(transaction.id, staff, "test setup - stop the real timer");
+    db.prepare("UPDATE transactions SET status = 'authorized', dispensed_liters = 0 WHERE id = ?").run(transaction.id);
+
+    reconcileStuckTransactions();
+
+    const after = db.prepare("SELECT * FROM transactions WHERE id = ?").get(transaction.id) as TransactionRow;
+    expect(after.status).toBe("cancelled");
+    expect(after.total_amount).toBe(0);
   });
 });
