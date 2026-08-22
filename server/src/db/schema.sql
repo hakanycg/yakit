@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS stations (
   longitude REAL,
   active INTEGER NOT NULL DEFAULT 1,
   sync_token TEXT,                     -- istasyon ajaninin /api/sync/* uclarinda kimlik dogrulamasi icin (bkz. syncService.ts)
+  anydesk_id TEXT,                     -- uzak masaustu erisimi (AnyDesk vb.) icin bu kiosk PC'sinin kimligi - bkz. stations.ts yorumu
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 -- sync_token indeksi burada DEGIL, db/index.ts'deki applyMigrations()'da olusturuluyor:

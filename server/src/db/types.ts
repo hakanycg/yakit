@@ -9,6 +9,7 @@ export interface StationRow {
   longitude: number | null;
   active: 0 | 1;
   sync_token: string | null;
+  anydesk_id: string | null;
   created_at: string;
 }
 

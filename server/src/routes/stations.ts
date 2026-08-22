@@ -18,6 +18,7 @@ function serializeStation(s: StationRow) {
     latitude: s.latitude,
     longitude: s.longitude,
     active: !!s.active,
+    anydeskId: s.anydesk_id,
     createdAt: s.created_at,
   };
 }
@@ -139,6 +140,10 @@ const updateSchema = z.object({
   active: z.boolean().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
+  // Uzak masaustu erisimi (AnyDesk vb.) icin bu kiosk PC'sinin kimligi - saha kurulumu
+  // sirasinda AnyDesk kiosk PC'ye kurulup "unattended access" ayarlandiktan SONRA buraya
+  // girilir, bu yuzden olusturma degil GUNCELLEME akisinin bir parcasidir.
+  anydeskId: z.string().max(60).nullable().optional(),
 });
 
 router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(updateSchema), (req, res) => {
@@ -154,6 +159,7 @@ router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(up
   if (body.active !== undefined) { fields.push("active = ?"); values.push(body.active ? 1 : 0); }
   if (body.latitude !== undefined) { fields.push("latitude = ?"); values.push(body.latitude); }
   if (body.longitude !== undefined) { fields.push("longitude = ?"); values.push(body.longitude); }
+  if (body.anydeskId !== undefined) { fields.push("anydesk_id = ?"); values.push(body.anydeskId); }
 
   if (fields.length > 0) {
     values.push(id);

@@ -137,6 +137,7 @@ export interface Station {
   latitude: number | null;
   longitude: number | null;
   active?: boolean;
+  anydeskId?: string | null;
   createdAt?: string;
   pumpCount?: number;
   transactionCount?: number;
