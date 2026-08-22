@@ -98,23 +98,30 @@ export function recordSyncEvent(stationId: number, event: SyncEventInput): SyncE
 
 /**
  * Ajanin bildirdigi bazi olay turleri, sadece kaydedilmekle kalmayip personelin
- * dikkatini gerektirir. Su an tek boyle olay "printer_fault": ajanin GERCEK bir
- * yazici surucusu (henuz bagli degil, bkz. gorev #97) fiziksel bir ariza (kagit
- * bitti/sikisma/cevrimdisi) bildirdiginde, bunu sessizce loglamak yerine kritik
- * bir alarma cevirir - boylece "yazici yok" (beklenen, bugunku durum) ile
- * "yazici var ama arizali" (personelin mudahale etmesi gereken durum) ayrisir.
+ * dikkatini gerektirir. Ikisi de ayni sekilde ele alinir: "printer_fault" (ajanin
+ * GERCEK bir yazici surucusu, henuz bagli degil - bkz. gorev #97, fiziksel bir ariza
+ * bildirdiginde) ve "okc_fault" (gercek bir ÖKC surucusu - henuz bagli degil, bkz.
+ * gorev #101 - ayni sekilde ariza bildirdiginde). Ikisini de sessizce loglamak yerine
+ * kritik bir alarma ceviririz - boylece "donanim yok" (beklenen, bugunku durum) ile
+ * "donanim var ama arizali" (personelin mudahale etmesi gereken durum) ayrisir.
  */
+const FAULT_EVENT_LABELS: Record<string, string> = {
+  printer_fault: "Fis yazicisi",
+  okc_fault: "ÖKC (yasal yazar kasa)",
+};
+
 function dispatchSyncEventSideEffects(stationId: number, event: SyncEventInput): void {
-  if (event.eventType !== "printer_fault") return;
+  const label = FAULT_EVENT_LABELS[event.eventType];
+  if (!label) return;
   const payload = (event.payload ?? {}) as { transactionId?: number; faultCode?: string };
-  logger.error({ stationId, payload }, "Ajan gercek fis yazicisinda fiziksel ariza bildirdi.");
+  logger.error({ stationId, eventType: event.eventType, payload }, "Ajan gercek donanimda fiziksel ariza bildirdi.");
   createAlarm({
     stationId,
-    type: "printer_fault",
+    type: event.eventType,
     severity: "critical",
-    message: `Fis yazicisi arizali (kod: ${payload.faultCode ?? "UNKNOWN"})${
+    message: `${label} arizali (kod: ${payload.faultCode ?? "UNKNOWN"})${
       payload.transactionId ? `, islem #${payload.transactionId}` : ""
-    }. Musteriye fis basilamadi - musteri e-posta/SMS ile makbuz talep edebilir, ancak yazicinin fiziksel olarak kontrol edilmesi gerekiyor.`,
+    }. Musteriye fis basilamadi - musteri e-posta/SMS ile makbuz talep edebilir, ancak donanimin fiziksel olarak kontrol edilmesi gerekiyor.`,
   });
 }
 

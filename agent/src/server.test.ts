@@ -6,6 +6,7 @@ import { createAgentApp } from "./server.js";
 import { saveCacheSnapshot } from "./cacheStore.js";
 import { resetConnectivityState } from "./connectivity.js";
 import { noopPrinterDriver, setPrinterDriver } from "./printerDriver.js";
+import { noopOkcDriver, setOkcDriver } from "./okcDriver.js";
 
 describe("agent local HTTP server", () => {
   let server: Server;
@@ -15,6 +16,7 @@ describe("agent local HTTP server", () => {
   beforeEach(async () => {
     resetConnectivityState();
     setPrinterDriver(noopPrinterDriver);
+    setOkcDriver(noopOkcDriver);
     db = openAgentDb(":memory:");
     const app = createAgentApp(db);
     await new Promise<void>((resolve) => {
@@ -129,6 +131,54 @@ describe("agent local HTTP server", () => {
     const statusRes = await fetch(`${baseUrl}/status`);
     const status = (await statusRes.json()) as { pendingOutboxCount: number };
     expect(status.pendingOutboxCount).toBe(0);
+  });
+
+  it("POST /okc/print returns printed:false with the noop driver (no fiscal ÖKC yet)", async () => {
+    const res = await fetch(`${baseUrl}/okc/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 1, amount: 250.5 }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { printed: boolean };
+    expect(body.printed).toBe(false);
+  });
+
+  it("POST /okc/print returns the fiscal number once a real ÖKC driver is wired in", async () => {
+    setOkcDriver({ printFiscalReceipt: async () => ({ printed: true, fiscalNo: "Z-000123" }) });
+    const res = await fetch(`${baseUrl}/okc/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 2, amount: 100 }),
+    });
+    const body = (await res.json()) as { printed: boolean; fiscalNo?: string };
+    expect(body.printed).toBe(true);
+    expect(body.fiscalNo).toBe("Z-000123");
+  });
+
+  it("POST /okc/print queues an okc_fault outbox event when a real driver reports a physical fault", async () => {
+    setOkcDriver({ printFiscalReceipt: async () => ({ printed: false, faultCode: "OFFLINE" }) });
+    const res = await fetch(`${baseUrl}/okc/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 3, amount: 100 }),
+    });
+    const body = (await res.json()) as { printed: boolean; faultCode?: string };
+    expect(body.printed).toBe(false);
+    expect(body.faultCode).toBe("OFFLINE");
+
+    const statusRes = await fetch(`${baseUrl}/status`);
+    const status = (await statusRes.json()) as { pendingOutboxCount: number };
+    expect(status.pendingOutboxCount).toBe(1);
+  });
+
+  it("POST /okc/print rejects a request without an amount", async () => {
+    const res = await fetch(`${baseUrl}/okc/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 1 }),
+    });
+    expect(res.status).toBe(400);
   });
 
   it("POST /print rejects a request without a title", async () => {

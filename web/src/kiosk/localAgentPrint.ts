@@ -23,6 +23,11 @@ export interface PrintViaAgentResult {
 // portu ozellestirdiyse burasi da guncellenmeli - su an icin donanim/ajan dagitimi
 // henuz yayginlasmadigindan sabit varsayilan yeterli.
 const AGENT_PRINT_URL = "http://127.0.0.1:4500/print";
+const AGENT_OKC_PRINT_URL = "http://127.0.0.1:4500/okc/print";
+
+export interface FiscalReceiptPrintJob extends ReceiptPrintJob {
+  amount: number;
+}
 
 /**
  * Fisi, ayni kiosk PC'sinde calisan istasyon ajaninin (varsa) gercek termal
@@ -37,6 +42,32 @@ export async function tryPrintViaAgent(job: ReceiptPrintJob): Promise<PrintViaAg
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1200);
     const res = await fetch(AGENT_PRINT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(job),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
+    if (!res.ok) return { printed: false };
+    const body = (await res.json()) as PrintViaAgentResult;
+    return { printed: !!body.printed, faultCode: body.faultCode };
+  } catch {
+    return { printed: false };
+  }
+}
+
+/**
+ * Yasal fisi (ÖKC) ayni kiosk PC'sindeki ajanin fiskal yazicisina (varsa) yazdirmayi
+ * dener - bkz. agent/src/okcDriver.ts. Henuz gercek bir ÖKC baglanmadigindan (ve
+ * gerekip gerekmedigi teyit edilmedigi surece, bkz. gorev #101) bu her zaman
+ * printed:false doner ve cagiran taraf icin GOZLEMLENEBILIR HICBIR ETKISI yoktur -
+ * yalnizca gercek donanim baglaninca otomatik olarak devreye girecek bir entegrasyon
+ * noktasi hazir bekler.
+ */
+export async function tryPrintFiscalReceiptViaAgent(job: FiscalReceiptPrintJob): Promise<PrintViaAgentResult> {
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 1200);
+    const res = await fetch(AGENT_OKC_PRINT_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(job),

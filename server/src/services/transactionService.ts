@@ -8,6 +8,7 @@ import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
 import { getDispenserDriver } from "./dispenserDriver.js";
+import { getAutomationDriver } from "./automationDriver.js";
 import { capturePostAuth, cancelPreAuthHold } from "./iyzicoService.js";
 import { logger } from "../utils/logger.js";
 import { safeCompare } from "../utils/safeCompare.js";
@@ -335,6 +336,26 @@ export function chargeAmount(t: TransactionRow): number {
   return Math.max(0, Math.round((t.total_amount - t.discount_amount) * 100) / 100);
 }
 
+/**
+ * Gercekten dagitilan yakit miktari kesinlestigi HER iki noktada (normal bitis VE
+ * emergencyStopTransaction ile erken kesilme) IOS otomasyon surucusune bildirir - EPDK
+ * raporlamasi indirim/sadakat oncesi GERCEK yakit degerini (total_amount) gerektirir,
+ * chargeAmount() (musteriden tahsil edilen net tutar) degil.
+ */
+function reportAutomationSale(t: TransactionRow): void {
+  getAutomationDriver().reportSaleCompleted({
+    transactionId: t.id,
+    stationId: t.station_id,
+    pumpId: t.pump_id,
+    plate: t.plate,
+    fuelType: t.fuel_type,
+    liters: t.dispensed_liters,
+    amount: t.total_amount,
+    pricePerLiter: t.price_per_liter,
+    completedAt: t.completed_at ?? new Date().toISOString(),
+  });
+}
+
 export function payTransaction(id: number, accessToken: string, card: VirtualCardInput): TransactionRow {
   const t = getTransactionForKiosk(id, accessToken);
   if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
@@ -443,6 +464,7 @@ function startDispensing(id: number): void {
 
   touch(id, { status: "dispensing", dispensed_liters: 0, total_amount: 0 });
   setPumpStatus(t.pump_id, "dispensing", { currentTransactionId: id });
+  getAutomationDriver().reportDispenseStart(t.station_id, t.pump_id, id);
 
   const interval = setInterval(() => {
     const current = getTransactionOrThrow(id);
@@ -488,6 +510,7 @@ function startDispensing(id: number): void {
     setPumpStatus(current.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(completed);
     recordSaleMovement(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
+    reportAutomationSale(completed);
     void settleIyzicoPreAuthIfNeeded(completed);
   }, DISPENSE_TICK_MS);
 
@@ -536,6 +559,7 @@ export function emergencyStopTransaction(id: number, byUser: UserRow | null, rea
     // Tank stogu zaten dolum sirasinda tick tick dusulmustu (deductAvailable);
     // burada sadece o ana kadar dagitilan miktar icin ozet hareket kaydediliyor.
     recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
+    reportAutomationSale(updated);
   }
   void settleIyzicoPreAuthIfNeeded(updated);
   refundFleetChargeIfNeeded(t, wasDispensing);

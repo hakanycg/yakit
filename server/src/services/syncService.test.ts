@@ -79,6 +79,21 @@ describe("syncService - heartbeat ve olay kaydi", () => {
     expect(alarms[0]!.message).toContain("#42");
   });
 
+  it("ajanin bildirdigi gercek ÖKC arizasi (okc_fault) kritik bir alarm olusturur", () => {
+    const station = createTestStation();
+    recordSyncEvent(station.id, {
+      clientEventId: "okc-evt-1",
+      eventType: "okc_fault",
+      payload: { transactionId: 7, faultCode: "OFFLINE" },
+    });
+    const alarms = listAlarms(station.id, "active");
+    expect(alarms).toHaveLength(1);
+    expect(alarms[0]!.type).toBe("okc_fault");
+    expect(alarms[0]!.severity).toBe("critical");
+    expect(alarms[0]!.message).toContain("OFFLINE");
+    expect(alarms[0]!.message).toContain("#7");
+  });
+
   it("basarili senkron olaylari (printer_fault olmayan) hicbir alarm olusturmaz", () => {
     const station = createTestStation();
     recordSyncEvent(station.id, { clientEventId: "evt-ok", eventType: "transaction_completed", payload: {} });

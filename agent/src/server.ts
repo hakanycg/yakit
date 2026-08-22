@@ -5,6 +5,7 @@ import { countPending, enqueueEvent } from "./outboxService.js";
 import { readCacheSnapshot } from "./cacheStore.js";
 import { getConnectivityState } from "./connectivity.js";
 import { getPrinterDriver } from "./printerDriver.js";
+import { getOkcDriver } from "./okcDriver.js";
 import { logger } from "./logger.js";
 
 const enqueueSchema = z.object({
@@ -16,6 +17,13 @@ const printJobSchema = z.object({
   title: z.string().min(1).max(120),
   lines: z.array(z.object({ label: z.string().max(60), value: z.string().max(200) })).max(50),
   transactionId: z.number().int().positive(),
+});
+
+const fiscalPrintJobSchema = z.object({
+  title: z.string().min(1).max(120),
+  lines: z.array(z.object({ label: z.string().max(60), value: z.string().max(200) })).max(50),
+  transactionId: z.number().int().positive(),
+  amount: z.number().nonnegative(),
 });
 
 /**
@@ -88,6 +96,29 @@ export function createAgentApp(db: Database.Database): express.Express {
       logger.error({ err, transactionId: parsed.data.transactionId }, "Yazici surucusu beklenmedik sekilde hata firlatti.");
       enqueueEvent(db, "printer_fault", { transactionId: parsed.data.transactionId, faultCode: "UNKNOWN" });
       res.status(500).json({ error: "Yazdirma basarisiz.", printed: false });
+    }
+  });
+
+  // Yasal fis (ÖKC) icin /print ile AYNI desen: gercek bir ÖKC baglaninca ve yasal
+  // gereklilik netlesince (bkz. gorev #101) setOkcDriver() ile devreye alinacak; su
+  // an noop surucu her zaman printed:false doner, kiosk tarafinda hicbir gozlemlenebilir
+  // davranis degisikligi yoktur - sadece entegrasyon noktasi hazir bekler.
+  app.post("/okc/print", async (req, res) => {
+    const parsed = fiscalPrintJobSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Gecersiz istek.", details: parsed.error.flatten().fieldErrors });
+      return;
+    }
+    try {
+      const result = await getOkcDriver().printFiscalReceipt(parsed.data);
+      if (result.faultCode) {
+        enqueueEvent(db, "okc_fault", { transactionId: parsed.data.transactionId, faultCode: result.faultCode });
+      }
+      res.json(result);
+    } catch (err) {
+      logger.error({ err, transactionId: parsed.data.transactionId }, "ÖKC surucusu beklenmedik sekilde hata firlatti.");
+      enqueueEvent(db, "okc_fault", { transactionId: parsed.data.transactionId, faultCode: "UNKNOWN" });
+      res.status(500).json({ error: "Yasal fis basilamadi.", printed: false });
     }
   });
 

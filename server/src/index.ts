@@ -9,6 +9,7 @@ import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js
 import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
+import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
 import { encryptLegacyPlaintextSecrets } from "./utils/secretsCrypto.js";
 
@@ -65,6 +66,13 @@ offlineStationInterval.unref();
 // devreye girer.
 const safetySensorInterval = setInterval(checkSafetySensors, 10 * 1000);
 safetySensorInterval.unref();
+
+// IOS otomasyon failsafe/dead-man's-switch sinyali (bkz. automationDriver.ts) - gercek bir
+// IOS kutusu baglaninca bu periyodik cagri kesilirse kutu pompayi kendi donanim seviyesinde
+// guvenli konuma alir. Su an noop surucude etkisizdir, ama araligin gercek bir kutunun
+// bekleyecegi kadar sik olmasi onemli oldugundan simdiden guvenlik sensoruyle ayni cari kullanilir.
+const automationAliveInterval = setInterval(sendAutomationAliveSignals, 10 * 1000);
+automationAliveInterval.unref();
 
 // Zamanlanmis yakit fiyati degisiklikleri - dakika hassasiyeti yeterli.
 applyDuePriceChanges();

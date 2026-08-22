@@ -4,7 +4,7 @@ import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
 import type { Transaction } from "../../shared/types";
 import { useKioskLang } from "../i18n";
-import { tryPrintViaAgent, type ReceiptLine } from "../localAgentPrint";
+import { tryPrintFiscalReceiptViaAgent, tryPrintViaAgent, type ReceiptLine } from "../localAgentPrint";
 
 export default function ReceiptStep({
   transaction,
@@ -75,11 +75,26 @@ export default function ReceiptStep({
     if (!result.printed) window.print();
   }
 
+  // Yasal fisi (ÖKC) SADECE bir kez, otomatik olarak dener - manuel "Yazdir" butonuyla
+  // alinan ek nushalar (kagit sikismasi/musteri ikinci nusha isterse) tekrar
+  // fiskallestirilmemelidir, o yuzden printReceipt()'ten AYRI ve yalnizca ilk otomatik
+  // yazdirmada cagrilir (bkz. asagidaki useEffect). Henuz gercek bir ÖKC baglanmadigindan
+  // (bkz. localAgentPrint.ts) bunun bugunku davranista GOZLEMLENEBILIR hicbir etkisi yoktur.
+  async function printFiscalReceipt() {
+    await tryPrintFiscalReceiptViaAgent({
+      title: t("receipt.printTitle"),
+      lines: buildReceiptLines(),
+      transactionId: transaction.id,
+      amount: transaction.chargeAmount,
+    });
+  }
+
   const printedRef = useRef<number | null>(null);
   useEffect(() => {
     if (failed) return;
     if (printedRef.current === transaction.id) return;
     printedRef.current = transaction.id;
+    printFiscalReceipt();
     printReceipt();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [failed, transaction.id]);

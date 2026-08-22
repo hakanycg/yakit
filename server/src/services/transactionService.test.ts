@@ -1,8 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/index.js";
 import type { AlarmRow, TransactionRow } from "../db/types.js";
 import { createTestFuelPrice, createTestPump, createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
 import { createAccount as createFleetAccount, addPlate as addFleetPlate, topUp as topUpFleetAccount } from "./fleetService.js";
+import { setDispenserDriver, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
+import { setAutomationDriver, noopAutomationDriver, type AutomationDriver, type AutomationSaleReport } from "./automationDriver.js";
 import {
   cancelPendingTransaction,
   chargeAmount,
@@ -125,6 +127,55 @@ describe("finalizeTransactionPayment payment_status", () => {
     const updated = payTransaction(transaction.id, accessToken, VALID_CARD);
     expect(updated.payment_status).toBe("captured");
     emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+});
+
+describe("AutomationDriver entegrasyonu (IOS - gercek donanim/vendor karari beklenen hazir altyapi)", () => {
+  afterEach(() => {
+    setAutomationDriver(noopAutomationDriver);
+    setDispenserDriver(simulatedDispenserDriver);
+    vi.useRealTimers();
+  });
+
+  it("dolum baslarken reportDispenseStart'i, tamamlaninca reportSaleCompleted'i cagirir", async () => {
+    const { pumpId } = setUpStationForTransactions();
+    const dispenseStarts: number[] = [];
+    const completedReports: AutomationSaleReport[] = [];
+    const fakeAutomation: AutomationDriver = {
+      reportDispenseStart: (_stationId, _pumpId, transactionId) => dispenseStarts.push(transactionId),
+      reportSaleCompleted: (report) => completedReports.push(report),
+      sendAliveSignal: () => {},
+    };
+    setAutomationDriver(fakeAutomation);
+    // Gercek simulasyon suruculu bir dolumun tamamlanmasini beklemek (28-55L, ~0.5L/s)
+    // testi gereksiz yavaslatir - burada sadece AutomationDriver kancalarinin dogru
+    // anlarda cagrildigini kontrol ediyoruz, dolum hizini degil.
+    const instantDriver: DispenserDriver = {
+      pickFullTankTargetLiters: () => null,
+      tick: () => ({ liters: 5, nozzleStopped: true }),
+      estimateMaxFullTankLiters: () => 60,
+    };
+    setDispenserDriver(instantDriver);
+
+    vi.useFakeTimers();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34AUT001",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 5,
+    });
+    payTransaction(transaction.id, accessToken, VALID_CARD);
+
+    expect(dispenseStarts).toEqual([transaction.id]);
+    expect(completedReports).toHaveLength(0);
+
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(completedReports).toHaveLength(1);
+    expect(completedReports[0]!.transactionId).toBe(transaction.id);
+    expect(completedReports[0]!.liters).toBeCloseTo(5);
   });
 });
 
