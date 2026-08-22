@@ -214,14 +214,19 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
    tum kutulari birbiriyle ayni genislikte tutar; min-height ise icerik uzunlugu
    (ör. senkron mesaji vs. sade sayi) farkli olsa bile ayni yukseklikte tutar. */
 .dash-welcome { margin-bottom: 1.25rem; }
+.dash-welcome .eyebrow {
+  margin: 0 0 0.3rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--accent);
+}
 .dash-welcome h2 { margin: 0 0 0.2rem; }
-.dash-welcome .hint-text { margin: 0; text-transform: capitalize; }
+.dash-welcome .hint-text { margin: 0; }
+.stat-caption { font-size: 0.72rem; color: var(--text-dim); }
 .grid.stats-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .dash-stat {
   flex-direction: row;
   align-items: center;
   gap: 0.9rem;
-  min-height: 88px;
+  min-height: 104px;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .dash-stat:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }

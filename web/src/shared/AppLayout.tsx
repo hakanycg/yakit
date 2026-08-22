@@ -47,7 +47,7 @@ export default function AppLayout() {
           )}
 
           <p className="section-label">Operator</p>
-          <NavLink to="/operator" end>Panel</NavLink>
+          <NavLink to="/operator" end>Genel Bakış</NavLink>
           <NavLink to="/operator/pompalar">Pompalar</NavLink>
           <NavLink to="/operator/islemler">İşlem Listesi</NavLink>
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>

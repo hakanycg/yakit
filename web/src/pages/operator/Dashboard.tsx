@@ -132,8 +132,9 @@ export default function Dashboard() {
   return (
     <div>
       <div className="dash-welcome">
+        <p className="eyebrow">Genel Bakış</p>
         <h2>{getGreeting(today.getHours())}, {user?.displayName ?? ""} 👋</h2>
-        <p className="hint-text">{todayLabel}</p>
+        <p className="hint-text">{todayLabel} · İşletmenizin güncel durumu: ciro, dolum ve alarm özeti.</p>
       </div>
       <div className="grid stats-grid">
         <div className="card stat dash-stat">
@@ -141,6 +142,7 @@ export default function Dashboard() {
           <div className="stat-body">
             <span className="label">Toplam Ciro</span>
             <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
+            <span className="stat-caption">İstasyonun tüm zamanlar tahsilatı</span>
           </div>
         </div>
         <div className="card stat dash-stat">
@@ -148,6 +150,7 @@ export default function Dashboard() {
           <div className="stat-body">
             <span className="label">Tamamlanan İşlem</span>
             <span className="value">{summary?.totals.completedCount ?? "..."}</span>
+            <span className="stat-caption">Başarıyla tamamlanan toplam satış</span>
           </div>
         </div>
         <div className="card stat dash-stat">
@@ -155,6 +158,7 @@ export default function Dashboard() {
           <div className="stat-body">
             <span className="label">Aktif Dolum</span>
             <span className="value">{dispensing} / {pumps.length}</span>
+            <span className="stat-caption">Şu anda dolum yapan pompa sayısı</span>
           </div>
         </div>
         <div className="card stat dash-stat">
@@ -162,6 +166,7 @@ export default function Dashboard() {
           <div className="stat-body">
             <span className="label">Aktif Alarm</span>
             <span className="value" style={{ color: alarms.length ? "#f87171" : undefined }}>{alarms.length}</span>
+            <span className="stat-caption">Anlık çözülmemiş alarm sayısı</span>
           </div>
         </div>
         {canSeeSyncStatus && <SyncStatusCard />}
