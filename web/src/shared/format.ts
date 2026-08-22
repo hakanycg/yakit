@@ -19,6 +19,11 @@ export const TRANSACTION_STATUS_LABEL: Record<string, string> = {
 export const ALARM_SEVERITY_LABEL: Record<string, string> = { info: "Bilgi", warning: "Uyarı", critical: "Kritik" };
 export const ALARM_STATUS_LABEL: Record<string, string> = { active: "Aktif", acknowledged: "Onaylandı", resolved: "Çözüldü" };
 export const FUEL_LABEL: Record<string, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
+export const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  virtual_card: "Sanal Kart (Demo)",
+  iyzico: "Kredi/Banka Kartı",
+  fleet: "Filo Hesabı",
+};
 
 export function formatCurrency(value: number, locale = "tr-TR"): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency: "TRY" }).format(value);

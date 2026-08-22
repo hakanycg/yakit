@@ -66,6 +66,15 @@ router.get("/summary", (req, res) => {
     )
     .all(stationId);
 
+  const byPaymentMethod = db
+    .prepare(
+      `SELECT payment_method as paymentMethod,
+              COUNT(*) as count,
+              COALESCE(SUM(MAX(0, total_amount - discount_amount)), 0) as revenue
+       FROM transactions WHERE station_id = ? AND status = 'completed' GROUP BY payment_method`
+    )
+    .all(stationId);
+
   const byPump = db
     .prepare(
       `SELECT p.number as pumpNumber,
@@ -78,7 +87,7 @@ router.get("/summary", (req, res) => {
     )
     .all(stationId);
 
-  res.json({ totals, byFuelType: byFuelTypeWithProfit, byDay, byPump });
+  res.json({ totals, byFuelType: byFuelTypeWithProfit, byDay, byPump, byPaymentMethod });
 });
 
 export { router as reportsRouter };

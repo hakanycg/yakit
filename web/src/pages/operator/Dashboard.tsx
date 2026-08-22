@@ -4,7 +4,7 @@ import { usePumps, useActiveAlarms } from "../../shared/hooks";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useAuth } from "../../shared/AuthContext";
 import { api } from "../../shared/api";
-import { PUMP_STATUS_LABEL, FUEL_LABEL, formatCurrency } from "../../shared/format";
+import { PUMP_STATUS_LABEL, FUEL_LABEL, PAYMENT_METHOD_LABEL, formatCurrency } from "../../shared/format";
 
 interface SyncStatus {
   lastHeartbeatAt: string | null;
@@ -59,6 +59,12 @@ interface DayPoint {
   revenue: number;
 }
 
+interface PaymentMethodPoint {
+  paymentMethod: string;
+  count: number;
+  revenue: number;
+}
+
 interface Summary {
   totals: {
     transactionCount: number;
@@ -69,6 +75,68 @@ interface Summary {
     failedCount: number;
   };
   byDay: DayPoint[];
+  byPaymentMethod: PaymentMethodPoint[];
+}
+
+const PAYMENT_METHOD_COLOR: Record<string, string> = {
+  iyzico: "#60a5fa",
+  virtual_card: "#a78bfa",
+  fleet: "#4ade80",
+};
+
+/** Odeme yontemine gore ciro dagilimi - harici kutuphane kullanmadan saf SVG donut. */
+function PaymentMethodDonut({ data }: { data: PaymentMethodPoint[] }) {
+  const total = data.reduce((sum, d) => sum + d.revenue, 0);
+  if (total <= 0) {
+    return <p className="hint-text">Grafik için yeterli veri yok (en az 1 tamamlanmış satış gerekiyor).</p>;
+  }
+
+  const size = 160;
+  const strokeWidth = 26;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+
+  let cursor = 0;
+  const segments = data
+    .filter((d) => d.revenue > 0)
+    .map((d) => {
+      const dash = (d.revenue / total) * circumference;
+      const segment = { ...d, dash, offset: cursor, color: PAYMENT_METHOD_COLOR[d.paymentMethod] ?? "#94a3b8" };
+      cursor += dash;
+      return segment;
+    });
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "1.5rem", flexWrap: "wrap" }}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ flexShrink: 0 }}>
+        <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
+          <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="var(--panel-2)" strokeWidth={strokeWidth} />
+          {segments.map((s) => (
+            <circle
+              key={s.paymentMethod}
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={strokeWidth}
+              strokeDasharray={`${s.dash} ${circumference - s.dash}`}
+              strokeDashoffset={-s.offset}
+            />
+          ))}
+        </g>
+      </svg>
+      <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", flex: 1, minWidth: 160 }}>
+        {segments.map((s) => (
+          <div key={s.paymentMethod} style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.85rem" }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: s.color, flexShrink: 0 }} />
+            <span style={{ flex: 1 }}>{PAYMENT_METHOD_LABEL[s.paymentMethod] ?? s.paymentMethod}</span>
+            <span className="hint-text">%{Math.round((s.revenue / total) * 100)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
 /** API en yeni gunu once dondurur (DESC); grafik icin kronolojik siraya cevirip basit bir alan/cizgi grafik ciziyoruz. Harici kutuphane kullanilmiyor. */
@@ -172,9 +240,15 @@ export default function Dashboard() {
         {canSeeSyncStatus && <SyncStatusCard />}
       </div>
 
-      <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Son 30 Gün Ciro Trendi</h3>
-        {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yükleniyor...</p>}
+      <div className="grid cols-2" style={{ marginTop: "1rem" }}>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Son 30 Gün Ciro Trendi</h3>
+          {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yükleniyor...</p>}
+        </div>
+        <div className="card">
+          <h3 style={{ marginTop: 0 }}>Ödeme Yöntemi Dağılımı</h3>
+          {summary ? <PaymentMethodDonut data={summary.byPaymentMethod} /> : <p className="hint-text">Yükleniyor...</p>}
+        </div>
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
