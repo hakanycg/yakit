@@ -12,7 +12,10 @@ import Transactions from "./pages/operator/Transactions";
 import Alarms from "./pages/operator/Alarms";
 import StationMap from "./pages/operator/StationMap";
 import Reports from "./pages/operator/Reports";
-import ChangePassword from "./pages/operator/ChangePassword";
+import ChangePassword from "./pages/operator/account/ChangePassword";
+import TwoFactor from "./pages/operator/account/TwoFactor";
+import Sessions from "./pages/operator/account/Sessions";
+import NotificationSettings from "./pages/operator/account/NotificationSettings";
 import Shift from "./pages/operator/Shift";
 import FuelStock from "./pages/operator/FuelStock";
 import DiscountCodes from "./pages/admin/DiscountCodes";
@@ -44,7 +47,15 @@ export default function App() {
           <Route path="/operator/harita" element={<StationMap />} />
           <Route path="/operator/raporlar" element={<Reports />} />
           <Route path="/operator/vardiya" element={<Shift />} />
-          <Route path="/operator/sifre-degistir" element={<ChangePassword />} />
+
+          {/* Hesap sayfalari - sidebar'in en altindaki hesap kartinin acilir menusunden ulasilir. */}
+          <Route path="/operator/hesabim" element={<Navigate to="/operator/hesabim/sifre" replace />} />
+          <Route path="/operator/hesabim/sifre" element={<ChangePassword />} />
+          <Route path="/operator/hesabim/iki-adimli-dogrulama" element={<TwoFactor />} />
+          <Route path="/operator/hesabim/oturumlar" element={<Sessions />} />
+          <Route path="/operator/hesabim/bildirimler" element={<NotificationSettings />} />
+          {/* Eski tekil adres - zorunlu sifre degistirme uyarisi (ChangePasswordBanner) buraya isaret ediyordu. */}
+          <Route path="/operator/sifre-degistir" element={<Navigate to="/operator/hesabim/sifre" replace />} />
 
           <Route element={<RequireRole roles={["admin"]} />}>
             <Route path="/admin" element={<Navigate to="/admin/kullanicilar" replace />} />

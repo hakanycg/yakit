@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   enqueueWrite,
   getWriteQueueRow,
@@ -13,6 +13,16 @@ import { db } from "../db/index.js";
 // test dosyalarini (ör. alarmService'in kendi kaydettigi handler) etkilemesin diye
 // her testten sonra sifirlanir - paylasilan modul-seviyesi Map oldugundan izolasyon
 // gerekir (bkz. vitest.config.ts: fileParallelism false, tum testler ayni surecte).
+// Diger test dosyalari (alarm olusturan her test) write_queue'ya kendi
+// "critical_alarm_notification" kayitlarini birakiyor ve tum dosyalar ayni SQLite
+// dosyasini paylasiyor. processWriteQueue() her turda yalnizca en eski 50 bekleyen
+// kaydi isledigi icin, bu dosya digerlerinden SONRA calistiginda buradaki testin
+// enqueue ettigi kayit partinin disinda kalip hic islenmiyordu - testler dosya
+// sirasina gore rastgele kirilirdi. Her test kendi kuyruguyla basliyor.
+beforeEach(() => {
+  db.prepare("DELETE FROM write_queue").run();
+});
+
 afterEach(() => {
   resetWriteQueueHandlers();
 });

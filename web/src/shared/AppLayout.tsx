@@ -15,7 +15,15 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: "İzleyici",
 };
 
-/** Sidebar'in en altindaki hesap karti - tiklaninca "Hesabim"/"Cikis Yap" acilir menusunu gosterir. */
+/** Hesap kartinin acilir menusundeki sayfalar (bkz. App.tsx /operator/hesabim/* rotalari). */
+const ACCOUNT_PAGES = [
+  { to: "/operator/hesabim/sifre", label: "Şifre Değiştir" },
+  { to: "/operator/hesabim/iki-adimli-dogrulama", label: "İki Adımlı Doğrulama" },
+  { to: "/operator/hesabim/oturumlar", label: "Aktif Oturumlar" },
+  { to: "/operator/hesabim/bildirimler", label: "Bildirim Ayarları" },
+];
+
+/** Sidebar'in en altindaki hesap karti - tiklaninca hesap sayfalari + "Cikis Yap" acilir menusunu gosterir. */
 function SidebarAccountCard({ onLogout }: { onLogout: () => void }) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -36,9 +44,17 @@ function SidebarAccountCard({ onLogout }: { onLogout: () => void }) {
     <div className="sidebar-org-card sidebar-account-card" ref={boxRef}>
       {open && (
         <div className="sidebar-dropdown sidebar-dropdown-up">
-          <NavLink to="/operator/sifre-degistir" className="sidebar-dropdown-item" onClick={() => setOpen(false)}>
-            Hesabım
-          </NavLink>
+          {ACCOUNT_PAGES.map((p) => (
+            <NavLink
+              key={p.to}
+              to={p.to}
+              className={({ isActive }) => `sidebar-dropdown-item${isActive ? " active" : ""}`}
+              onClick={() => setOpen(false)}
+            >
+              {p.label}
+            </NavLink>
+          ))}
+          <div className="sidebar-dropdown-sep" />
           <button type="button" className="sidebar-dropdown-item sidebar-dropdown-item--danger" onClick={onLogout}>
             Çıkış Yap
           </button>

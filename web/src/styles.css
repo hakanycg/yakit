@@ -158,6 +158,12 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 .sidebar-dropdown-item:hover { background: var(--row-hover); }
 .sidebar-dropdown-item.active { color: var(--accent); font-weight: 600; }
 .sidebar-dropdown-item.sidebar-dropdown-item--danger { color: var(--danger); }
+.sidebar-dropdown-sep { height: 1px; background: var(--border); margin: 0.3rem 0.2rem; }
+
+/* Hesap sayfalari (Sifre Degistir, Iki Adimli Dogrulama, Aktif Oturumlar,
+   Bildirim Ayarlari) - form agirlikli olduklari icin tam genislige yayilmak
+   yerine okunabilir bir genislikte kaliyorlar. */
+.account-page { max-width: 640px; }
 .sidebar a {
   color: var(--text-dim);
   text-decoration: none;
@@ -219,8 +225,14 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
      taşmasina yol acardi. min-width:0 karti gercekten kucultulebilir yapar. */
   min-width: 0;
 }
+/* Ust uste (normal akista) yigilan kartlar arasindaki bosluk. */
 .card + .card { margin-top: 1rem; }
 .grid { display: grid; gap: 1rem; }
+/* ...ama grid icinde aralik zaten `gap` ile verilir. Ustteki yigin marji orada da
+   uygulanirsa, ilk kart disindaki TUM kartlar 1rem asagi kayar ve satir yuksekligi
+   sabit oldugundan ayni oranda kisalir - yani "kutular ayni boyutta degil" gorunumu
+   olusur (Genel Bakis istatistik kutulari, Pompa Durumu kartlari vb. her yerde). */
+.grid > .card + .card { margin-top: 0; }
 .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
