@@ -335,6 +335,16 @@ export interface ScheduledPriceChangeRow {
   applied_at: string | null;
 }
 
+export interface WriteQueueRow {
+  id: number;
+  kind: string;
+  payload: string;
+  attempts: number;
+  last_error: string | null;
+  created_at: string;
+  processed_at: string | null;
+}
+
 export interface StationSyncStateRow {
   station_id: number;
   last_heartbeat_at: string | null;

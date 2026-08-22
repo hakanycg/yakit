@@ -2,7 +2,7 @@ import { db } from "../db/index.js";
 import type { AlarmRow, StationRow, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { sendEmail, sendSms } from "./notificationService.js";
-import { logger } from "../utils/logger.js";
+import { enqueueWrite, registerWriteQueueHandler } from "./writeQueueService.js";
 
 export function serializeAlarm(a: AlarmRow) {
   return {
@@ -34,12 +34,20 @@ export function createAlarm(params: {
   const alarm = db.prepare<[number], AlarmRow>("SELECT * FROM alarms WHERE id = ?").get(result.lastInsertRowid as number)!;
   broadcastAlarms(params.stationId);
   if (alarm.severity === "critical") {
-    notifyCriticalAlarm(alarm).catch((err) => logger.error({ err, alarmId: alarm.id }, "Kritik alarm bildirimi gonderilemedi."));
+    // Dogrudan (fire-and-forget) cagirmak yerine dayanikli kuyruga yazilir (bkz.
+    // writeQueueService.ts) - sunucu tam bu sirada coksun/SMTP-SMS saglayicisi
+    // gecici olarak erisilemez olsun, bildirim SESSIZCE KAYBOLMAZ; bir sonraki
+    // processWriteQueue() turunda otomatik olarak (gerekirse tekrar) denenir.
+    enqueueWrite("critical_alarm_notification", alarm);
   }
   return alarm;
 }
 
-/** Istasyonun bildirim tercihi acik olan admin/operator kullanicilarina e-posta/SMS gonderir. Hata durumunda alarm akisini etkilemez. */
+registerWriteQueueHandler("critical_alarm_notification", async (payload) => {
+  await notifyCriticalAlarm(payload as AlarmRow);
+});
+
+/** Istasyonun bildirim tercihi acik olan admin/operator kullanicilarina e-posta/SMS gonderir. Hata durumunda cagiran taraf (write queue) tekrar dener. */
 async function notifyCriticalAlarm(alarm: AlarmRow): Promise<void> {
   const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(alarm.station_id);
   if (!station) return;

@@ -400,6 +400,25 @@ CREATE TABLE IF NOT EXISTS scheduled_price_changes (
 );
 CREATE INDEX IF NOT EXISTS idx_scheduled_price_changes_station ON scheduled_price_changes(station_id, status, scheduled_for);
 
+-- Dayanikli (durable) yazma kuyrugu: Kafka/RabbitMQ'nun bu uygulamadaki islevsel
+-- karsiligi - ek bir servis/maliyet gerektirmeden ayni SQLite veritabanini kullanir.
+-- Bir isin "kabul edilmesi" (enqueueWrite - hizli, senkron INSERT) ile "islenmesi"
+-- (processWriteQueue - arka planda, ör. e-posta/SMS gonderimi gibi yavas/agin
+-- basarisiz olabilecek isler) birbirinden ayrilir: kayit ONCE buraya guvenle yazilir,
+-- sunucu bu adimdan sonra coksede is asla sessizce kaybolmaz - bir sonraki
+-- baslangicta islenmemis (processed_at IS NULL) kayittan kaldigi yerden devam eder.
+-- Bkz. writeQueueService.ts.
+CREATE TABLE IF NOT EXISTS write_queue (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,                  -- ör. critical_alarm_notification
+  payload TEXT NOT NULL,               -- JSON
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  processed_at TEXT                    -- NULL = henuz islenmedi/tekrar denenecek
+);
+CREATE INDEX IF NOT EXISTS idx_write_queue_pending ON write_queue(processed_at, id);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

@@ -12,6 +12,8 @@ import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
 import { encryptLegacyPlaintextSecrets } from "./utils/secretsCrypto.js";
+import { processWriteQueue, pruneWriteQueue } from "./services/writeQueueService.js";
+import "./services/alarmService.js"; // write-queue handler'ini (critical_alarm_notification) kaydeder
 
 if (isProd && !env.COOKIE_SECURE) {
   logger.warn("UYARI: NODE_ENV=production iken COOKIE_SECURE=false. HTTPS arkasinda calisiyorsaniz bunu true yapin.");
@@ -73,6 +75,19 @@ safetySensorInterval.unref();
 // bekleyecegi kadar sik olmasi onemli oldugundan simdiden guvenlik sensoruyle ayni cari kullanilir.
 const automationAliveInterval = setInterval(sendAutomationAliveSignals, 10 * 1000);
 automationAliveInterval.unref();
+
+// Dayanikli yazma kuyrugu (bkz. writeQueueService.ts) - Kafka/RabbitMQ'nun bu
+// uygulamadaki islevsel karsiligi. Su an tek tuketicisi kritik alarm bildirimleri
+// (e-posta/SMS) - hizli calismasi (2sn) bildirimlerin gecikmesiz gitmesini saglar.
+processWriteQueue().catch((err) => logger.error({ err }, "Yazma kuyrugu islenemedi."));
+const writeQueueInterval = setInterval(() => {
+  processWriteQueue().catch((err) => logger.error({ err }, "Yazma kuyrugu islenemedi."));
+}, 2 * 1000);
+writeQueueInterval.unref();
+
+// Islenmis kuyruk kayitlarinin gunluk temizligi - tablo sonsuza dek buyumesin.
+const writeQueuePruneInterval = setInterval(() => pruneWriteQueue(), 24 * 60 * 60 * 1000);
+writeQueuePruneInterval.unref();
 
 // Zamanlanmis yakit fiyati degisiklikleri - dakika hassasiyeti yeterli.
 applyDuePriceChanges();
