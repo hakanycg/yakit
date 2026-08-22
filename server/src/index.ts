@@ -40,9 +40,11 @@ encryptLegacyPlaintextSecrets();
 reconcileStuckTransactions();
 
 // Odemesini hic tamamlamadan kiosk'tan ayrilan musterilerin pompayi sonsuza dek
-// "reserved" tutmasini engeller (bkz. reconcileStaleCreatedTransactions yorumu).
+// "reserved" tutmasini engeller (bkz. reconcileStaleCreatedTransactions yorumu). Sik
+// kontrol (20sn), varsayilan 3dk esikle birlikte, pompanin gercekte kilitli kaldigi
+// sureyi (en kotu ihtimalle esik + kontrol araligi) makul seviyede tutar.
 reconcileStaleCreatedTransactions();
-const staleTransactionInterval = setInterval(reconcileStaleCreatedTransactions, 2 * 60 * 1000);
+const staleTransactionInterval = setInterval(reconcileStaleCreatedTransactions, 20 * 1000);
 staleTransactionInterval.unref();
 
 const app = createApp();

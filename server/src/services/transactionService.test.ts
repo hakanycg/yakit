@@ -10,6 +10,7 @@ import {
   emergencyStopStation,
   emergencyStopTransaction,
   finalizeTransactionPayment,
+  handleLatePaymentAfterCancellation,
   markIyzicoPending,
   payTransaction,
   payWithFleetAccount,
@@ -124,6 +125,50 @@ describe("finalizeTransactionPayment payment_status", () => {
     const updated = payTransaction(transaction.id, accessToken, VALID_CARD);
     expect(updated.payment_status).toBe("captured");
     emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+});
+
+describe("handleLatePaymentAfterCancellation (iyzico basarili sonucu, biz zaman asimiyla iptal ettikten SONRA gelirse)", () => {
+  it("full_tank (on-provizyon) icin otomatik iptali dener ve KRITIK bir alarm birakir", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34LATE01", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    cancelPendingTransaction(transaction.id, accessToken, "test - zaman asimi simulasyonu");
+    const cancelled = db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(transaction.id)!;
+    expect(cancelled.status).toBe("cancelled");
+
+    // Test ortaminda iyzico anahtarlari tanimli degil, bu yuzden cancelPreAuthHold gercekten
+    // basarisiz olacak - onemli olan bunun sessizce yutulmayip KRITIK bir alarma donusmesi.
+    return handleLatePaymentAfterCancellation(cancelled, "fake-payment-id").then(() => {
+      const alarms = db
+        .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+        .all(cancelled.station_id, "late_payment_after_cancel");
+      expect(alarms.length).toBe(1);
+      expect(alarms[0]!.severity).toBe("critical");
+      expect(alarms[0]!.message).toContain("OTOMATIK IPTAL EDILEMEDI");
+    });
+  });
+
+  it("dogrudan tahsilat modunda (full_tank disi) iyzico'ya hic istek atmadan dogrudan KRITIK alarm birakir", async () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34LATE02",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    cancelPendingTransaction(transaction.id, accessToken, "test - zaman asimi simulasyonu");
+    const cancelled = db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(transaction.id)!;
+
+    await handleLatePaymentAfterCancellation(cancelled, "fake-payment-id");
+
+    const alarms = db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+      .all(cancelled.station_id, "late_payment_after_cancel");
+    expect(alarms.length).toBe(1);
+    expect(alarms[0]!.severity).toBe("critical");
+    expect(alarms[0]!.message).toContain("DOGRUDAN BIR TAHSILAT");
   });
 });
 

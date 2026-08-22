@@ -385,6 +385,47 @@ export function getTransactionForIyzicoCallback(id: number, token: string): Tran
   return t;
 }
 
+/**
+ * Islem, zaman asimi (reconcileStaleCreatedTransactions) veya musterinin kendi iptaliyle
+ * "cancelled"/"failed" durumuna dusurulduKTEN SONRA, musteri iyzico'nun sayfasinda (SMS/3D
+ * Secure gecikmesiyle) odemeyi YINE DE tamamlamis olabilir - iyzico bu gec gelen sonucu bize
+ * callback ile bildirir. Bunu sessizce yok saymak (eski davranis) musteriden PARA ALINMIS
+ * ama yakit VERILMEMIS bir durumu fark edilmeden birakir. Bu fonksiyon o riski kapatir: gec
+ * gelen basarili odemeyi tespit edip mumkunse otomatik geri alir (on-provizyon/full_tank
+ * modunda), degilse (dogrudan tahsilat) personelin manuel iade yapmasi icin KRITIK bir alarm
+ * dusurur - hicbir sekilde sessizce kaybolmaz.
+ */
+export async function handleLatePaymentAfterCancellation(t: TransactionRow, paymentId: string | null): Promise<void> {
+  const isPreAuth = t.amount_mode === "full_tank";
+  let autoReversed = false;
+  let reverseError: string | null = null;
+
+  if (isPreAuth && paymentId) {
+    try {
+      await cancelPreAuthHold(t.station_id, t.id, paymentId);
+      autoReversed = true;
+    } catch (err) {
+      reverseError = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  const amountText = `${chargeAmount(t).toFixed(2)} TL`;
+  const message = isPreAuth
+    ? autoReversed
+      ? `Islem #${t.id} (Plaka ${t.plate}) zaman asimiyla iptal edildikten SONRA odeme iyzico'da basarili oldu - on-provizyon otomatik iptal edildi, musteriden para cekilmedi.`
+      : `Islem #${t.id} (Plaka ${t.plate}) zaman asimiyla iptal edildikten SONRA odeme iyzico'da basarili oldu - on-provizyon OTOMATIK IPTAL EDILEMEDI (${reverseError}). ACILEN iyzico panelinden manuel iptal edin.`
+    : `Islem #${t.id} (Plaka ${t.plate}, ${amountText}) zaman asimiyla iptal edildikten SONRA odeme iyzico'da basarili oldu - bu DOGRUDAN BIR TAHSILATTIR, otomatik iade altyapisi henuz yok. ACILEN iyzico panelinden musteriye manuel iade yapin.`;
+
+  logger.error({ transactionId: t.id, isPreAuth, autoReversed, paymentId }, "Gec gelen basarili iyzico odemesi tespit edildi.");
+  createAlarm({
+    stationId: t.station_id,
+    pumpId: t.pump_id,
+    type: "late_payment_after_cancel",
+    severity: "critical",
+    message,
+  });
+}
+
 function startDispensing(id: number): void {
   const t = getTransactionOrThrow(id);
   if (t.status !== "authorized") return;
@@ -653,8 +694,18 @@ export function reconcileStuckTransactions(): void {
  * edip pompayi serbest birakir. Sunucu tarafinda periyodik olarak cagrilir
  * (bkz. index.ts) - client-side idle-reset (useIdleReset) sadece kiosk
  * ekranini sifirlar, sunucudaki kaydi/pompayi etkilemez.
+ *
+ * Varsayilan 3 dakika, iyzico SMS/3D Secure gecikmesi + musterinin kodu
+ * bulup girmesi icin makul bir pay birakirken pompayi cok uzun sure kilitli
+ * tutmaz. Bunu tek basina daha da agresiflestirmek (ör. 60 saniye) tehlikelidir:
+ * musteri gercekten odemeyi tamamlayip iyzico'dan BASARILI sonuc donebilir ama
+ * biz o ana kadar islemi zaten iptal etmis oluruz - "musteriden para alindi
+ * ama yakit verilmedi" riski. Bu risk artik guvenlik agiyla kapatilmis
+ * durumda: gec gelen basarili odemeler sessizce kaybolmaz, tespit edilip
+ * mumkunse geri alinir/personele KRITIK alarmla bildirilir (bkz.
+ * handleLatePaymentAfterCancellation, kiosk.ts'teki callback rotasi).
  */
-export function reconcileStaleCreatedTransactions(maxAgeMs = 10 * 60 * 1000): void {
+export function reconcileStaleCreatedTransactions(maxAgeMs = 3 * 60 * 1000): void {
   const cutoff = new Date(Date.now() - maxAgeMs).toISOString();
   const stale = db
     .prepare<[string], TransactionRow>("SELECT * FROM transactions WHERE status = 'created' AND created_at < ?")

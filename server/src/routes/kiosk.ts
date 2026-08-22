@@ -11,6 +11,7 @@ import {
   finalizeTransactionPayment,
   getLastFuelTypeForPlate,
   getTransactionForIyzicoCallback,
+  handleLatePaymentAfterCancellation,
   getTransactionForKiosk,
   markIyzicoPending,
   payTransaction,
@@ -379,7 +380,22 @@ router.post(
     if (t.status !== "created") {
       // Callback tekrar gelmis olabilir (ör. sayfa yenileme); islem zaten sonuclanmis, idempotent yanit ver.
       const already = t.status === "authorized" || t.status === "dispensing" || t.status === "completed";
-      redirectToKiosk(already ? "ok" : "fail");
+      if (already) {
+        redirectToKiosk("ok");
+        return;
+      }
+      // Islem "cancelled"/"failed" durumuna dusmus (zaman asimi veya musteri iptali) AMA
+      // simdi gecerli bir token'la callback geldi - musteri iyzico'da odemeyi YINE DE
+      // tamamlamis olabilir (bkz. handleLatePaymentAfterCancellation yorumu). Sessizce
+      // "fail" donup gec gelen basarili bir odemeyi kaybetmemek icin iyzico'ya sorup
+      // dogruluyoruz.
+      try {
+        const result = await retrieveCheckoutForm(t.station_id, token);
+        if (result.success) await handleLatePaymentAfterCancellation(t, result.paymentId ?? null);
+      } catch (err) {
+        logger.error({ id, err }, "iyzico callback: gec gelen odeme kontrolu basarisiz.");
+      }
+      redirectToKiosk("fail");
       return;
     }
 
