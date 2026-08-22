@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
 import { useCurrentStationId } from "../../shared/useCurrentStation";
-import type { Station } from "../../shared/types";
+import type { Station, StationKiosk } from "../../shared/types";
 
 function syncBadge(s: Station): { label: string; className: string } | null {
   if (!s.agentConfigured) return { label: "Ajan kurulmadı", className: "info" };
@@ -35,12 +35,12 @@ export default function Stations() {
   useEffect(load, []);
 
   // Yuzlerce/binlerce istasyon oldugunda kart listesinde tek tek aramak yerine
-  // isim/adres/kiosk-adresi/AnyDesk ID'sine gore filtrelenebilsin diye.
+  // isim/adres/kiosk-adresine gore filtrelenebilsin diye. Kiosk bazinda (AnyDesk ID)
+  // arama, her istasyonun kendi kiosk listesi acildiginda orada yapilir - ayri bir
+  // AnyDesk kimligini binlerce istasyon arasinda aramak bu sayfanin kapsami disinda.
   const q = search.trim().toLowerCase();
   const visibleStations = q
-    ? stations.filter((s) =>
-        [s.name, s.address, s.slug, s.anydeskId ?? ""].some((field) => field.toLowerCase().includes(q))
-      )
+    ? stations.filter((s) => [s.name, s.address, s.slug].some((field) => field.toLowerCase().includes(q)))
     : stations;
 
   async function toggleActive(s: Station) {
@@ -68,7 +68,7 @@ export default function Stations() {
         <input
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="İsim, adres, kiosk adresi veya AnyDesk ID ile ara..."
+          placeholder="İsim, adres veya kiosk adresi ile ara..."
           style={{ minWidth: 280 }}
         />
         <span className="hint-text">{visibleStations.length} / {stations.length} istasyon</span>
@@ -90,7 +90,7 @@ export default function Stations() {
             <p className="hint-text" style={{ margin: "0.25rem 0" }}>
               Kiosk: <code>/kiosk/{s.slug}</code>
             </p>
-            <AnydeskIdField station={s} onSaved={load} />
+            <StationKiosksSection stationId={s.id} />
             <div className="toolbar" style={{ marginTop: "0.5rem" }}>
               <span className="hint-text">Pompa: {s.pumpCount}</span>
               <span className="hint-text">Kullanıcı: {s.userCount}</span>
@@ -139,76 +139,141 @@ export default function Stations() {
 }
 
 /**
- * Kiosk PC'sine kurulan AnyDesk'in ("unattended access" ayarlandiktan sonraki)
- * sabit kimligi - saha kurulumunda bir kere buraya not edilir, ihtiyac aninda
- * (binlerce istasyon arasindan yukaridaki arama kutusuyla bulunup) tek tikla
- * kopyalanip AnyDesk uygulamasina yapistirilarak baglanilir.
+ * Bir istasyonda genelde TEK degil, pompa/ada basina AYRI bir fiziksel kiosk PC'si
+ * olur. Bu bolum, her birinin uzak masaustu (AnyDesk) kimligini serbest bir etiketle
+ * (ör. "Pompa 1-2 Adasi") eslestirip listeler - saha kurulumunda bir kere girilir,
+ * ihtiyac aninda tek tikla kopyalanip AnyDesk uygulamasina yapistirilir.
  */
-function AnydeskIdField({ station, onSaved }: { station: Station; onSaved: () => void }) {
-  const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState(station.anydeskId ?? "");
+function StationKiosksSection({ stationId }: { stationId: number }) {
+  const [kiosks, setKiosks] = useState<StationKiosk[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [newLabel, setNewLabel] = useState("");
+  const [newAnydeskId, setNewAnydeskId] = useState("");
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function save() {
+  function load() {
+    api.get<{ kiosks: StationKiosk[] }>(`/api/stations/${stationId}/kiosks`).then((res) => {
+      setKiosks(res.kiosks);
+      setLoaded(true);
+    });
+  }
+  useEffect(load, [stationId]);
+
+  async function addKiosk(e: FormEvent) {
+    e.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      await api.patch(`/api/stations/${station.id}`, { anydeskId: value.trim() || null });
-      setEditing(false);
-      onSaved();
+      await api.post(`/api/stations/${stationId}/kiosks`, { label: newLabel, anydeskId: newAnydeskId.trim() || null });
+      setNewLabel("");
+      setNewAnydeskId("");
+      setAdding(false);
+      load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Kiosk eklenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteKiosk(k: StationKiosk) {
+    if (!confirm(`"${k.label}" kiosk kaydını silmek istediğinize emin misiniz?`)) return;
+    await api.delete(`/api/stations/${stationId}/kiosks/${k.id}`);
+    load();
+  }
+
+  return (
+    <div style={{ margin: "0.4rem 0" }}>
+      <p className="hint-text" style={{ margin: "0 0 0.15rem" }}>Kiosk Bilgisayarları (pompa/ada başına):</p>
+      {kiosks.map((k) => (
+        <KioskRow key={k.id} kiosk={k} stationId={stationId} onChanged={load} onDelete={() => deleteKiosk(k)} />
+      ))}
+      {loaded && kiosks.length === 0 && !adding && <p className="hint-text">Henüz kiosk eklenmemiş.</p>}
+      {adding ? (
+        <form className="toolbar" onSubmit={addKiosk} style={{ marginTop: "0.25rem" }}>
+          <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Etiket (ör. Pompa 1-2)" required style={{ maxWidth: 160 }} />
+          <input value={newAnydeskId} onChange={(e) => setNewAnydeskId(e.target.value)} placeholder="AnyDesk ID (opsiyonel)" style={{ maxWidth: 160 }} />
+          <button type="submit" disabled={saving}>{saving ? "Ekleniyor..." : "Ekle"}</button>
+          <button type="button" className="ghost" onClick={() => setAdding(false)}>Vazgeç</button>
+        </form>
+      ) : (
+        <button className="ghost" onClick={() => setAdding(true)}>+ Kiosk Ekle</button>
+      )}
+      {error && <p className="error-text">{error}</p>}
+    </div>
+  );
+}
+
+function KioskRow({
+  kiosk,
+  stationId,
+  onChanged,
+  onDelete,
+}: {
+  kiosk: StationKiosk;
+  stationId: number;
+  onChanged: () => void;
+  onDelete: () => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [label, setLabel] = useState(kiosk.label);
+  const [anydeskId, setAnydeskId] = useState(kiosk.anydeskId ?? "");
+  const [copied, setCopied] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(`/api/stations/${stationId}/kiosks/${kiosk.id}`, { label, anydeskId: anydeskId.trim() || null });
+      setEditing(false);
+      onChanged();
     } finally {
       setSaving(false);
     }
   }
 
   async function copy() {
-    if (!station.anydeskId) return;
-    await navigator.clipboard.writeText(station.anydeskId);
+    if (!kiosk.anydeskId) return;
+    await navigator.clipboard.writeText(kiosk.anydeskId);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
   }
 
   if (editing) {
     return (
-      <div className="toolbar" style={{ margin: "0.25rem 0" }}>
-        <input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="AnyDesk ID (ör. 123 456 789)"
-          style={{ maxWidth: 200 }}
-        />
+      <div className="toolbar" style={{ margin: "0.15rem 0" }}>
+        <input value={label} onChange={(e) => setLabel(e.target.value)} style={{ maxWidth: 160 }} />
+        <input value={anydeskId} onChange={(e) => setAnydeskId(e.target.value)} placeholder="AnyDesk ID" style={{ maxWidth: 160 }} />
         <button onClick={save} disabled={saving}>{saving ? "Kaydediliyor..." : "Kaydet"}</button>
         <button
           className="ghost"
           onClick={() => {
             setEditing(false);
-            setValue(station.anydeskId ?? "");
-            setError(null);
+            setLabel(kiosk.label);
+            setAnydeskId(kiosk.anydeskId ?? "");
           }}
         >
           Vazgeç
         </button>
-        {error && <span className="error-text">{error}</span>}
       </div>
     );
   }
 
   return (
-    <div className="toolbar" style={{ margin: "0.25rem 0" }}>
-      <span className="hint-text">Uzak Erişim (AnyDesk):</span>
-      {station.anydeskId ? (
+    <div className="toolbar" style={{ margin: "0.15rem 0" }}>
+      <span>{kiosk.label}</span>
+      {kiosk.anydeskId ? (
         <>
-          <code>{station.anydeskId}</code>
+          <code>{kiosk.anydeskId}</code>
           <button className="ghost" onClick={copy}>{copied ? "Kopyalandı" : "Kopyala"}</button>
         </>
       ) : (
-        <span className="hint-text">tanımlanmamış</span>
+        <span className="hint-text">AnyDesk ID yok</span>
       )}
-      <button className="ghost" onClick={() => setEditing(true)}>{station.anydeskId ? "Düzenle" : "Ekle"}</button>
+      <button className="ghost" onClick={() => setEditing(true)}>Düzenle</button>
+      <button className="ghost" onClick={onDelete}>Sil</button>
     </div>
   );
 }

@@ -9,6 +9,13 @@ export interface StationRow {
   longitude: number | null;
   active: 0 | 1;
   sync_token: string | null;
+  created_at: string;
+}
+
+export interface StationKioskRow {
+  id: number;
+  station_id: number;
+  label: string;
   anydesk_id: string | null;
   created_at: string;
 }

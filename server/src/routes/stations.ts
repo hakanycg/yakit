@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import type { StationRow, UserRow } from "../db/types.js";
+import type { StationKioskRow, StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
@@ -18,9 +18,12 @@ function serializeStation(s: StationRow) {
     latitude: s.latitude,
     longitude: s.longitude,
     active: !!s.active,
-    anydeskId: s.anydesk_id,
     createdAt: s.created_at,
   };
+}
+
+function serializeKiosk(k: StationKioskRow) {
+  return { id: k.id, stationId: k.station_id, label: k.label, anydeskId: k.anydesk_id, createdAt: k.created_at };
 }
 
 router.get("/current", requireStationSelected, (req, res) => {
@@ -140,10 +143,6 @@ const updateSchema = z.object({
   active: z.boolean().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
-  // Uzak masaustu erisimi (AnyDesk vb.) icin bu kiosk PC'sinin kimligi - saha kurulumu
-  // sirasinda AnyDesk kiosk PC'ye kurulup "unattended access" ayarlandiktan SONRA buraya
-  // girilir, bu yuzden olusturma degil GUNCELLEME akisinin bir parcasidir.
-  anydeskId: z.string().max(60).nullable().optional(),
 });
 
 router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(updateSchema), (req, res) => {
@@ -159,7 +158,6 @@ router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(up
   if (body.active !== undefined) { fields.push("active = ?"); values.push(body.active ? 1 : 0); }
   if (body.latitude !== undefined) { fields.push("latitude = ?"); values.push(body.latitude); }
   if (body.longitude !== undefined) { fields.push("longitude = ?"); values.push(body.longitude); }
-  if (body.anydeskId !== undefined) { fields.push("anydesk_id = ?"); values.push(body.anydeskId); }
 
   if (fields.length > 0) {
     values.push(id);
@@ -196,6 +194,7 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     db.prepare("DELETE FROM settings WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM station_sync_events WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM station_sync_state WHERE station_id = ?").run(id);
+    db.prepare("DELETE FROM station_kiosks WHERE station_id = ?").run(id);
 
     // Istasyona bagli kullanici hesaplarini da kalici olarak sil (islem kaydi
     // olmadigi icin bu hesaplarin baska bir istasyona tasinmasi anlamsiz).
@@ -223,6 +222,117 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     stationId: null,
   });
 
+  res.status(204).end();
+});
+
+/**
+ * Bir istasyonda genelde TEK degil, pompa/ada basina AYRI bir fiziksel kiosk PC'si
+ * olur - bu ucler, uzak masaustu erisimi (AnyDesk vb.) icin her birinin kimligini
+ * serbest bir etiketle (ör. "Pompa 1-2 Adasi") eslestiren kucuk bir not defteridir.
+ * Canli kiosk web akisiyla (musterinin pompa secme adimi) hicbir iliskisi yoktur -
+ * salt personelin dogru fiziksel makineye baglanmasini kolaylastirir.
+ */
+function getStationOr404(id: number, res: import("express").Response): StationRow | null {
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id);
+  if (!station) res.status(404).json({ error: "Istasyon bulunamadi." });
+  return station ?? null;
+}
+
+router.get("/:stationId/kiosks", requireRole("super_admin"), (req, res) => {
+  const stationId = Number(req.params.stationId);
+  if (!getStationOr404(stationId, res)) return;
+  const kiosks = db
+    .prepare<[number], StationKioskRow>("SELECT * FROM station_kiosks WHERE station_id = ? ORDER BY id ASC")
+    .all(stationId);
+  res.json({ kiosks: kiosks.map(serializeKiosk) });
+});
+
+const kioskSchema = z.object({
+  label: z.string().trim().min(1).max(80),
+  anydeskId: z.string().trim().max(60).nullable().optional(),
+});
+
+router.post("/:stationId/kiosks", requireRole("super_admin"), csrfProtection, validateBody(kioskSchema), (req, res) => {
+  const stationId = Number(req.params.stationId);
+  if (!getStationOr404(stationId, res)) return;
+  const body = req.body as z.infer<typeof kioskSchema>;
+  const result = db
+    .prepare("INSERT INTO station_kiosks (station_id, label, anydesk_id) VALUES (?, ?, ?)")
+    .run(stationId, body.label, body.anydeskId ?? null);
+  const kiosk = db.prepare<[number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ?").get(result.lastInsertRowid as number)!;
+  recordAudit({
+    user: req.user!,
+    action: "station_kiosk_created",
+    entityType: "station_kiosk",
+    entityId: kiosk.id,
+    details: { label: kiosk.label },
+    ip: req.ip,
+    stationId,
+  });
+  res.status(201).json({ kiosk: serializeKiosk(kiosk) });
+});
+
+const kioskUpdateSchema = z.object({
+  label: z.string().trim().min(1).max(80).optional(),
+  anydeskId: z.string().trim().max(60).nullable().optional(),
+});
+
+router.patch(
+  "/:stationId/kiosks/:kioskId",
+  requireRole("super_admin"),
+  csrfProtection,
+  validateBody(kioskUpdateSchema),
+  (req, res) => {
+    const stationId = Number(req.params.stationId);
+    const kioskId = Number(req.params.kioskId);
+    const existing = db
+      .prepare<[number, number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ? AND station_id = ?")
+      .get(kioskId, stationId);
+    if (!existing) return void res.status(404).json({ error: "Kiosk kaydi bulunamadi." });
+
+    const body = req.body as z.infer<typeof kioskUpdateSchema>;
+    const fields: string[] = [];
+    const values: unknown[] = [];
+    if (body.label !== undefined) { fields.push("label = ?"); values.push(body.label); }
+    if (body.anydeskId !== undefined) { fields.push("anydesk_id = ?"); values.push(body.anydeskId); }
+
+    if (fields.length > 0) {
+      values.push(kioskId);
+      db.prepare(`UPDATE station_kiosks SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+      recordAudit({
+        user: req.user!,
+        action: "station_kiosk_updated",
+        entityType: "station_kiosk",
+        entityId: kioskId,
+        details: body,
+        ip: req.ip,
+        stationId,
+      });
+    }
+
+    const updated = db.prepare<[number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ?").get(kioskId)!;
+    res.json({ kiosk: serializeKiosk(updated) });
+  }
+);
+
+router.delete("/:stationId/kiosks/:kioskId", requireRole("super_admin"), csrfProtection, (req, res) => {
+  const stationId = Number(req.params.stationId);
+  const kioskId = Number(req.params.kioskId);
+  const existing = db
+    .prepare<[number, number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ? AND station_id = ?")
+    .get(kioskId, stationId);
+  if (!existing) return void res.status(404).json({ error: "Kiosk kaydi bulunamadi." });
+
+  db.prepare("DELETE FROM station_kiosks WHERE id = ?").run(kioskId);
+  recordAudit({
+    user: req.user!,
+    action: "station_kiosk_deleted",
+    entityType: "station_kiosk",
+    entityId: kioskId,
+    details: { label: existing.label },
+    ip: req.ip,
+    stationId,
+  });
   res.status(204).end();
 });
 

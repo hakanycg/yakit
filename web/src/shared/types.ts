@@ -137,7 +137,6 @@ export interface Station {
   latitude: number | null;
   longitude: number | null;
   active?: boolean;
-  anydeskId?: string | null;
   createdAt?: string;
   pumpCount?: number;
   transactionCount?: number;
@@ -146,6 +145,14 @@ export interface Station {
   lastHeartbeatAt?: string | null;
   lastSyncedAt?: string | null;
   agentConfigured?: boolean;
+}
+
+export interface StationKiosk {
+  id: number;
+  stationId: number;
+  label: string;
+  anydeskId: string | null;
+  createdAt: string;
 }
 
 export interface AdminUser {

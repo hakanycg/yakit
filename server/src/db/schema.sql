@@ -16,7 +16,6 @@ CREATE TABLE IF NOT EXISTS stations (
   longitude REAL,
   active INTEGER NOT NULL DEFAULT 1,
   sync_token TEXT,                     -- istasyon ajaninin /api/sync/* uclarinda kimlik dogrulamasi icin (bkz. syncService.ts)
-  anydesk_id TEXT,                     -- uzak masaustu erisimi (AnyDesk vb.) icin bu kiosk PC'sinin kimligi - bkz. stations.ts yorumu
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 -- sync_token indeksi burada DEGIL, db/index.ts'deki applyMigrations()'da olusturuluyor:
@@ -25,6 +24,22 @@ CREATE TABLE IF NOT EXISTS stations (
 -- burada, CREATE TABLE'in hemen ardinda olusturmaya calismak, mevcut veritabanlarinda
 -- kolon henuz yokken calisip "no such column: sync_token" hatasiyla applySchema()'yi
 -- (ve dolayisiyla tum sunucu baslatmasini) crash-loop'a sokar - bu gercekten yasandi.
+
+-- Bir istasyonda TEK degil, genelde POMPA/ADA basina AYRI bir fiziksel kiosk PC'si
+-- olur (ör. "Pompa 1-2 Adasi" icin bir kiosk, "Pompa 3-4" icin baska bir kiosk).
+-- Bu tablo, uzak masaustu erisimi (AnyDesk vb.) icin her fiziksel kiosk'un kimligini
+-- serbest bir etiketle (hangi pompa/ada oldugunu personelin anlayacagi bir metin)
+-- eslestirir - bkz. stations.ts. Etiket serbest metindir, pompalarla katı bir iliski
+-- (foreign key) KURULMAZ; bu salt bir uzaktan-erisim not defteridir, canli islem
+-- akisinin (kiosk web uygulamasinin) hangi pompalari gosterdigiyle ilgisi yoktur.
+CREATE TABLE IF NOT EXISTS station_kiosks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  label TEXT NOT NULL,                 -- ör. "Pompa 1-2 Adasi"
+  anydesk_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_station_kiosks_station ON station_kiosks(station_id);
 
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

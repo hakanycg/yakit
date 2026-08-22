@@ -49,7 +49,6 @@ export function applyMigrations(): void {
   ensureColumn("fleet_accounts", "contact_email", "TEXT");
   ensureColumn("fleet_accounts", "contact_phone", "TEXT");
   ensureColumn("fleet_accounts", "low_balance_threshold", "REAL");
-  ensureColumn("stations", "anydesk_id", "TEXT");
 }
 
 applySchema();
