@@ -7,7 +7,7 @@ import { useKioskLang } from "./i18n";
  * isleme faaliyetleriyle birlikte bir hukuk danismanina onaylatilmadan yasal uyum
  * garantisi olarak kullanilmamalidir.
  */
-export default function PrivacyNoticeLink({ stationName }: { stationName: string }) {
+export default function PrivacyNoticeLink({ stationName, stationAddress }: { stationName: string; stationAddress: string }) {
   const { t } = useKioskLang();
   const [open, setOpen] = useState(false);
 
@@ -25,7 +25,12 @@ export default function PrivacyNoticeLink({ stationName }: { stationName: string
         >
           <div className="card" style={{ width: "min(560px, 92vw)", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0 }}>{t("privacy.title")}</h3>
-            <p className="hint-text">{t("privacy.controller", { station: stationName })}</p>
+            <p className="hint-text">
+              {stationAddress ? t("privacy.controllerWithAddress", { station: stationName, address: stationAddress }) : t("privacy.controller", { station: stationName })}
+            </p>
+
+            <h4>{t("privacy.legalBasisHeading")}</h4>
+            <p className="hint-text">{t("privacy.legalBasisBody")}</p>
 
             <h4>{t("privacy.dataHeading")}</h4>
             <p className="hint-text">{t("privacy.dataBody")}</p>
@@ -41,6 +46,12 @@ export default function PrivacyNoticeLink({ stationName }: { stationName: string
 
             <h4>{t("privacy.rightsHeading")}</h4>
             <p className="hint-text">{t("privacy.rightsBody")}</p>
+
+            <h4>{t("privacy.applicationHeading")}</h4>
+            <p className="hint-text">{t("privacy.applicationBody", { station: stationName })}</p>
+
+            <h4>{t("privacy.complaintHeading")}</h4>
+            <p className="hint-text">{t("privacy.complaintBody")}</p>
 
             <div className="toolbar" style={{ marginTop: "1rem" }}>
               <div className="spacer" />

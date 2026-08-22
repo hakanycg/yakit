@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap");
 
 :root {
   --bg: #0b0f14;
@@ -12,6 +12,28 @@
   --danger: #ef4444;
   --warning: #f59e0b;
   --radius: 10px;
+  --row-alt: rgba(255,255,255,0.015);
+  --row-hover: rgba(255,255,255,0.035);
+}
+
+/* Yonetim panelinin acik tema hali - kullanicinin kendi tercihiyle (bkz.
+   useThemePreference.ts, AppLayout.tsx'teki gunes/ay butonu) devreye girer,
+   otomatik degildir. Butun bilesenler zaten bu degiskenler uzerinden
+   tanimlandigindan (kart/tablo/buton/input) baska hicbir sey degismesine
+   gerek kalmadan tum panel bu palete gecer. */
+:root[data-theme-mode="day"] {
+  --bg: #eef1f6;
+  --panel: #ffffff;
+  --panel-2: #f6f8fb;
+  --border: #dde3ec;
+  --text: #1b2430;
+  --text-dim: #6b7785;
+  --accent: #2c6ecb;
+  --accent-2: #15803d;
+  --danger: #dc2626;
+  --warning: #b45309;
+  --row-alt: rgba(15,23,32,0.02);
+  --row-hover: rgba(15,23,32,0.045);
 }
 
 * { box-sizing: border-box; }
@@ -143,8 +165,8 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.9rem; }
 th, td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); }
 th { color: var(--text-dim); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border); }
-tbody tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
-tbody tr:hover td { background: rgba(255,255,255,0.035); }
+tbody tr:nth-child(even) td { background: var(--row-alt); }
+tbody tr:hover td { background: var(--row-hover); }
 td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; }
 tr.table-total td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 700; padding-top: 0.7rem; }
 tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; font-size: 0.78rem; }
@@ -403,7 +425,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   background: var(--k-bg);
   display: flex; align-items: center; justify-content: center;
   padding: 2rem;
-  font-family: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
   transition: background 0.4s ease;
 }
 .kiosk-shell[data-kiosk-mode="night"] {
@@ -439,7 +461,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .kiosk-card h2 {
   margin: 0 0 0.4rem; font-size: 1.55rem; font-weight: 700; letter-spacing: -0.01em;
-  font-family: "Sora", sans-serif; line-height: 1.25; color: var(--k-text);
+  font-family: "Plus Jakarta Sans", sans-serif; line-height: 1.25; color: var(--k-text);
 }
 .kiosk-card .hint-text { color: var(--k-dim); }
 .kiosk-card h2 + .hint-text { margin: 0 0 1.25rem; }
@@ -461,7 +483,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   border-radius: 999px;
   background: transparent;
   color: var(--k-dim);
-  font-family: "Sora", sans-serif; font-weight: 600;
+  font-family: "Plus Jakarta Sans", sans-serif; font-weight: 600;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .kiosk-lang-switcher button.active {
@@ -493,7 +515,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   border: 1px solid var(--k-card-border);
   color: var(--k-text);
   border-radius: 14px;
-  font-family: "Sora", sans-serif; font-weight: 600;
+  font-family: "Plus Jakarta Sans", sans-serif; font-weight: 600;
 }
 .kiosk-actions > button:not(.primary):hover:not(:disabled) { border-color: var(--k-accent); }
 .kiosk-card button.primary {
@@ -504,7 +526,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   padding: 0.8rem 1.5rem;
   font-weight: 700;
   font-size: 1rem;
-  font-family: "Sora", sans-serif;
+  font-family: "Plus Jakarta Sans", sans-serif;
   transition: transform 0.12s ease, filter 0.12s ease;
 }
 .kiosk-card button.primary:hover:not(:disabled) { filter: brightness(1.08); }
@@ -528,8 +550,8 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .kiosk-privacy-link:hover { color: var(--k-text); }
 .toolbar .kiosk-privacy-link { width: auto; margin-top: 0; }
-.kiosk-idle-countdown { font-size: 2.5rem; font-weight: 700; text-align: center; margin: 0.5rem 0 1rem; font-family: "Sora", sans-serif; }
-.big-total { font-size: 2.2rem; font-weight: 700; margin: 0.4rem 0 1rem; font-family: "Sora", sans-serif; color: var(--k-text); }
+.kiosk-idle-countdown { font-size: 2.5rem; font-weight: 700; text-align: center; margin: 0.5rem 0 1rem; font-family: "Plus Jakarta Sans", sans-serif; }
+.big-total { font-size: 2.2rem; font-weight: 700; margin: 0.4rem 0 1rem; font-family: "Plus Jakarta Sans", sans-serif; color: var(--k-text); }
 .progress-bar { height: 22px; border-radius: 11px; background: var(--k-opt-bg); overflow: hidden; border: 1px solid var(--k-card-border); }
 .progress-bar .fill {
   height: 100%; position: relative; overflow: hidden;

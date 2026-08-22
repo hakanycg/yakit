@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
+import { useThemePreference } from "./useThemePreference";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Platform Yoneticisi",
@@ -16,6 +17,7 @@ export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [themeMode, setThemeMode] = useThemePreference();
   useCriticalAlarmNotifications();
 
   async function handleLogout() {
@@ -80,6 +82,14 @@ export default function AppLayout() {
             {isSuperAdmin && <StationSwitcher />}
           </div>
           <div style={{ display: "flex", gap: "0.6rem" }}>
+            <button
+              className="ghost"
+              onClick={() => setThemeMode(themeMode === "night" ? "day" : "night")}
+              title={themeMode === "night" ? "Acik temaya gec" : "Koyu temaya gec"}
+              aria-label={themeMode === "night" ? "Acik temaya gec" : "Koyu temaya gec"}
+            >
+              {themeMode === "night" ? "☀️" : "🌙"}
+            </button>
             <NavLink to="/operator/sifre-degistir"><button className="ghost">Hesabim</button></NavLink>
             <button onClick={handleLogout}>Cikis Yap</button>
           </div>

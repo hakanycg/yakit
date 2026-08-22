@@ -383,7 +383,7 @@ function KioskFlowInner() {
 
         <div className="toolbar" style={{ justifyContent: "center", gap: "1rem" }}>
           <PriceHistoryLink stationId={station.station.id} fuelPrices={station.fuelPrices} />
-          <PrivacyNoticeLink stationName={station.station.name} />
+          <PrivacyNoticeLink stationName={station.station.name} stationAddress={station.station.address} />
         </div>
       </div>
 
