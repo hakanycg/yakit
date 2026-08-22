@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@500;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Source+Sans+3:wght@400;600;700&display=swap");
 
 :root {
   --bg: #0b0f14;
@@ -377,56 +377,80 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .fuel-price-row .hint-text { margin-top: 0; flex-shrink: 0; }
 .fuel-price-row button { flex-shrink: 0; }
 
-/* Kiosk */
+/* Kiosk - "Sade Gun Isigi": gunduz beyaz/mavi, gece ayni aile (ayni fontlar,
+   ayni kose yuvarlakligi, ayni tek mavi vurgu) ama yuzeyler koyu lacivert/
+   antrasit zemine doner. Neon/parlama yok - amac gece de ayni sakin/gunluk-
+   app hissini surdurmek. Mod, useDayNightMode() ile 07:00-19:00 gunduz /
+   19:00-07:00 gece olarak otomatik belirlenir (bkz. kiosk/useDayNightMode.ts),
+   kiosk sayfasi hic yenilenmeden calisir durumdayken bile saat degisince
+   token'lar kendiliginden gunceller. */
 .kiosk-shell {
+  --k-bg: #eef1f6;
+  --k-card: #ffffff;
+  --k-card-border: #dde3ec;
+  --k-text: #1b2430;
+  --k-dim: #6b7785;
+  --k-accent: #2c6ecb;
+  --k-accent-ink: #ffffff;
+  --k-shadow: 0 20px 40px rgba(44,110,203,0.12);
+  --k-field-bg: #f6f8fb;
+  --k-opt-bg: #f6f8fb;
+  --k-opt-sel-bg: #eaf1fc;
+  --k-step-bg: #e4e8ee;
+  --k-accent-ring: rgba(44,110,203,0.18);
+
   min-height: 100vh;
-  position: relative;
-  overflow: hidden;
-  background:
-    radial-gradient(circle at 12% 8%, rgba(58,160,255,0.16), transparent 42%),
-    radial-gradient(circle at 88% 92%, rgba(34,197,94,0.13), transparent 45%),
-    radial-gradient(circle at top, #10202f, #05090d 65%);
+  background: var(--k-bg);
   display: flex; align-items: center; justify-content: center;
   padding: 2rem;
-  font-family: "Manrope", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Source Sans 3", "Segoe UI", system-ui, -apple-system, sans-serif;
+  transition: background 0.4s ease;
 }
-.kiosk-shell::before {
-  content: "";
-  position: absolute; inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px);
-  background-size: 28px 28px;
-  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 72%);
-  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 72%);
-  pointer-events: none;
+.kiosk-shell[data-kiosk-mode="night"] {
+  --k-bg: #0b0f16;
+  --k-card: #131a24;
+  --k-card-border: rgba(255,255,255,0.07);
+  --k-text: #e7ecf3;
+  --k-dim: #8793a3;
+  --k-accent: #5b9bf0;
+  --k-accent-ink: #0b0f16;
+  --k-shadow: 0 20px 44px rgba(0,0,0,0.5);
+  --k-field-bg: #0e141d;
+  --k-opt-bg: rgba(255,255,255,0.03);
+  --k-opt-sel-bg: rgba(91,155,240,0.14);
+  --k-step-bg: rgba(255,255,255,0.08);
+  --k-accent-ring: rgba(91,155,240,0.28);
+
+  background:
+    radial-gradient(circle at 15% 0%, rgba(91,155,240,0.08), transparent 45%),
+    var(--k-bg);
 }
 .kiosk-card {
   width: min(720px, 100%);
-  background: linear-gradient(165deg, rgba(28,38,51,0.94), rgba(13,18,24,0.96));
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 26px;
-  padding: 2.75rem;
+  background: var(--k-card);
+  color: var(--k-text);
+  border: 1px solid var(--k-card-border);
+  border-radius: 20px;
+  padding: 2.5rem;
   position: relative;
-  z-index: 1;
-  backdrop-filter: blur(24px);
-  box-shadow:
-    0 30px 70px rgba(0,0,0,0.55),
-    0 1px 0 rgba(255,255,255,0.06) inset,
-    0 0 0 1px rgba(0,0,0,0.2);
+  box-shadow: var(--k-shadow);
+  transition: background 0.4s ease, border-color 0.4s ease, box-shadow 0.4s ease, color 0.4s ease;
+  line-height: 1.55;
 }
-.kiosk-card::before {
-  content: "";
-  position: absolute; top: 0; left: 8%; right: 8%; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(58,160,255,0.7), rgba(34,197,94,0.5), transparent);
+.kiosk-card h2 {
+  margin: 0 0 0.4rem; font-size: 1.55rem; font-weight: 700; letter-spacing: -0.01em;
+  font-family: "Sora", sans-serif; line-height: 1.25; color: var(--k-text);
 }
+.kiosk-card .hint-text { color: var(--k-dim); }
+.kiosk-card h2 + .hint-text { margin: 0 0 1.25rem; }
 .kiosk-lang-switcher {
   position: absolute;
   top: 1.4rem;
   right: 1.4rem;
   display: flex;
   gap: 0.2rem;
-  background: rgba(255,255,255,0.04);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: var(--k-opt-bg);
+  border: 1px solid var(--k-card-border);
   border-radius: 999px;
   padding: 0.22rem;
 }
@@ -436,81 +460,86 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: var(--text-dim);
+  color: var(--k-dim);
+  font-family: "Sora", sans-serif; font-weight: 600;
   transition: background 0.15s ease, color 0.15s ease;
 }
 .kiosk-lang-switcher button.active {
-  background: linear-gradient(135deg, var(--accent), #2563eb);
-  color: #fff;
-  box-shadow: 0 2px 10px rgba(58,160,255,0.4);
+  background: var(--k-accent);
+  color: var(--k-accent-ink);
 }
-.kiosk-card h2 { margin-top: 0; font-size: 1.65rem; font-weight: 800; letter-spacing: -0.01em; }
-.kiosk-steps { display: flex; gap: 0.4rem; margin-bottom: 1.9rem; }
-.kiosk-steps .step { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.08); transition: background 0.3s ease, box-shadow 0.3s ease; }
-.kiosk-steps .step.done { background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 10px rgba(58,160,255,0.5); }
-.option-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.85rem; margin: 1rem 0; }
+.kiosk-steps { display: flex; gap: 0.4rem; margin-bottom: 1.75rem; }
+.kiosk-steps .step { flex: 1; height: 4px; border-radius: 2px; background: var(--k-step-bg); transition: background 0.3s ease; }
+.kiosk-steps .step.done { background: var(--k-accent); }
+.option-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.75rem; margin: 1rem 0 1.25rem; }
 .option-btn {
-  padding: 1.25rem 0.85rem; text-align: center; border-radius: 14px; font-size: 1.05rem;
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.08);
+  padding: 1.15rem 0.8rem; text-align: center; border-radius: 14px; font-size: 1.05rem;
+  background: var(--k-opt-bg);
+  border: 1px solid var(--k-card-border);
+  color: var(--k-text);
   transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 }
 .option-btn:hover:not(:disabled) {
-  transform: translateY(-3px);
-  box-shadow: 0 10px 22px rgba(0,0,0,0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.1);
 }
 .option-btn.selected {
-  border-color: var(--accent);
-  background: linear-gradient(160deg, rgba(58,160,255,0.2), rgba(34,197,94,0.08));
-  box-shadow: 0 0 0 1px var(--accent), 0 10px 24px rgba(58,160,255,0.25);
+  border-color: var(--k-accent);
+  background: var(--k-opt-sel-bg);
 }
-.kiosk-actions { display: flex; justify-content: space-between; margin-top: 2rem; gap: 0.75rem; }
+.kiosk-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1.75rem; gap: 0.75rem; }
+.kiosk-actions > button:not(.primary) {
+  background: var(--k-opt-bg);
+  border: 1px solid var(--k-card-border);
+  color: var(--k-text);
+  border-radius: 14px;
+  font-family: "Sora", sans-serif; font-weight: 600;
+}
+.kiosk-actions > button:not(.primary):hover:not(:disabled) { border-color: var(--k-accent); }
 .kiosk-card button.primary {
-  background: linear-gradient(135deg, var(--accent), #2563eb);
+  background: var(--k-accent);
+  color: var(--k-accent-ink);
   border: none;
-  border-radius: 12px;
-  padding: 0.85rem 1.6rem;
+  border-radius: 14px;
+  padding: 0.8rem 1.5rem;
   font-weight: 700;
   font-size: 1rem;
-  box-shadow: 0 10px 24px rgba(58,160,255,0.35);
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  font-family: "Sora", sans-serif;
+  transition: transform 0.12s ease, filter 0.12s ease;
 }
-.kiosk-card button.primary:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(58,160,255,0.45); }
-.kiosk-card button.primary:active:not(:disabled) { transform: translateY(0); }
+.kiosk-card button.primary:hover:not(:disabled) { filter: brightness(1.08); }
+.kiosk-card button.primary:active:not(:disabled) { transform: translateY(1px); }
 .kiosk-card input, .kiosk-card select {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 10px;
-  padding: 0.75rem 0.9rem;
+  background: var(--k-field-bg);
+  border: 1px solid var(--k-card-border);
+  color: var(--k-text);
+  border-radius: 12px;
+  padding: 0.7rem 0.85rem;
 }
 .kiosk-card input:focus, .kiosk-card select:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(58,160,255,0.18);
+  border-color: var(--k-accent);
+  box-shadow: 0 0 0 3px var(--k-accent-ring);
 }
 .kiosk-privacy-link {
   background: none; border: none; padding: 0; margin-top: 1.5rem;
-  color: var(--text-dim); font-size: 0.75rem; text-decoration: underline; cursor: pointer;
+  color: var(--k-dim); font-size: 0.75rem; text-decoration: underline; cursor: pointer;
   display: block; text-align: center; width: 100%;
 }
-.kiosk-privacy-link:hover { color: var(--text); }
+.kiosk-privacy-link:hover { color: var(--k-text); }
 .toolbar .kiosk-privacy-link { width: auto; margin-top: 0; }
-.kiosk-idle-countdown { font-size: 2.5rem; font-weight: 800; text-align: center; margin: 0.5rem 0 1rem; }
-.big-total {
-  font-size: 2.3rem; font-weight: 800; margin: 0.5rem 0;
-  background: linear-gradient(135deg, #ffffff, #b8d9ff);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
-.progress-bar { height: 24px; border-radius: 12px; background: rgba(255,255,255,0.05); overflow: hidden; border: 1px solid rgba(255,255,255,0.08); }
+.kiosk-idle-countdown { font-size: 2.5rem; font-weight: 700; text-align: center; margin: 0.5rem 0 1rem; font-family: "Sora", sans-serif; }
+.big-total { font-size: 2.2rem; font-weight: 700; margin: 0.4rem 0 1rem; font-family: "Sora", sans-serif; color: var(--k-text); }
+.progress-bar { height: 22px; border-radius: 11px; background: var(--k-opt-bg); overflow: hidden; border: 1px solid var(--k-card-border); }
 .progress-bar .fill {
   height: 100%; position: relative; overflow: hidden;
-  background: linear-gradient(90deg, var(--accent), var(--accent-2)); transition: width 0.4s ease;
+  background: var(--k-accent); transition: width 0.4s ease;
 }
 .progress-bar .fill::after {
   content: "";
   position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35), transparent);
-  animation: kiosk-progress-shimmer 1.6s ease-in-out infinite;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.28), transparent);
+  animation: kiosk-progress-shimmer 1.8s ease-in-out infinite;
 }
 @keyframes kiosk-progress-shimmer {
   0% { transform: translateX(-100%); }

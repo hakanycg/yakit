@@ -22,6 +22,7 @@ import { useAttractMode } from "./useAttractMode";
 import AttractMode from "./AttractMode";
 import { useIdleReset } from "./useIdleReset";
 import { useConnectivity } from "./useConnectivity";
+import { useDayNightMode } from "./useDayNightMode";
 
 type Step = "welcome" | "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
@@ -59,6 +60,7 @@ function KioskFlowInner() {
   const [targetLiters, setTargetLiters] = useState(0);
   const [estimatedPricePerLiter, setEstimatedPricePerLiter] = useState<number | null>(null);
   const online = useConnectivity();
+  const dayNightMode = useDayNightMode();
 
   const loadStation = useCallback(() => {
     if (!slug) return;
@@ -265,7 +267,7 @@ function KioskFlowInner() {
 
   if (loadError) {
     return (
-      <div className="kiosk-shell" dir={dir}>
+      <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
         <div className="kiosk-card">
           <LanguageSwitcher />
           <h2>{t("stationNotFound.title")}</h2>
@@ -278,7 +280,7 @@ function KioskFlowInner() {
 
   if (!station) {
     return (
-      <div className="kiosk-shell" dir={dir}>
+      <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
         <div className="kiosk-card">
           <LanguageSwitcher />
           {t("loading")}
@@ -291,7 +293,7 @@ function KioskFlowInner() {
     step === "welcome" ? -1 : STEP_ORDER.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
 
   return (
-    <div className="kiosk-shell" dir={dir}>
+    <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
       <div className="kiosk-card">
         {/* Karsilama ekraninin kendi buyuk dil secim karti var (bkz. WelcomeStep) - ayni
             ekranda kucuk kose anahtarini ve henuz hicbir seyin baslamadigi adim cubugunu
