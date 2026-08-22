@@ -19,7 +19,7 @@ yakit/
 └── web/       React + TypeScript + Vite (Kiosk, Operatör Paneli, Yönetici Paneli)
 ```
 
-- **Kiosk** (`/kiosk/:slug`, herkese açık): Plaka girişi (manuel + LPR simülasyonu), pompa/yakıt/miktar
+- **Kiosk** (`/kiosk/:kod`, ör. `/kiosk/STM1234`): Plaka girişi (manuel + LPR simülasyonu), pompa/yakıt/miktar
   seçimi, sanal kart ile ödeme, otomatik pompa yetkilendirme, canlı dolum ilerlemesi
   (WebSocket), işlem tamamlandı / fiş ekranı. Her istasyonun kendine özel kiosk adresi
   (`slug`) vardır; birden fazla istasyonunuz varsa her biri için ayrı bir kiosk URL'si olur.
@@ -290,8 +290,32 @@ Seed script'i iki hesap oluşturur (ikisi de `SEED_ADMIN_PASSWORD` şifresiyle, 
 Yeni bir istasyon eklemek için süper admin ile giriş yapıp **Platform → İstasyonlar →
 Yeni İstasyon**'u kullanın; formda doğrudan o istasyonun ilk yöneticisini de oluşturabilirsiniz.
 
-Kiosk ekranı: `http://localhost:5173/kiosk/merkez` (istasyonun `slug` değeri URL'de kullanılır)
+Kiosk ekranı: `http://localhost:5173/kiosk/STM1234` (istasyonun **kodu**; `seed` çıktısında yazar).
+Eski `/kiosk/<slug>` adresleri de çalışmaya devam eder.
 Personel girişi: `http://localhost:5173/giris`
+
+
+## Kiosk cihaz doğrulaması (kiosk uçlarının güvenliği)
+
+Kiosk API'si müşteriden giriş istemez; bu nedenle adresi gizlemek tek başına koruma
+sağlamaz — işlem başlatan uç yalnızca bir `pumpId` aldığı için, adres bilinmese bile
+dışarıdan pompa rezerve edilebilirdi. Koruma **cihaz doğrulaması** ile sağlanır:
+
+- Her fiziksel kiosk (Yönetim → İstasyonlar → *Kiosk Bilgisayarları*) kendi
+  **cihaz tokeni** ile oluşturulur.
+- Kiosk PC'sinde ekran **bir kez** `“Kurulum adresi”` butonundaki adresle açılır:
+  `/kiosk/STM1234?device=<token>`. Token tarayıcıya kaydedilir, adres çubuğundan
+  temizlenir; sonraki açılışlarda sade adres (`/kiosk/STM1234`) yeterlidir.
+- Sunucu, tokeni olan isteği o kiosk'un **istasyonuna sabitler**: başka bir istasyonun
+  pompası kullanılamaz (403).
+- İstasyon kartındaki **“Kiosk cihaz tokeni zorunlu”** anahtarı bu zorunluluğu açar.
+  Yeni istasyonlarda **açık** gelir. Bu özellikten önce kurulmuş istasyonlarda,
+  kiosk'lar aniden çalışmaz hale gelmesin diye **kapalı** başlar; tokenleri
+  dağıttıktan sonra buradan açın.
+
+> `STM1234` kodu bir **sır değildir** (kısa ve tahmin edilebilir). Okunabilir/benzersiz
+> bir tanımlayıcıdır: destek, envanter ve istasyon adı değişse de sabit kalan adres
+> içindir. Güvenliği sağlayan şey cihaz tokenidir.
 
 ## Üretime alırken (7/24 yayında tutma)
 

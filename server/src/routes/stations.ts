@@ -5,6 +5,8 @@ import type { StationKioskRow, StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
+import { generateStationCode } from "../utils/stationCode.js";
+import { randomBytes } from "node:crypto";
 
 const router = Router();
 router.use(requireAuth, attachStationScope);
@@ -13,6 +15,8 @@ function serializeStation(s: StationRow) {
   return {
     id: s.id,
     slug: s.slug,
+    code: s.code,
+    requireKioskToken: !!s.require_kiosk_token,
     name: s.name,
     address: s.address,
     latitude: s.latitude,
@@ -23,7 +27,17 @@ function serializeStation(s: StationRow) {
 }
 
 function serializeKiosk(k: StationKioskRow) {
-  return { id: k.id, stationId: k.station_id, label: k.label, anydeskId: k.anydesk_id, createdAt: k.created_at };
+  return {
+    id: k.id,
+    stationId: k.station_id,
+    label: k.label,
+    anydeskId: k.anydesk_id,
+    // Cihaz tokeni yalnizca super_admin'in gordugu bu uctan doner; kiosk kurulumunda
+    // adrese eklenir (bkz. web/src/kiosk/kioskDeviceToken.ts).
+    deviceToken: k.device_token,
+    lastSeenAt: k.last_seen_at,
+    createdAt: k.created_at,
+  };
 }
 
 router.get("/current", requireStationSelected, (req, res) => {
@@ -95,9 +109,10 @@ router.post("/", requireRole("super_admin"), csrfProtection, validateBody(create
   if (existing) return void res.status(409).json({ error: "Bu slug zaten kullaniliyor." });
 
   const create = db.transaction(() => {
+    const code = generateStationCode((c) => !!db.prepare("SELECT 1 FROM stations WHERE code = ?").get(c));
     const result = db
-      .prepare("INSERT INTO stations (slug, name, address, latitude, longitude) VALUES (?, ?, ?, ?, ?)")
-      .run(body.slug, body.name, body.address, body.latitude ?? null, body.longitude ?? null);
+      .prepare("INSERT INTO stations (slug, code, name, address, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(body.slug, code, body.name, body.address, body.latitude ?? null, body.longitude ?? null);
     const stationId = result.lastInsertRowid as number;
 
     const insertPrice = db.prepare(
@@ -139,6 +154,7 @@ router.post("/", requireRole("super_admin"), csrfProtection, validateBody(create
 
 const updateSchema = z.object({
   name: z.string().min(2).max(120).optional(),
+  requireKioskToken: z.boolean().optional(),
   address: z.string().max(300).optional(),
   active: z.boolean().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
@@ -158,6 +174,7 @@ router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(up
   if (body.active !== undefined) { fields.push("active = ?"); values.push(body.active ? 1 : 0); }
   if (body.latitude !== undefined) { fields.push("latitude = ?"); values.push(body.latitude); }
   if (body.longitude !== undefined) { fields.push("longitude = ?"); values.push(body.longitude); }
+  if (body.requireKioskToken !== undefined) { fields.push("require_kiosk_token = ?"); values.push(body.requireKioskToken ? 1 : 0); }
 
   if (fields.length > 0) {
     values.push(id);
@@ -256,9 +273,12 @@ router.post("/:stationId/kiosks", requireRole("super_admin"), csrfProtection, va
   const stationId = Number(req.params.stationId);
   if (!getStationOr404(stationId, res)) return;
   const body = req.body as z.infer<typeof kioskSchema>;
+  // Her fiziksel kiosk kendi cihaz tokeniyle olusturulur; kiosk uygulamasi bunu
+  // gonderdiginde istek bu istasyona sabitlenir (bkz. middleware/kioskDevice.ts).
+  const deviceToken = randomBytes(32).toString("hex");
   const result = db
-    .prepare("INSERT INTO station_kiosks (station_id, label, anydesk_id) VALUES (?, ?, ?)")
-    .run(stationId, body.label, body.anydeskId ?? null);
+    .prepare("INSERT INTO station_kiosks (station_id, label, anydesk_id, device_token) VALUES (?, ?, ?, ?)")
+    .run(stationId, body.label, body.anydeskId ?? null, deviceToken);
   const kiosk = db.prepare<[number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ?").get(result.lastInsertRowid as number)!;
   recordAudit({
     user: req.user!,

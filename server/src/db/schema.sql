@@ -9,7 +9,9 @@ CREATE TABLE IF NOT EXISTS roles (
 
 CREATE TABLE IF NOT EXISTS stations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  slug TEXT NOT NULL UNIQUE,           -- kiosk adreslerinde kullanilir: /kiosk/:slug
+  slug TEXT NOT NULL UNIQUE,           -- eski kiosk adresi: /kiosk/:slug (geriye donuk destek icin korunuyor)
+  code TEXT UNIQUE,                    -- "STM1234" - kiosk adresi (/kiosk/STM1234) ve destek/envanter kimligi. SIR DEGILDIR (bkz. utils/stationCode.ts)
+  require_kiosk_token INTEGER NOT NULL DEFAULT 1,  -- 1: kiosk uclarinda cihaz tokeni zorunlu (bkz. middleware/kioskDevice.ts)
   name TEXT NOT NULL,
   address TEXT NOT NULL DEFAULT '',
   latitude REAL,
@@ -37,6 +39,8 @@ CREATE TABLE IF NOT EXISTS station_kiosks (
   station_id INTEGER NOT NULL REFERENCES stations(id),
   label TEXT NOT NULL,                 -- ör. "Pompa 1-2 Adasi"
   anydesk_id TEXT,
+  device_token TEXT,                   -- bu fiziksel kiosk'un kimligi; kiosk uclarinda x-kiosk-token-device basligiyla gonderilir
+  last_seen_at TEXT,                   -- token en son ne zaman kullanildi (kurulum dogrulamasi/teshis icin)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_station_kiosks_station ON station_kiosks(station_id);

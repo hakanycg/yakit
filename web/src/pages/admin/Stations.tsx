@@ -40,7 +40,7 @@ export default function Stations() {
   // AnyDesk kimligini binlerce istasyon arasinda aramak bu sayfanin kapsami disinda.
   const q = search.trim().toLowerCase();
   const visibleStations = q
-    ? stations.filter((s) => [s.name, s.address, s.slug].some((field) => field.toLowerCase().includes(q)))
+    ? stations.filter((s) => [s.name, s.address, s.slug, s.code ?? ""].some((field) => field.toLowerCase().includes(q)))
     : stations;
 
   async function toggleActive(s: Station) {
@@ -88,9 +88,10 @@ export default function Stations() {
             </div>
             <p className="hint-text" style={{ margin: "0.25rem 0" }}>{s.address || "Adres girilmemiş"}</p>
             <p className="hint-text" style={{ margin: "0.25rem 0" }}>
-              Kiosk: <code>/kiosk/{s.slug}</code>
+              İstasyon kodu: <code>{s.code ?? "-"}</code> · Kiosk adresi: <code>/kiosk/{s.code ?? s.slug}</code>
             </p>
-            <StationKiosksSection stationId={s.id} />
+            <KioskTokenToggle station={s} onChanged={load} />
+            <StationKiosksSection stationId={s.id} stationCode={s.code ?? s.slug} />
             <div className="toolbar" style={{ marginTop: "0.5rem" }}>
               <span className="hint-text">Pompa: {s.pumpCount}</span>
               <span className="hint-text">Kullanıcı: {s.userCount}</span>
@@ -144,7 +145,7 @@ export default function Stations() {
  * (ör. "Pompa 1-2 Adasi") eslestirip listeler - saha kurulumunda bir kere girilir,
  * ihtiyac aninda tek tikla kopyalanip AnyDesk uygulamasina yapistirilir.
  */
-function StationKiosksSection({ stationId }: { stationId: number }) {
+function StationKiosksSection({ stationId, stationCode }: { stationId: number; stationCode: string }) {
   const [kiosks, setKiosks] = useState<StationKiosk[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -188,7 +189,7 @@ function StationKiosksSection({ stationId }: { stationId: number }) {
     <div style={{ margin: "0.4rem 0" }}>
       <p className="hint-text" style={{ margin: "0 0 0.15rem" }}>Kiosk Bilgisayarları (pompa/ada başına):</p>
       {kiosks.map((k) => (
-        <KioskRow key={k.id} kiosk={k} stationId={stationId} onChanged={load} onDelete={() => deleteKiosk(k)} />
+        <KioskRow key={k.id} kiosk={k} stationId={stationId} stationCode={stationCode} onChanged={load} onDelete={() => deleteKiosk(k)} />
       ))}
       {loaded && kiosks.length === 0 && !adding && <p className="hint-text">Henüz kiosk eklenmemiş.</p>}
       {adding ? (
@@ -209,11 +210,13 @@ function StationKiosksSection({ stationId }: { stationId: number }) {
 function KioskRow({
   kiosk,
   stationId,
+  stationCode,
   onChanged,
   onDelete,
 }: {
   kiosk: StationKiosk;
   stationId: number;
+  stationCode: string;
   onChanged: () => void;
   onDelete: () => void;
 }) {
@@ -221,7 +224,19 @@ function KioskRow({
   const [label, setLabel] = useState(kiosk.label);
   const [anydeskId, setAnydeskId] = useState(kiosk.anydeskId ?? "");
   const [copied, setCopied] = useState(false);
+  const [setupCopied, setSetupCopied] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Kiosk PC'sinde BIR KEZ acilacak adres: token'i localStorage'a yazip URL'den
+   * temizler (bkz. web/src/kiosk/kioskDeviceToken.ts).
+   */
+  async function copySetupUrl() {
+    const url = `${window.location.origin}/kiosk/${stationCode}${kiosk.deviceToken ? `?device=${kiosk.deviceToken}` : ""}`;
+    await navigator.clipboard.writeText(url);
+    setSetupCopied(true);
+    setTimeout(() => setSetupCopied(false), 1500);
+  }
 
   async function save() {
     setSaving(true);
@@ -272,8 +287,51 @@ function KioskRow({
       ) : (
         <span className="hint-text">AnyDesk ID yok</span>
       )}
+      <button className="ghost" onClick={copySetupUrl} title="Bu kiosk PC'sinde bir kez açılacak kurulum adresi">
+        {setupCopied ? "Adres kopyalandı" : "Kurulum adresi"}
+      </button>
       <button className="ghost" onClick={() => setEditing(true)}>Düzenle</button>
       <button className="ghost" onClick={onDelete}>Sil</button>
+    </div>
+  );
+}
+
+/**
+ * Istasyon bazinda "kiosk cihaz tokeni zorunlu mu" anahtari. Bu ozellikten ONCE
+ * kurulmus istasyonlarda kapali gelir (kiosk'lar aninda calismaz olmasin diye);
+ * yonetici her kiosk'a kurulum adresini uyguladiktan sonra burayi acar.
+ */
+function KioskTokenToggle({ station, onChanged }: { station: Station; onChanged: () => void }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const required = !!station.requireKioskToken;
+
+  async function toggle() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/api/stations/${station.id}`, { requireKioskToken: !required });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Ayar değiştirilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ margin: "0.35rem 0" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
+        <input type="checkbox" style={{ width: "auto" }} checked={required} disabled={saving} onChange={toggle} />
+        <span>Kiosk cihaz tokeni zorunlu</span>
+        <span className={`badge ${required ? "resolved" : "warning"}`}>{required ? "Açık" : "Kapalı"}</span>
+      </label>
+      <p className="hint-text" style={{ margin: "0.15rem 0 0" }}>
+        {required
+          ? "Yalnızca kurulum adresi uygulanmış kiosk cihazları işlem açabilir."
+          : "Kapalıyken bu istasyonun kiosk uçları token olmadan da çalışır. Kiosk'lara kurulum adresini uyguladıktan sonra açın."}
+      </p>
+      {error && <p className="error-text">{error}</p>}
     </div>
   );
 }

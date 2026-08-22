@@ -3,6 +3,8 @@ import type { RoleRow, StationRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy } from "../utils/password.js";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
+import { generateStationCode } from "../utils/stationCode.js";
+import { randomBytes } from "node:crypto";
 
 const DEFAULT_STATION_SLUG = "merkez";
 
@@ -44,13 +46,33 @@ function ensureSuperAdmin(roleIds: Record<string, number>): void {
 function ensureDefaultStation(): StationRow {
   let station = db.prepare<[string], StationRow>("SELECT * FROM stations WHERE slug = ?").get(DEFAULT_STATION_SLUG);
   if (!station) {
+    const code = generateStationCode((c) => !!db.prepare("SELECT 1 FROM stations WHERE code = ?").get(c));
     const result = db
-      .prepare("INSERT INTO stations (slug, name, address, latitude, longitude) VALUES (?, ?, ?, ?, ?)")
-      .run(DEFAULT_STATION_SLUG, "Merkez Yakit Istasyonu", "Ataturk Bulvari No:1, Ankara", 39.9208, 32.8541);
+      .prepare("INSERT INTO stations (slug, code, name, address, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)")
+      .run(DEFAULT_STATION_SLUG, code, "Merkez Yakit Istasyonu", "Ataturk Bulvari No:1, Ankara", 39.9208, 32.8541);
     station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(result.lastInsertRowid as number)!;
-    logger.info(`Istasyon olusturuldu: ${station.name} (/kiosk/${station.slug})`);
+    logger.info(`Istasyon olusturuldu: ${station.name} (kod: ${code})`);
   }
   return station;
+}
+
+/**
+ * Yeni kurulumlarda stations.require_kiosk_token varsayilan olarak ACIKTIR; bu yuzden
+ * kiosk ekraninin calisabilmesi icin en az bir tanimli kiosk cihazi gerekir. Seed,
+ * kurulumun kutudan cikar cikmaz calismasi icin bir varsayilan kiosk olusturup
+ * kurulum adresini yazdirir.
+ */
+function ensureDefaultKiosk(station: StationRow): void {
+  const existing = db.prepare("SELECT device_token FROM station_kiosks WHERE station_id = ?").get(station.id) as
+    | { device_token: string | null }
+    | undefined;
+  if (existing) {
+    logger.info("Kiosk kaydi zaten mevcut - kurulum adresi Istasyonlar sayfasindan kopyalanabilir.");
+    return;
+  }
+  const deviceToken = randomBytes(32).toString("hex");
+  db.prepare("INSERT INTO station_kiosks (station_id, label, device_token) VALUES (?, ?, ?)").run(station.id, "Ana Kiosk", deviceToken);
+  logger.info(`Kiosk olusturuldu: Ana Kiosk. Kurulum adresi: /kiosk/${station.code}?device=${deviceToken}`);
 }
 
 function ensureStationOwner(station: StationRow, roleIds: Record<string, number>): void {
@@ -123,12 +145,13 @@ function main(): void {
   const roleIds = ensureRoles();
   ensureSuperAdmin(roleIds);
   const station = ensureDefaultStation();
+  ensureDefaultKiosk(station);
   ensureStationOwner(station, roleIds);
   ensurePumps(station);
   ensureFuelPrices(station);
   ensureFuelTanks(station);
   logger.info("Seed islemi tamamlandi.");
-  logger.info(`Kiosk adresi: /kiosk/${station.slug}`);
+  logger.info(`Kiosk adresi: /kiosk/${station.code ?? station.slug}`);
 }
 
 main();

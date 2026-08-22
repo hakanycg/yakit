@@ -1,4 +1,5 @@
 import { appendStationParam } from "./stationScope";
+import { getKioskDeviceToken } from "../kiosk/kioskDeviceToken";
 
 function readCookie(name: string): string | null {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
@@ -25,6 +26,13 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (!["GET", "HEAD", "OPTIONS"].includes(method)) {
     const csrf = readCookie("yakit_csrf");
     if (csrf) headers.set("X-CSRF-Token", csrf);
+  }
+
+  // Kiosk uclari, istegi bu fiziksel kiosk'un istasyonuna sabitleyen cihaz tokenini
+  // bekler (bkz. kiosk/kioskDeviceToken.ts, server/src/middleware/kioskDevice.ts).
+  if (path.startsWith("/api/kiosk/")) {
+    const deviceToken = getKioskDeviceToken();
+    if (deviceToken) headers.set("x-kiosk-device-token", deviceToken);
   }
 
   const url = appendStationParam(path);
@@ -58,6 +66,10 @@ export async function kioskRequest<T>(path: string, token: string | undefined, o
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
   if (token) headers.set("X-Kiosk-Token", token);
+  // Islem bazli token'in yaninda cihaz tokeni de gonderilir - boylece bu uclar da
+  // (istasyon zorunlu tutuyorsa) tanimli bir kiosk'tan geldigini kanitlar.
+  const deviceToken = getKioskDeviceToken();
+  if (deviceToken) headers.set("x-kiosk-device-token", deviceToken);
   const res = await fetch(path, { ...options, headers, credentials: "same-origin" });
   if (res.status === 204) return undefined as T;
   const isJson = res.headers.get("content-type")?.includes("application/json");

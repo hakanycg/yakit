@@ -27,17 +27,14 @@ const SETTINGS_PAGES = [
 
 /**
  * Sidebar'da tek bir link yerine, tiklaninca alt sayfalarini acan menu basligi.
- * Bulundugunuz sayfa bu grubun icindeyse menu bastan acik gelir ki nerede
- * oldugunuz kaybolmasin.
+ * Menu HER ZAMAN kapali baslar; yalnizca kullanici tiklayinca acilir (bulunulan
+ * sayfa bu grubun icinde olsa bile kendiliginden acilmaz). Hangi grupta
+ * oldugunuz, baslikta "active" vurgusuyla belli olur.
  */
 function SidebarSubmenu({ label, pages, onNavigate }: { label: string; pages: { to: string; label: string }[]; onNavigate: () => void }) {
   const { pathname } = useLocation();
   const containsActive = pages.some((p) => pathname.startsWith(p.to));
-  const [open, setOpen] = useState(containsActive);
-
-  useEffect(() => {
-    if (containsActive) setOpen(true);
-  }, [containsActive]);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="sidebar-submenu">

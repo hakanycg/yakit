@@ -30,9 +30,14 @@ import { env } from "../config.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, StationRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
+import { attachKioskDevice, requireKioskDevice } from "../middleware/kioskDevice.js";
+import { normalizeStationCode } from "../utils/stationCode.js";
 
 const router = Router();
 router.use(kioskRateLimit);
+// Token gonderildiyse dogrular ve istegi o kiosk'un istasyonuna baglar; zorunluluk
+// kontrolu uc bazinda requireKioskDevice() ile yapilir (bkz. middleware/kioskDevice.ts).
+router.use(attachKioskDevice);
 
 const plateRegex = /^[A-Z0-9 ]{5,12}$/;
 
@@ -45,15 +50,25 @@ function isPlausiblePlate(plate: string): boolean {
   return province >= 1 && province <= 81;
 }
 
+/**
+ * Kiosk acilis ucu. Adres parametresi hem YENI istasyon kodunu ("STM1234") hem de
+ * ESKI slug'i ("merkez") kabul eder - boylece daha once dagitilmis kiosk adresleri
+ * ve iyzico donus baglantilari calismaya devam eder.
+ */
 router.get("/station/:slug", (req, res) => {
-  const station = db.prepare<[string], StationRow>("SELECT * FROM stations WHERE slug = ? AND active = 1").get(req.params.slug ?? "");
+  const param = req.params.slug ?? "";
+  const station =
+    db.prepare<[string], StationRow>("SELECT * FROM stations WHERE code = ? AND active = 1").get(normalizeStationCode(param)) ??
+    db.prepare<[string], StationRow>("SELECT * FROM stations WHERE slug = ? AND active = 1").get(param);
   if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  if (!requireKioskDevice(req, res, station.id)) return;
 
   const prices = db.prepare<[number], FuelPriceRow>("SELECT * FROM fuel_prices WHERE station_id = ?").all(station.id);
   res.json({
     station: {
       id: station.id,
       slug: station.slug,
+      code: station.code,
       name: station.name,
       address: station.address,
       latitude: station.latitude,
@@ -85,22 +100,12 @@ router.post("/lpr/recognize", validateBody(lprSchema), (req, res) => {
   });
 });
 
-function getStationOrThrow(stationId: number): StationRow {
-  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ? AND active = 1").get(stationId);
-  if (!station) throw new TransactionError("Istasyon bulunamadi.", 404);
-  return station;
-}
-
 const loyaltyBalanceSchema = z.object({ stationId: z.coerce.number().int().positive(), plate: z.string().min(1).max(15) });
 
 router.get("/loyalty/balance", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
-  try {
-    getStationOrThrow(parsed.data.stationId);
-  } catch {
-    return void res.status(404).json({ error: "Istasyon bulunamadi." });
-  }
+  if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   const { enabled, pointValueTry } = getLoyaltyConfig(parsed.data.stationId);
   const points = enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
   res.json({ enabled, points, valueTry: Math.round(points * pointValueTry * 100) / 100 });
@@ -109,11 +114,7 @@ router.get("/loyalty/balance", (req, res) => {
 router.get("/plate/last-fuel-type", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
-  try {
-    getStationOrThrow(parsed.data.stationId);
-  } catch {
-    return void res.status(404).json({ error: "Istasyon bulunamadi." });
-  }
+  if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   res.json({ fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate) });
 });
 
@@ -127,11 +128,7 @@ const priceHistorySchema = z.object({
 router.get("/fuel-prices/history", (req, res) => {
   const parsed = priceHistorySchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
-  try {
-    getStationOrThrow(parsed.data.stationId);
-  } catch {
-    return void res.status(404).json({ error: "Istasyon bulunamadi." });
-  }
+  if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   const cutoff = new Date(Date.now() - (parsed.data.days ?? 30) * 24 * 60 * 60 * 1000).toISOString();
   const rows = db
     .prepare<[number, string, string], { price_per_liter: number; created_at: string }>(
@@ -147,11 +144,7 @@ router.get("/fuel-prices/history", (req, res) => {
 router.get("/campaigns/active", (req, res) => {
   const stationId = z.coerce.number().int().positive().safeParse(req.query.stationId);
   if (!stationId.success) return void res.status(400).json({ error: "Gecersiz istek." });
-  try {
-    getStationOrThrow(stationId.data);
-  } catch {
-    return void res.status(404).json({ error: "Istasyon bulunamadi." });
-  }
+  if (!requireKioskDevice(req, res, stationId.data)) return;
   const now = new Date().toISOString();
   const rows = db
     .prepare<[number, string, string], { code: string; type: "percent" | "fixed"; value: number; fuel_type: FuelType | null }>(
@@ -175,8 +168,8 @@ const discountPreviewSchema = z.object({
 
 router.post("/discount/preview", validateBody(discountPreviewSchema), (req, res) => {
   const { stationId, code, fuelType, totalAmount } = req.body as z.infer<typeof discountPreviewSchema>;
+  if (!requireKioskDevice(req, res, stationId)) return;
   try {
-    getStationOrThrow(stationId);
     const { discountAmount } = validateCode(stationId, code, fuelType as FuelType, totalAmount);
     res.json({ valid: true, discountAmount });
   } catch (err) {
@@ -201,6 +194,14 @@ const createSchema = z.object({
 });
 
 router.post("/transactions", validateBody(createSchema), (req, res) => {
+  // En kritik uc: islem baslatmak pompayi rezerve eder. Istek yalnizca `pumpId`
+  // tasidigi icin, hangi istasyonun kuralinin uygulanacagi pompadan bulunur ve
+  // cihaz tokeni o istasyona ait degilse istek reddedilir.
+  const { pumpId } = req.body as z.infer<typeof createSchema>;
+  const pump = db.prepare<[number], { station_id: number }>("SELECT station_id FROM pumps WHERE id = ?").get(pumpId);
+  if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
+  if (!requireKioskDevice(req, res, pump.station_id)) return;
+
   try {
     const { transaction, accessToken } = createTransaction(req.body as z.infer<typeof createSchema>);
     res.status(201).json({ transaction: serializeTransaction(transaction), accessToken });
@@ -263,11 +264,7 @@ router.post("/transactions/:id/pay", validateBody(paySchema), (req, res) => {
 router.get("/fleet-account", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
-  try {
-    getStationOrThrow(parsed.data.stationId);
-  } catch {
-    return void res.status(404).json({ error: "Istasyon bulunamadi." });
-  }
+  if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   const account = getFleetAccountForPlate(parsed.data.stationId, parsed.data.plate);
   res.json({ account: account ? serializeFleetAccount(account) : null });
 });

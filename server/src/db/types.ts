@@ -3,6 +3,8 @@ export type RoleName = "super_admin" | "admin" | "operator" | "viewer";
 export interface StationRow {
   id: number;
   slug: string;
+  code: string | null;
+  require_kiosk_token: 0 | 1;
   name: string;
   address: string;
   latitude: number | null;
@@ -17,6 +19,8 @@ export interface StationKioskRow {
   station_id: number;
   label: string;
   anydesk_id: string | null;
+  device_token: string | null;
+  last_seen_at: string | null;
   created_at: string;
 }
 

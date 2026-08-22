@@ -133,6 +133,10 @@ export interface SupplierSummaryRow {
 export interface Station {
   id: number;
   slug: string;
+  /** "STM1234" - kiosk adresi ve destek kimligi. Sir DEGILDIR (bkz. server/src/utils/stationCode.ts). */
+  code: string | null;
+  /** true ise kiosk uclari cihaz tokeni olmadan calismaz. */
+  requireKioskToken?: boolean;
   name: string;
   address: string;
   latitude: number | null;
@@ -153,6 +157,9 @@ export interface StationKiosk {
   stationId: number;
   label: string;
   anydeskId: string | null;
+  /** Bu fiziksel kiosk'un cihaz tokeni - kurulum adresine ?device=... olarak eklenir. */
+  deviceToken: string | null;
+  lastSeenAt: string | null;
   createdAt: string;
 }
 

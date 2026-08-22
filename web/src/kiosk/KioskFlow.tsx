@@ -23,6 +23,7 @@ import AttractMode from "./AttractMode";
 import { useIdleReset } from "./useIdleReset";
 import { useConnectivity } from "./useConnectivity";
 import { useDayNightMode } from "./useDayNightMode";
+import { consumeKioskDeviceTokenFromUrl } from "./kioskDeviceToken";
 
 type Step = "welcome" | "plate" | "pump" | "fuel" | "amount" | "creating" | "payment" | "iyzico-wait" | "dispense" | "receipt";
 
@@ -64,6 +65,9 @@ function KioskFlowInner() {
 
   const loadStation = useCallback(() => {
     if (!slug) return;
+    // Kurulumda adrese eklenen ?device=<token> varsa saklanip URL'den temizlenir;
+    // sonraki tum kiosk API cagrilari bu tokenle imzalanir.
+    consumeKioskDeviceTokenFromUrl();
     kioskApi
       .getStation(slug)
       .then((res) => {

@@ -4,6 +4,8 @@ import { dirname, resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { env } from "../config.js";
+import { generateStationCode } from "../utils/stationCode.js";
+import { randomBytes } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -24,11 +26,11 @@ export function applySchema(): void {
 /** Halihazirda kurulu (schema.sql'deki CREATE TABLE ile olusmamis) veritabanlarina sonradan
  * eklenen kolonlari, mevcut degilse ekler. Tablo/kolon adlari her zaman sabit degerlerdir
  * (kullanici girdisinden gelmez), bu yuzden template string ile SQL'e yazilmalari guvenlidir. */
-function ensureColumn(table: string, column: string, definition: string): void {
+function ensureColumn(table: string, column: string, definition: string): boolean {
   const cols = db.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
-  if (!cols.some((c) => c.name === column)) {
-    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
-  }
+  if (cols.some((c) => c.name === column)) return false;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  return true;
 }
 
 export function applyMigrations(): void {
@@ -49,6 +51,40 @@ export function applyMigrations(): void {
   ensureColumn("fleet_accounts", "contact_email", "TEXT");
   ensureColumn("fleet_accounts", "contact_phone", "TEXT");
   ensureColumn("fleet_accounts", "low_balance_threshold", "REAL");
+
+  ensureColumn("station_kiosks", "device_token", "TEXT");
+  ensureColumn("station_kiosks", "last_seen_at", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_station_kiosks_device_token ON station_kiosks(device_token) WHERE device_token IS NOT NULL");
+
+  // Kiosk cihaz dogrulamasi YENI istasyonlarda varsayilan olarak aciktir (schema.sql'de
+  // DEFAULT 1). Ancak halihazirda calisan kurulumlarda kiosk'larin henuz tokeni yok;
+  // kolonu 1 ile eklemek o istasyonlarin kiosk ekranlarini aninda calismaz hale getirirdi.
+  // Bu yuzden kolon ILK kez eklendiginde mevcut satirlar 0'a cekilir - yonetici, kiosk
+  // tokenlerini dagittiktan sonra Istasyonlar sayfasindan bunu kendisi acar.
+  const addedRequireToken = ensureColumn("stations", "require_kiosk_token", "INTEGER NOT NULL DEFAULT 1");
+  if (addedRequireToken) db.exec("UPDATE stations SET require_kiosk_token = 0");
+
+  ensureColumn("stations", "code", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_code ON stations(code) WHERE code IS NOT NULL");
+  backfillStationCodes();
+  backfillKioskDeviceTokens();
+}
+
+/** Bu ozellikten once olusturulmus kiosk kayitlarina da birer cihaz tokeni verir. */
+function backfillKioskDeviceTokens(): void {
+  const rows = db.prepare("SELECT id FROM station_kiosks WHERE device_token IS NULL OR device_token = ''").all() as Array<{ id: number }>;
+  if (rows.length === 0) return;
+  const update = db.prepare("UPDATE station_kiosks SET device_token = ? WHERE id = ?");
+  for (const row of rows) update.run(randomBytes(32).toString("hex"), row.id);
+}
+
+/** Kodu olmayan istasyonlara (kolon yeni eklendi veya kayit eski) benzersiz bir "STM1234" atar. */
+function backfillStationCodes(): void {
+  const rows = db.prepare("SELECT id FROM stations WHERE code IS NULL OR code = ''").all() as Array<{ id: number }>;
+  if (rows.length === 0) return;
+  const isTaken = (code: string) => !!db.prepare("SELECT 1 FROM stations WHERE code = ?").get(code);
+  const update = db.prepare("UPDATE stations SET code = ? WHERE id = ?");
+  for (const row of rows) update.run(generateStationCode(isTaken), row.id);
 }
 
 applySchema();
