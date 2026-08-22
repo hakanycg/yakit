@@ -38,7 +38,7 @@ export default function PriceHistoryLink({ stationId, fuelPrices }: { stationId:
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
           onClick={() => setOpen(false)}
         >
-          <div className="card" style={{ width: "min(560px, 92vw)", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+          <div className="kiosk-card" style={{ width: "min(560px, 92vw)", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0 }}>{t("priceHistory.title")}</h3>
             {fuelPrices.map((f) => (
               <div key={f.fuelType} style={{ marginBottom: "1.25rem" }}>

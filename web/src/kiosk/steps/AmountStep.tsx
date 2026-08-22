@@ -127,7 +127,7 @@ export default function AmountStep({
       )}
 
       {showDiscounts && (
-        <div className="card" style={{ marginTop: "1rem", padding: "0.75rem" }}>
+        <div className="kiosk-card" style={{ marginTop: "1rem", padding: "0.75rem" }}>
           {loyalty?.enabled && loyalty.points > 0 && (
             <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
               <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />
@@ -153,7 +153,7 @@ export default function AmountStep({
           </div>
           {codeError && <p className="error-text">{codeError}</p>}
           {appliedCode && (
-            <p className="hint-text" style={{ color: "var(--accent-2)" }}>
+            <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>
               {t("amount.codeApplied", { code: appliedCode.code, amount: formatCurrency(appliedCode.discountAmount, locale) })}
             </p>
           )}

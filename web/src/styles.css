@@ -413,6 +413,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   --k-text: #1b2430;
   --k-dim: #6b7785;
   --k-accent: #2c6ecb;
+  --k-accent-2: #15803d;
   --k-accent-ink: #ffffff;
   --k-shadow: 0 20px 40px rgba(44,110,203,0.12);
   --k-field-bg: #f6f8fb;
@@ -436,6 +437,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   --k-text: #e7ecf3;
   --k-dim: #8793a3;
   --k-accent: #5b9bf0;
+  --k-accent-2: #22c55e;
   --k-accent-ink: #0b0f16;
   --k-shadow: 0 20px 44px rgba(0,0,0,0.5);
   --k-field-bg: #0e141d;

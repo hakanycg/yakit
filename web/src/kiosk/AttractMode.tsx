@@ -52,7 +52,8 @@ export default function AttractMode({ stationId, stationName, fuelPrices }: { st
       style={{
         position: "fixed",
         inset: 0,
-        background: "var(--bg)",
+        background: "var(--k-bg)",
+        color: "var(--k-text)",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -60,30 +61,31 @@ export default function AttractMode({ stationId, stationName, fuelPrices }: { st
         zIndex: 40,
         textAlign: "center",
         padding: "2rem",
+        transition: "background 0.4s ease, color 0.4s ease",
       }}
     >
-      <p className="hint-text" style={{ fontSize: "1.2rem" }}>{stationName}</p>
+      <p className="hint-text" style={{ fontSize: "1.2rem", color: "var(--k-dim)" }}>{stationName}</p>
       {slide.kind === "price" ? (
         <>
           <h1 style={{ fontSize: "3rem", margin: "1rem 0" }}>{t(`fuel.${slide.price.fuelType}`)}</h1>
-          <p style={{ fontSize: "4rem", fontWeight: 700, color: "var(--accent)", margin: 0 }}>
+          <p style={{ fontSize: "4rem", fontWeight: 700, color: "var(--k-accent)", margin: 0 }}>
             {formatCurrency(slide.price.pricePerLiter, locale)} / L
           </p>
         </>
       ) : (
         <>
           <h1 style={{ fontSize: "2.2rem", margin: "1rem 0" }}>{t("attract.campaignTitle")}</h1>
-          <p style={{ fontSize: "2.2rem", fontWeight: 700, color: "var(--accent-2)", margin: 0 }} dir="ltr">
+          <p style={{ fontSize: "2.2rem", fontWeight: 700, color: "var(--k-accent-2)", margin: 0 }} dir="ltr">
             {slide.campaign.code}
           </p>
-          <p className="hint-text" style={{ fontSize: "1.3rem" }}>
+          <p className="hint-text" style={{ fontSize: "1.3rem", color: "var(--k-dim)" }}>
             {slide.campaign.type === "percent"
               ? t("attract.percentOff", { value: slide.campaign.value })
               : t("attract.fixedOff", { value: formatCurrency(slide.campaign.value, locale) })}
           </p>
         </>
       )}
-      <p className="hint-text" style={{ marginTop: "3rem", fontSize: "1.1rem" }}>{t("attract.tapToStart")}</p>
+      <p className="hint-text" style={{ marginTop: "3rem", fontSize: "1.1rem", color: "var(--k-dim)" }}>{t("attract.tapToStart")}</p>
     </div>
   );
 }

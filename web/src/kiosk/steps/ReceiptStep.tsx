@@ -114,7 +114,7 @@ export default function ReceiptStep({
                 : t("receipt.partialFillNote", { liters: formatLiters(transaction.dispensedLiters) })}
             </p>
           )}
-          <div className="card kiosk-receipt-print" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
+          <div className="kiosk-card kiosk-receipt-print" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
             <h3 style={{ marginTop: 0, textAlign: "center" }}>{t("receipt.printTitle")}</h3>
             <div className="toolbar"><span>{t("receipt.plate")}</span><div className="spacer" /><strong dir="ltr">{transaction.plate}</strong></div>
             <div className="toolbar"><span>{t("receipt.fuel")}</span><div className="spacer" /><strong>{t(`fuel.${transaction.fuelType}`)}</strong></div>
@@ -176,7 +176,7 @@ function ReceiptSender({ transactionId, accessToken }: { transactionId: number; 
   }
 
   return (
-    <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "0 auto 1rem" }}>
+    <div className="kiosk-card" style={{ textAlign: "left", maxWidth: 380, margin: "0 auto 1rem" }}>
       <h4 style={{ marginTop: 0 }}>{t("receipt.sendReceiptTitle")}</h4>
       <label>{t("receipt.emailLabel")}</label>
       <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("receipt.emailPlaceholder")} />

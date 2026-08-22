@@ -23,7 +23,7 @@ export default function PrivacyNoticeLink({ stationName, stationAddress }: { sta
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
           onClick={() => setOpen(false)}
         >
-          <div className="card" style={{ width: "min(560px, 92vw)", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
+          <div className="kiosk-card" style={{ width: "min(560px, 92vw)", maxHeight: "85vh", overflowY: "auto" }} onClick={(e) => e.stopPropagation()}>
             <h3 style={{ marginTop: 0 }}>{t("privacy.title")}</h3>
             <p className="hint-text">
               {stationAddress ? t("privacy.controllerWithAddress", { station: stationName, address: stationAddress }) : t("privacy.controller", { station: stationName })}

@@ -143,10 +143,10 @@ function FleetChoicePanel({
     <div>
       <h2>{t("payment.fleetTitle")}</h2>
       <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
-      {priceChangeNote && <p className="hint-text" style={{ color: "var(--accent-2)" }}>{priceChangeNote}</p>}
+      {priceChangeNote && <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>{priceChangeNote}</p>}
       <p className="hint-text">{t("payment.estimateNote")}</p>
 
-      <div className="card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
+      <div className="kiosk-card" style={{ textAlign: "left", maxWidth: 380, margin: "1.5rem auto" }}>
         <div className="toolbar"><span>{t("payment.fleetCompany")}</span><div className="spacer" /><strong>{account.companyName}</strong></div>
         {account.availableAmount !== null && (
           <div className="toolbar"><span>{t("payment.fleetAvailable")}</span><div className="spacer" /><strong>{formatCurrency(account.availableAmount, locale)}</strong></div>
@@ -230,14 +230,14 @@ function IyzicoPaymentPanel({
       <h2>{t("payment.iyzicoTitle")}</h2>
       <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
       {transaction.discountAmount > 0 && (
-        <p className="hint-text" style={{ color: "var(--accent-2)" }}>
+        <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>
           {t("payment.discountApplied", {
             discount: formatCurrency(transaction.discountAmount, locale),
             total: formatCurrency(transaction.totalAmount, locale),
           })}
         </p>
       )}
-      {priceChangeNote && <p className="hint-text" style={{ color: "var(--accent-2)" }}>{priceChangeNote}</p>}
+      {priceChangeNote && <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>{priceChangeNote}</p>}
       <p className="hint-text">{t("payment.estimateNote")}</p>
       <p className="hint-text">{t("payment.iyzicoSecureNote")}</p>
 
@@ -317,14 +317,14 @@ function SimulatedCardPanel({
       <h2>{t("payment.simulatedTitle")}</h2>
       <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
       {transaction.discountAmount > 0 && (
-        <p className="hint-text" style={{ color: "var(--accent-2)" }}>
+        <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>
           {t("payment.discountApplied", {
             discount: formatCurrency(transaction.discountAmount, locale),
             total: formatCurrency(transaction.totalAmount, locale),
           })}
         </p>
       )}
-      {priceChangeNote && <p className="hint-text" style={{ color: "var(--accent-2)" }}>{priceChangeNote}</p>}
+      {priceChangeNote && <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>{priceChangeNote}</p>}
       <p className="hint-text">{t("payment.estimateNote")}</p>
 
       <form onSubmit={submit}>
