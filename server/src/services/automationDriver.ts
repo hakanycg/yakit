@@ -56,7 +56,14 @@ export const noopAutomationDriver: AutomationDriver = {
     logger.info({ stationId, pumpId, transactionId }, "IOS/otomasyon entegrasyonu henuz yok - dolum baslangici sadece loglandi.");
   },
   reportSaleCompleted(report) {
-    logger.info({ report }, "IOS/otomasyon entegrasyonu henuz yok - satis verisi sadece loglandi.");
+    // Not: sadece diagnostik icin gerekli alanlar loglanir - plaka gibi kisisel veri
+    // pino'nun (potansiyel olarak diske/3. parti log servisine giden) LOG cikisina
+    // KASITLI olarak dahil edilmez (bkz. maskPii.ts yorumu). Gercek IOS surucusune
+    // iletilen `report` nesnesinin kendisi etkilenmez, yalnizca bu log satiri.
+    logger.info(
+      { transactionId: report.transactionId, stationId: report.stationId, pumpId: report.pumpId, liters: report.liters, amount: report.amount },
+      "IOS/otomasyon entegrasyonu henuz yok - satis verisi sadece loglandi."
+    );
   },
   sendAliveSignal() {
     // Bekleyen gercek bir IOS kutusu olmadigindan yapilacak bir sey yok.

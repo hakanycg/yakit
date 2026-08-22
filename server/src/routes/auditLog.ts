@@ -4,6 +4,7 @@ import { db } from "../db/index.js";
 import type { AuditLogRow } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
+import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin"), attachStationScope);
@@ -37,6 +38,17 @@ router.get("/", validateQuery(listSchema), (req, res) => {
   const rows = db
     .prepare<unknown[], AuditLogRow>(`SELECT * FROM audit_log ${where} ORDER BY created_at DESC LIMIT ?`)
     .all(...params, limit);
+
+  // "Erisim loglama": bu sayfayi kim, ne zaman, hangi filtrelerle goruntuledi - denetim
+  // gunlugunun KENDISINE erisim de (mutasyonlar gibi) ayrica kayit altina alinir, tipki
+  // CSV disa aktarma uclarindaki (transactions_exported vb.) mevcut davranis gibi.
+  recordAudit({
+    user: req.user!,
+    action: "audit_log_viewed",
+    details: { action: q.action ?? null, userId: q.userId ?? null, limit, resultCount: rows.length },
+    ip: req.ip,
+    stationId: req.stationId,
+  });
 
   res.json({
     entries: rows.map((r) => ({

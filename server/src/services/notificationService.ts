@@ -1,6 +1,7 @@
 import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
+import { maskContact } from "../utils/maskPii.js";
 
 let transporter: Transporter | null = null;
 let transporterInitError = false;
@@ -40,14 +41,14 @@ export interface EmailAttachment {
 export async function sendEmail(to: string, subject: string, text: string, html?: string, attachments?: EmailAttachment[]): Promise<SendResult> {
   const t = getTransporter();
   if (!t) {
-    logger.warn({ to, subject }, "SMTP yapilandirilmadigi icin e-posta gonderilemedi (SMTP_HOST bos).");
+    logger.warn({ to: maskContact(to), subject }, "SMTP yapilandirilmadigi icin e-posta gonderilemedi (SMTP_HOST bos).");
     return { sent: false, reason: "SMTP yapilandirilmamis." };
   }
   try {
     await t.sendMail({ from: env.SMTP_FROM, to, subject, text, html, attachments });
     return { sent: true };
   } catch (err) {
-    logger.error({ err, to, subject }, "E-posta gonderimi basarisiz.");
+    logger.error({ err, to: maskContact(to), subject }, "E-posta gonderimi basarisiz.");
     return { sent: false, reason: err instanceof Error ? err.message : "Bilinmeyen hata." };
   }
 }
@@ -60,7 +61,7 @@ export async function sendEmail(to: string, subject: string, text: string, html?
  */
 export async function sendSms(to: string, message: string): Promise<SendResult> {
   if (!env.SMS_PROVIDER_URL) {
-    logger.warn({ to }, "SMS saglayicisi yapilandirilmadigi icin SMS gonderilemedi (SMS_PROVIDER_URL bos).");
+    logger.warn({ to: maskContact(to) }, "SMS saglayicisi yapilandirilmadigi icin SMS gonderilemedi (SMS_PROVIDER_URL bos).");
     return { sent: false, reason: "SMS saglayicisi yapilandirilmamis." };
   }
 
@@ -79,12 +80,12 @@ export async function sendSms(to: string, message: string): Promise<SendResult> 
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
-      logger.error({ to, status: res.status, body }, "SMS saglayicisi hata dondurdu.");
+      logger.error({ to: maskContact(to), status: res.status, body }, "SMS saglayicisi hata dondurdu.");
       return { sent: false, reason: `SMS saglayicisi HTTP ${res.status} dondurdu.` };
     }
     return { sent: true };
   } catch (err) {
-    logger.error({ err, to }, "SMS gonderimi basarisiz.");
+    logger.error({ err, to: maskContact(to) }, "SMS gonderimi basarisiz.");
     return { sent: false, reason: err instanceof Error ? err.message : "Bilinmeyen hata." };
   } finally {
     clearTimeout(timeout);
