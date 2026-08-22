@@ -228,11 +228,15 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 /* Ust uste (normal akista) yigilan kartlar arasindaki bosluk. */
 .card + .card { margin-top: 1rem; }
 .grid { display: grid; gap: 1rem; }
-/* ...ama grid icinde aralik zaten `gap` ile verilir. Ustteki yigin marji orada da
-   uygulanirsa, ilk kart disindaki TUM kartlar 1rem asagi kayar ve satir yuksekligi
-   sabit oldugundan ayni oranda kisalir - yani "kutular ayni boyutta degil" gorunumu
-   olusur (Genel Bakis istatistik kutulari, Pompa Durumu kartlari vb. her yerde). */
-.grid > .card + .card { margin-top: 0; }
+/* ...ama gap'li konteynerlerde aralik zaten `gap` ile verilir. Ustteki yigin marji
+   orada da uygulanirsa, ilk kart disindaki TUM kartlar 1rem asagi kayar ve satir
+   yuksekligi sabit oldugundan ayni oranda kisalir - yani "kutular ayni boyutta degil"
+   gorunumu olusur (Genel Bakis istatistik kutulari, Pompa Durumu kartlari, Yakit
+   Stoku tank kartlari, Ayarlar kartlari...).
+   YENI bir gap'li kart konteyneri eklenirse asagiya da eklenmelidir. */
+.grid > .card + .card,
+.tank-grid > .card + .card,
+.settings-grid > .card + .card { margin-top: 0; }
 .grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
 .grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
 .grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
