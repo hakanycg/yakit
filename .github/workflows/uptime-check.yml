@@ -1,0 +1,44 @@
+name: Uptime Check
+
+# Disaridan (GitHub'in kendi altyapisindan) canli sunucunun /api/health ucunu
+# periyodik olarak kontrol eder - sunucunun kendi ic sureclerinden BAGIMSIZ bir
+# denetimdir, cunku sunucu tamamen coktuyse kendi ic kontrolu de calismaz.
+#
+# Kurulum: repo ayarlarinda (Settings -> Secrets and variables -> Actions ->
+# Variables) HEALTH_CHECK_URL adinda bir repository variable tanimlayin - canli
+# sunucunun tam adresi (ör. https://yakit-production.up.railway.app/api/health).
+# Veri merkezine gecince tek yapmaniz gereken bu degeri guncellemek.
+#
+# Is akisi basarisiz olursa GitHub, repoyu izleyen kullanicilara/sahiplere
+# OTOMATIK olarak bir e-posta bildirimi gonderir (ek bir servis/hesap/kod
+# gerekmez) - bu, "sunucu coktu, kimse fark etmedi" riskine karsi disaridan
+# ucretsiz bir guvenlik agidir.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: HEALTH_CHECK_URL tanimli mi kontrol et
+        run: |
+          if [ -z "${{ vars.HEALTH_CHECK_URL }}" ]; then
+            echo "::error::HEALTH_CHECK_URL repository variable'i tanimlanmamis - Settings > Secrets and variables > Actions > Variables'tan ekleyin."
+            exit 1
+          fi
+
+      - name: /api/health kontrolu
+        run: |
+          curl --silent --show-error --max-time 15 --fail "${{ vars.HEALTH_CHECK_URL }}" -o response.json
+          cat response.json
+          node -e "
+            const fs = require('fs');
+            const j = JSON.parse(fs.readFileSync('response.json', 'utf8'));
+            if (j.status !== 'ok' || j.dbOk !== true) {
+              console.error('Saglik kontrolu basarisiz - beklenen status=ok ve dbOk=true, gelen:', j);
+              process.exit(1);
+            }
+            console.log('Saglik kontrolu basarili.');
+          "

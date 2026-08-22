@@ -355,14 +355,29 @@ gerekir.
 **Yedekleme**: `BACKUP_DIR` ortam değişkeni ayarlanırsa (varsayılan: boş = kapalı), sunucu
 `better-sqlite3`'ün kendi `.backup()` API'siyle (WAL modunda bile tutarlı bir anlık görüntü
 alır — ham dosya kopyalamaktan farklı olarak yarım yazılmış bir sayfayı yakalama riski yoktur)
-`BACKUP_INTERVAL_HOURS`'ta bir (varsayılan 24) zaman damgalı bir yedek alır ve
-`BACKUP_RETENTION_COUNT`'tan (varsayılan 14) eski yedekleri otomatik siler. Geri yüklemek için
-istediğiniz yedek dosyasını `DATABASE_PATH`'in üzerine kopyalayıp sunucuyu yeniden başlatmanız
-yeterlidir.
+`BACKUP_INTERVAL_HOURS`'ta bir (varsayılan 24) zaman damgalı bir yedek alır. Yedek dosyası
+diske yazılmadan önce **AES-256-GCM ile şifrelenir** (`.sqlite.enc` uzantısı) — bu yedeklerin
+üçüncü bir tarafın (ör. bir veri merkezinin gözetimindeki bulut yedekleme hizmeti) depolamasına
+taşınması ihtimaline karşı savunma-derinliği amaçlıdır; anahtar `SETTINGS_ENCRYPTION_KEY`
+(yoksa `SESSION_SECRET`'tan türetilir) — yeni bir zorunlu ortam değişkeni eklenmedi.
+`BACKUP_RETENTION_COUNT`'tan (varsayılan 14) eski yedekleri otomatik siler.
+
+Geri yüklemek için önce şifreli yedeği çözün:
+```
+npm run decrypt-backup -- yedek-dosyasi.sqlite.enc geri-yuklenecek.sqlite
+```
+(yedeğin alındığı sunucudaki AYNI `SESSION_SECRET`/`SETTINGS_ENCRYPTION_KEY` ortamda tanımlı
+olmalı), sonra çıkan dosyayı `DATABASE_PATH`'in üzerine kopyalayıp sunucuyu yeniden başlatın.
 
 **Sağlık kontrolü**: `GET /api/health` kimlik doğrulama gerektirmez, veritabanı bağlantısını
 gerçekten sorgulayıp (`dbOk`) çalışma süresini (`uptimeSeconds`) döner — uptime izleme
-araçları (UptimeRobot vb.) veya konteyner orkestrasyon health-check'leri için uygundur.
+araçları (UptimeRobot vb.) veya konteyner orkestrasyon health-check'leri için uygundur. Ayrıca
+`.github/workflows/uptime-check.yml`, GitHub Actions üzerinden 10 dakikada bir bu uç noktayı
+dışarıdan (sunucunun kendi süreçlerinden bağımsız olarak) kontrol eder — çalışması için repo
+ayarlarında (Settings → Secrets and variables → Actions → Variables) `HEALTH_CHECK_URL` adında
+canlı sunucunun tam `/api/health` adresini içeren bir repository variable tanımlamanız gerekir.
+Kontrol başarısız olursa GitHub, repoyu izleyenlere otomatik olarak bir e-posta gönderir (ek bir
+hesap/servis gerekmez).
 
 **Testler**: `npm run test` (server workspace), kritik iş mantığı için (yakıt stoğu
 ağırlıklı ortalama maliyet, indirim kodu doğrulama/kullanım istatistikleri, TOTP, şifre

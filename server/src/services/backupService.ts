@@ -3,9 +3,10 @@ import { join } from "node:path";
 import { db } from "../db/index.js";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
+import { encryptFile } from "../utils/backupCrypto.js";
 
 const BACKUP_PREFIX = "yakit-backup-";
-const BACKUP_SUFFIX = ".sqlite";
+const BACKUP_SUFFIX = ".sqlite.enc";
 
 function timestampForFilename(): string {
   return new Date().toISOString().replace(/[:.]/g, "-");
@@ -14,17 +15,28 @@ function timestampForFilename(): string {
 /**
  * SQLite'in kendi backup API'siyle (WAL modunda bile tutarli, uygulamayi durdurmadan
  * calisan bir snapshot alir - dosyayi ham kopyalamaktan farkli olarak yarim yazilmis
- * bir sayfa yakalama riski yoktur) belirtilen dizine zaman damgali bir yedek alir.
+ * bir sayfa yakalama riski yoktur) once GECICI bir dosyaya duz-metin yedek alinir, hemen
+ * ardindan sifrelenip BACKUP_DIR'e o haliyle yazilir ve gecici duz-metin dosya silinir -
+ * diskte/BACKUP_DIR'de kalan yedek HICBIR ZAMAN sifresiz durmaz (bkz. backupCrypto.ts;
+ * bu yedeklerin ileride uçuncu bir tarafin - ör. bir veri merkezinin - gozetimindeki bir
+ * bulut depolamaya tasinacak olmasi nedeniyle savunma-derinligi geregi eklendi).
  * BACKUP_DIR ayarlanmamissa hicbir sey yapmaz (varsayilan: yedekleme kapali).
  */
 export async function runBackup(): Promise<string | null> {
   if (!env.BACKUP_DIR) return null;
 
   mkdirSync(env.BACKUP_DIR, { recursive: true });
-  const destPath = join(env.BACKUP_DIR, `${BACKUP_PREFIX}${timestampForFilename()}${BACKUP_SUFFIX}`);
+  const stamp = timestampForFilename();
+  const tmpPath = join(env.BACKUP_DIR, `.tmp-${stamp}.sqlite`);
+  const destPath = join(env.BACKUP_DIR, `${BACKUP_PREFIX}${stamp}${BACKUP_SUFFIX}`);
 
-  await db.backup(destPath);
-  logger.info({ destPath }, "Veritabani yedegi alindi.");
+  await db.backup(tmpPath);
+  try {
+    encryptFile(tmpPath, destPath);
+  } finally {
+    unlinkSync(tmpPath);
+  }
+  logger.info({ destPath }, "Veritabani yedegi alindi ve sifrelendi.");
 
   pruneOldBackups();
   return destPath;
@@ -40,16 +52,12 @@ function pruneOldBackups(): void {
 
   const toDelete = files.slice(env.BACKUP_RETENTION_COUNT);
   for (const f of toDelete) {
-    // Yedek dosyasi sonradan (ör. bir dogrulama/restore araciyla) WAL modunda
-    // acilmissa yaninda -wal/-shm eslik dosyalari olusabilir; onlari da temizle.
-    for (const path of [f.path, `${f.path}-wal`, `${f.path}-shm`]) {
-      try {
-        unlinkSync(path);
-        logger.info({ path }, "Eski yedek dosyasi silindi (rotasyon).");
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
-          logger.error({ err, path }, "Eski yedek dosyasi silinemedi.");
-        }
+    try {
+      unlinkSync(f.path);
+      logger.info({ path: f.path }, "Eski yedek dosyasi silindi (rotasyon).");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+        logger.error({ err, path: f.path }, "Eski yedek dosyasi silinemedi.");
       }
     }
   }

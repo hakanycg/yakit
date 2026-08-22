@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src --ext .ts",
     "seed": "tsx src/scripts/seed.ts",
+    "decrypt-backup": "tsx src/scripts/decryptBackup.ts",
     "test": "vitest run"
   },
   "dependencies": {
