@@ -30,7 +30,7 @@ function ChangePasswordCard() {
     setSuccess(false);
 
     if (newPassword !== confirmPassword) {
-      setError("Yeni sifreler eslesmiyor.");
+      setError("Yeni şifreler eşleşmiyor.");
       return;
     }
 
@@ -47,7 +47,7 @@ function ChangePasswordCard() {
         const details = Array.isArray(err.details) ? ` (${err.details.join(" ")})` : "";
         setError(err.message + details);
       } else {
-        setError("Sifre degistirilemedi.");
+        setError("Şifre değiştirilemedi.");
       }
     } finally {
       setSubmitting(false);
@@ -56,19 +56,19 @@ function ChangePasswordCard() {
 
   return (
     <div className="card">
-      <h2>Sifre Degistir</h2>
+      <h2>Şifre Değiştir</h2>
       <form onSubmit={handleSubmit}>
-        <label>Mevcut sifre</label>
+        <label>Mevcut şifre</label>
         <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
-        <label>Yeni sifre</label>
+        <label>Yeni şifre</label>
         <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
-        <label>Yeni sifre (tekrar)</label>
+        <label>Yeni şifre (tekrar)</label>
         <input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
-        <p className="hint-text">En az 10 karakter; buyuk/kucuk harf, rakam ve ozel karakter icermelidir.</p>
+        <p className="hint-text">En az 10 karakter; büyük/küçük harf, rakam ve özel karakter içermelidir.</p>
         {error && <p className="error-text">{error}</p>}
-        {success && <p className="hint-text" style={{ color: "#4ade80" }}>Sifreniz basariyla degistirildi.</p>}
+        {success && <p className="hint-text" style={{ color: "#4ade80" }}>Şifreniz başarıyla değiştirildi.</p>}
         <button type="submit" className="primary" style={{ marginTop: "1rem" }} disabled={submitting}>
-          {submitting ? "Kaydediliyor..." : "Sifreyi Guncelle"}
+          {submitting ? "Kaydediliyor..." : "Şifreyi Güncelle"}
         </button>
       </form>
     </div>
@@ -93,7 +93,7 @@ function TwoFactorCard() {
       const res = await api.post<{ secret: string; otpauthUri: string; qrDataUrl: string }>("/api/auth/2fa/setup");
       setSetupData(res);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kurulum baslatilamadi.");
+      setError(err instanceof ApiError ? err.message : "Kurulum başlatılamadı.");
     } finally {
       setSubmitting(false);
     }
@@ -107,10 +107,10 @@ function TwoFactorCard() {
       await api.post("/api/auth/2fa/enable", { code: enableCode });
       setSetupData(null);
       setEnableCode("");
-      setSuccess("Iki adimli dogrulama etkinlestirildi.");
+      setSuccess("İki adımlı doğrulama etkinleştirildi.");
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kod dogrulanamadi.");
+      setError(err instanceof ApiError ? err.message : "Kod doğrulanamadı.");
     } finally {
       setSubmitting(false);
     }
@@ -124,10 +124,10 @@ function TwoFactorCard() {
       await api.post("/api/auth/2fa/disable", { password: disablePassword });
       setDisablePassword("");
       setShowDisableForm(false);
-      setSuccess("Iki adimli dogrulama kapatildi.");
+      setSuccess("İki adımlı doğrulama kapatıldı.");
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kapatilamadi.");
+      setError(err instanceof ApiError ? err.message : "Kapatılamadı.");
     } finally {
       setSubmitting(false);
     }
@@ -136,12 +136,12 @@ function TwoFactorCard() {
   return (
     <div className="card">
       <div className="toolbar" style={{ marginBottom: "0.5rem" }}>
-        <h2 style={{ margin: 0 }}>Iki Adimli Dogrulama</h2>
+        <h2 style={{ margin: 0 }}>İki Adımlı Doğrulama</h2>
         <div className="spacer" />
-        <span className={`badge ${user?.totpEnabled ? "dispensing" : "offline"}`}>{user?.totpEnabled ? "Etkin" : "Kapali"}</span>
+        <span className={`badge ${user?.totpEnabled ? "dispensing" : "offline"}`}>{user?.totpEnabled ? "Etkin" : "Kapalı"}</span>
       </div>
       <p className="hint-text">
-        Google Authenticator, Microsoft Authenticator gibi bir uygulamayla girislerinize ek bir dogrulama katmani ekler.
+        Google Authenticator, Microsoft Authenticator gibi bir uygulamayla girişlerinize ek bir doğrulama katmanı ekler.
       </p>
 
       {error && <p className="error-text">{error}</p>}
@@ -149,28 +149,28 @@ function TwoFactorCard() {
 
       {!user?.totpEnabled && !setupData && (
         <button className="primary" disabled={submitting} onClick={startSetup}>
-          {submitting ? "Hazirlaniyor..." : "Etkinlestir"}
+          {submitting ? "Hazırlanıyor..." : "Etkinleştir"}
         </button>
       )}
 
       {!user?.totpEnabled && setupData && (
         <form onSubmit={confirmEnable} style={{ marginTop: "0.75rem" }}>
           <p className="hint-text">
-            Authenticator uygulamanizda yeni bir hesap eklemek icin asagidaki QR kodu tarayin:
+            Authenticator uygulamanızda yeni bir hesap eklemek için aşağıdaki QR kodu tarayın:
           </p>
           <p style={{ textAlign: "center" }}>
             <img src={setupData.qrDataUrl} alt="Authenticator kurulum QR kodu" width={200} height={200} style={{ background: "#fff", padding: "0.5rem", borderRadius: "0.5rem" }} />
           </p>
           <details>
-            <summary className="hint-text" style={{ cursor: "pointer" }}>Kamera ile tarayamiyorsaniz: anahtari elle girin</summary>
+            <summary className="hint-text" style={{ cursor: "pointer" }}>Kamera ile tarayamıyorsanız: anahtarı elle girin</summary>
             <p className="hint-text" style={{ marginTop: "0.5rem" }}>
-              Authenticator uygulamanizda hesabi "zaman tabanli (TOTP)" secerek elle ekleyin:
+              Authenticator uygulamanızda hesabı "zaman tabanlı (TOTP)" seçerek elle ekleyin:
             </p>
             <p>
               <code style={{ wordBreak: "break-all" }}>{setupData.secret}</code>
             </p>
           </details>
-          <label htmlFor="totp-enable-code">Uygulamada gorunen 6 haneli kod</label>
+          <label htmlFor="totp-enable-code">Uygulamada görünen 6 haneli kod</label>
           <input
             id="totp-enable-code"
             inputMode="numeric"
@@ -181,10 +181,10 @@ function TwoFactorCard() {
           />
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
             <button type="submit" className="primary" disabled={submitting}>
-              {submitting ? "Dogrulaniyor..." : "Kodu Dogrula ve Etkinlestir"}
+              {submitting ? "Doğrulanıyor..." : "Kodu Doğrula ve Etkinleştir"}
             </button>
             <button type="button" className="ghost" onClick={() => setSetupData(null)}>
-              Vazgec
+              Vazgeç
             </button>
           </div>
         </form>
@@ -198,14 +198,14 @@ function TwoFactorCard() {
 
       {user?.totpEnabled && showDisableForm && (
         <form onSubmit={confirmDisable} style={{ marginTop: "0.75rem" }}>
-          <label htmlFor="totp-disable-password">Kapatmak icin sifrenizi girin</label>
+          <label htmlFor="totp-disable-password">Kapatmak için şifrenizi girin</label>
           <input id="totp-disable-password" type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} required />
           <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }}>
             <button type="submit" className="danger" disabled={submitting}>
-              {submitting ? "Kapatiliyor..." : "Iki Adimli Dogrulamayi Kapat"}
+              {submitting ? "Kapatılıyor..." : "İki Adımlı Doğrulamayı Kapat"}
             </button>
             <button type="button" className="ghost" onClick={() => setShowDisableForm(false)}>
-              Vazgec
+              Vazgeç
             </button>
           </div>
         </form>
@@ -227,7 +227,7 @@ interface SessionInfo {
 /** User-Agent metnini tam haliyle gostermek yerine, tanidik bir tarayici/isletim sistemi ozeti cikarir. */
 function describeUserAgent(ua: string | null): string {
   if (!ua) return "Bilinmiyor";
-  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Tarayici";
+  const browser = /Edg\//.test(ua) ? "Edge" : /Chrome\//.test(ua) ? "Chrome" : /Firefox\//.test(ua) ? "Firefox" : /Safari\//.test(ua) ? "Safari" : "Tarayıcı";
   const os = /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "macOS" : /Android/.test(ua) ? "Android" : /iPhone|iPad/.test(ua) ? "iOS" : /Linux/.test(ua) ? "Linux" : "";
   return os ? `${browser} · ${os}` : browser;
 }
@@ -250,7 +250,7 @@ function SessionsCard() {
       await api.delete(`/api/auth/sessions/${id}`);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Oturum kapatilamadi.");
+      setError(err instanceof ApiError ? err.message : "Oturum kapatılamadı.");
     } finally {
       setBusyId(null);
     }
@@ -263,7 +263,7 @@ function SessionsCard() {
       await api.post("/api/auth/sessions/revoke-others");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Oturumlar kapatilamadi.");
+      setError(err instanceof ApiError ? err.message : "Oturumlar kapatılamadı.");
     } finally {
       setRevokingOthers(false);
     }
@@ -278,11 +278,11 @@ function SessionsCard() {
         <div className="spacer" />
         {otherCount > 0 && (
           <button className="danger" disabled={revokingOthers} onClick={revokeOthers}>
-            {revokingOthers ? "Kapatiliyor..." : `Diger ${otherCount} Oturumu Kapat`}
+            {revokingOthers ? "Kapatılıyor..." : `Diğer ${otherCount} Oturumu Kapat`}
           </button>
         )}
       </div>
-      <p className="hint-text">Hesabinizla giris yapilmis tum cihazlar. Tanimadiginiz bir oturum gorurseniz kapatin.</p>
+      <p className="hint-text">Hesabınızla giriş yapılmış tüm cihazlar. Tanımadığınız bir oturum görürseniz kapatın.</p>
       {error && <p className="error-text">{error}</p>}
 
       <table>
@@ -290,7 +290,7 @@ function SessionsCard() {
           <tr>
             <th>Cihaz</th>
             <th>IP</th>
-            <th>Son Goruldu</th>
+            <th>Son Görüldü</th>
             <th></th>
           </tr>
         </thead>
@@ -312,8 +312,8 @@ function SessionsCard() {
               </td>
             </tr>
           ))}
-          {sessions?.length === 0 && <tr><td colSpan={4} className="hint-text">Kayit yok.</td></tr>}
-          {sessions === null && <tr><td colSpan={4} className="hint-text">Yukleniyor...</td></tr>}
+          {sessions?.length === 0 && <tr><td colSpan={4} className="hint-text">Kayıt yok.</td></tr>}
+          {sessions === null && <tr><td colSpan={4} className="hint-text">Yükleniyor...</td></tr>}
         </tbody>
       </table>
     </div>
@@ -358,9 +358,9 @@ function NotificationSettingsCard() {
 
   return (
     <div className="card">
-      <h2>Bildirim Ayarlari</h2>
+      <h2>Bildirim Ayarları</h2>
       <p className="hint-text">
-        Istasyonunuzda kritik bir alarm olustugunda (orn. pompa arizasi) buradaki tercihlerinize gore bilgilendirilirsiniz.
+        İstasyonunuzda kritik bir alarm oluştuğunda (örn. pompa arızası) buradaki tercihlerinize göre bilgilendirilirsiniz.
       </p>
       <label>E-posta</label>
       <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ornek@eposta.com" />
@@ -369,34 +369,34 @@ function NotificationSettingsCard() {
 
       <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
         <input type="checkbox" style={{ width: "auto" }} checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} />
-        Kritik alarmlarda e-posta gonder
+        Kritik alarmlarda e-posta gönder
       </label>
       <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
         <input type="checkbox" style={{ width: "auto" }} checked={notifySms} onChange={(e) => setNotifySms(e.target.checked)} />
-        Kritik alarmlarda SMS gonder
+        Kritik alarmlarda SMS gönder
       </label>
 
       {error && <p className="error-text">{error}</p>}
-      {success && <p className="hint-text" style={{ color: "#4ade80" }}>Bildirim ayarlariniz kaydedildi.</p>}
+      {success && <p className="hint-text" style={{ color: "#4ade80" }}>Bildirim ayarlarınız kaydedildi.</p>}
       <button style={{ marginTop: "1rem" }} className="primary" disabled={submitting} onClick={save}>
         {submitting ? "Kaydediliyor..." : "Kaydet"}
       </button>
 
       <hr style={{ border: "none", borderTop: "1px solid var(--border)", margin: "1.25rem 0" }} />
 
-      <h4 style={{ margin: "0 0 0.5rem" }}>Tarayici Bildirimleri</h4>
+      <h4 style={{ margin: "0 0 0.5rem" }}>Tarayıcı Bildirimleri</h4>
       {supported ? (
         <>
           <p className="hint-text">
-            Bu tarayicida panel acikken kritik alarmlar icin anlik bildirim gorebilirsiniz. Durum:{" "}
-            <strong>{permission === "granted" ? "Izin verildi" : permission === "denied" ? "Reddedildi" : "Istenmedi"}</strong>
+            Bu tarayıcıda panel açıkken kritik alarmlar için anlık bildirim görebilirsiniz. Durum:{" "}
+            <strong>{permission === "granted" ? "İzin verildi" : permission === "denied" ? "Reddedildi" : "İstenmedi"}</strong>
           </p>
           {permission !== "granted" && (
-            <button onClick={requestPermission}>Bildirimlere Izin Ver</button>
+            <button onClick={requestPermission}>Bildirimlere İzin Ver</button>
           )}
         </>
       ) : (
-        <p className="hint-text">Bu tarayici bildirimleri desteklemiyor.</p>
+        <p className="hint-text">Bu tarayıcı bildirimleri desteklemiyor.</p>
       )}
     </div>
   );

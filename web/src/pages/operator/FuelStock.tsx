@@ -6,9 +6,9 @@ import { useTopicSubscription } from "../../shared/useWebSocket";
 import { FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 import type { FuelStockMovement, FuelTank, SupplierSummaryRow } from "../../shared/types";
 
-const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Dusuk", critical: "Kritik" };
+const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Düşük", critical: "Kritik" };
 const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical" };
-const MOVEMENT_TYPE_LABEL: Record<string, string> = { delivery: "Teslimat", sale: "Satis", adjustment: "Duzeltme" };
+const MOVEMENT_TYPE_LABEL: Record<string, string> = { delivery: "Teslimat", sale: "Satış", adjustment: "Düzeltme" };
 
 export default function FuelStock() {
   const stationId = useEffectiveStationId();
@@ -44,7 +44,7 @@ export default function FuelStock() {
 
   return (
     <div>
-      <h2>Yakit Stoku</h2>
+      <h2>Yakıt Stoku</h2>
 
       <div className="tank-grid">
         {tanks.map((t) => (
@@ -57,7 +57,7 @@ export default function FuelStock() {
             }}
           />
         ))}
-        {tanks.length === 0 && <p className="hint-text">Yukleniyor...</p>}
+        {tanks.length === 0 && <p className="hint-text">Yükleniyor...</p>}
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
@@ -65,27 +65,27 @@ export default function FuelStock() {
           <h3 style={{ margin: 0 }}>Stok Hareketleri</h3>
           <div className="spacer" />
           <select value={movementFilter} onChange={(e) => setMovementFilter(e.target.value)} style={{ width: 180 }}>
-            <option value="">Tum yakit tipleri</option>
+            <option value="">Tüm yakıt tipleri</option>
             <option value="benzin">Benzin</option>
             <option value="motorin">Motorin</option>
             <option value="lpg">LPG</option>
           </select>
           <a href={csvHref}>
-            <button>CSV Indir</button>
+            <button>CSV İndir</button>
           </a>
         </div>
         <table>
           <thead>
             <tr>
               <th>Tarih</th>
-              <th>Yakit</th>
+              <th>Yakıt</th>
               <th>Tip</th>
               <th className="numeric">Miktar</th>
               <th className="numeric">Bakiye</th>
-              <th>Irsaliye/Fis No</th>
+              <th>İrsaliye/Fiş No</th>
               <th>Detay</th>
-              <th>Kullanici</th>
-              <th>E-Irsaliye</th>
+              <th>Kullanıcı</th>
+              <th>E-İrsaliye</th>
             </tr>
           </thead>
           <tbody>
@@ -106,7 +106,7 @@ export default function FuelStock() {
                   )}
                 </td>
                 <td className="hint-text">
-                  {[m.supplier, m.unitCost ? `Maliyet: ${formatCurrency(m.unitCost)}/L` : null, m.note, m.transactionId ? `Islem #${m.transactionId}` : null]
+                  {[m.supplier, m.unitCost ? `Maliyet: ${formatCurrency(m.unitCost)}/L` : null, m.note, m.transactionId ? `İşlem #${m.transactionId}` : null]
                     .filter(Boolean)
                     .join(" · ") || "-"}
                 </td>
@@ -114,21 +114,21 @@ export default function FuelStock() {
                 <td>{m.type === "delivery" && <WaybillCell movementId={m.id} />}</td>
               </tr>
             ))}
-            {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayit yok.</td></tr>}
+            {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Tedarikci Ozeti</h3>
+        <h3 style={{ marginTop: 0 }}>Tedarikçi Özeti</h3>
         <p className="hint-text" style={{ marginTop: 0 }}>
-          Tum zamanlar. Ort. Maliyet, yalnizca birim maliyeti girilmis teslimatlar uzerinden hesaplanir.
+          Tüm zamanlar. Ort. Maliyet, yalnızca birim maliyeti girilmiş teslimatlar üzerinden hesaplanır.
         </p>
         <table>
           <thead>
             <tr>
-              <th>Tedarikci</th>
-              <th>Yakit</th>
+              <th>Tedarikçi</th>
+              <th>Yakıt</th>
               <th className="numeric">Teslimat</th>
               <th className="numeric">Toplam Litre</th>
               <th className="numeric">Ort. Maliyet</th>
@@ -146,7 +146,7 @@ export default function FuelStock() {
                 <td>{formatDateTime(s.lastDeliveryAt)}</td>
               </tr>
             ))}
-            {suppliers.length === 0 && <tr><td colSpan={6} className="hint-text">Kayit yok.</td></tr>}
+            {suppliers.length === 0 && <tr><td colSpan={6} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -189,7 +189,7 @@ function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }
             <span className="v">%{tank.percentFull.toFixed(1)}</span>
           </div>
           <div className="tank-stat-row">
-            <span className="k">Dusuk Stok Esigi</span>
+            <span className="k">Düşük Stok Eşiği</span>
             <span className="v">{formatLiters(tank.lowStockThresholdLiters)}</span>
           </div>
           <div className="tank-stat-row">
@@ -199,7 +199,7 @@ function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }
         </div>
       </div>
 
-      <p className="hint-text" style={{ marginTop: "0.75rem", marginBottom: 0 }}>Son guncelleme: {formatDateTime(tank.updatedAt)}</p>
+      <p className="hint-text" style={{ marginTop: "0.75rem", marginBottom: 0 }}>Son güncelleme: {formatDateTime(tank.updatedAt)}</p>
 
       <div className="tank-actions">
         <button className="primary" onClick={() => setShowAdd(true)}>Stok Ekle</button>
@@ -264,7 +264,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
         force: force || undefined,
       });
       if (res.overflow > 0) {
-        setError(`Uyari: tank kapasitesi nedeniyle ${formatLiters(res.overflow)} eklenemedi.`);
+        setError(`Uyarı: tank kapasitesi nedeniyle ${formatLiters(res.overflow)} eklenemedi.`);
         setTimeout(onAdded, 1400);
         return;
       }
@@ -273,7 +273,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       if (err instanceof ApiError && err.status === 409 && err.details && typeof err.details === "object" && "duplicate" in err.details) {
         const d = err.details as unknown as { existingCreatedAt: string };
         setDuplicateWarning(
-          `Bu irsaliye/fis no ile ${FUEL_LABEL[tank.fuelType]} icin daha once ${formatDateTime(d.existingCreatedAt)} tarihinde bir teslimat kaydedilmis. Yine de eklemek istiyor musunuz?`
+          `Bu irsaliye/fiş no ile ${FUEL_LABEL[tank.fuelType]} için daha önce ${formatDateTime(d.existingCreatedAt)} tarihinde bir teslimat kaydedilmiş. Yine de eklemek istiyor musunuz?`
         );
         return;
       }
@@ -293,10 +293,10 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       <label>Eklenecek Miktar (L)</label>
       <input type="number" min={1} value={liters} onChange={(e) => setLiters(e.target.value)} autoFocus />
 
-      <label>Tedarikci</label>
-      <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="orn: Petrol Ofisi Tankeri" required />
+      <label>Tedarikçi</label>
+      <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="örn: Petrol Ofisi Tankeri" required />
 
-      <label>Irsaliye / Fis No <span className="hint-text">(opsiyonel; bos birakip Stok Hareketleri tablosundan sonradan da girebilirsiniz)</span></label>
+      <label>İrsaliye / Fiş No <span className="hint-text">(opsiyonel; boş bırakıp Stok Hareketleri tablosundan sonradan da girebilirsiniz)</span></label>
       <input
         value={deliveryRef}
         onChange={(e) => {
@@ -305,7 +305,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
         }}
       />
 
-      <label>Birim Maliyet (TL/L) <span className="hint-text">(opsiyonel; kar raporu icin kullanilir)</span></label>
+      <label>Birim Maliyet (TL/L) <span className="hint-text">(opsiyonel; kar raporu için kullanılır)</span></label>
       <input type="number" min={0} step="0.01" value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
 
       <label>Not (opsiyonel)</label>
@@ -317,7 +317,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
       )}
 
       <div className="toolbar" style={{ marginTop: "1.25rem" }}>
-        <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>
+        <button type="button" onClick={onClose} disabled={submitting}>Vazgeç</button>
         <div className="spacer" />
         {duplicateWarning ? (
           <button className="danger" disabled={submitting} onClick={() => submit(true)}>
@@ -371,7 +371,7 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
       });
       onSaved();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Duzeltme yapilamadi.");
+      setError(err instanceof ApiError ? err.message : "Düzeltme yapılamadı.");
     } finally {
       setSubmitting(false);
     }
@@ -379,12 +379,12 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
 
   return (
     <Modal width={460}>
-      <h3 style={{ marginTop: 0 }}>{FUEL_LABEL[tank.fuelType]} — Tank Ayarlari</h3>
+      <h3 style={{ marginTop: 0 }}>{FUEL_LABEL[tank.fuelType]} — Tank Ayarları</h3>
 
       <label>Tank Kapasitesi (L)</label>
       <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />
 
-      <label>Dusuk Stok Esigi (L)</label>
+      <label>Düşük Stok Eşiği (L)</label>
       <input type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} />
 
       <div className="toolbar" style={{ marginTop: "1rem" }}>
@@ -393,23 +393,23 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
       </div>
 
       <div style={{ marginTop: "1.25rem", paddingTop: "1rem", borderTop: "1px solid var(--border)" }}>
-        <h4 style={{ margin: "0 0 0.25rem" }}>Manuel Stok Duzeltme</h4>
+        <h4 style={{ margin: "0 0 0.25rem" }}>Manuel Stok Düzeltme</h4>
         <p className="hint-text" style={{ marginTop: 0 }}>
-          Fiziksel olcum, sayac farki gibi durumlarda tank seviyesini dogrudan duzeltir. Bu islem "duzeltme" olarak
-          hareket gecmisine kaydedilir.
+          Fiziksel ölçüm, sayaç farkı gibi durumlarda tank seviyesini doğrudan düzeltir. Bu işlem "düzeltme" olarak
+          hareket geçmişine kaydedilir.
         </p>
-        <label>Gercek Stok Miktari (L)</label>
+        <label>Gerçek Stok Miktarı (L)</label>
         <input type="number" min={0} value={adjustLiters} onChange={(e) => setAdjustLiters(e.target.value)} />
-        <label>Aciklama</label>
+        <label>Açıklama</label>
         <input
           value={adjustNote}
           onChange={(e) => setAdjustNote(e.target.value)}
-          placeholder="orn: Fiziksel olcum sonrasi duzeltme, sayac X litre farkli cikti"
+          placeholder="örn: Fiziksel ölçüm sonrası düzeltme, sayaç X litre farklı çıktı"
           required
         />
         <div className="toolbar" style={{ marginTop: "0.75rem" }}>
           <div className="spacer" />
-          <button className="danger" disabled={submitting || !adjustNote.trim()} onClick={submitAdjust}>Duzelt</button>
+          <button className="danger" disabled={submitting || !adjustNote.trim()} onClick={submitAdjust}>Düzelt</button>
         </div>
       </div>
 
@@ -443,7 +443,7 @@ function DeliveryRefCell({ movement, onChanged }: { movement: FuelStockMovement;
     } catch (err) {
       if (err instanceof ApiError && err.status === 409 && err.details && typeof err.details === "object" && "duplicate" in err.details) {
         const d = err.details as unknown as { existingCreatedAt: string };
-        setDuplicateWarning(`Bu numara ile daha once ${formatDateTime(d.existingCreatedAt)} tarihinde bir teslimat kaydedilmis. Yine de kaydedilsin mi?`);
+        setDuplicateWarning(`Bu numara ile daha önce ${formatDateTime(d.existingCreatedAt)} tarihinde bir teslimat kaydedilmiş. Yine de kaydedilsin mi?`);
         return;
       }
       setError(err instanceof ApiError ? err.message : "Kaydedilemedi.");
@@ -465,7 +465,7 @@ function DeliveryRefCell({ movement, onChanged }: { movement: FuelStockMovement;
             setEditing(true);
           }}
         >
-          Duzenle
+          Düzenle
         </button>
       </div>
     );
@@ -494,7 +494,7 @@ function DeliveryRefCell({ movement, onChanged }: { movement: FuelStockMovement;
           </button>
         )}
         <button disabled={saving} style={{ padding: "0.1rem 0.5rem", fontSize: "0.75rem" }} onClick={() => setEditing(false)}>
-          Vazgec
+          Vazgeç
         </button>
       </div>
       {error && <div className="error-text" style={{ fontSize: "0.75rem" }}>{error}</div>}
@@ -526,7 +526,7 @@ function WaybillCell({ movementId }: { movementId: number }) {
       const res = await api.post<{ waybill: WaybillInfo }>(`/api/fuel-stock/movements/${movementId}/waybill`);
       setWaybill(res.waybill);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Irsaliye olusturulamadi.");
+      setError(err instanceof ApiError ? err.message : "İrsaliye oluşturulamadı.");
     } finally {
       setBusy(false);
     }
@@ -540,7 +540,7 @@ function WaybillCell({ movementId }: { movementId: number }) {
 
   return (
     <div>
-      <button onClick={create} disabled={busy}>{busy ? "..." : "E-Irsaliye Olustur"}</button>
+      <button onClick={create} disabled={busy}>{busy ? "..." : "E-İrsaliye Oluştur"}</button>
       {error && <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{error}</div>}
       {!error && waybill?.status === "failed" && (
         <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{waybill.errorMessage}</div>

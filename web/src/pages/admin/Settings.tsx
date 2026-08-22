@@ -62,7 +62,7 @@ export default function Settings() {
     setScheduleError(null);
     const price = Number(schedulePrice);
     if (!scheduleFuelType || !schedulePrice || Number.isNaN(price) || price <= 0 || !scheduleAt) {
-      setScheduleError("Yakit tipi, fiyat ve tarih/saat gereklidir.");
+      setScheduleError("Yakıt tipi, fiyat ve tarih/saat gereklidir.");
       return;
     }
     setScheduleSubmitting(true);
@@ -77,7 +77,7 @@ export default function Settings() {
       setScheduleAt("");
       load();
     } catch (err) {
-      setScheduleError(err instanceof ApiError ? err.message : "Planlanamadi.");
+      setScheduleError(err instanceof ApiError ? err.message : "Planlanamadı.");
     } finally {
       setScheduleSubmitting(false);
     }
@@ -89,7 +89,7 @@ export default function Settings() {
       await api.delete(`/api/settings/fuel-prices/scheduled/${id}`);
       load();
     } catch (err) {
-      setScheduleError(err instanceof ApiError ? err.message : "Iptal edilemedi.");
+      setScheduleError(err instanceof ApiError ? err.message : "İptal edilemedi.");
     }
   }
 
@@ -101,15 +101,15 @@ export default function Settings() {
     setError(null);
     setSavedMsg(null);
     if (!raw || Number.isNaN(value) || value <= 0) {
-      setError("Gecerli bir fiyat giriniz.");
+      setError("Geçerli bir fiyat giriniz.");
       return;
     }
     try {
       await api.patch(`/api/settings/fuel-prices/${fuelType}`, { pricePerLiter: value });
-      setSavedMsg(`${FUEL_LABEL[fuelType] ?? fuelType} fiyati guncellendi.`);
+      setSavedMsg(`${FUEL_LABEL[fuelType] ?? fuelType} fiyatı güncellendi.`);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Guncelleme basarisiz.");
+      setError(err instanceof ApiError ? err.message : "Güncelleme başarısız.");
     }
   }
 
@@ -117,13 +117,13 @@ export default function Settings() {
     <div>
       <h2>Ayarlar</h2>
       <p className="hint-text settings-intro">
-        Istasyonunuzun yakit fiyatlarini ve entegrasyonlarini (odeme, sadakat, fatura/irsaliye) buradan yonetin.
+        İstasyonunuzun yakıt fiyatlarını ve entegrasyonlarını (ödeme, sadakat, fatura/irsaliye) buradan yönetin.
       </p>
 
       <div className="settings-grid">
         <div className="card settings-card">
           <div className="card-head">
-            <h3>Yakit Fiyatlari</h3>
+            <h3>Yakıt Fiyatları</h3>
           </div>
           {prices.map((p) => (
             <div key={p.fuelType} className="fuel-price-row">
@@ -153,11 +153,11 @@ export default function Settings() {
             (il/ilçe/bayi bazında; CAPTCHA korumalı olduğundan otomatik çekilemiyor, elle sorgulanır).
           </p>
 
-          <h4 style={{ marginTop: "1.25rem" }}>Zamanlanmis Fiyat Degisikligi</h4>
-          <p className="hint-text">Ileri bir tarih/saat belirleyin, o an geldiginde fiyat otomatik devreye girer.</p>
+          <h4 style={{ marginTop: "1.25rem" }}>Zamanlanmış Fiyat Değişikliği</h4>
+          <p className="hint-text">İleri bir tarih/saat belirleyin, o an geldiğinde fiyat otomatik devreye girer.</p>
           <div className="toolbar" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
             <select value={scheduleFuelType} onChange={(e) => setScheduleFuelType(e.target.value)}>
-              <option value="">Yakit tipi secin</option>
+              <option value="">Yakıt tipi seçin</option>
               {prices.map((p) => (
                 <option key={p.fuelType} value={p.fuelType}>{p.label}</option>
               ))}
@@ -165,7 +165,7 @@ export default function Settings() {
             <input type="number" step="0.01" min="0" placeholder="Yeni fiyat (TL/L)" value={schedulePrice} onChange={(e) => setSchedulePrice(e.target.value)} style={{ width: "10rem" }} />
             <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
             <button className="primary" onClick={submitSchedule} disabled={scheduleSubmitting}>
-              {scheduleSubmitting ? "Planlaniyor..." : "Planla"}
+              {scheduleSubmitting ? "Planlanıyor..." : "Planla"}
             </button>
           </div>
           {scheduleError && <p className="error-text">{scheduleError}</p>}
@@ -173,7 +173,7 @@ export default function Settings() {
           {pendingSchedules.length > 0 && (
             <table style={{ marginTop: "0.75rem" }}>
               <thead>
-                <tr><th>Yakit</th><th className="numeric">Yeni Fiyat</th><th>Planlanan Zaman</th><th></th></tr>
+                <tr><th>Yakıt</th><th className="numeric">Yeni Fiyat</th><th>Planlanan Zaman</th><th></th></tr>
               </thead>
               <tbody>
                 {pendingSchedules.map((s) => (
@@ -181,7 +181,7 @@ export default function Settings() {
                     <td>{FUEL_LABEL[s.fuelType] ?? s.fuelType}</td>
                     <td className="numeric">{formatCurrency(s.pricePerLiter)}</td>
                     <td>{formatDateTime(s.scheduledFor)}</td>
-                    <td><button onClick={() => cancelScheduleRow(s.id)}>Iptal Et</button></td>
+                    <td><button onClick={() => cancelScheduleRow(s.id)}>İptal Et</button></td>
                   </tr>
                 ))}
               </tbody>
@@ -229,10 +229,10 @@ function LoyaltyConfigCard() {
     setSavedMsg(null);
     try {
       await api.patch("/api/loyalty/config", patch);
-      setSavedMsg("Sadakat ayarlari guncellendi.");
+      setSavedMsg("Sadakat ayarları güncellendi.");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Ayar guncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "Ayar güncellenemedi.");
     } finally {
       setSaving(false);
     }
@@ -247,17 +247,17 @@ function LoyaltyConfigCard() {
         <StatusToggle checked={config.enabled} disabled={saving} onChange={() => update({ enabled: !config.enabled })} />
       </div>
       <p className="hint-text card-desc">
-        Aktif oldugunda musteriler her dolumda plaka bazinda puan kazanir; kiosk'ta bir sonraki dolumda bu puanlari
+        Aktif olduğunda müşteriler her dolumda plaka bazında puan kazanır; kiosk'ta bir sonraki dolumda bu puanları
         indirim olarak kullanabilirler.
       </p>
 
       <div className="field-grid">
         <div>
-          <label>Litre basina kazanilan puan</label>
+          <label>Litre başına kazanılan puan</label>
           <input type="number" min={0} step={0.1} value={pointsPerLiter} onChange={(e) => setPointsPerLiter(e.target.value)} />
         </div>
         <div>
-          <label>1 puanin TL degeri (kullanildiginda)</label>
+          <label>1 puanın TL değeri (kullanıldığında)</label>
           <input type="number" min={0} step={0.01} value={pointValueTry} onChange={(e) => setPointValueTry(e.target.value)} />
         </div>
       </div>
@@ -316,21 +316,21 @@ function ReportEmailCard() {
   return (
     <div className="card settings-card">
       <div className="card-head">
-        <h3>Otomatik Ozet Raporu</h3>
+        <h3>Otomatik Özet Raporu</h3>
       </div>
       <p className="hint-text card-desc">
-        Secilen sikilikta, istasyonun "Istasyon Yoneticisi" rolundeki (e-posta adresi kayitli) kullanicilarina
-        ciro/litre/tahmini kar ozeti otomatik e-posta ile gonderilir.
+        Seçilen sıklıkta, istasyonun "İstasyon Yöneticisi" rolündeki (e-posta adresi kayıtlı) kullanıcılarına
+        ciro/litre/tahmini kar özeti otomatik e-posta ile gönderilir.
       </p>
 
-      <label>Siklik</label>
+      <label>Sıklık</label>
       <select value={frequency} disabled={saving} onChange={(e) => save(e.target.value as ReportEmailFrequency)}>
-        <option value="none">Kapali</option>
-        <option value="weekly">Haftalik</option>
-        <option value="monthly">Aylik</option>
+        <option value="none">Kapalı</option>
+        <option value="weekly">Haftalık</option>
+        <option value="monthly">Aylık</option>
       </select>
 
-      {lastSentAt && <p className="hint-text" style={{ marginTop: "0.5rem" }}>Son gonderim: {new Date(lastSentAt).toLocaleString("tr-TR")}</p>}
+      {lastSentAt && <p className="hint-text" style={{ marginTop: "0.5rem" }}>Son gönderim: {new Date(lastSentAt).toLocaleString("tr-TR")}</p>}
       {error && <p className="error-text">{error}</p>}
       {savedMsg && <p className="success-text">{savedMsg}</p>}
     </div>
@@ -369,12 +369,12 @@ function PaymentSettingsCard() {
     setSavedMsg(null);
     try {
       await api.patch("/api/settings/payment", patch);
-      setSavedMsg("Odeme ayarlari guncellendi.");
+      setSavedMsg("Ödeme ayarları güncellendi.");
       setApiKey("");
       setSecretKey("");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Odeme ayarlari guncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "Ödeme ayarları güncellenemedi.");
     } finally {
       setSaving(false);
     }
@@ -385,37 +385,37 @@ function PaymentSettingsCard() {
   return (
     <div className="card settings-card">
       <div className="card-head">
-        <h3>Odeme Ayarlari (iyzico)</h3>
+        <h3>Ödeme Ayarları (iyzico)</h3>
         <StatusToggle checked={config.enabled} disabled={saving} onChange={() => update({ enabled: !config.enabled })} />
       </div>
       <p className="hint-text card-desc">
-        Kiosk'ta kart bilgisi toplanmaz; musteri iyzico'nun barindirdigi guvenli odeme formuna yonlendirilir. Bu
-        gercek bir odeme altyapisi entegrasyonudur — test icin kendi iyzico magaza hesabinizin API anahtarlarina
-        ihtiyaciniz vardir.
+        Kiosk'ta kart bilgisi toplanmaz; müşteri iyzico'nun barındırdığı güvenli ödeme formuna yönlendirilir. Bu
+        gerçek bir ödeme altyapısı entegrasyonudur — test için kendi iyzico mağaza hesabınızın API anahtarlarına
+        ihtiyacınız vardır.
       </p>
 
       <label>Ortam</label>
       <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
         <option value="sandbox">Sandbox (test)</option>
-        <option value="production">Production (canli)</option>
+        <option value="production">Production (canlı)</option>
       </select>
 
       <div className="field-grid">
         <div>
-          <label>API Anahtari {config.apiKeySet && <span className="hint-text">(kayitli: {config.apiKeyMasked})</span>}</label>
+          <label>API Anahtarı {config.apiKeySet && <span className="hint-text">(kayıtlı: {config.apiKeyMasked})</span>}</label>
           <input
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
-            placeholder={config.apiKeySet ? "Degistirmek icin yeni deger girin" : "iyzico API anahtari"}
+            placeholder={config.apiKeySet ? "Değiştirmek için yeni değer girin" : "iyzico API anahtarı"}
           />
         </div>
         <div>
-          <label>Secret Anahtar {config.secretKeySet && <span className="hint-text">(kayitli: {config.secretKeyMasked})</span>}</label>
+          <label>Secret Anahtar {config.secretKeySet && <span className="hint-text">(kayıtlı: {config.secretKeyMasked})</span>}</label>
           <input
             type="password"
             value={secretKey}
             onChange={(e) => setSecretKey(e.target.value)}
-            placeholder={config.secretKeySet ? "Degistirmek icin yeni deger girin" : "iyzico secret anahtari"}
+            placeholder={config.secretKeySet ? "Değiştirmek için yeni değer girin" : "iyzico secret anahtarı"}
           />
         </div>
       </div>
@@ -430,7 +430,7 @@ function PaymentSettingsCard() {
           disabled={saving || (!apiKey.trim() && !secretKey.trim())}
           onClick={() => update({ apiKey: apiKey.trim() || undefined, secretKey: secretKey.trim() || undefined })}
         >
-          Anahtarlari Kaydet
+          Anahtarları Kaydet
         </button>
       </div>
 
@@ -441,9 +441,9 @@ function PaymentSettingsCard() {
           </p>
         ) : (
           <p className="error-text">
-            Sunucuda <code>PUBLIC_API_BASE_URL</code> tanimlanmamis. iyzico odeme sonucunu bu sunucuya bildiremez;
-            iyzico odemesi bu ayar olmadan calismaz. Sunucunuzun herkese acik (localhost olmayan) adresini
-            .env dosyasina ekleyin.
+            Sunucuda <code>PUBLIC_API_BASE_URL</code> tanımlanmamış. iyzico ödeme sonucunu bu sunucuya bildiremez;
+            iyzico ödemesi bu ayar olmadan çalışmaz. Sunucunuzun herkese açık (localhost olmayan) adresini
+            .env dosyasına ekleyin.
           </p>
         )}
       </div>
@@ -498,12 +498,12 @@ function InvoiceSettingsCard() {
     setSavedMsg(null);
     try {
       await api.patch("/api/settings/invoice", patch);
-      setSavedMsg("E-fatura ayarlari guncellendi.");
+      setSavedMsg("E-fatura ayarları güncellendi.");
       setUsername("");
       setPassword("");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "E-fatura ayarlari guncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "E-fatura ayarları güncellenemedi.");
     } finally {
       setSaving(false);
     }
@@ -514,14 +514,14 @@ function InvoiceSettingsCard() {
   return (
     <div className="card settings-card card-wide">
       <div className="card-head">
-        <h3>Fatura / Irsaliye Ayarlari (E-Fatura, e-Arsiv, E-Irsaliye)</h3>
+        <h3>Fatura / İrsaliye Ayarları (E-Fatura, e-Arşiv, E-İrsaliye)</h3>
         <StatusToggle checked={config.enabled} disabled={saving} onChange={() => update({ enabled: !config.enabled })} />
       </div>
       <p className="hint-text card-desc">
-        Tamamlanan islemler icin e-Fatura/e-Arsiv, yakit teslimatlari icin ise E-Irsaliye olusturmak uzere ayni
-        gercek Uyumsoft entegrasyon hesabi kullanilir (Yakit Stoku sayfasindaki "E-Irsaliye Olustur" butonu buradaki
-        bilgileri kullanir). Bu bir simulasyon degildir — kendi Uyumsoft musteri hesabinizin kullanici adi/sifresini
-        ve sirket vergi bilgilerinizi girmeden ne fatura ne de irsaliye kesilebilir.
+        Tamamlanan işlemler için e-Fatura/e-Arşiv, yakıt teslimatları için ise E-İrsaliye oluşturmak üzere aynı
+        gerçek Uyumsoft entegrasyon hesabı kullanılır (Yakıt Stoku sayfasındaki "E-İrsaliye Oluştur" butonu buradaki
+        bilgileri kullanır). Bu bir simülasyon değildir — kendi Uyumsoft müşteri hesabınızın kullanıcı adı/şifresini
+        ve şirket vergi bilgilerinizi girmeden ne fatura ne de irsaliye kesilebilir.
       </p>
 
       <div className="field-grid">
@@ -529,27 +529,27 @@ function InvoiceSettingsCard() {
           <label>Ortam</label>
           <select value={config.environment} disabled={saving} onChange={(e) => update({ environment: e.target.value })}>
             <option value="sandbox">Sandbox (test)</option>
-            <option value="production">Production (canli)</option>
+            <option value="production">Production (canlı)</option>
           </select>
         </div>
       </div>
 
       <div className="field-grid">
         <div>
-          <label>Uyumsoft Kullanici Adi {config.usernameSet && <span className="hint-text">(kayitli: {config.username})</span>}</label>
+          <label>Uyumsoft Kullanıcı Adı {config.usernameSet && <span className="hint-text">(kayıtlı: {config.username})</span>}</label>
           <input
             value={username}
             onChange={(e) => setUsername(e.target.value)}
-            placeholder={config.usernameSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft kullanici adi"}
+            placeholder={config.usernameSet ? "Değiştirmek için yeni değer girin" : "Uyumsoft kullanıcı adı"}
           />
         </div>
         <div>
-          <label>Uyumsoft Sifre {config.passwordSet && <span className="hint-text">(kayitli: {config.passwordMasked})</span>}</label>
+          <label>Uyumsoft Şifre {config.passwordSet && <span className="hint-text">(kayıtlı: {config.passwordMasked})</span>}</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder={config.passwordSet ? "Degistirmek icin yeni deger girin" : "Uyumsoft sifresi"}
+            placeholder={config.passwordSet ? "Değiştirmek için yeni değer girin" : "Uyumsoft şifresi"}
           />
         </div>
       </div>
@@ -561,19 +561,19 @@ function InvoiceSettingsCard() {
           disabled={saving || (!username.trim() && !password.trim())}
           onClick={() => update({ username: username.trim() || undefined, password: password.trim() || undefined })}
         >
-          Kullanici Bilgilerini Kaydet
+          Kullanıcı Bilgilerini Kaydet
         </button>
       </div>
 
       <div className="card-divider">
         <div className="field-grid">
           <div>
-            <label>Sirket VKN</label>
+            <label>Şirket VKN</label>
             <input value={company.companyVkn} onChange={(e) => setCompany((p) => ({ ...p, companyVkn: e.target.value }))} placeholder="10 haneli vergi kimlik no" />
           </div>
           <div>
-            <label>Sirket Unvani</label>
-            <input value={company.companyTitle} onChange={(e) => setCompany((p) => ({ ...p, companyTitle: e.target.value }))} placeholder="Resmi sirket unvani" />
+            <label>Şirket Unvanı</label>
+            <input value={company.companyTitle} onChange={(e) => setCompany((p) => ({ ...p, companyTitle: e.target.value }))} placeholder="Resmi şirket unvanı" />
           </div>
           <div>
             <label>Vergi Dairesi</label>
@@ -584,11 +584,11 @@ function InvoiceSettingsCard() {
             <input value={company.companyAddress} onChange={(e) => setCompany((p) => ({ ...p, companyAddress: e.target.value }))} />
           </div>
           <div>
-            <label>Il</label>
+            <label>İl</label>
             <input value={company.companyCity} onChange={(e) => setCompany((p) => ({ ...p, companyCity: e.target.value }))} />
           </div>
           <div>
-            <label>Ilce</label>
+            <label>İlçe</label>
             <input value={company.companyDistrict} onChange={(e) => setCompany((p) => ({ ...p, companyDistrict: e.target.value }))} />
           </div>
         </div>
@@ -596,7 +596,7 @@ function InvoiceSettingsCard() {
         <div className="toolbar" style={{ marginTop: "0.75rem" }}>
           <div className="spacer" />
           <button className="primary" disabled={saving} onClick={() => update(company)}>
-            Sirket Bilgilerini Kaydet
+            Şirket Bilgilerini Kaydet
           </button>
         </div>
       </div>
