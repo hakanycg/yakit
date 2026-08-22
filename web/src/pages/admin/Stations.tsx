@@ -78,44 +78,82 @@ export default function Stations() {
 
       <div className="grid cols-2">
         {visibleStations.map((s) => (
-          <div className="card" key={s.id}>
-            <div className="toolbar">
-              <strong>{s.name}</strong>
-              <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
-              {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
-              <div className="spacer" />
-              <button className="ghost" onClick={() => setCurrentStationId(s.id)}>Bu istasyona geç</button>
+          <div className="card station-card" key={s.id}>
+            <div className="station-card-header">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="station-name">{s.name}</div>
+                <div className="station-card-badges">
+                  <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
+                  {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
+                </div>
+              </div>
+              <button className="ghost btn-sm" onClick={() => setCurrentStationId(s.id)}>Bu istasyona geç</button>
             </div>
-            <p className="hint-text" style={{ margin: "0.25rem 0" }}>{s.address || "Adres girilmemiş"}</p>
-            <p className="hint-text" style={{ margin: "0.25rem 0" }}>
-              İstasyon kodu: <code>{s.code ?? "-"}</code> · Kiosk adresi: <code>/kiosk/{s.code ?? s.slug}</code>
-            </p>
-            <KioskTokenToggle station={s} onChanged={load} />
+
+            <section className="station-section">
+              <div className="station-section-head">
+                <h4 className="station-section-title">İşyeri Bilgileri</h4>
+              </div>
+              <dl className="detail-list">
+                <dt>Adres</dt>
+                <dd>{s.address || <span className="hint-text">Girilmemiş</span>}</dd>
+                <dt>İstasyon kodu</dt>
+                <dd><code>{s.code ?? "-"}</code></dd>
+                <dt>Kiosk adresi</dt>
+                <dd>
+                  <span className="with-action">
+                    <code>/kiosk/{s.code ?? s.slug}</code>
+                    <CopyButton value={`${window.location.origin}/kiosk/${s.code ?? s.slug}`} label="Kopyala" />
+                  </span>
+                </dd>
+                <dt>Oluşturulma</dt>
+                <dd>{s.createdAt ? formatDateTime(s.createdAt) : "-"}</dd>
+              </dl>
+            </section>
+
+            <section className="station-section">
+              <div className="station-section-head">
+                <h4 className="station-section-title">Özet</h4>
+              </div>
+              <div className="stat-chip-row">
+                <span className="stat-chip"><strong>{s.pumpCount ?? 0}</strong> Pompa</span>
+                <span className="stat-chip"><strong>{s.userCount ?? 0}</strong> Kullanıcı</span>
+                <span className={`stat-chip${(s.activeAlarms ?? 0) > 0 ? " danger" : ""}`}>
+                  <strong>{s.activeAlarms ?? 0}</strong> Aktif alarm
+                </span>
+              </div>
+            </section>
+
+            <section className="station-section">
+              <div className="station-section-head">
+                <h4 className="station-section-title">Kiosk Güvenliği</h4>
+              </div>
+              <KioskTokenToggle station={s} onChanged={load} />
+            </section>
+
             <StationKiosksSection stationId={s.id} stationCode={s.code ?? s.slug} />
-            <div className="toolbar" style={{ marginTop: "0.5rem" }}>
-              <span className="hint-text">Pompa: {s.pumpCount}</span>
-              <span className="hint-text">Kullanıcı: {s.userCount}</span>
-              <span className="hint-text" style={{ color: (s.activeAlarms ?? 0) > 0 ? "#f87171" : undefined }}>
-                Aktif alarm: {s.activeAlarms}
-              </span>
-            </div>
-            <div className="toolbar" style={{ marginTop: "0.75rem" }}>
-              <button onClick={() => toggleActive(s)}>{s.active ? "Devre Dışı Bırak" : "Etkinleştir"}</button>
-              {(s.transactionCount ?? 0) === 0 && (
-                <button className="danger" onClick={() => deleteStation(s)}>Kalıcı Olarak Sil</button>
+
+            <section className="station-section">
+              <div className="station-section-head">
+                <h4 className="station-section-title">İstasyon Yönetimi</h4>
+              </div>
+              <div className="toolbar" style={{ margin: 0 }}>
+                <button className="btn-sm" onClick={() => toggleActive(s)}>{s.active ? "Devre Dışı Bırak" : "Etkinleştir"}</button>
+                {(s.transactionCount ?? 0) === 0 && (
+                  <button className="danger btn-sm" onClick={() => deleteStation(s)}>Kalıcı Olarak Sil</button>
+                )}
+              </div>
+              {(s.transactionCount ?? 0) > 0 && (
+                <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>
+                  İşlem kaydı olduğu için kalıcı olarak silinemez; sadece devre dışı bırakılabilir.
+                </p>
               )}
-              {s.createdAt && <span className="hint-text">Oluşturulma: {formatDateTime(s.createdAt)}</span>}
-            </div>
-            {(s.transactionCount ?? 0) > 0 && (
-              <p className="hint-text" style={{ marginTop: "0.4rem" }}>
-                İşlem kaydı olduğu için kalıcı olarak silinemez; sadece devre dışı bırakılabilir.
-              </p>
-            )}
-            {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) > 0 && (
-              <p className="hint-text" style={{ marginTop: "0.4rem" }}>
-                Silme, buradaki {s.userCount} kullanıcı hesabını da kalıcı olarak kaldırır.
-              </p>
-            )}
+              {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) > 0 && (
+                <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>
+                  Silme, buradaki {s.userCount} kullanıcı hesabını da kalıcı olarak kaldırır.
+                </p>
+              )}
+            </section>
           </div>
         ))}
         {stations.length === 0 && (
@@ -148,11 +186,7 @@ export default function Stations() {
 function StationKiosksSection({ stationId, stationCode }: { stationId: number; stationCode: string }) {
   const [kiosks, setKiosks] = useState<StationKiosk[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [newLabel, setNewLabel] = useState("");
-  const [newAnydeskId, setNewAnydeskId] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [showAdd, setShowAdd] = useState(false);
 
   function load() {
     api.get<{ kiosks: StationKiosk[] }>(`/api/stations/${stationId}/kiosks`).then((res) => {
@@ -162,23 +196,6 @@ function StationKiosksSection({ stationId, stationCode }: { stationId: number; s
   }
   useEffect(load, [stationId]);
 
-  async function addKiosk(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    try {
-      await api.post(`/api/stations/${stationId}/kiosks`, { label: newLabel, anydeskId: newAnydeskId.trim() || null });
-      setNewLabel("");
-      setNewAnydeskId("");
-      setAdding(false);
-      load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kiosk eklenemedi.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function deleteKiosk(k: StationKiosk) {
     if (!confirm(`"${k.label}" kiosk kaydını silmek istediğinize emin misiniz?`)) return;
     await api.delete(`/api/stations/${stationId}/kiosks/${k.id}`);
@@ -186,24 +203,115 @@ function StationKiosksSection({ stationId, stationCode }: { stationId: number; s
   }
 
   return (
-    <div style={{ margin: "0.4rem 0" }}>
-      <p className="hint-text" style={{ margin: "0 0 0.15rem" }}>Kiosk Bilgisayarları (pompa/ada başına):</p>
+    <section className="station-section">
+      <div className="station-section-head">
+        <h4 className="station-section-title">Kiosk Bilgisayarları</h4>
+        <span className="hint-text" style={{ fontSize: "0.72rem" }}>({kiosks.length})</span>
+        <div className="spacer" />
+        <button className="ghost btn-sm" onClick={() => setShowAdd(true)}>+ Kiosk Ekle</button>
+      </div>
+
       {kiosks.map((k) => (
         <KioskRow key={k.id} kiosk={k} stationId={stationId} stationCode={stationCode} onChanged={load} onDelete={() => deleteKiosk(k)} />
       ))}
-      {loaded && kiosks.length === 0 && !adding && <p className="hint-text">Henüz kiosk eklenmemiş.</p>}
-      {adding ? (
-        <form className="toolbar" onSubmit={addKiosk} style={{ marginTop: "0.25rem" }}>
-          <input value={newLabel} onChange={(e) => setNewLabel(e.target.value)} placeholder="Etiket (ör. Pompa 1-2)" required style={{ maxWidth: 160 }} />
-          <input value={newAnydeskId} onChange={(e) => setNewAnydeskId(e.target.value)} placeholder="AnyDesk ID (opsiyonel)" style={{ maxWidth: 160 }} />
-          <button type="submit" disabled={saving}>{saving ? "Ekleniyor..." : "Ekle"}</button>
-          <button type="button" className="ghost" onClick={() => setAdding(false)}>Vazgeç</button>
-        </form>
-      ) : (
-        <button className="ghost" onClick={() => setAdding(true)}>+ Kiosk Ekle</button>
+      {loaded && kiosks.length === 0 && (
+        <p className="hint-text" style={{ margin: 0 }}>
+          Henüz kiosk eklenmemiş. Her pompa/ada için bir kiosk bilgisayarı ekleyin.
+        </p>
       )}
-      {error && <p className="error-text">{error}</p>}
+
+      {showAdd && (
+        <AddKioskDialog
+          stationId={stationId}
+          onClose={() => setShowAdd(false)}
+          onCreated={() => {
+            setShowAdd(false);
+            load();
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+/** "+ Kiosk Ekle" akisi - kart icinde satir aci lmak yerine odakli bir acilir pencerede. */
+function AddKioskDialog({ stationId, onClose, onCreated }: { stationId: number; onClose: () => void; onCreated: () => void }) {
+  const [label, setLabel] = useState("");
+  const [anydeskId, setAnydeskId] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.post(`/api/stations/${stationId}/kiosks`, { label, anydeskId: anydeskId.trim() || null });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kiosk eklenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <form className="modal-card" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <h3>Kiosk Ekle</h3>
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          İstasyondaki her fiziksel kiosk bilgisayarı için bir kayıt oluşturun. Kayıt eklenince, o cihaza
+          uygulayacağınız kurulum adresi listede hazır olur.
+        </p>
+
+        <label htmlFor="kiosk-label">Etiket</label>
+        <input
+          id="kiosk-label"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="ör. Pompa 1-2 Adası"
+          autoFocus
+          required
+        />
+        <p className="hint-text">Personelin hangi cihaz olduğunu anlayacağı serbest bir isim.</p>
+
+        <label htmlFor="kiosk-anydesk">AnyDesk ID (opsiyonel)</label>
+        <input
+          id="kiosk-anydesk"
+          value={anydeskId}
+          onChange={(e) => setAnydeskId(e.target.value)}
+          placeholder="ör. 123 456 789"
+        />
+        <p className="hint-text">Uzaktan destek için; sonradan da girilebilir.</p>
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div className="modal-actions">
+          <button type="button" className="ghost" onClick={onClose}>Vazgeç</button>
+          <div className="spacer" />
+          <button type="submit" className="primary" disabled={saving}>{saving ? "Ekleniyor..." : "Ekle"}</button>
+        </div>
+      </form>
     </div>
+  );
+}
+
+/** Kopyala butonu - kopyalandi geri bildirimi ile. */
+function CopyButton({ value, label, disabled }: { value: string; label: string; disabled?: boolean }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className="ghost btn-sm"
+      disabled={disabled}
+      onClick={async () => {
+        await navigator.clipboard.writeText(value);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+    >
+      {copied ? "Kopyalandı" : label}
+    </button>
   );
 }
 
@@ -223,20 +331,10 @@ function KioskRow({
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(kiosk.label);
   const [anydeskId, setAnydeskId] = useState(kiosk.anydeskId ?? "");
-  const [copied, setCopied] = useState(false);
-  const [setupCopied, setSetupCopied] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  /**
-   * Kiosk PC'sinde BIR KEZ acilacak adres: token'i localStorage'a yazip URL'den
-   * temizler (bkz. web/src/kiosk/kioskDeviceToken.ts).
-   */
-  async function copySetupUrl() {
-    const url = `${window.location.origin}/kiosk/${stationCode}${kiosk.deviceToken ? `?device=${kiosk.deviceToken}` : ""}`;
-    await navigator.clipboard.writeText(url);
-    setSetupCopied(true);
-    setTimeout(() => setSetupCopied(false), 1500);
-  }
+  /** Kiosk PC'sinde BIR KEZ acilacak adres; token'i saklayip URL'den temizler. */
+  const setupUrl = `${window.location.origin}/kiosk/${stationCode}${kiosk.deviceToken ? `?device=${kiosk.deviceToken}` : ""}`;
 
   async function save() {
     setSaving(true);
@@ -249,49 +347,48 @@ function KioskRow({
     }
   }
 
-  async function copy() {
-    if (!kiosk.anydeskId) return;
-    await navigator.clipboard.writeText(kiosk.anydeskId);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
-  }
-
   if (editing) {
     return (
-      <div className="toolbar" style={{ margin: "0.15rem 0" }}>
-        <input value={label} onChange={(e) => setLabel(e.target.value)} style={{ maxWidth: 160 }} />
-        <input value={anydeskId} onChange={(e) => setAnydeskId(e.target.value)} placeholder="AnyDesk ID" style={{ maxWidth: 160 }} />
-        <button onClick={save} disabled={saving}>{saving ? "Kaydediliyor..." : "Kaydet"}</button>
-        <button
-          className="ghost"
-          onClick={() => {
-            setEditing(false);
-            setLabel(kiosk.label);
-            setAnydeskId(kiosk.anydeskId ?? "");
-          }}
-        >
-          Vazgeç
-        </button>
+      <div className="kiosk-item">
+        <label htmlFor={`k-label-${kiosk.id}`} style={{ marginTop: 0 }}>Etiket</label>
+        <input id={`k-label-${kiosk.id}`} value={label} onChange={(e) => setLabel(e.target.value)} />
+        <label htmlFor={`k-anydesk-${kiosk.id}`}>AnyDesk ID</label>
+        <input id={`k-anydesk-${kiosk.id}`} value={anydeskId} onChange={(e) => setAnydeskId(e.target.value)} placeholder="ör. 123 456 789" />
+        <div className="kiosk-item-actions" style={{ marginTop: "0.6rem" }}>
+          <button className="primary btn-sm" onClick={save} disabled={saving}>{saving ? "Kaydediliyor..." : "Kaydet"}</button>
+          <button
+            className="ghost btn-sm"
+            onClick={() => {
+              setEditing(false);
+              setLabel(kiosk.label);
+              setAnydeskId(kiosk.anydeskId ?? "");
+            }}
+          >
+            Vazgeç
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="toolbar" style={{ margin: "0.15rem 0" }}>
-      <span>{kiosk.label}</span>
-      {kiosk.anydeskId ? (
-        <>
-          <code>{kiosk.anydeskId}</code>
-          <button className="ghost" onClick={copy}>{copied ? "Kopyalandı" : "Kopyala"}</button>
-        </>
-      ) : (
-        <span className="hint-text">AnyDesk ID yok</span>
-      )}
-      <button className="ghost" onClick={copySetupUrl} title="Bu kiosk PC'sinde bir kez açılacak kurulum adresi">
-        {setupCopied ? "Adres kopyalandı" : "Kurulum adresi"}
-      </button>
-      <button className="ghost" onClick={() => setEditing(true)}>Düzenle</button>
-      <button className="ghost" onClick={onDelete}>Sil</button>
+    <div className="kiosk-item">
+      <div className="kiosk-item-head">
+        <span className="kiosk-item-name">{kiosk.label}</span>
+        <span className={`badge ${kiosk.lastSeenAt ? "resolved" : "info"}`}>
+          {kiosk.lastSeenAt ? "Kurulu" : "Kurulum bekliyor"}
+        </span>
+      </div>
+      <div className="kiosk-item-meta">
+        <span>AnyDesk: {kiosk.anydeskId ? <code>{kiosk.anydeskId}</code> : "—"}</span>
+        <span>Son bağlantı: {kiosk.lastSeenAt ? formatDateTime(kiosk.lastSeenAt) : "—"}</span>
+      </div>
+      <div className="kiosk-item-actions">
+        <CopyButton value={setupUrl} label="Kurulum adresi" disabled={!kiosk.deviceToken} />
+        {kiosk.anydeskId && <CopyButton value={kiosk.anydeskId} label="AnyDesk ID" />}
+        <button className="ghost btn-sm" onClick={() => setEditing(true)}>Düzenle</button>
+        <button className="ghost btn-sm" onClick={onDelete}>Sil</button>
+      </div>
     </div>
   );
 }
@@ -385,9 +482,9 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
   }
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <form className="card" style={{ width: "min(460px, 92vw)", maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
-        <h3 style={{ marginTop: 0 }}>Yeni İstasyon</h3>
+    <div className="modal-overlay" onClick={onClose}>
+      <form className="modal-card" onClick={(e) => e.stopPropagation()} onSubmit={submit}>
+        <h3>Yeni İstasyon</h3>
 
         <label>İstasyon Adı</label>
         <input value={name} onChange={(e) => handleNameChange(e.target.value)} required />
