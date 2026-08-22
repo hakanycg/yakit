@@ -208,6 +208,30 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .stat { display: flex; flex-direction: column; gap: 0.2rem; }
 .stat .label { color: var(--text-dim); font-size: 0.8rem; }
 .stat .value { font-size: 1.6rem; font-weight: 700; }
+
+/* Panel (Dashboard) ust kisim: "Hosgeldin" basligi + esit boyutlu istatistik kutulari.
+   auto-fit + 1fr, kutu sayisi 4 veya 5 (SyncStatusCard'a bagli) olsa da her satirdaki
+   tum kutulari birbiriyle ayni genislikte tutar; min-height ise icerik uzunlugu
+   (ör. senkron mesaji vs. sade sayi) farkli olsa bile ayni yukseklikte tutar. */
+.dash-welcome { margin-bottom: 1.25rem; }
+.dash-welcome h2 { margin: 0 0 0.2rem; }
+.dash-welcome .hint-text { margin: 0; text-transform: capitalize; }
+.grid.stats-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.dash-stat {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 88px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.dash-stat:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.18); }
+.dash-stat .stat-icon {
+  width: 44px; height: 44px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 12px; font-size: 1.3rem;
+}
+.dash-stat .stat-body { display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+.pump-mini-card { min-height: 96px; }
 /* Kiosk icinde (ör. DispenseStep'in "bekleme ekrani") .stat, admin panelin genel
    --text-dim tonuyla degil kiosk'un kendi gun/gece etiket rengiyle (--k-dim)
    gosterilmeli - aksi halde etiket/deger birbirinden ayrisamayip "tek renk"

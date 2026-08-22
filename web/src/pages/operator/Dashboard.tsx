@@ -32,11 +32,25 @@ function SyncStatusCard() {
   }
 
   return (
-    <div className="card stat">
-      <span className="label">İstasyon Ajanı</span>
-      <span className="value" style={{ fontSize: "1.1rem", color }}>{label}</span>
+    <div className="card stat dash-stat">
+      <div className="stat-icon" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>🔄</div>
+      <div className="stat-body">
+        <span className="label">İstasyon Ajanı</span>
+        <span className="value" style={{ fontSize: "1rem", fontWeight: 600, color }}>{label}</span>
+      </div>
     </div>
   );
+}
+
+const GREETINGS = [
+  { maxHour: 6, text: "İyi geceler" },
+  { maxHour: 12, text: "Günaydın" },
+  { maxHour: 18, text: "İyi günler" },
+  { maxHour: 24, text: "İyi akşamlar" },
+];
+
+function getGreeting(hour: number): string {
+  return (GREETINGS.find((g) => hour < g.maxHour) ?? GREETINGS[GREETINGS.length - 1]).text;
 }
 
 interface DayPoint {
@@ -112,26 +126,43 @@ export default function Dashboard() {
 
   const dispensing = pumps.filter((p) => p.status === "dispensing").length;
   const faulty = pumps.filter((p) => p.status === "fault").length;
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
     <div>
-      <h2>Panel</h2>
-      <div className="grid cols-4">
-        <div className="card stat">
-          <span className="label">Toplam Ciro</span>
-          <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
+      <div className="dash-welcome">
+        <h2>{getGreeting(today.getHours())}, {user?.displayName ?? ""} 👋</h2>
+        <p className="hint-text">{todayLabel}</p>
+      </div>
+      <div className="grid stats-grid">
+        <div className="card stat dash-stat">
+          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}>💰</div>
+          <div className="stat-body">
+            <span className="label">Toplam Ciro</span>
+            <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
+          </div>
         </div>
-        <div className="card stat">
-          <span className="label">Tamamlanan İşlem</span>
-          <span className="value">{summary?.totals.completedCount ?? "..."}</span>
+        <div className="card stat dash-stat">
+          <div className="stat-icon" style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80" }}>✅</div>
+          <div className="stat-body">
+            <span className="label">Tamamlanan İşlem</span>
+            <span className="value">{summary?.totals.completedCount ?? "..."}</span>
+          </div>
         </div>
-        <div className="card stat">
-          <span className="label">Aktif Dolum</span>
-          <span className="value">{dispensing} / {pumps.length}</span>
+        <div className="card stat dash-stat">
+          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}>⛽</div>
+          <div className="stat-body">
+            <span className="label">Aktif Dolum</span>
+            <span className="value">{dispensing} / {pumps.length}</span>
+          </div>
         </div>
-        <div className="card stat">
-          <span className="label">Aktif Alarm</span>
-          <span className="value" style={{ color: alarms.length ? "#f87171" : undefined }}>{alarms.length}</span>
+        <div className="card stat dash-stat">
+          <div className="stat-icon" style={{ background: alarms.length ? "rgba(248,113,113,0.15)" : "rgba(139,152,165,0.15)", color: alarms.length ? "#f87171" : "var(--text-dim)" }}>🚨</div>
+          <div className="stat-body">
+            <span className="label">Aktif Alarm</span>
+            <span className="value" style={{ color: alarms.length ? "#f87171" : undefined }}>{alarms.length}</span>
+          </div>
         </div>
         {canSeeSyncStatus && <SyncStatusCard />}
       </div>
@@ -149,7 +180,7 @@ export default function Dashboard() {
         </div>
         <div className="grid cols-4">
           {pumps.map((p) => (
-            <div className="card" key={p.id}>
+            <div className="card pump-mini-card" key={p.id}>
               <div className="toolbar" style={{ marginBottom: "0.4rem" }}>
                 <strong>{p.label}</strong>
                 <span className={`badge ${p.status}`}>{PUMP_STATUS_LABEL[p.status]}</span>
