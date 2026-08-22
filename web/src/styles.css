@@ -14,6 +14,12 @@
   --radius: 10px;
   --row-alt: rgba(255,255,255,0.015);
   --row-hover: rgba(255,255,255,0.035);
+  --yard-texture: rgba(255,255,255,0.015);
+  --yard-bg-1: #1c2733;
+  --yard-bg-2: #0f151c;
+  --yard-canopy-1: #2a3a4d;
+  --yard-canopy-2: #1c2836;
+  --yard-office-roof: #35485d;
 }
 
 /* Yonetim panelinin acik tema hali - kullanicinin kendi tercihiyle (bkz.
@@ -34,6 +40,12 @@
   --warning: #b45309;
   --row-alt: rgba(15,23,32,0.02);
   --row-hover: rgba(15,23,32,0.045);
+  --yard-texture: rgba(15,23,32,0.035);
+  --yard-bg-1: #c9d1db;
+  --yard-bg-2: #aab4c1;
+  --yard-canopy-1: #f4f6f9;
+  --yard-canopy-2: #dbe1e8;
+  --yard-office-roof: #8f99a6;
 }
 
 * { box-sizing: border-box; }
@@ -220,17 +232,18 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 320px;
   border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden;
   background:
-    repeating-linear-gradient(135deg, rgba(255,255,255,0.015) 0 2px, transparent 2px 14px),
-    radial-gradient(circle at 50% 15%, #1c2733, #0f151c 75%);
+    repeating-linear-gradient(135deg, var(--yard-texture) 0 2px, transparent 2px 14px),
+    radial-gradient(circle at 50% 15%, var(--yard-bg-1), var(--yard-bg-2) 75%);
+  transition: background 0.3s ease;
 }
 .station-canopy {
   position: absolute; left: 4%; right: 4%; top: 6%; height: 10px; z-index: 1;
-  background: linear-gradient(180deg, #2a3a4d, #1c2836);
+  background: linear-gradient(180deg, var(--yard-canopy-1), var(--yard-canopy-2));
   border-radius: 4px; box-shadow: 0 3px 14px rgba(0,0,0,0.4);
 }
 .canopy-pole {
   position: absolute; top: 6%; width: 4px; height: 42%;
-  background: linear-gradient(180deg, #2a3a4d, transparent);
+  background: linear-gradient(180deg, var(--yard-canopy-1), transparent);
   transform: translateX(-50%);
 }
 .station-office {
@@ -241,7 +254,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .station-office .office-roof {
   position: absolute; top: -8px; left: -4px; right: -4px; height: 10px;
-  background: #35485d; border-radius: 3px;
+  background: var(--yard-office-roof); border-radius: 3px;
 }
 .lane-arrow {
   position: absolute; left: 3%; font-size: 0.66rem; letter-spacing: 0.08em;
