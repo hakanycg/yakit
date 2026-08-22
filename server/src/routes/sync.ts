@@ -2,8 +2,9 @@ import { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
-import { attachStationScope, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
+import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { recordAudit } from "../services/auditService.js";
+import { verifyTotpCode } from "../utils/totp.js";
 import {
   ensureSyncToken,
   getStationBySyncToken,
@@ -73,18 +74,44 @@ router.get("/token", requireAuth, requireRole("super_admin", "admin"), attachSta
   res.json({ syncToken: token });
 });
 
-router.post("/token/rotate", requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, (req, res) => {
-  const token = rotateSyncToken(req.stationId!);
-  recordAudit({
-    user: req.user!,
-    action: "station_sync_token_rotated",
-    entityType: "station",
-    entityId: req.stationId!,
-    ip: req.ip,
-    stationId: req.stationId,
-  });
-  res.json({ syncToken: token });
-});
+const rotateTokenSchema = z.object({ code: z.string().trim().optional() });
+
+// Ajan senkron token'i, ele gecirilirse istasyonun tum offline kuyruk/onbellek
+// trafigini taklit etmeye yetecek kadar hassas bir sirdir - bu yuzden yeniden
+// olusturma (eski token'i gecersiz kilan, geri alinamaz bir islem) icin, hesabinda
+// 2FA acik olan kullanicilardan guncel bir TOTP kodu istenir (2FA'si olmayan
+// hesaplar icin, sahip olmadiklari bir seyi zorunlu kilmak yerine mevcut oturum
+// yeterli sayilir - tipki 2FA'nin kendisini kapatirken sifre istenmesi gibi).
+router.post(
+  "/token/rotate",
+  requireAuth,
+  requireRole("super_admin", "admin"),
+  csrfProtection,
+  attachStationScope,
+  requireStationSelected,
+  validateBody(rotateTokenSchema),
+  (req, res) => {
+    const user = req.user!;
+    if (user.totp_enabled) {
+      const { code } = req.body as z.infer<typeof rotateTokenSchema>;
+      if (!code || !user.totp_secret || !verifyTotpCode(user.totp_secret, code)) {
+        res.status(401).json({ error: "Gecerli bir dogrulama kodu gerekli.", requiresTotp: true });
+        return;
+      }
+    }
+
+    const token = rotateSyncToken(req.stationId!);
+    recordAudit({
+      user,
+      action: "station_sync_token_rotated",
+      entityType: "station",
+      entityId: req.stationId!,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ syncToken: token });
+  }
+);
 
 router.get("/status", requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, (req, res) => {
   const state = getSyncState(req.stationId!);
