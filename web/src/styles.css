@@ -97,6 +97,11 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
+  /* Mobilde .sidebar tam yukseklikte sabitlenir (asagidaki media query); menu
+     ogeleri (rol bazli tum bolumler) ekran yuksekliginden fazla olabilir - bu
+     olmadan alttaki ogeler (Ayarlar, Kullanici Yonetimi vb.) hicbir sekilde
+     gorunmez/erisilemez olurdu. */
+  overflow-y: auto;
 }
 .sidebar h1 { font-size: 1.05rem; margin: 0 0.5rem 1rem; }
 .sidebar .brand-sub { font-size: 0.75rem; color: var(--text-dim); margin: -0.75rem 0.5rem 1.25rem; }
@@ -191,6 +196,11 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .stat { display: flex; flex-direction: column; gap: 0.2rem; }
 .stat .label { color: var(--text-dim); font-size: 0.8rem; }
 .stat .value { font-size: 1.6rem; font-weight: 700; }
+/* Kiosk icinde (ör. DispenseStep'in "bekleme ekrani") .stat, admin panelin genel
+   --text-dim tonuyla degil kiosk'un kendi gun/gece etiket rengiyle (--k-dim)
+   gosterilmeli - aksi halde etiket/deger birbirinden ayrisamayip "tek renk"
+   gibi gorunur (bkz. .kiosk-card .hint-text ile ayni desen). */
+.kiosk-card .stat .label { color: var(--k-dim); }
 
 /* Istasyon Haritasi */
 .map-summary { margin-bottom: 1rem; }
