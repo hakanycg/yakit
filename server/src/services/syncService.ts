@@ -85,6 +85,7 @@ export function recordSyncEvent(stationId: number, event: SyncEventInput): SyncE
       "INSERT INTO station_sync_events (station_id, client_event_id, event_type, payload) VALUES (?, ?, ?, ?)"
     ).run(stationId, event.clientEventId, event.eventType, JSON.stringify(event.payload ?? null));
     upsertSyncState(stationId, { last_synced_at: new Date().toISOString() });
+    dispatchSyncEventSideEffects(stationId, event);
     return { clientEventId: event.clientEventId, status: "stored" };
   } catch (err) {
     // UNIQUE(station_id, client_event_id) ihlali: bu olay zaten daha once islenmis.
@@ -93,6 +94,28 @@ export function recordSyncEvent(stationId: number, event: SyncEventInput): SyncE
     }
     throw err;
   }
+}
+
+/**
+ * Ajanin bildirdigi bazi olay turleri, sadece kaydedilmekle kalmayip personelin
+ * dikkatini gerektirir. Su an tek boyle olay "printer_fault": ajanin GERCEK bir
+ * yazici surucusu (henuz bagli degil, bkz. gorev #97) fiziksel bir ariza (kagit
+ * bitti/sikisma/cevrimdisi) bildirdiginde, bunu sessizce loglamak yerine kritik
+ * bir alarma cevirir - boylece "yazici yok" (beklenen, bugunku durum) ile
+ * "yazici var ama arizali" (personelin mudahale etmesi gereken durum) ayrisir.
+ */
+function dispatchSyncEventSideEffects(stationId: number, event: SyncEventInput): void {
+  if (event.eventType !== "printer_fault") return;
+  const payload = (event.payload ?? {}) as { transactionId?: number; faultCode?: string };
+  logger.error({ stationId, payload }, "Ajan gercek fis yazicisinda fiziksel ariza bildirdi.");
+  createAlarm({
+    stationId,
+    type: "printer_fault",
+    severity: "critical",
+    message: `Fis yazicisi arizali (kod: ${payload.faultCode ?? "UNKNOWN"})${
+      payload.transactionId ? `, islem #${payload.transactionId}` : ""
+    }. Musteriye fis basilamadi - musteri e-posta/SMS ile makbuz talep edebilir, ancak yazicinin fiziksel olarak kontrol edilmesi gerekiyor.`,
+  });
 }
 
 export function listSyncEvents(stationId: number, limit = 200): StationSyncEventRow[] {

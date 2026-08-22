@@ -23,13 +23,28 @@ export interface ReceiptPrintJob {
   transactionId: number;
 }
 
-export interface PrinterDriver {
+/**
+ * Gercek bir termal yazici surucusunun print() sirasinda tespit edebilecegi somut ariza
+ * turleri. noop surucu (henuz donanim yok) BUNLARDAN HICBIRINI dondurmez - "donanim yok"
+ * beklenen/normal bir durumdur, ariza degildir; faultCode yalnizca GERCEK bir surucunun
+ * fiziksel olarak basarisiz oldugu durumlar icindir (bkz. server.ts /print rotasi, bu alani
+ * gordugunde merkez sunucuya kritik bir alarm bildirir).
+ */
+export type PrinterFaultCode = "PAPER_OUT" | "OFFLINE" | "JAMMED" | "UNKNOWN";
+
+export interface PrinterPrintResult {
   /**
    * true donerse fis fiziksel olarak yazdirilmistir. false/noop ise hicbir fiziksel
    * cikti YOKTUR - cagiran taraf (kiosk) bunu "basarili yazdirma" gibi sunmamali,
    * alternatif bir yontemle (window.print) musteriye fis saglamaya devam etmelidir.
    */
-  print(job: ReceiptPrintJob): Promise<boolean>;
+  printed: boolean;
+  /** Yalnizca gercek bir yazici GERCEKTEN basarisiz olduysa doldurulur (bkz. yukarida). */
+  faultCode?: PrinterFaultCode;
+}
+
+export interface PrinterDriver {
+  print(job: ReceiptPrintJob): Promise<PrinterPrintResult>;
 }
 
 export const noopPrinterDriver: PrinterDriver = {
@@ -38,7 +53,7 @@ export const noopPrinterDriver: PrinterDriver = {
       { transactionId: job.transactionId, lineCount: job.lines.length },
       "Fis yazdirma istegi alindi - henuz gercek termal yazici baglanmadi, sadece loglaniyor (fiziksel cikti yok)."
     );
-    return false;
+    return { printed: false };
   },
 };
 

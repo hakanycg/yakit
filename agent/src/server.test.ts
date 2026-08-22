@@ -90,7 +90,7 @@ describe("agent local HTTP server", () => {
   });
 
   it("POST /print returns printed:true once a real driver is wired in", async () => {
-    setPrinterDriver({ print: async () => true });
+    setPrinterDriver({ print: async () => ({ printed: true }) });
     const res = await fetch(`${baseUrl}/print`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -98,6 +98,37 @@ describe("agent local HTTP server", () => {
     });
     const body = (await res.json()) as { printed: boolean };
     expect(body.printed).toBe(true);
+  });
+
+  it("POST /print queues a printer_fault outbox event when a real driver reports a physical fault", async () => {
+    setPrinterDriver({ print: async () => ({ printed: false, faultCode: "PAPER_OUT" }) });
+    const res = await fetch(`${baseUrl}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 3 }),
+    });
+    const body = (await res.json()) as { printed: boolean; faultCode?: string };
+    expect(body.printed).toBe(false);
+    expect(body.faultCode).toBe("PAPER_OUT");
+
+    const statusRes = await fetch(`${baseUrl}/status`);
+    const status = (await statusRes.json()) as { pendingOutboxCount: number };
+    expect(status.pendingOutboxCount).toBe(1);
+  });
+
+  it("POST /print does NOT queue a printer_fault event when the noop driver simply has no hardware", async () => {
+    const res = await fetch(`${baseUrl}/print`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Fis", lines: [], transactionId: 4 }),
+    });
+    const body = (await res.json()) as { printed: boolean; faultCode?: string };
+    expect(body.printed).toBe(false);
+    expect(body.faultCode).toBeUndefined();
+
+    const statusRes = await fetch(`${baseUrl}/status`);
+    const status = (await statusRes.json()) as { pendingOutboxCount: number };
+    expect(status.pendingOutboxCount).toBe(0);
   });
 
   it("POST /print rejects a request without a title", async () => {

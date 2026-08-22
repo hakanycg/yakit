@@ -63,13 +63,16 @@ export default function ReceiptStep({
     return lines;
   }
 
+  const [printerFault, setPrinterFault] = useState(false);
+
   async function printReceipt() {
-    const printedByAgent = await tryPrintViaAgent({
+    const result = await tryPrintViaAgent({
       title: t("receipt.printTitle"),
       lines: buildReceiptLines(),
       transactionId: transaction.id,
     });
-    if (!printedByAgent) window.print();
+    setPrinterFault(!!result.faultCode);
+    if (!result.printed) window.print();
   }
 
   const printedRef = useRef<number | null>(null);
@@ -119,6 +122,7 @@ export default function ReceiptStep({
           </div>
 
           <button style={{ marginTop: "0.5rem" }} onClick={printReceipt}>{t("receipt.print")}</button>
+          {printerFault && <p className="error-text">{t("receipt.printerFaultNote")}</p>}
 
           {accessToken && <ReceiptSender transactionId={transaction.id} accessToken={accessToken} />}
         </>

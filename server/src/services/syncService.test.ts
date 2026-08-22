@@ -63,6 +63,27 @@ describe("syncService - heartbeat ve olay kaydi", () => {
     expect(recordSyncEvent(stationA.id, { clientEventId: "shared-id", eventType: "heartbeat" }).status).toBe("stored");
     expect(recordSyncEvent(stationB.id, { clientEventId: "shared-id", eventType: "heartbeat" }).status).toBe("stored");
   });
+
+  it("ajanin bildirdigi gercek yazici arizasi (printer_fault) kritik bir alarm olusturur", () => {
+    const station = createTestStation();
+    recordSyncEvent(station.id, {
+      clientEventId: "print-evt-1",
+      eventType: "printer_fault",
+      payload: { transactionId: 42, faultCode: "PAPER_OUT" },
+    });
+    const alarms = listAlarms(station.id, "active");
+    expect(alarms).toHaveLength(1);
+    expect(alarms[0]!.type).toBe("printer_fault");
+    expect(alarms[0]!.severity).toBe("critical");
+    expect(alarms[0]!.message).toContain("PAPER_OUT");
+    expect(alarms[0]!.message).toContain("#42");
+  });
+
+  it("basarili senkron olaylari (printer_fault olmayan) hicbir alarm olusturmaz", () => {
+    const station = createTestStation();
+    recordSyncEvent(station.id, { clientEventId: "evt-ok", eventType: "transaction_completed", payload: {} });
+    expect(listAlarms(station.id, "active")).toHaveLength(0);
+  });
 });
 
 describe("syncService - istasyon onbellek anlik goruntusu", () => {

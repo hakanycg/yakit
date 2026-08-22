@@ -9,6 +9,16 @@ export interface ReceiptPrintJob {
   transactionId: number;
 }
 
+/** Ajanin bildirebilecegi ariza kodlari (bkz. agent/src/printerDriver.ts). */
+export type PrinterFaultCode = "PAPER_OUT" | "OFFLINE" | "JAMMED" | "UNKNOWN";
+
+export interface PrintViaAgentResult {
+  printed: boolean;
+  /** Yalnizca GERCEK bir yazici fiziksel olarak basarisiz olduysa doldurulur - ajan/donanim
+   * hic yoksa (bugun COGU istasyonda boyle) bu alan bos kalir, bu bir ariza degildir. */
+  faultCode?: PrinterFaultCode;
+}
+
 // Ajanin varsayilan yerel portu (bkz. agent/.env.example PORT=4500). Istasyon bu
 // portu ozellestirdiyse burasi da guncellenmeli - su an icin donanim/ajan dagitimi
 // henuz yayginlasmadigindan sabit varsayilan yeterli.
@@ -22,7 +32,7 @@ const AGENT_PRINT_URL = "http://127.0.0.1:4500/print";
  * window.print() ile eskisi gibi devam etmelidir - boylece davranista hicbir
  * gerileme olmadan, gercek yazici geldiginde otomatik olarak devreye girer.
  */
-export async function tryPrintViaAgent(job: ReceiptPrintJob): Promise<boolean> {
+export async function tryPrintViaAgent(job: ReceiptPrintJob): Promise<PrintViaAgentResult> {
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 1200);
@@ -32,10 +42,10 @@ export async function tryPrintViaAgent(job: ReceiptPrintJob): Promise<boolean> {
       body: JSON.stringify(job),
       signal: controller.signal,
     }).finally(() => clearTimeout(timeout));
-    if (!res.ok) return false;
-    const body = (await res.json()) as { printed?: boolean };
-    return !!body.printed;
+    if (!res.ok) return { printed: false };
+    const body = (await res.json()) as PrintViaAgentResult;
+    return { printed: !!body.printed, faultCode: body.faultCode };
   } catch {
-    return false;
+    return { printed: false };
   }
 }

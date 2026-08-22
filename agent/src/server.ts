@@ -5,6 +5,7 @@ import { countPending, enqueueEvent } from "./outboxService.js";
 import { readCacheSnapshot } from "./cacheStore.js";
 import { getConnectivityState } from "./connectivity.js";
 import { getPrinterDriver } from "./printerDriver.js";
+import { logger } from "./logger.js";
 
 const enqueueSchema = z.object({
   eventType: z.string().trim().min(1).max(60),
@@ -64,6 +65,13 @@ export function createAgentApp(db: Database.Database): express.Express {
   // doner - kiosk bunu gorunce kendi window.print() yontemine duser. Boylece bugunku
   // davranista degisiklik olmadan, gercek donanim gelince tek yerden (setPrinterDriver)
   // devreye alinabilecek bir entegrasyon noktasi hazir olur.
+  //
+  // Gercek bir surucu fiziksel bir ariza (kagit bitti/sikisma/cevrimdisi) bildirirse
+  // (faultCode dolu) veya print() beklenmedik sekilde reddederse, bunu sessizce
+  // yutmak yerine outbox'a bir "printer_fault" olayi yazariz - baglanti donunce
+  // merkez sunucuya ulasir ve orada KRITIK bir alarma donusur (bkz. syncService.ts),
+  // boylece istasyon personeli yazicinin fiilen arizali oldugunu (ajanin/donanimin
+  // yoklugundan degil) fark eder.
   app.post("/print", async (req, res) => {
     const parsed = printJobSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -71,9 +79,14 @@ export function createAgentApp(db: Database.Database): express.Express {
       return;
     }
     try {
-      const printed = await getPrinterDriver().print(parsed.data);
-      res.json({ printed });
-    } catch {
+      const result = await getPrinterDriver().print(parsed.data);
+      if (result.faultCode) {
+        enqueueEvent(db, "printer_fault", { transactionId: parsed.data.transactionId, faultCode: result.faultCode });
+      }
+      res.json(result);
+    } catch (err) {
+      logger.error({ err, transactionId: parsed.data.transactionId }, "Yazici surucusu beklenmedik sekilde hata firlatti.");
+      enqueueEvent(db, "printer_fault", { transactionId: parsed.data.transactionId, faultCode: "UNKNOWN" });
       res.status(500).json({ error: "Yazdirma basarisiz.", printed: false });
     }
   });
