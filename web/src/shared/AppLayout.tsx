@@ -6,6 +6,7 @@ import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
 import { useThemePreference } from "./useThemePreference";
 import { initials } from "./format";
+import { MenuIcon, MoonIcon, SunIcon } from "./icons";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Platform Yöneticisi",
@@ -113,17 +114,17 @@ export default function AppLayout() {
       </aside>
       <div className="main-content">
         <header className="topbar">
-          <button className="menu-toggle ghost" aria-label="Menu" onClick={() => setMenuOpen((v) => !v)}>
-            &#9776;
+          <button className="menu-toggle icon-btn" aria-label="Menü" onClick={() => setMenuOpen((v) => !v)}>
+            <MenuIcon />
           </button>
           <div className="spacer" />
           <button
-            className="ghost"
+            className="icon-btn"
             onClick={() => setThemeMode(themeMode === "night" ? "day" : "night")}
             title={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
             aria-label={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
           >
-            {themeMode === "night" ? "☀️" : "🌙"}
+            {themeMode === "night" ? <SunIcon /> : <MoonIcon />}
           </button>
         </header>
         <ChangePasswordBanner />

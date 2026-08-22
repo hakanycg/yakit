@@ -176,12 +176,23 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 }
 .content { padding: 1.5rem; flex: 1; overflow-y: auto; overflow-x: hidden; }
 
-.menu-toggle { display: none; padding: 0.45rem 0.65rem; font-size: 1.1rem; line-height: 1; flex-shrink: 0; }
+/* Topbar'daki soft ikon butonlari (hamburger, gunes/ay) - emoji yerine icons.tsx'teki
+   tek renkli SVG'ler kullanildigindan, renk butonun kendi text-dim tonundan gelir ve
+   her iki temada da (gece/gunduz) tutarli/notr kalir - emoji gibi sabit renkli degil. */
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; padding: 0; border-radius: 999px; flex-shrink: 0;
+  background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.icon-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+
+.menu-toggle { display: none; }
 .sidebar-overlay { display: none; }
 
 @media (max-width: 860px) {
   .app-shell { position: relative; }
-  .menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+  .menu-toggle { display: inline-flex; }
   .sidebar {
     position: fixed; top: 0; bottom: 0; left: 0; z-index: 40;
     width: 260px; max-width: 82vw;
