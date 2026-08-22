@@ -20,7 +20,7 @@ export default function AuditLog() {
       <h2>Audit Log</h2>
       <div className="toolbar">
         <input
-          placeholder="Eylem ile filtrele (orn: login_success)"
+          placeholder="Eylem ile filtrele (örn: login_success)"
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
           style={{ maxWidth: 320 }}
@@ -29,7 +29,7 @@ export default function AuditLog() {
       <div className="card">
         <table>
           <thead>
-            <tr><th>Zaman</th><th>Kullanici</th><th>Eylem</th><th>Varlik</th><th>IP</th><th>Detay</th></tr>
+            <tr><th>Zaman</th><th>Kullanıcı</th><th>Eylem</th><th>Varlık</th><th>IP</th><th>Detay</th></tr>
           </thead>
           <tbody>
             {entries.map((e) => (
@@ -44,7 +44,7 @@ export default function AuditLog() {
                 </td>
               </tr>
             ))}
-            {entries.length === 0 && <tr><td colSpan={6} className="hint-text">Kayit yok.</td></tr>}
+            {entries.length === 0 && <tr><td colSpan={6} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>

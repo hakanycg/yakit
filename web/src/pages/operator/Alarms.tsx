@@ -32,7 +32,7 @@ export default function Alarms() {
       await api.post(`/api/alarms/${id}/${action}`, {});
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     } finally {
       setBusyId(null);
     }
@@ -44,16 +44,16 @@ export default function Alarms() {
       <div className="toolbar">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} style={{ width: 220 }}>
           <option value="active">Aktif</option>
-          <option value="acknowledged">Onaylandi</option>
-          <option value="resolved">Cozuldu</option>
-          <option value="">Tumu</option>
+          <option value="acknowledged">Onaylandı</option>
+          <option value="resolved">Çözüldü</option>
+          <option value="">Tümü</option>
         </select>
       </div>
       {error && <p className="error-text">{error}</p>}
       <div className="card">
         <table>
           <thead>
-            <tr><th>Onem</th><th>Tip</th><th>Mesaj</th><th>Durum</th><th>Zaman</th>{canManage && <th>Islem</th>}</tr>
+            <tr><th>Önem</th><th>Tip</th><th>Mesaj</th><th>Durum</th><th>Zaman</th>{canManage && <th>İşlem</th>}</tr>
           </thead>
           <tbody>
             {alarms.map((a) => (
@@ -75,14 +75,14 @@ export default function Alarms() {
                         <button disabled={busyId === a.id} onClick={() => act(a.id, "acknowledge")}>Onayla</button>
                       )}
                       {a.status !== "resolved" && (
-                        <button disabled={busyId === a.id} className="success" onClick={() => act(a.id, "resolve")}>Coz</button>
+                        <button disabled={busyId === a.id} className="success" onClick={() => act(a.id, "resolve")}>Çöz</button>
                       )}
                     </div>
                   </td>
                 )}
               </tr>
             ))}
-            {alarms.length === 0 && <tr><td colSpan={canManage ? 6 : 5} className="hint-text">Kayit yok.</td></tr>}
+            {alarms.length === 0 && <tr><td colSpan={canManage ? 6 : 5} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>

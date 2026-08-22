@@ -23,17 +23,17 @@ function SyncStatusCard() {
 
   if (!status) return null;
 
-  let label = "Istasyon ajani kurulmadi";
+  let label = "İstasyon ajanı kurulmadı";
   let color: string | undefined;
   if (status.agentConfigured && status.lastHeartbeatAt) {
     const minutesAgo = (Date.now() - new Date(status.lastHeartbeatAt).getTime()) / 60000;
-    label = minutesAgo < 5 ? "Senkron: az once" : `Senkron: ${Math.round(minutesAgo)} dk once`;
+    label = minutesAgo < 5 ? "Senkron: az önce" : `Senkron: ${Math.round(minutesAgo)} dk önce`;
     color = minutesAgo >= 15 ? "#f87171" : minutesAgo >= 5 ? "#e0b96a" : undefined;
   }
 
   return (
     <div className="card stat">
-      <span className="label">Istasyon Ajani</span>
+      <span className="label">İstasyon Ajanı</span>
       <span className="value" style={{ fontSize: "1.1rem", color }}>{label}</span>
     </div>
   );
@@ -61,7 +61,7 @@ interface Summary {
 function RevenueTrendChart({ data }: { data: DayPoint[] }) {
   const points = [...data].reverse();
   if (points.length < 2) {
-    return <p className="hint-text">Grafik icin yeterli veri yok (en az 2 gunluk satis gerekiyor).</p>;
+    return <p className="hint-text">Grafik için yeterli veri yok (en az 2 günlük satış gerekiyor).</p>;
   }
 
   const width = 600;
@@ -84,7 +84,7 @@ function RevenueTrendChart({ data }: { data: DayPoint[] }) {
         <polyline points={linePoints} fill="none" stroke="#60a5fa" strokeWidth="2" />
         {coords.map((c) => (
           <circle key={c.p.day} cx={c.x} cy={c.y} r="3" fill="#60a5fa">
-            <title>{`${c.p.day}: ${formatCurrency(c.p.revenue)} (${c.p.count} islem)`}</title>
+            <title>{`${c.p.day}: ${formatCurrency(c.p.revenue)} (${c.p.count} işlem)`}</title>
           </circle>
         ))}
       </svg>
@@ -122,7 +122,7 @@ export default function Dashboard() {
           <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
         </div>
         <div className="card stat">
-          <span className="label">Tamamlanan Islem</span>
+          <span className="label">Tamamlanan İşlem</span>
           <span className="value">{summary?.totals.completedCount ?? "..."}</span>
         </div>
         <div className="card stat">
@@ -137,15 +137,15 @@ export default function Dashboard() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Son 30 Gun Ciro Trendi</h3>
-        {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yukleniyor...</p>}
+        <h3 style={{ marginTop: 0 }}>Son 30 Gün Ciro Trendi</h3>
+        {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yükleniyor...</p>}
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
         <div className="toolbar">
           <h3 style={{ margin: 0 }}>Pompa Durumu</h3>
           <div className="spacer" />
-          <Link to="/operator/pompalar"><button className="ghost">Tumunu gor</button></Link>
+          <Link to="/operator/pompalar"><button className="ghost">Tümünü gör</button></Link>
         </div>
         <div className="grid cols-4">
           {pumps.map((p) => (
@@ -166,7 +166,7 @@ export default function Dashboard() {
           <h3 style={{ marginTop: 0 }}>Aktif Alarmlar</h3>
           <table>
             <thead>
-              <tr><th>Onem</th><th>Mesaj</th><th>Zaman</th></tr>
+              <tr><th>Önem</th><th>Mesaj</th><th>Zaman</th></tr>
             </thead>
             <tbody>
               {alarms.slice(0, 5).map((a) => (

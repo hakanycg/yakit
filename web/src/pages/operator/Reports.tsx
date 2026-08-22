@@ -64,7 +64,7 @@ export default function Reports() {
     api.get<SummaryResponse>("/api/reports/summary").then(setData);
   }, [stationId]);
 
-  if (!data) return <p className="hint-text">Yukleniyor...</p>;
+  if (!data) return <p className="hint-text">Yükleniyor...</p>;
 
   const maxPumpRevenue = Math.max(1, ...data.byPump.map((d) => d.revenue));
   const avgTicket = data.totals.completedCount > 0 ? data.totals.totalRevenue / data.totals.completedCount : 0;
@@ -81,23 +81,23 @@ export default function Reports() {
         <div className="card stat">
           <span className="label">Toplam Ciro</span>
           <span className="value">{formatCurrency(data.totals.totalRevenue)}</span>
-          <span className="hint-text">Musteriden tahsil edilen gercek tutar (indirim dusulmus)</span>
+          <span className="hint-text">Müşteriden tahsil edilen gerçek tutar (indirim düşülmüş)</span>
         </div>
         <div className="card stat">
-          <span className="label">Toplam Indirim</span>
+          <span className="label">Toplam İndirim</span>
           <span className="value" style={{ color: "var(--warning)" }}>{formatCurrency(data.totals.totalDiscount)}</span>
-          <span className="hint-text">Kampanya kodu + puan kullanimi</span>
+          <span className="hint-text">Kampanya kodu + puan kullanımı</span>
         </div>
         <div className="card stat">
           <span className="label">Toplam Litre</span>
           <span className="value">{data.totals.totalLiters.toFixed(1)} L</span>
         </div>
         <div className="card stat">
-          <span className="label">Ortalama Islem Tutari</span>
+          <span className="label">Ortalama İşlem Tutarı</span>
           <span className="value">{formatCurrency(avgTicket)}</span>
         </div>
         <div className="card stat">
-          <span className="label">Tamamlanan / Iptal / Basarisiz</span>
+          <span className="label">Tamamlanan / İptal / Başarısız</span>
           <span className="value" style={{ fontSize: "1.1rem" }}>
             {data.totals.completedCount} / {data.totals.cancelledCount} / {data.totals.failedCount}
           </span>
@@ -106,19 +106,19 @@ export default function Reports() {
 
       <div className="grid cols-2" style={{ marginTop: "1rem" }}>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Yakit Tipine Gore</h3>
+          <h3 style={{ marginTop: 0 }}>Yakıt Tipine Göre</h3>
           <p className="hint-text" style={{ marginTop: 0 }}>
-            Tahmini Kar: satilan litre × tankin guncel ortalama alis maliyeti kullanilarak hesaplanir (satis anindaki
-            gercek maliyet degil, yaklasik bir degerdir). Bu yakit tipi icin hic maliyet girilmemisse "-" gosterilir.
+            Tahmini Kar: satılan litre × tankın güncel ortalama alış maliyeti kullanılarak hesaplanır (satış anındaki
+            gerçek maliyet değil, yaklaşık bir değerdir). Bu yakıt tipi için hiç maliyet girilmemişse "-" gösterilir.
           </p>
           <table>
             <thead>
               <tr>
-                <th>Yakit</th>
-                <th className="numeric">Islem</th>
+                <th>Yakıt</th>
+                <th className="numeric">İşlem</th>
                 <th className="numeric">Litre</th>
                 <th className="numeric">Ort. Fiyat</th>
-                <th className="numeric">Indirim</th>
+                <th className="numeric">İndirim</th>
                 <th className="numeric">Ciro</th>
                 <th className="numeric">Tahmini Kar</th>
                 <th className="numeric">Pay</th>
@@ -161,12 +161,12 @@ export default function Reports() {
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Pompa Bazinda Performans</h3>
+          <h3 style={{ marginTop: 0 }}>Pompa Bazında Performans</h3>
           <table>
             <thead>
               <tr>
                 <th>Pompa</th>
-                <th className="numeric">Islem</th>
+                <th className="numeric">İşlem</th>
                 <th className="numeric">Litre</th>
                 <th className="numeric">Ciro</th>
                 <th>Pay</th>
@@ -194,16 +194,16 @@ export default function Reports() {
 
       <div className="card" style={{ marginTop: "1rem" }}>
         <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
-          <h3 style={{ margin: 0 }}>Son 30 Gun</h3>
+          <h3 style={{ margin: 0 }}>Son 30 Gün</h3>
           <div className="spacer" />
           {bestDay && (
-            <span className="hint-text">En yuksek: {formatDayLabel(bestDay.day)} ({formatCurrency(bestDay.revenue)})</span>
+            <span className="hint-text">En yüksek: {formatDayLabel(bestDay.day)} ({formatCurrency(bestDay.revenue)})</span>
           )}
-          <span className="hint-text">Gunluk ortalama: {formatCurrency(avgDayRevenue)}</span>
+          <span className="hint-text">Günlük ortalama: {formatCurrency(avgDayRevenue)}</span>
         </div>
         <div className="report-day-chart">
           {days.map((d) => (
-            <div key={d.day} className="report-day-bar-wrap" title={`${formatDayLabel(d.day)}: ${formatCurrency(d.revenue)} (${d.count} islem)`}>
+            <div key={d.day} className="report-day-bar-wrap" title={`${formatDayLabel(d.day)}: ${formatCurrency(d.revenue)} (${d.count} işlem)`}>
               <div className="report-day-bar" style={{ height: `${Math.max((d.revenue / maxDayRevenue) * 100, 1.5)}%` }} />
             </div>
           ))}

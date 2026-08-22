@@ -15,7 +15,7 @@ export default function ResetPassword() {
     e.preventDefault();
     setError(null);
     if (newPassword !== confirmPassword) {
-      setError("Sifreler eslesmiyor.");
+      setError("Şifreler eşleşmiyor.");
       return;
     }
     setSubmitting(true);
@@ -23,7 +23,7 @@ export default function ResetPassword() {
       await api.post("/api/auth/reset-password", { token, newPassword });
       setDone(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Sifre sifirlanamadi.");
+      setError(err instanceof ApiError ? err.message : "Şifre sıfırlanamadı.");
     } finally {
       setSubmitting(false);
     }
@@ -33,10 +33,10 @@ export default function ResetPassword() {
     return (
       <div className="login-shell">
         <div className="login-card">
-          <h2>Sifre Sifirla</h2>
-          <p className="error-text">Gecersiz baglanti. Lutfen e-postanizdaki/SMS'inizdeki baglantiyi kullanin.</p>
+          <h2>Şifre Sıfırla</h2>
+          <p className="error-text">Geçersiz bağlantı. Lütfen e-postanızdaki/SMS'inizdeki bağlantıyı kullanın.</p>
           <p className="hint-text" style={{ marginTop: "1rem" }}>
-            <Link to="/sifremi-unuttum">Yeni bir sifirlama baglantisi iste</Link>
+            <Link to="/sifremi-unuttum">Yeni bir sıfırlama bağlantısı iste</Link>
           </p>
         </div>
       </div>
@@ -46,21 +46,21 @@ export default function ResetPassword() {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <h2>Sifre Sifirla</h2>
+        <h2>Şifre Sıfırla</h2>
         {done ? (
           <>
             <p className="hint-text" style={{ color: "var(--accent-2)" }}>
-              Sifreniz basariyla guncellendi. Yeni sifrenizle giris yapabilirsiniz.
+              Şifreniz başarıyla güncellendi. Yeni şifrenizle giriş yapabilirsiniz.
             </p>
             <p className="hint-text" style={{ marginTop: "1.5rem" }}>
-              <Link to="/giris">Giris ekranina git</Link>
+              <Link to="/giris">Giriş ekranına git</Link>
             </p>
           </>
         ) : (
           <>
-            <p className="hint-text">Hesabiniz icin yeni bir sifre belirleyin (en az 10 karakter, buyuk/kucuk harf, rakam ve ozel karakter icermeli).</p>
+            <p className="hint-text">Hesabınız için yeni bir şifre belirleyin (en az 10 karakter, büyük/küçük harf, rakam ve özel karakter içermeli).</p>
             <form onSubmit={handleSubmit}>
-              <label htmlFor="newPassword">Yeni sifre</label>
+              <label htmlFor="newPassword">Yeni şifre</label>
               <input
                 id="newPassword"
                 type="password"
@@ -69,7 +69,7 @@ export default function ResetPassword() {
                 autoFocus
                 required
               />
-              <label htmlFor="confirmPassword">Yeni sifre (tekrar)</label>
+              <label htmlFor="confirmPassword">Yeni şifre (tekrar)</label>
               <input
                 id="confirmPassword"
                 type="password"
@@ -79,7 +79,7 @@ export default function ResetPassword() {
               />
               {error && <p className="error-text">{error}</p>}
               <button type="submit" className="primary" style={{ width: "100%", marginTop: "1.5rem" }} disabled={submitting}>
-                {submitting ? "Kaydediliyor..." : "Sifreyi Guncelle"}
+                {submitting ? "Kaydediliyor..." : "Şifreyi Güncelle"}
               </button>
             </form>
           </>

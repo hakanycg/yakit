@@ -37,10 +37,10 @@ interface FleetMovement {
 }
 
 const MOVEMENT_LABEL: Record<FleetMovement["type"], string> = {
-  topup: "Bakiye Yukleme / Odeme",
+  topup: "Bakiye Yükleme / Ödeme",
   charge: "Tahsilat",
-  refund: "Iade",
-  adjustment: "Duzeltme",
+  refund: "İade",
+  adjustment: "Düzeltme",
 };
 
 export default function FleetAccounts() {
@@ -62,28 +62,28 @@ export default function FleetAccounts() {
       await api.patch(`/api/fleet-accounts/${a.id}/active`, { active: !a.active });
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Guncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "Güncellenemedi.");
     }
   }
 
   return (
     <div>
       <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
-        <h2 style={{ margin: 0 }}>Filo Hesaplari</h2>
+        <h2 style={{ margin: 0 }}>Filo Hesapları</h2>
         <div className="spacer" />
-        <button className="primary" onClick={() => setShowCreate(true)}>Yeni Filo Hesabi</button>
+        <button className="primary" onClick={() => setShowCreate(true)}>Yeni Filo Hesabı</button>
       </div>
       <p className="hint-text">
-        Sirketlerin birden fazla plakasini tek bir bakiyeye (on odemeli) veya kredi limitine (sonradan faturalandirma)
-        bagliyoruz. Kiosk'ta bu plakalardan biriyle islem yapan musteri, kart yerine dogrudan sirket hesabindan odeyebilir.
+        Şirketlerin birden fazla plakasını tek bir bakiyeye (ön ödemeli) veya kredi limitine (sonradan faturalandırma)
+        bağlıyoruz. Kiosk'ta bu plakalardan biriyle işlem yapan müşteri, kart yerine doğrudan şirket hesabından ödeyebilir.
       </p>
       {error && <p className="error-text">{error}</p>}
 
       <table>
         <thead>
           <tr>
-            <th>Sirket</th><th>VKN</th><th>Odeme Tipi</th><th className="numeric">Bakiye/Borc</th>
-            <th className="numeric">Kullanilabilir</th><th>Plakalar</th><th>Durum</th><th></th>
+            <th>Şirket</th><th>VKN</th><th>Ödeme Tipi</th><th className="numeric">Bakiye/Borç</th>
+            <th className="numeric">Kullanılabilir</th><th>Plakalar</th><th>Durum</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -91,9 +91,9 @@ export default function FleetAccounts() {
             <tr key={a.id}>
               <td><strong>{a.companyName}</strong></td>
               <td>{a.vkn ?? "-"}</td>
-              <td>{a.billingType === "prepaid" ? "On Odemeli" : "Sonradan Fatura"}</td>
+              <td>{a.billingType === "prepaid" ? "Ön Ödemeli" : "Sonradan Fatura"}</td>
               <td className="numeric">{formatCurrency(a.balance)}</td>
-              <td className="numeric">{a.availableAmount !== null ? formatCurrency(a.availableAmount) : "Sinirsiz"}</td>
+              <td className="numeric">{a.availableAmount !== null ? formatCurrency(a.availableAmount) : "Sınırsız"}</td>
               <td>{a.plates.length}</td>
               <td><span className={`badge ${a.active ? "resolved" : "critical"}`}>{a.active ? "Aktif" : "Pasif"}</span></td>
               <td className="toolbar">
@@ -102,7 +102,7 @@ export default function FleetAccounts() {
               </td>
             </tr>
           ))}
-          {accounts.length === 0 && <tr><td colSpan={8} className="hint-text">Henuz filo hesabi yok.</td></tr>}
+          {accounts.length === 0 && <tr><td colSpan={8} className="hint-text">Henüz filo hesabı yok.</td></tr>}
         </tbody>
       </table>
 
@@ -157,7 +157,7 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
       });
       onCreated();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Hesap olusturulamadi.");
+      setError(err instanceof ApiError ? err.message : "Hesap oluşturulamadı.");
     } finally {
       setSubmitting(false);
     }
@@ -165,23 +165,23 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
   return (
     <Modal>
-      <h3 style={{ marginTop: 0 }}>Yeni Filo Hesabi</h3>
+      <h3 style={{ marginTop: 0 }}>Yeni Filo Hesabı</h3>
 
-      <label>Sirket Adi</label>
+      <label>Şirket Adı</label>
       <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} autoFocus />
 
       <label>VKN (opsiyonel)</label>
       <input value={vkn} onChange={(e) => setVkn(e.target.value)} />
 
-      <label>Odeme Tipi</label>
+      <label>Ödeme Tipi</label>
       <select value={billingType} onChange={(e) => setBillingType(e.target.value as "prepaid" | "postpaid")}>
-        <option value="prepaid">On Odemeli (bakiye yuklenir, harcandikca duser)</option>
-        <option value="postpaid">Sonradan Fatura (borc birikir, aylik odenir)</option>
+        <option value="prepaid">Ön Ödemeli (bakiye yüklenir, harcandıkça düşer)</option>
+        <option value="postpaid">Sonradan Fatura (borç birikir, aylık ödenir)</option>
       </select>
 
       {billingType === "postpaid" && (
         <>
-          <label>Kredi Limiti (opsiyonel, bos = sinirsiz)</label>
+          <label>Kredi Limiti (opsiyonel, boş = sınırsız)</label>
           <input type="number" min={0} step={0.01} value={creditLimit} onChange={(e) => setCreditLimit(e.target.value)} />
         </>
       )}
@@ -194,19 +194,19 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
       {billingType === "prepaid" && (
         <>
-          <label>Dusuk Bakiye Esigi (opsiyonel, TL - bos = uyari kapali)</label>
+          <label>Düşük Bakiye Eşiği (opsiyonel, TL - boş = uyarı kapalı)</label>
           <input type="number" min={0} step={0.01} value={lowBalanceThreshold} onChange={(e) => setLowBalanceThreshold(e.target.value)} />
-          <p className="hint-text">Bakiye bu tutarin altina dusunce yetkiliye otomatik e-posta/SMS gonderilir.</p>
+          <p className="hint-text">Bakiye bu tutarın altına düşünce yetkiliye otomatik e-posta/SMS gönderilir.</p>
         </>
       )}
 
       {error && <p className="error-text">{error}</p>}
 
       <div className="toolbar" style={{ marginTop: "1.25rem" }}>
-        <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>
+        <button type="button" onClick={onClose} disabled={submitting}>Vazgeç</button>
         <div className="spacer" />
         <button className="primary" disabled={submitting || !companyName.trim()} onClick={submit}>
-          {submitting ? "Olusturuluyor..." : "Olustur"}
+          {submitting ? "Oluşturuluyor..." : "Oluştur"}
         </button>
       </div>
     </Modal>
@@ -281,7 +281,7 @@ function AccountDetailDialog({
       setContactSaved(true);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Iletisim bilgileri kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "İletişim bilgileri kaydedilemedi.");
     } finally {
       setBusy(false);
     }
@@ -298,7 +298,7 @@ function AccountDetailDialog({
       onChanged();
       loadMovements();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem yapilamadi.");
+      setError(err instanceof ApiError ? err.message : "İşlem yapılamadı.");
     } finally {
       setBusy(false);
     }
@@ -314,8 +314,8 @@ function AccountDetailDialog({
         <button onClick={onClose}>Kapat</button>
       </div>
       <p className="hint-text">
-        {account.billingType === "prepaid" ? "On odemeli" : "Sonradan fatura"} - Bakiye/Borc: {formatCurrency(account.balance)}
-        {account.availableAmount !== null && ` - Kullanilabilir: ${formatCurrency(account.availableAmount)}`}
+        {account.billingType === "prepaid" ? "Ön ödemeli" : "Sonradan fatura"} - Bakiye/Borç: {formatCurrency(account.balance)}
+        {account.availableAmount !== null && ` - Kullanılabilir: ${formatCurrency(account.availableAmount)}`}
       </p>
       {error && <p className="error-text">{error}</p>}
 
@@ -331,26 +331,26 @@ function AccountDetailDialog({
               <li key={p.id} className="toolbar" style={{ padding: "0.35rem 0" }}>
                 <span dir="ltr">{p.plate}</span>
                 <div className="spacer" />
-                <button onClick={() => removePlate(p.id)} disabled={busy}>Kaldir</button>
+                <button onClick={() => removePlate(p.id)} disabled={busy}>Kaldır</button>
               </li>
             ))}
-            {account.plates.length === 0 && <li className="hint-text">Henuz plaka eklenmedi.</li>}
+            {account.plates.length === 0 && <li className="hint-text">Henüz plaka eklenmedi.</li>}
           </ul>
         </div>
 
         <div>
-          <h4>{account.billingType === "prepaid" ? "Bakiye Yukle" : "Odeme Kaydet (borc kapama)"}</h4>
+          <h4>{account.billingType === "prepaid" ? "Bakiye Yükle" : "Ödeme Kaydet (borç kapama)"}</h4>
           <label>Tutar (TL)</label>
           <input type="number" min={0} step={0.01} value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} />
           <label>Not (opsiyonel)</label>
           <input value={topUpNote} onChange={(e) => setTopUpNote(e.target.value)} />
           <button className="primary" style={{ marginTop: "0.75rem" }} onClick={submitTopUp} disabled={busy}>
-            {account.billingType === "prepaid" ? "Bakiye Yukle" : "Odeme Kaydet"}
+            {account.billingType === "prepaid" ? "Bakiye Yükle" : "Ödeme Kaydet"}
           </button>
         </div>
       </div>
 
-      <h4 style={{ marginTop: "1.5rem" }}>Iletisim / Dusuk Bakiye Uyarisi</h4>
+      <h4 style={{ marginTop: "1.5rem" }}>İletişim / Düşük Bakiye Uyarısı</h4>
       <div className="grid cols-2" style={{ alignItems: "start" }}>
         <div>
           <label>Yetkili E-posta</label>
@@ -363,20 +363,20 @@ function AccountDetailDialog({
       </div>
       {account.billingType === "prepaid" && (
         <>
-          <label>Dusuk Bakiye Esigi (TL, bos = uyari kapali)</label>
+          <label>Düşük Bakiye Eşiği (TL, boş = uyarı kapalı)</label>
           <input type="number" min={0} step={0.01} value={lowBalanceThreshold} onChange={(e) => setLowBalanceThreshold(e.target.value)} />
         </>
       )}
       <div className="toolbar" style={{ marginTop: "0.75rem" }}>
         {contactSaved && <span className="hint-text">Kaydedildi.</span>}
         <div className="spacer" />
-        <button onClick={saveContact} disabled={busy}>Iletisim Bilgilerini Kaydet</button>
+        <button onClick={saveContact} disabled={busy}>İletişim Bilgilerini Kaydet</button>
       </div>
 
-      <h4 style={{ marginTop: "1.5rem" }}>Hareket Gecmisi</h4>
+      <h4 style={{ marginTop: "1.5rem" }}>Hareket Geçmişi</h4>
       <table>
         <thead>
-          <tr><th>Tarih</th><th>Tip</th><th className="numeric">Tutar</th><th className="numeric">Sonraki Bakiye</th><th>Not</th><th>Kullanici</th></tr>
+          <tr><th>Tarih</th><th>Tip</th><th className="numeric">Tutar</th><th className="numeric">Sonraki Bakiye</th><th>Not</th><th>Kullanıcı</th></tr>
         </thead>
         <tbody>
           {movements.map((m) => (
@@ -385,11 +385,11 @@ function AccountDetailDialog({
               <td>{MOVEMENT_LABEL[m.type]}</td>
               <td className="numeric">{formatCurrency(m.amount)}</td>
               <td className="numeric">{formatCurrency(m.balanceAfter)}</td>
-              <td>{m.note ?? (m.transactionId ? `Islem #${m.transactionId}` : "-")}</td>
+              <td>{m.note ?? (m.transactionId ? `İşlem #${m.transactionId}` : "-")}</td>
               <td>{m.username ?? "-"}</td>
             </tr>
           ))}
-          {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Henuz hareket yok.</td></tr>}
+          {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Henüz hareket yok.</td></tr>}
         </tbody>
       </table>
     </Modal>

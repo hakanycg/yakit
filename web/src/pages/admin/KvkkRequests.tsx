@@ -63,7 +63,7 @@ export default function KvkkRequests() {
       const res = await api.get<{ report: PersonalDataReport }>(`/api/kvkk/lookup/${encoded}`);
       setReport(res.report);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Sorgu basarisiz.");
+      setError(err instanceof ApiError ? err.message : "Sorgu başarısız.");
     } finally {
       setLoading(false);
     }
@@ -73,11 +73,11 @@ export default function KvkkRequests() {
     if (!report) return;
     setEraseError(null);
     if (!reason.trim() || reason.trim().length < 3) {
-      setEraseError("Talep gerekcesi zorunludur (en az 3 karakter).");
+      setEraseError("Talep gerekçesi zorunludur (en az 3 karakter).");
       return;
     }
     if (confirmText.trim().toUpperCase() !== "SIL") {
-      setEraseError('Onaylamak icin kutuya buyuk harflerle "SIL" yaziniz.');
+      setEraseError('Onaylamak için kutuya büyük harflerle "SIL" yazınız.');
       return;
     }
     setErasing(true);
@@ -89,7 +89,7 @@ export default function KvkkRequests() {
       setReason("");
       setConfirmText("");
     } catch (err) {
-      setEraseError(err instanceof ApiError ? err.message : "Silme islemi basarisiz.");
+      setEraseError(err instanceof ApiError ? err.message : "Silme işlemi başarısız.");
     } finally {
       setErasing(false);
     }
@@ -97,13 +97,13 @@ export default function KvkkRequests() {
 
   return (
     <div>
-      <h2>KVKK Veri Sahibi Basvurulari</h2>
+      <h2>KVKK Veri Sahibi Başvuruları</h2>
       <p className="hint-text settings-intro">
-        6698 sayili KVKK kapsaminda bir plaka sahibinin "erisim hakki" (kendisine ait hangi
-        verinin tutuldugunu gorme) veya "unutulma hakki" (silinme/anonimlestirme) talebini
-        buradan isleyebilirsiniz. Islem ve odeme kayitlari vergisel saklama yukumlulugu
+        6698 sayılı KVKK kapsamında bir plaka sahibinin "erişim hakkı" (kendisine ait hangi
+        verinin tutulduğunu görme) veya "unutulma hakkı" (silinme/anonimleştirme) talebini
+        buradan işleyebilirsiniz. İşlem ve ödeme kayıtları vergisel saklama yükümlülüğü
         nedeniyle tamamen silinmez; bunun yerine plaka/e-posta/telefon gibi kimlik bilgileri
-        anonimlestirilir, tutar ve tarih kayitlari muhasebe amaciyla korunur.
+        anonimleştirilir, tutar ve tarih kayıtları muhasebe amacıyla korunur.
       </p>
 
       <div className="card" style={{ marginTop: "1.1rem" }}>
@@ -113,20 +113,20 @@ export default function KvkkRequests() {
             value={plateInput}
             onChange={(e) => setPlateInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search()}
-            placeholder="orn: 06 ABC 123"
+            placeholder="örn: 06 ABC 123"
             style={{ maxWidth: 220 }}
           />
           <button className="primary" disabled={loading || !plateInput.trim()} onClick={search}>
-            {loading ? "Araniyor..." : "Sorgula"}
+            {loading ? "Aranıyor..." : "Sorgula"}
           </button>
         </div>
         {error && <p className="error-text">{error}</p>}
 
         {eraseResult && (
           <p className="success-text" style={{ marginTop: "0.75rem" }}>
-            "{eraseResult.plate}" plakasina ait {eraseResult.transactionsAnonymized} islem ve{" "}
-            {eraseResult.loyaltyMovementsAnonymized} sadakat hareketi anonimlestirildi
-            {eraseResult.loyaltyAccountDeleted ? "; sadakat puan hesabi silindi." : "."}
+            "{eraseResult.plate}" plakasına ait {eraseResult.transactionsAnonymized} işlem ve{" "}
+            {eraseResult.loyaltyMovementsAnonymized} sadakat hareketi anonimleştirildi
+            {eraseResult.loyaltyAccountDeleted ? "; sadakat puan hesabı silindi." : "."}
           </p>
         )}
 
@@ -145,16 +145,16 @@ export default function KvkkRequests() {
               </div>
               {report.fleetLinked && (
                 <p className="hint-text" style={{ color: "#f59e0b" }}>
-                  Bu plaka bir filo hesabina bagli. Silme islemi icin once Filo Hesaplari sayfasindan hesaptan cikarilmasi gerekir.
+                  Bu plaka bir filo hesabına bağlı. Silme işlemi için önce Filo Hesapları sayfasından hesaptan çıkarılması gerekir.
                 </p>
               )}
 
-              <h4 style={{ margin: "0.75rem 0 0.5rem" }}>Islem Gecmisi ({report.transactions.length})</h4>
+              <h4 style={{ margin: "0.75rem 0 0.5rem" }}>İşlem Geçmişi ({report.transactions.length})</h4>
               <table>
                 <thead>
                   <tr>
-                    <th>Tarih</th><th>Yakit</th><th className="numeric">Litre</th><th className="numeric">Tutar</th>
-                    <th>Odeme</th><th>Durum</th><th>Makbuz E-posta</th><th>Makbuz Telefon</th>
+                    <th>Tarih</th><th>Yakıt</th><th className="numeric">Litre</th><th className="numeric">Tutar</th>
+                    <th>Ödeme</th><th>Durum</th><th>Makbuz E-posta</th><th>Makbuz Telefon</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -170,7 +170,7 @@ export default function KvkkRequests() {
                       <td>{t.receiptPhone ?? "-"}</td>
                     </tr>
                   ))}
-                  {report.transactions.length === 0 && <tr><td colSpan={8} className="hint-text">Islem kaydi yok.</td></tr>}
+                  {report.transactions.length === 0 && <tr><td colSpan={8} className="hint-text">İşlem kaydı yok.</td></tr>}
                 </tbody>
               </table>
 
@@ -179,7 +179,7 @@ export default function KvkkRequests() {
                   <h4 style={{ margin: "0.75rem 0 0.5rem" }}>Sadakat Hareketleri ({report.loyalty.movements.length})</h4>
                   <table>
                     <thead>
-                      <tr><th>Tarih</th><th>Tip</th><th className="numeric">Puan</th><th className="numeric">Bakiye</th><th>Aciklama</th></tr>
+                      <tr><th>Tarih</th><th>Tip</th><th className="numeric">Puan</th><th className="numeric">Bakiye</th><th>Açıklama</th></tr>
                     </thead>
                     <tbody>
                       {report.loyalty.movements.map((m) => (
@@ -199,18 +199,18 @@ export default function KvkkRequests() {
 
             {!report.fleetLinked && (
               <div className="card-divider">
-                <h4 style={{ margin: "0 0 0.5rem", color: "var(--danger)" }}>Unutulma Hakki: Verileri Anonimlestir</h4>
+                <h4 style={{ margin: "0 0 0.5rem", color: "var(--danger)" }}>Unutulma Hakkı: Verileri Anonimleştir</h4>
                 <p className="hint-text">
-                  Bu islem geri alinamaz: yukaridaki islemlerin plaka/e-posta/telefon bilgileri "[SILINDI]" ile
-                  degistirilir, sadakat puan hesabi tamamen silinir. Tutar ve tarih kayitlari korunur.
+                  Bu işlem geri alınamaz: yukarıdaki işlemlerin plaka/e-posta/telefon bilgileri "[SILINDI]" ile
+                  değiştirilir, sadakat puan hesabı tamamen silinir. Tutar ve tarih kayıtları korunur.
                 </p>
                 <div className="field-grid">
                   <div>
-                    <label>Talep Gerekcesi (zorunlu)</label>
-                    <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="orn: Musteri KVKK basvurusu, 21.08.2026" />
+                    <label>Talep Gerekçesi (zorunlu)</label>
+                    <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="örn: Müşteri KVKK başvurusu, 21.08.2026" />
                   </div>
                   <div>
-                    <label>Onaylamak icin "SIL" yazin</label>
+                    <label>Onaylamak için "SIL" yazın</label>
                     <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} placeholder="SIL" />
                   </div>
                 </div>
@@ -218,7 +218,7 @@ export default function KvkkRequests() {
                 <div className="toolbar" style={{ marginTop: "0.5rem" }}>
                   <div className="spacer" />
                   <button className="danger" disabled={erasing} onClick={erase}>
-                    {erasing ? "Siliniyor..." : "Verileri Kalici Olarak Anonimlestir"}
+                    {erasing ? "Siliniyor..." : "Verileri Kalıcı Olarak Anonimleştir"}
                   </button>
                 </div>
               </div>

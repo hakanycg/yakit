@@ -7,10 +7,10 @@ import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
 import { useThemePreference } from "./useThemePreference";
 
 const ROLE_LABEL: Record<string, string> = {
-  super_admin: "Platform Yoneticisi",
-  admin: "Istasyon Yoneticisi",
+  super_admin: "Platform Yöneticisi",
+  admin: "İstasyon Yöneticisi",
   operator: "Operator",
-  viewer: "Izleyici",
+  viewer: "İzleyici",
 };
 
 export default function AppLayout() {
@@ -34,36 +34,36 @@ export default function AppLayout() {
     <div className="app-shell">
       {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar${menuOpen ? " open" : ""}`}>
-        <h1>Yakit Istasyonu</h1>
-        <p className="brand-sub">Yonetim Sistemi</p>
+        <h1>Yakıt İstasyonu</h1>
+        <p className="brand-sub">Yönetim Sistemi</p>
         <nav onClick={() => setMenuOpen(false)}>
           {isSuperAdmin && (
             <>
               <p className="section-label">Platform</p>
-              <NavLink to="/admin/istasyonlar">Istasyonlar</NavLink>
+              <NavLink to="/admin/istasyonlar">İstasyonlar</NavLink>
               <NavLink to="/admin/audit-log">Audit Log</NavLink>
-              <NavLink to="/admin/sifirla">Demo Verilerini Sifirla</NavLink>
+              <NavLink to="/admin/sifirla">Demo Verilerini Sıfırla</NavLink>
             </>
           )}
 
           <p className="section-label">Operator</p>
           <NavLink to="/operator" end>Panel</NavLink>
           <NavLink to="/operator/pompalar">Pompalar</NavLink>
-          <NavLink to="/operator/islemler">Islem Listesi</NavLink>
+          <NavLink to="/operator/islemler">İşlem Listesi</NavLink>
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
-          <NavLink to="/operator/harita">Istasyon Haritasi</NavLink>
+          <NavLink to="/operator/harita">İstasyon Haritası</NavLink>
           <NavLink to="/operator/raporlar">Raporlama</NavLink>
           <NavLink to="/operator/vardiya">Vardiya</NavLink>
 
           {isStationAdmin && (
             <>
-              <p className="section-label">Istasyon Yonetimi</p>
-              <NavLink to="/operator/stok">Yakit Stoku</NavLink>
+              <p className="section-label">İstasyon Yönetimi</p>
+              <NavLink to="/operator/stok">Yakıt Stoku</NavLink>
               <NavLink to="/admin/kampanyalar">Kampanyalar</NavLink>
-              <NavLink to="/admin/filo-hesaplari">Filo Hesaplari</NavLink>
-              <NavLink to="/admin/sadakat-puanlari">Sadakat Puanlari</NavLink>
-              <NavLink to="/admin/kvkk">KVKK Basvurulari</NavLink>
-              <NavLink to="/admin/kullanicilar">Kullanici / Rol Yonetimi</NavLink>
+              <NavLink to="/admin/filo-hesaplari">Filo Hesapları</NavLink>
+              <NavLink to="/admin/sadakat-puanlari">Sadakat Puanları</NavLink>
+              <NavLink to="/admin/kvkk">KVKK Başvuruları</NavLink>
+              <NavLink to="/admin/kullanicilar">Kullanıcı / Rol Yönetimi</NavLink>
               <NavLink to="/admin/ayarlar">Ayarlar</NavLink>
             </>
           )}
@@ -85,13 +85,13 @@ export default function AppLayout() {
             <button
               className="ghost"
               onClick={() => setThemeMode(themeMode === "night" ? "day" : "night")}
-              title={themeMode === "night" ? "Acik temaya gec" : "Koyu temaya gec"}
-              aria-label={themeMode === "night" ? "Acik temaya gec" : "Koyu temaya gec"}
+              title={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
+              aria-label={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
             >
               {themeMode === "night" ? "☀️" : "🌙"}
             </button>
-            <NavLink to="/operator/sifre-degistir"><button className="ghost">Hesabim</button></NavLink>
-            <button onClick={handleLogout}>Cikis Yap</button>
+            <NavLink to="/operator/sifre-degistir"><button className="ghost">Hesabım</button></NavLink>
+            <button onClick={handleLogout}>Çıkış Yap</button>
           </div>
         </header>
         <ChangePasswordBanner />

@@ -7,9 +7,9 @@ export default function ChangePasswordBanner() {
 
   return (
     <div style={{ background: "#3a2d1f", color: "#e0b96a", padding: "0.6rem 1.5rem", fontSize: "0.88rem" }}>
-      Guvenliginiz icin ilk girişte sifrenizi degistirmeniz gerekiyor.{" "}
+      Güvenliğiniz için ilk girişte şifrenizi değiştirmeniz gerekiyor.{" "}
       <Link to="/operator/sifre-degistir" style={{ color: "#e0b96a", textDecoration: "underline" }}>
-        Simdi degistir
+        Şimdi değiştir
       </Link>
     </div>
   );

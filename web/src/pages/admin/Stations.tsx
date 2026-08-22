@@ -5,12 +5,12 @@ import { useCurrentStationId } from "../../shared/useCurrentStation";
 import type { Station } from "../../shared/types";
 
 function syncBadge(s: Station): { label: string; className: string } | null {
-  if (!s.agentConfigured) return { label: "Ajan kurulmadi", className: "info" };
-  if (!s.lastHeartbeatAt) return { label: "Ajan kurulmadi", className: "info" };
+  if (!s.agentConfigured) return { label: "Ajan kurulmadı", className: "info" };
+  if (!s.lastHeartbeatAt) return { label: "Ajan kurulmadı", className: "info" };
   const minutesAgo = (Date.now() - new Date(s.lastHeartbeatAt).getTime()) / 60000;
-  if (minutesAgo < 5) return { label: "Senkron: az once", className: "resolved" };
-  if (minutesAgo < 15) return { label: `Senkron: ${Math.round(minutesAgo)} dk once`, className: "warning" };
-  return { label: `Senkron: ${Math.round(minutesAgo)} dk once`, className: "critical" };
+  if (minutesAgo < 5) return { label: "Senkron: az önce", className: "resolved" };
+  if (minutesAgo < 15) return { label: `Senkron: ${Math.round(minutesAgo)} dk önce`, className: "warning" };
+  return { label: `Senkron: ${Math.round(minutesAgo)} dk önce`, className: "critical" };
 }
 
 function slugify(name: string): string {
@@ -39,24 +39,24 @@ export default function Stations() {
   }
 
   async function deleteStation(s: Station) {
-    const userWarning = (s.userCount ?? 0) > 0 ? ` Bu istasyona bagli ${s.userCount} kullanici hesabi da kalici olarak silinecek.` : "";
-    if (!confirm(`"${s.name}" istasyonunu kalici olarak silmek istediginize emin misiniz?${userWarning} Bu islem geri alinamaz.`)) return;
+    const userWarning = (s.userCount ?? 0) > 0 ? ` Bu istasyona bağlı ${s.userCount} kullanıcı hesabı da kalıcı olarak silinecek.` : "";
+    if (!confirm(`"${s.name}" istasyonunu kalıcı olarak silmek istediğinize emin misiniz?${userWarning} Bu işlem geri alınamaz.`)) return;
     setError(null);
     try {
       await api.delete(`/api/stations/${s.id}`);
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Istasyon silinemedi.");
+      setError(err instanceof ApiError ? err.message : "İstasyon silinemedi.");
     }
   }
 
   return (
     <div>
-      <h2>Istasyonlar</h2>
+      <h2>İstasyonlar</h2>
       {error && <p className="error-text">{error}</p>}
       <div className="toolbar">
         <div className="spacer" />
-        <button className="primary" onClick={() => setShowCreate(true)}>Yeni Istasyon</button>
+        <button className="primary" onClick={() => setShowCreate(true)}>Yeni İstasyon</button>
       </div>
 
       <div className="grid cols-2">
@@ -67,40 +67,40 @@ export default function Stations() {
               <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
               {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
               <div className="spacer" />
-              <button className="ghost" onClick={() => setCurrentStationId(s.id)}>Bu istasyona gec</button>
+              <button className="ghost" onClick={() => setCurrentStationId(s.id)}>Bu istasyona geç</button>
             </div>
-            <p className="hint-text" style={{ margin: "0.25rem 0" }}>{s.address || "Adres girilmemis"}</p>
+            <p className="hint-text" style={{ margin: "0.25rem 0" }}>{s.address || "Adres girilmemiş"}</p>
             <p className="hint-text" style={{ margin: "0.25rem 0" }}>
               Kiosk: <code>/kiosk/{s.slug}</code>
             </p>
             <div className="toolbar" style={{ marginTop: "0.5rem" }}>
               <span className="hint-text">Pompa: {s.pumpCount}</span>
-              <span className="hint-text">Kullanici: {s.userCount}</span>
+              <span className="hint-text">Kullanıcı: {s.userCount}</span>
               <span className="hint-text" style={{ color: (s.activeAlarms ?? 0) > 0 ? "#f87171" : undefined }}>
                 Aktif alarm: {s.activeAlarms}
               </span>
             </div>
             <div className="toolbar" style={{ marginTop: "0.75rem" }}>
-              <button onClick={() => toggleActive(s)}>{s.active ? "Devre Disi Birak" : "Etkinlestir"}</button>
+              <button onClick={() => toggleActive(s)}>{s.active ? "Devre Dışı Bırak" : "Etkinleştir"}</button>
               {(s.transactionCount ?? 0) === 0 && (
-                <button className="danger" onClick={() => deleteStation(s)}>Kalici Olarak Sil</button>
+                <button className="danger" onClick={() => deleteStation(s)}>Kalıcı Olarak Sil</button>
               )}
-              {s.createdAt && <span className="hint-text">Olusturulma: {formatDateTime(s.createdAt)}</span>}
+              {s.createdAt && <span className="hint-text">Oluşturulma: {formatDateTime(s.createdAt)}</span>}
             </div>
             {(s.transactionCount ?? 0) > 0 && (
               <p className="hint-text" style={{ marginTop: "0.4rem" }}>
-                Islem kaydi oldugu icin kalici olarak silinemez; sadece devre disi birakilabilir.
+                İşlem kaydı olduğu için kalıcı olarak silinemez; sadece devre dışı bırakılabilir.
               </p>
             )}
             {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) > 0 && (
               <p className="hint-text" style={{ marginTop: "0.4rem" }}>
-                Silme, buradaki {s.userCount} kullanici hesabini da kalici olarak kaldirir.
+                Silme, buradaki {s.userCount} kullanıcı hesabını da kalıcı olarak kaldırır.
               </p>
             )}
           </div>
         ))}
         {stations.length === 0 && (
-          <p className="hint-text">Henuz istasyon yok. "Yeni Istasyon" ile ilk istasyonunuzu olusturun.</p>
+          <p className="hint-text">Henüz istasyon yok. "Yeni İstasyon" ile ilk istasyonunuzu oluşturun.</p>
         )}
       </div>
 
@@ -144,7 +144,7 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
       if (ownerUsername) {
         await api.post("/api/users", {
           username: ownerUsername,
-          displayName: ownerDisplayName || `${name} Yoneticisi`,
+          displayName: ownerDisplayName || `${name} Yöneticisi`,
           password: ownerPassword,
           role: "admin",
           stationId: res.station.id,
@@ -158,7 +158,7 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
         const details = Array.isArray(err.details) ? ` (${err.details.join(" ")})` : "";
         setError(err.message + details);
       } else {
-        setError("Istasyon olusturulamadi.");
+        setError("İstasyon oluşturulamadı.");
       }
     } finally {
       setSubmitting(false);
@@ -168,35 +168,35 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <form className="card" style={{ width: "min(460px, 92vw)", maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
-        <h3 style={{ marginTop: 0 }}>Yeni Istasyon</h3>
+        <h3 style={{ marginTop: 0 }}>Yeni İstasyon</h3>
 
-        <label>Istasyon Adi</label>
+        <label>İstasyon Adı</label>
         <input value={name} onChange={(e) => handleNameChange(e.target.value)} required />
 
         <label>Kiosk Adresi (slug)</label>
         <input value={slug} onChange={(e) => { setSlug(e.target.value); setSlugTouched(true); }} required />
-        <p className="hint-text">Kiosk ekrani: /kiosk/{slug || "..."}</p>
+        <p className="hint-text">Kiosk ekranı: /kiosk/{slug || "..."}</p>
 
         <label>Adres</label>
         <input value={address} onChange={(e) => setAddress(e.target.value)} />
 
-        <label>Pompa Sayisi</label>
+        <label>Pompa Sayısı</label>
         <input type="number" min={1} max={16} value={pumpCount} onChange={(e) => setPumpCount(Number(e.target.value))} />
 
-        <h4 style={{ marginBottom: "0.25rem" }}>Istasyon Yoneticisi (opsiyonel, hemen olustur)</h4>
-        <label>Kullanici Adi</label>
-        <input value={ownerUsername} onChange={(e) => setOwnerUsername(e.target.value)} placeholder="orn: merkez-admin" />
+        <h4 style={{ marginBottom: "0.25rem" }}>İstasyon Yöneticisi (opsiyonel, hemen oluştur)</h4>
+        <label>Kullanıcı Adı</label>
+        <input value={ownerUsername} onChange={(e) => setOwnerUsername(e.target.value)} placeholder="örn: merkez-admin" />
         <label>Ad Soyad</label>
         <input value={ownerDisplayName} onChange={(e) => setOwnerDisplayName(e.target.value)} />
-        <label>Gecici Sifre</label>
+        <label>Geçici Şifre</label>
         <input type="password" value={ownerPassword} onChange={(e) => setOwnerPassword(e.target.value)} />
 
         {error && <p className="error-text">{error}</p>}
 
         <div className="toolbar" style={{ marginTop: "1.25rem" }}>
-          <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>
+          <button type="button" onClick={onClose} disabled={submitting}>Vazgeç</button>
           <div className="spacer" />
-          <button type="submit" className="primary" disabled={submitting}>{submitting ? "Olusturuluyor..." : "Olustur"}</button>
+          <button type="submit" className="primary" disabled={submitting}>{submitting ? "Oluşturuluyor..." : "Oluştur"}</button>
         </div>
       </form>
     </div>

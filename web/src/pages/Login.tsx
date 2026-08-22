@@ -38,7 +38,7 @@ export default function Login() {
       }
       goToDestinationAfterLogin();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Giris basarisiz oldu.");
+      setError(err instanceof ApiError ? err.message : "Giriş başarısız oldu.");
     } finally {
       setSubmitting(false);
     }
@@ -53,7 +53,7 @@ export default function Login() {
       await loginWithTotp(challengeToken, code);
       goToDestinationAfterLogin();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Dogrulama basarisiz oldu.");
+      setError(err instanceof ApiError ? err.message : "Doğrulama başarısız oldu.");
     } finally {
       setSubmitting(false);
     }
@@ -63,10 +63,10 @@ export default function Login() {
     return (
       <div className="login-shell">
         <div className="login-card">
-          <h2>Dogrulama Kodu</h2>
-          <p className="hint-text">Authenticator uygulamanizdaki 6 haneli kodu girin.</p>
+          <h2>Doğrulama Kodu</h2>
+          <p className="hint-text">Authenticator uygulamanızdaki 6 haneli kodu girin.</p>
           <form onSubmit={handleTotpSubmit}>
-            <label htmlFor="code">Dogrulama kodu</label>
+            <label htmlFor="code">Doğrulama kodu</label>
             <input
               id="code"
               inputMode="numeric"
@@ -79,7 +79,7 @@ export default function Login() {
             />
             {error && <p className="error-text">{error}</p>}
             <button type="submit" className="primary" style={{ width: "100%", marginTop: "1.5rem" }} disabled={submitting}>
-              {submitting ? "Dogrulaniyor..." : "Dogrula"}
+              {submitting ? "Doğrulanıyor..." : "Doğrula"}
             </button>
           </form>
           <p className="hint-text" style={{ marginTop: "1rem", textAlign: "center" }}>
@@ -92,7 +92,7 @@ export default function Login() {
                 setError(null);
               }}
             >
-              Geri don
+              Geri dön
             </a>
           </p>
         </div>
@@ -103,20 +103,20 @@ export default function Login() {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <h2>Personel Girisi</h2>
-        <p className="hint-text">Operator ve yonetici paneline erisim icin giris yapin.</p>
+        <h2>Personel Girişi</h2>
+        <p className="hint-text">Operatör ve yönetici paneline erişim için giriş yapın.</p>
         <form onSubmit={handlePasswordSubmit}>
-          <label htmlFor="username">Kullanici adi</label>
+          <label htmlFor="username">Kullanıcı adı</label>
           <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />
-          <label htmlFor="password">Sifre</label>
+          <label htmlFor="password">Şifre</label>
           <input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
           {error && <p className="error-text">{error}</p>}
           <button type="submit" className="primary" style={{ width: "100%", marginTop: "1.5rem" }} disabled={submitting}>
-            {submitting ? "Giris yapiliyor..." : "Giris Yap"}
+            {submitting ? "Giriş yapılıyor..." : "Giriş Yap"}
           </button>
         </form>
         <p className="hint-text" style={{ marginTop: "1rem", textAlign: "center" }}>
-          <Link to="/sifremi-unuttum">Sifremi unuttum</Link>
+          <Link to="/sifremi-unuttum">Şifremi unuttum</Link>
         </p>
       </div>
     </div>

@@ -30,28 +30,28 @@ export default function Transactions() {
 
   return (
     <div>
-      <h2>Islem Listesi</h2>
+      <h2>İşlem Listesi</h2>
       <div className="toolbar">
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 220 }}>
-          <option value="">Tum durumlar</option>
+          <option value="">Tüm durumlar</option>
           {Object.entries(TRANSACTION_STATUS_LABEL).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
         <div className="spacer" />
         <a href={csvHref}>
-          <button>CSV Disa Aktar</button>
+          <button>CSV Dışa Aktar</button>
         </a>
       </div>
 
       <div className="card">
         {loading ? (
-          <p className="hint-text">Yukleniyor...</p>
+          <p className="hint-text">Yükleniyor...</p>
         ) : (
           <table>
             <thead>
               <tr>
-                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakit</th><th>Litre</th><th className="numeric">Tutar</th><th className="numeric">Indirim</th><th className="numeric">Puan</th><th>Durum</th><th>Olusturulma</th><th>E-Fatura</th>
+                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakıt</th><th>Litre</th><th className="numeric">Tutar</th><th className="numeric">İndirim</th><th className="numeric">Puan</th><th>Durum</th><th>Oluşturulma</th><th>E-Fatura</th>
               </tr>
             </thead>
             <tbody>
@@ -65,7 +65,7 @@ export default function Transactions() {
                   <td className="numeric">
                     {formatCurrency(t.chargeAmount)}
                     {t.discountAmount > 0 && (
-                      <div className="hint-text" style={{ marginTop: 0 }}>yakit degeri: {formatCurrency(t.totalAmount)}</div>
+                      <div className="hint-text" style={{ marginTop: 0 }}>yakıt değeri: {formatCurrency(t.totalAmount)}</div>
                     )}
                   </td>
                   <td className="numeric">
@@ -87,7 +87,7 @@ export default function Transactions() {
                 </tr>
               ))}
               {transactions.length === 0 && (
-                <tr><td colSpan={11} className="hint-text">Kayit bulunamadi.</td></tr>
+                <tr><td colSpan={11} className="hint-text">Kayıt bulunamadı.</td></tr>
               )}
             </tbody>
           </table>
@@ -120,7 +120,7 @@ function InvoiceCell({ transactionId }: { transactionId: number }) {
       const res = await api.post<{ invoice: InvoiceInfo }>(`/api/transactions/${transactionId}/invoice`);
       setInvoice(res.invoice);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Fatura olusturulamadi.");
+      setError(err instanceof ApiError ? err.message : "Fatura oluşturulamadı.");
     } finally {
       setBusy(false);
     }
@@ -134,7 +134,7 @@ function InvoiceCell({ transactionId }: { transactionId: number }) {
 
   return (
     <div>
-      <button onClick={create} disabled={busy}>{busy ? "..." : "E-Fatura Olustur"}</button>
+      <button onClick={create} disabled={busy}>{busy ? "..." : "E-Fatura Oluştur"}</button>
       {error && <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{error}</div>}
       {!error && invoice?.status === "failed" && (
         <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{invoice.errorMessage}</div>

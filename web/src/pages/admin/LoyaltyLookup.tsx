@@ -20,7 +20,7 @@ interface LoyaltyMovement {
   createdAt: string;
 }
 
-const MOVEMENT_TYPE_LABEL: Record<string, string> = { earn: "Kazanim", redeem: "Kullanim", refund: "Iade", adjustment: "Manuel Duzeltme" };
+const MOVEMENT_TYPE_LABEL: Record<string, string> = { earn: "Kazanım", redeem: "Kullanım", refund: "İade", adjustment: "Manuel Düzeltme" };
 const MOVEMENT_TYPE_BADGE: Record<string, string> = { earn: "resolved", redeem: "warning", refund: "info", adjustment: "acknowledged" };
 
 export default function LoyaltyLookup() {
@@ -63,7 +63,7 @@ export default function LoyaltyLookup() {
       setSearchedPlate(accountRes.account.plate);
       setNewPoints(String(accountRes.account.points));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Sorgu basarisiz.");
+      setError(err instanceof ApiError ? err.message : "Sorgu başarısız.");
       setAccount(null);
       setMovements([]);
       setSearchedPlate(null);
@@ -78,11 +78,11 @@ export default function LoyaltyLookup() {
     setAdjustError(null);
     setSavedMsg(null);
     if (Number.isNaN(value) || value < 0) {
-      setAdjustError("Gecerli bir puan miktari giriniz.");
+      setAdjustError("Geçerli bir puan miktarı giriniz.");
       return;
     }
     if (!note.trim() || note.trim().length < 3) {
-      setAdjustError("Aciklama zorunludur (en az 3 karakter).");
+      setAdjustError("Açıklama zorunludur (en az 3 karakter).");
       return;
     }
     setSaving(true);
@@ -90,12 +90,12 @@ export default function LoyaltyLookup() {
       const encoded = encodeURIComponent(searchedPlate);
       const res = await api.post<{ account: LoyaltyAccount }>(`/api/loyalty/accounts/${encoded}/adjust`, { newPoints: value, note: note.trim() });
       setAccount(res.account);
-      setSavedMsg("Puan bakiyesi guncellendi.");
+      setSavedMsg("Puan bakiyesi güncellendi.");
       setNote("");
       await search(searchedPlate);
       loadRecent();
     } catch (err) {
-      setAdjustError(err instanceof ApiError ? err.message : "Duzeltme yapilamadi.");
+      setAdjustError(err instanceof ApiError ? err.message : "Düzeltme yapılamadı.");
     } finally {
       setSaving(false);
     }
@@ -103,10 +103,10 @@ export default function LoyaltyLookup() {
 
   return (
     <div>
-      <h2>Sadakat Puanlari</h2>
+      <h2>Sadakat Puanları</h2>
       <p className="hint-text settings-intro">
-        Plaka bazinda musteri puan bakiyesini sorgulayin, hareket gecmisini goruntuleyin ve gerekirse manuel olarak
-        duzeltin (ör. iade, hatali kayit, kampanya jesti).
+        Plaka bazında müşteri puan bakiyesini sorgulayın, hareket geçmişini görüntüleyin ve gerekirse manuel olarak
+        düzeltin (ör. iade, hatalı kayıt, kampanya jesti).
       </p>
 
       <div className="card" style={{ marginTop: "1.1rem" }}>
@@ -116,11 +116,11 @@ export default function LoyaltyLookup() {
             value={plateInput}
             onChange={(e) => setPlateInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && search(plateInput)}
-            placeholder="orn: 06 ABC 123"
+            placeholder="örn: 06 ABC 123"
             style={{ maxWidth: 220 }}
           />
           <button className="primary" disabled={loading || !plateInput.trim()} onClick={() => search(plateInput)}>
-            {loading ? "Araniyor..." : "Sorgula"}
+            {loading ? "Aranıyor..." : "Sorgula"}
           </button>
         </div>
         {error && <p className="error-text">{error}</p>}
@@ -132,7 +132,7 @@ export default function LoyaltyLookup() {
                 <span className="hint-text">Plaka: {account.plate}</span>
                 <div className="spacer" />
                 <div className="stat" style={{ alignItems: "flex-end" }}>
-                  <span className="label">Guncel Bakiye</span>
+                  <span className="label">Güncel Bakiye</span>
                   <span className="value">{account.points} puan</span>
                 </div>
               </div>
@@ -143,8 +143,8 @@ export default function LoyaltyLookup() {
                   <input type="number" min={0} value={newPoints} onChange={(e) => setNewPoints(e.target.value)} />
                 </div>
                 <div>
-                  <label>Aciklama (zorunlu)</label>
-                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="orn: Musteri sikayeti sonrasi iade" />
+                  <label>Açıklama (zorunlu)</label>
+                  <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="örn: Müşteri şikayeti sonrası iade" />
                 </div>
               </div>
               {adjustError && <p className="error-text">{adjustError}</p>}
@@ -152,17 +152,17 @@ export default function LoyaltyLookup() {
               <div className="toolbar" style={{ marginTop: "0.5rem" }}>
                 <div className="spacer" />
                 <button className="primary" disabled={saving} onClick={adjust}>
-                  {saving ? "Kaydediliyor..." : "Bakiyeyi Duzelt"}
+                  {saving ? "Kaydediliyor..." : "Bakiyeyi Düzelt"}
                 </button>
               </div>
             </div>
 
             <div className="card-divider">
-              <h4 style={{ margin: "0 0 0.5rem" }}>Hareket Gecmisi</h4>
+              <h4 style={{ margin: "0 0 0.5rem" }}>Hareket Geçmişi</h4>
               <table>
                 <thead>
                   <tr>
-                    <th>Tarih</th><th>Tip</th><th className="numeric">Puan</th><th className="numeric">Bakiye</th><th>Aciklama</th><th>Kullanici</th>
+                    <th>Tarih</th><th>Tip</th><th className="numeric">Puan</th><th className="numeric">Bakiye</th><th>Açıklama</th><th>Kullanıcı</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -174,11 +174,11 @@ export default function LoyaltyLookup() {
                         {m.points > 0 ? "+" : ""}{m.points}
                       </td>
                       <td className="numeric">{m.balanceAfter}</td>
-                      <td className="hint-text">{[m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}</td>
+                      <td className="hint-text">{[m.note, m.transactionId ? `İşlem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}</td>
                       <td>{m.username ?? "-"}</td>
                     </tr>
                   ))}
-                  {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Bu plaka icin hareket yok.</td></tr>}
+                  {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Bu plaka için hareket yok.</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -187,11 +187,11 @@ export default function LoyaltyLookup() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Son Hareketler (Tum Plakalar)</h3>
+        <h3 style={{ marginTop: 0 }}>Son Hareketler (Tüm Plakalar)</h3>
         <table>
           <thead>
             <tr>
-              <th>Tarih</th><th>Plaka</th><th>Tip</th><th className="numeric">Puan</th><th className="numeric">Bakiye</th><th>Aciklama</th><th>Kullanici</th>
+              <th>Tarih</th><th>Plaka</th><th>Tip</th><th className="numeric">Puan</th><th className="numeric">Bakiye</th><th>Açıklama</th><th>Kullanıcı</th>
             </tr>
           </thead>
           <tbody>
@@ -204,11 +204,11 @@ export default function LoyaltyLookup() {
                   {m.points > 0 ? "+" : ""}{m.points}
                 </td>
                 <td className="numeric">{m.balanceAfter}</td>
-                <td className="hint-text">{[m.note, m.transactionId ? `Islem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}</td>
+                <td className="hint-text">{[m.note, m.transactionId ? `İşlem #${m.transactionId}` : null].filter(Boolean).join(" · ") || "-"}</td>
                 <td>{m.username ?? "-"}</td>
               </tr>
             ))}
-            {recentMovements.length === 0 && <tr><td colSpan={7} className="hint-text">Kayit yok.</td></tr>}
+            {recentMovements.length === 0 && <tr><td colSpan={7} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>

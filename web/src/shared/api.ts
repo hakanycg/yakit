@@ -36,7 +36,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const data = isJson ? await res.json() : await res.text();
 
   if (!res.ok) {
-    const message = isJson && data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : `Istek basarisiz (${res.status})`;
+    const message = isJson && data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : `İstek başarısız (${res.status})`;
     throw new ApiError(message, res.status, isJson ? (data as { details?: unknown }).details : undefined);
   }
 
@@ -63,7 +63,7 @@ export async function kioskRequest<T>(path: string, token: string | undefined, o
   const isJson = res.headers.get("content-type")?.includes("application/json");
   const data = isJson ? await res.json() : await res.text();
   if (!res.ok) {
-    const message = isJson && data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : `Istek basarisiz (${res.status})`;
+    const message = isJson && data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : `İstek başarısız (${res.status})`;
     throw new ApiError(message, res.status, isJson ? (data as { details?: unknown }).details : undefined);
   }
   return data as T;

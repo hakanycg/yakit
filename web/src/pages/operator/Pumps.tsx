@@ -22,7 +22,7 @@ export default function Pumps() {
     try {
       await api.post(`/api/pumps/${id}/${action}`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     } finally {
       setBusyId(null);
     }
@@ -35,7 +35,7 @@ export default function Pumps() {
         <div className="spacer" />
         {canOperate && (
           <button className="danger" onClick={() => setShowEmergencyDialog(true)}>
-            🛑 ACIL DURDUR (Tum Istasyon)
+            🛑 ACİL DURDUR (Tüm İstasyon)
           </button>
         )}
       </div>
@@ -47,16 +47,16 @@ export default function Pumps() {
               <strong>{p.label}</strong>
               <span className={`badge ${p.status}`}>{PUMP_STATUS_LABEL[p.status]}</span>
               <div className="spacer" />
-              <span className="hint-text">Guncelleme: {formatDateTime(p.updatedAt)}</span>
+              <span className="hint-text">Güncelleme: {formatDateTime(p.updatedAt)}</span>
             </div>
-            <p className="hint-text">Desteklenen yakitlar: {p.fuelTypes.map((f) => FUEL_LABEL[f]).join(", ")}</p>
-            {p.faultMessage && <p className="error-text">Ariza: {p.faultMessage} ({p.faultCode})</p>}
-            {p.currentTransactionId && <p className="hint-text">Aktif islem: #{p.currentTransactionId}</p>}
+            <p className="hint-text">Desteklenen yakıtlar: {p.fuelTypes.map((f) => FUEL_LABEL[f]).join(", ")}</p>
+            {p.faultMessage && <p className="error-text">Arıza: {p.faultMessage} ({p.faultCode})</p>}
+            {p.currentTransactionId && <p className="hint-text">Aktif işlem: #{p.currentTransactionId}</p>}
 
             {canOperate && (
               <div className="toolbar" style={{ marginTop: "0.75rem" }}>
                 <button disabled={busyId === p.id || p.status === "idle"} onClick={() => runAction(p.id, "start")}>
-                  Baslat
+                  Başlat
                 </button>
                 <button disabled={busyId === p.id} onClick={() => runAction(p.id, "stop")}>
                   Durdur
@@ -65,10 +65,10 @@ export default function Pumps() {
                   Reset
                 </button>
                 <button disabled={busyId === p.id} className="danger" onClick={() => setFaultTarget(p)}>
-                  Ariza Simule Et
+                  Arıza Simüle Et
                 </button>
                 <button disabled={busyId === p.id} onClick={() => setMaintenanceTarget(p)}>
-                  Bakim Gecmisi
+                  Bakım Geçmişi
                 </button>
               </div>
             )}
@@ -96,7 +96,7 @@ function EmergencyStopDialog({ onClose }: { onClose: () => void }) {
       const res = await api.post<{ stoppedTransactions: number }>("/api/pumps/emergency-stop-all", reason.trim() ? { reason: reason.trim() } : {});
       setDone(res.stoppedTransactions);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Acil durdurma basarisiz.");
+      setError(err instanceof ApiError ? err.message : "Acil durdurma başarısız.");
     } finally {
       setSubmitting(false);
     }
@@ -107,29 +107,29 @@ function EmergencyStopDialog({ onClose }: { onClose: () => void }) {
       <div className="card" style={{ width: "min(460px, 92vw)" }}>
         {done === null ? (
           <>
-            <h3 style={{ marginTop: 0 }}>Tum Istasyonu Acil Durdur</h3>
+            <h3 style={{ marginTop: 0 }}>Tüm İstasyonu Acil Durdur</h3>
             <p className="error-text">
-              Bu islem istasyondaki TUM pompalari (bosta olanlar dahil) aninda devre disi birakir. Hicbir yeni
-              islem baslatilamaz, aktif dolumlar durdurulur. Yalnizca yangin, dokulme veya benzeri gercek bir acil
-              durumda kullanin.
+              Bu işlem istasyondaki TÜM pompaları (boşta olanlar dahil) anında devre dışı bırakır. Hiçbir yeni
+              işlem başlatılamaz, aktif dolumlar durdurulur. Yalnızca yangın, dökülme veya benzeri gerçek bir acil
+              durumda kullanın.
             </p>
             <label>Sebep (opsiyonel)</label>
-            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="orn: Yangin suphesi, pompa 2 civari" />
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="örn: Yangın şüphesi, pompa 2 civarı" />
             {error && <p className="error-text">{error}</p>}
             <div className="toolbar" style={{ marginTop: "1.25rem" }}>
-              <button onClick={onClose} disabled={submitting}>Vazgec</button>
+              <button onClick={onClose} disabled={submitting}>Vazgeç</button>
               <div className="spacer" />
               <button className="danger" onClick={submit} disabled={submitting}>
-                {submitting ? "Durduruluyor..." : "Evet, Tum Istasyonu Durdur"}
+                {submitting ? "Durduruluyor..." : "Evet, Tüm İstasyonu Durdur"}
               </button>
             </div>
           </>
         ) : (
           <>
-            <h3 style={{ marginTop: 0 }}>Istasyon Durduruldu</h3>
+            <h3 style={{ marginTop: 0 }}>İstasyon Durduruldu</h3>
             <p>
-              Tum pompalar devre disi birakildi{done > 0 ? ` (${done} aktif islem sonlandirildi)` : ""}. Durum
-              netlesince her pompayi tek tek "Reset" ile tekrar hizmete alabilirsiniz.
+              Tüm pompalar devre dışı bırakıldı{done > 0 ? ` (${done} aktif işlem sonlandırıldı)` : ""}. Durum
+              netleşince her pompayı tek tek "Reset" ile tekrar hizmete alabilirsiniz.
             </p>
             <div className="toolbar" style={{ marginTop: "1.25rem" }}>
               <div className="spacer" />
@@ -144,7 +144,7 @@ function EmergencyStopDialog({ onClose }: { onClose: () => void }) {
 
 function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
   const [faultCode, setFaultCode] = useState("E-101");
-  const [faultMessage, setFaultMessage] = useState("Nozul sensoru yanit vermiyor");
+  const [faultMessage, setFaultMessage] = useState("Nozul sensörü yanıt vermiyor");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -155,7 +155,7 @@ function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
       await api.post(`/api/pumps/${pump.id}/simulate-fault`, { faultCode, faultMessage });
       onClose();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     } finally {
       setSubmitting(false);
     }
@@ -164,17 +164,17 @@ function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <div className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h3 style={{ marginTop: 0 }}>{pump.label} - Ariza Simulasyonu</h3>
-        <label>Ariza Kodu</label>
+        <h3 style={{ marginTop: 0 }}>{pump.label} - Arıza Simülasyonu</h3>
+        <label>Arıza Kodu</label>
         <input value={faultCode} onChange={(e) => setFaultCode(e.target.value)} />
-        <label>Ariza Mesaji</label>
+        <label>Arıza Mesajı</label>
         <input value={faultMessage} onChange={(e) => setFaultMessage(e.target.value)} />
         {error && <p className="error-text">{error}</p>}
         <div className="toolbar" style={{ marginTop: "1.25rem" }}>
-          <button onClick={onClose} disabled={submitting}>Vazgec</button>
+          <button onClick={onClose} disabled={submitting}>Vazgeç</button>
           <div className="spacer" />
           <button className="danger" onClick={submit} disabled={submitting}>
-            {submitting ? "Uygulaniyor..." : "Ariza Olustur"}
+            {submitting ? "Uygulanıyor..." : "Arıza Oluştur"}
           </button>
         </div>
       </div>
@@ -191,7 +191,7 @@ interface MaintenanceLog {
   createdAt: string;
 }
 
-const MAINTENANCE_TYPE_LABEL: Record<MaintenanceLog["type"], string> = { maintenance: "Bakim", note: "Not" };
+const MAINTENANCE_TYPE_LABEL: Record<MaintenanceLog["type"], string> = { maintenance: "Bakım", note: "Not" };
 
 function MaintenanceDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
   const [logs, setLogs] = useState<MaintenanceLog[] | null>(null);
@@ -213,7 +213,7 @@ function MaintenanceDialog({ pump, onClose }: { pump: Pump; onClose: () => void 
       setDescription("");
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kayit eklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Kayıt eklenemedi.");
     } finally {
       setSubmitting(false);
     }
@@ -222,26 +222,26 @@ function MaintenanceDialog({ pump, onClose }: { pump: Pump; onClose: () => void 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <div className="card" style={{ width: "min(560px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h3 style={{ marginTop: 0 }}>{pump.label} - Bakim Gecmisi</h3>
+        <h3 style={{ marginTop: 0 }}>{pump.label} - Bakım Geçmişi</h3>
 
         <label>Tip</label>
         <select value={type} onChange={(e) => setType(e.target.value as MaintenanceLog["type"])}>
-          <option value="maintenance">Bakim (ör. filtre/yag degisimi, servis)</option>
-          <option value="note">Not (genel gozlem)</option>
+          <option value="maintenance">Bakım (ör. filtre/yağ değişimi, servis)</option>
+          <option value="note">Not (genel gözlem)</option>
         </select>
-        <label>Aciklama</label>
-        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="orn: Nozul filtresi degistirildi" />
+        <label>Açıklama</label>
+        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder="örn: Nozul filtresi değiştirildi" />
         {error && <p className="error-text">{error}</p>}
         <div className="toolbar" style={{ marginTop: "0.75rem" }}>
           <div className="spacer" />
           <button className="primary" disabled={submitting || description.trim().length < 3} onClick={submit}>
-            {submitting ? "Ekleniyor..." : "Kayit Ekle"}
+            {submitting ? "Ekleniyor..." : "Kayıt Ekle"}
           </button>
         </div>
 
         <table style={{ marginTop: "1rem" }}>
           <thead>
-            <tr><th>Tarih</th><th>Tip</th><th>Aciklama</th><th>Kullanici</th></tr>
+            <tr><th>Tarih</th><th>Tip</th><th>Açıklama</th><th>Kullanıcı</th></tr>
           </thead>
           <tbody>
             {logs?.map((l) => (
@@ -252,8 +252,8 @@ function MaintenanceDialog({ pump, onClose }: { pump: Pump; onClose: () => void 
                 <td>{l.username ?? "-"}</td>
               </tr>
             ))}
-            {logs?.length === 0 && <tr><td colSpan={4} className="hint-text">Kayit yok.</td></tr>}
-            {logs === null && <tr><td colSpan={4} className="hint-text">Yukleniyor...</td></tr>}
+            {logs?.length === 0 && <tr><td colSpan={4} className="hint-text">Kayıt yok.</td></tr>}
+            {logs === null && <tr><td colSpan={4} className="hint-text">Yükleniyor...</td></tr>}
           </tbody>
         </table>
 

@@ -21,7 +21,7 @@ export default function StationSwitcher() {
   if (stations.length === 0) {
     return (
       <Link to="/admin/istasyonlar">
-        <button className="ghost">Ilk istasyonu olustur</button>
+        <button className="ghost">İlk istasyonu oluştur</button>
       </Link>
     );
   }

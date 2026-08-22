@@ -4,11 +4,11 @@ import { PUMP_STATUS_LABEL, FUEL_LABEL, formatDateTime } from "../../shared/form
 import type { Pump, PumpStatus } from "../../shared/types";
 
 const LEGEND: { status: PumpStatus; hint: string }[] = [
-  { status: "idle", hint: "Kullanima hazir" },
-  { status: "reserved", hint: "Musteri islem baslatti" },
+  { status: "idle", hint: "Kullanıma hazır" },
+  { status: "reserved", hint: "Müşteri işlem başlattı" },
   { status: "dispensing", hint: "Aktif dolum" },
-  { status: "fault", hint: "Mudahale gerekiyor" },
-  { status: "offline", hint: "Manuel olarak kapatildi" },
+  { status: "fault", hint: "Müdahale gerekiyor" },
+  { status: "offline", hint: "Manuel olarak kapatıldı" },
 ];
 
 function PumpIcon() {

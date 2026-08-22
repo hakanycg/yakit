@@ -16,7 +16,7 @@ export default function DemoReset() {
       setSuccess(true);
       setConfirmText("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     } finally {
       setBusy(false);
     }
@@ -24,18 +24,18 @@ export default function DemoReset() {
 
   return (
     <div>
-      <h2>Demo Verilerini Sifirla</h2>
+      <h2>Demo Verilerini Sıfırla</h2>
       <div className="card" style={{ maxWidth: 520 }}>
         <p className="hint-text">
-          Bu islem tum islem (transaction) ve alarm gecmisini siler, pompalari musait duruma dondurur ve yakit
-          fiyatlarini varsayilan degerlere sifirlar. Kullanicilar ve denetim gunlugu (audit log) etkilenmez.
+          Bu işlem tüm işlem (transaction) ve alarm geçmişini siler, pompaları müsait duruma döndürür ve yakıt
+          fiyatlarını varsayılan değerlere sıfırlar. Kullanıcılar ve denetim günlüğü (audit log) etkilenmez.
         </p>
-        <label>Onaylamak icin <strong>SIFIRLA</strong> yazin</label>
+        <label>Onaylamak için <strong>SIFIRLA</strong> yazın</label>
         <input value={confirmText} onChange={(e) => setConfirmText(e.target.value)} />
         {error && <p className="error-text">{error}</p>}
-        {success && <p className="hint-text" style={{ color: "#4ade80" }}>Veriler sifirlandi.</p>}
+        {success && <p className="hint-text" style={{ color: "#4ade80" }}>Veriler sıfırlandı.</p>}
         <button className="danger" style={{ marginTop: "1rem" }} disabled={confirmText !== "SIFIRLA" || busy} onClick={handleReset}>
-          {busy ? "Sifirlaniyor..." : "Verileri Sifirla"}
+          {busy ? "Sıfırlanıyor..." : "Verileri Sıfırla"}
         </button>
       </div>
     </div>

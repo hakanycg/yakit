@@ -6,10 +6,10 @@ import type { AdminUser, RoleName } from "../../shared/types";
 import { useAuth } from "../../shared/AuthContext";
 
 const ROLE_LABEL: Record<RoleName, string> = {
-  super_admin: "Platform Yoneticisi",
-  admin: "Istasyon Yoneticisi",
-  operator: "Operator",
-  viewer: "Izleyici",
+  super_admin: "Platform Yöneticisi",
+  admin: "İstasyon Yöneticisi",
+  operator: "Operatör",
+  viewer: "İzleyici",
 };
 
 const EDITABLE_ROLES: RoleName[] = ["admin", "operator", "viewer"];
@@ -33,7 +33,7 @@ export default function Users() {
       await api.patch(`/api/users/${u.id}`, { active: !u.active });
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     }
   }
 
@@ -43,49 +43,49 @@ export default function Users() {
       await api.patch(`/api/users/${u.id}`, { role });
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     }
   }
 
   async function resetPassword(u: AdminUser) {
-    const pwd = prompt(`${u.username} icin gecici sifre girin (en az 10 karakter, buyuk/kucuk harf, rakam, ozel karakter):`);
+    const pwd = prompt(`${u.username} için geçici şifre girin (en az 10 karakter, büyük/küçük harf, rakam, özel karakter):`);
     if (!pwd) return;
     setError(null);
     try {
       await api.patch(`/api/users/${u.id}`, { resetPassword: pwd });
       load();
-      alert("Sifre sifirlandi. Kullanici bir sonraki girişte yeni sifre belirlemek zorunda kalacak.");
+      alert("Şifre sıfırlandı. Kullanıcı bir sonraki girişte yeni şifre belirlemek zorunda kalacak.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     }
   }
 
   async function editContact(u: AdminUser) {
-    const email = prompt(`${u.username} icin e-posta (bos birakabilirsiniz):`, u.email ?? "");
+    const email = prompt(`${u.username} için e-posta (boş bırakabilirsiniz):`, u.email ?? "");
     if (email === null) return;
-    const phone = prompt(`${u.username} icin telefon (bos birakabilirsiniz):`, u.phone ?? "");
+    const phone = prompt(`${u.username} için telefon (boş bırakabilirsiniz):`, u.phone ?? "");
     if (phone === null) return;
     setError(null);
     try {
       await api.patch(`/api/users/${u.id}`, { email: email.trim() || null, phone: phone.trim() || null });
       load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Islem basarisiz.");
+      setError(err instanceof ApiError ? err.message : "İşlem başarısız.");
     }
   }
 
   return (
     <div>
-      <h2>Kullanici / Rol Yonetimi</h2>
+      <h2>Kullanıcı / Rol Yönetimi</h2>
       {error && <p className="error-text">{error}</p>}
       <div className="toolbar">
         <div className="spacer" />
-        <button className="primary" onClick={() => setShowCreate(true)}>Yeni Kullanici</button>
+        <button className="primary" onClick={() => setShowCreate(true)}>Yeni Kullanıcı</button>
       </div>
       <div className="card">
         <table>
           <thead>
-            <tr><th>Kullanici Adi</th><th>Ad Soyad</th><th>Rol</th><th>Durum</th><th>Son Giris</th><th>Islem</th></tr>
+            <tr><th>Kullanıcı Adı</th><th>Ad Soyad</th><th>Rol</th><th>Durum</th><th>Son Giriş</th><th>İşlem</th></tr>
           </thead>
           <tbody>
             {users.map((u) => (
@@ -107,16 +107,16 @@ export default function Users() {
                 <td>{formatDateTime(u.lastLoginAt)}</td>
                 <td>
                   <div className="toolbar" style={{ margin: 0 }}>
-                    <button onClick={() => editContact(u)}>Iletisim</button>
-                    <button onClick={() => resetPassword(u)}>Sifre Sifirla</button>
+                    <button onClick={() => editContact(u)}>İletişim</button>
+                    <button onClick={() => resetPassword(u)}>Şifre Sıfırla</button>
                     <button disabled={u.id === me?.id} onClick={() => toggleActive(u)}>
-                      {u.active ? "Devre Disi Birak" : "Etkinlestir"}
+                      {u.active ? "Devre Dışı Bırak" : "Etkinleştir"}
                     </button>
                   </div>
                 </td>
               </tr>
             ))}
-            {users.length === 0 && <tr><td colSpan={6} className="hint-text">Kayit yok.</td></tr>}
+            {users.length === 0 && <tr><td colSpan={6} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -160,7 +160,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         const details = Array.isArray(err.details) ? ` (${err.details.join(" ")})` : "";
         setError(err.message + details);
       } else {
-        setError("Kullanici olusturulamadi.");
+        setError("Kullanıcı oluşturulamadı.");
       }
     } finally {
       setSubmitting(false);
@@ -170,16 +170,16 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <form className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
-        <h3 style={{ marginTop: 0 }}>Yeni Kullanici</h3>
-        <label>Kullanici Adi</label>
+        <h3 style={{ marginTop: 0 }}>Yeni Kullanıcı</h3>
+        <label>Kullanıcı Adı</label>
         <input value={username} onChange={(e) => setUsername(e.target.value)} required />
         <label>Ad Soyad</label>
         <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
-        <label>Gecici Sifre</label>
+        <label>Geçici Şifre</label>
         <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        <label>E-posta (opsiyonel, bildirimler icin)</label>
+        <label>E-posta (opsiyonel, bildirimler için)</label>
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <label>Telefon (opsiyonel, bildirimler icin)</label>
+        <label>Telefon (opsiyonel, bildirimler için)</label>
         <input value={phone} onChange={(e) => setPhone(e.target.value)} />
         <label>Rol</label>
         <select value={role} onChange={(e) => setRole(e.target.value as RoleName)}>
@@ -188,13 +188,13 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
           ))}
         </select>
         {role === "super_admin" && (
-          <p className="hint-text">Platform yoneticisi hicbir istasyona bagli olmaz, tum istasyonlara erisir.</p>
+          <p className="hint-text">Platform yöneticisi hiçbir istasyona bağlı olmaz, tüm istasyonlara erişir.</p>
         )}
         {error && <p className="error-text">{error}</p>}
         <div className="toolbar" style={{ marginTop: "1.25rem" }}>
-          <button type="button" onClick={onClose} disabled={submitting}>Vazgec</button>
+          <button type="button" onClick={onClose} disabled={submitting}>Vazgeç</button>
           <div className="spacer" />
-          <button type="submit" className="primary" disabled={submitting}>{submitting ? "Olusturuluyor..." : "Olustur"}</button>
+          <button type="submit" className="primary" disabled={submitting}>{submitting ? "Oluşturuluyor..." : "Oluştur"}</button>
         </div>
       </form>
     </div>

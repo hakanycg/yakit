@@ -70,6 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth(): AuthState {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth, AuthProvider icinde kullanilmalidir.");
+  if (!ctx) throw new Error("useAuth, AuthProvider içinde kullanılmalıdır.");
   return ctx;
 }

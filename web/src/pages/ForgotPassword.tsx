@@ -16,7 +16,7 @@ export default function ForgotPassword() {
       await api.post("/api/auth/forgot-password", { identifier });
       setDone(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Istek gonderilemedi.");
+      setError(err instanceof ApiError ? err.message : "İstek gönderilemedi.");
     } finally {
       setSubmitting(false);
     }
@@ -25,33 +25,33 @@ export default function ForgotPassword() {
   return (
     <div className="login-shell">
       <div className="login-card">
-        <h2>Sifremi Unuttum</h2>
+        <h2>Şifremi Unuttum</h2>
         {done ? (
           <>
             <p className="hint-text">
-              Bu bilgilerle eslesen bir hesap varsa, kayitli e-posta/telefon numarasina sifre sifirlama
-              talimatlari gonderildi. Gelen kutunuzu (ve spam klasorunu) kontrol edin.
+              Bu bilgilerle eşleşen bir hesap varsa, kayıtlı e-posta/telefon numarasına şifre sıfırlama
+              talimatları gönderildi. Gelen kutunuzu (ve spam klasörünü) kontrol edin.
             </p>
             <p className="hint-text" style={{ marginTop: "1.5rem" }}>
-              <Link to="/giris">Giris ekranina don</Link>
+              <Link to="/giris">Giriş ekranına dön</Link>
             </p>
           </>
         ) : (
           <>
             <p className="hint-text">
-              Kullanici adinizi veya hesabiniza kayitli e-posta adresini girin; eger hesabinizda bir e-posta
-              veya telefon numarasi kayitliysa size sifre sifirlama baglantisi gonderilir.
+              Kullanıcı adınızı veya hesabınıza kayıtlı e-posta adresini girin; eğer hesabınızda bir e-posta
+              veya telefon numarası kayıtlıysa size şifre sıfırlama bağlantısı gönderilir.
             </p>
             <form onSubmit={handleSubmit}>
-              <label htmlFor="identifier">Kullanici adi veya e-posta</label>
+              <label htmlFor="identifier">Kullanıcı adı veya e-posta</label>
               <input id="identifier" value={identifier} onChange={(e) => setIdentifier(e.target.value)} autoFocus required />
               {error && <p className="error-text">{error}</p>}
               <button type="submit" className="primary" style={{ width: "100%", marginTop: "1.5rem" }} disabled={submitting}>
-                {submitting ? "Gonderiliyor..." : "Sifirlama Baglantisi Gonder"}
+                {submitting ? "Gönderiliyor..." : "Sıfırlama Bağlantısı Gönder"}
               </button>
             </form>
             <p className="hint-text" style={{ marginTop: "1rem" }}>
-              <Link to="/giris">Giris ekranina don</Link>
+              <Link to="/giris">Giriş ekranına dön</Link>
             </p>
           </>
         )}
