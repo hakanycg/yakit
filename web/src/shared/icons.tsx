@@ -50,3 +50,54 @@ export function MoonIcon() {
     </svg>
   );
 }
+
+/** Genel Bakis istatistik kutulari icin - ayni "soft, currentColor" prensibi. */
+export function WalletIcon() {
+  return (
+    <svg {...common} aria-hidden="true">
+      <rect x="3" y="6" width="18" height="13" rx="2" />
+      <path d="M3 10h18" />
+      <path d="M15 14.5h2.5" />
+    </svg>
+  );
+}
+
+export function CheckCircleIcon() {
+  return (
+    <svg {...common} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12.3 10.5 15 16 9" />
+    </svg>
+  );
+}
+
+export function FuelIcon() {
+  return (
+    <svg {...common} aria-hidden="true">
+      <path d="M4 21V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v15" />
+      <path d="M3 21h10" />
+      <path d="M12 10h2l2.8 2.8V17a1.3 1.3 0 0 0 2.6 0v-4.3a1.8 1.8 0 0 0-.53-1.28L17 9.5" />
+    </svg>
+  );
+}
+
+export function AlertIcon() {
+  return (
+    <svg {...common} aria-hidden="true">
+      <path d="M12 3.7 21 19.3H3L12 3.7Z" />
+      <line x1="12" y1="10" x2="12" y2="14" />
+      <line x1="12" y1="16.5" x2="12" y2="16.55" />
+    </svg>
+  );
+}
+
+export function SyncIcon() {
+  return (
+    <svg {...common} aria-hidden="true">
+      <path d="M20 11A8 8 0 0 0 6.3 6.3" />
+      <polyline points="6 2.8 6 6.8 10 6.8" />
+      <path d="M4 13a8 8 0 0 0 13.7 4.7" />
+      <polyline points="18 21.2 18 17.2 14 17.2" />
+    </svg>
+  );
+}

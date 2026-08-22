@@ -39,7 +39,7 @@ function SidebarAccountCard({ onLogout }: { onLogout: () => void }) {
           <NavLink to="/operator/sifre-degistir" className="sidebar-dropdown-item" onClick={() => setOpen(false)}>
             Hesabım
           </NavLink>
-          <button type="button" className="sidebar-dropdown-item danger" onClick={onLogout}>
+          <button type="button" className="sidebar-dropdown-item sidebar-dropdown-item--danger" onClick={onLogout}>
             Çıkış Yap
           </button>
         </div>

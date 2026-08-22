@@ -67,7 +67,6 @@ export default function StationSwitcher() {
         <span className="sidebar-avatar">{initials(currentName)}</span>
         <span className="sidebar-card-text">
           <strong>{currentName}</strong>
-          <span className="hint-text">{isSuperAdmin ? "İstasyon değiştir" : "İstasyon"}</span>
         </span>
         {isSuperAdmin && <span className={`sidebar-chevron${open ? " open" : ""}`}>▾</span>}
       </button>

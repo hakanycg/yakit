@@ -157,7 +157,7 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 }
 .sidebar-dropdown-item:hover { background: var(--row-hover); }
 .sidebar-dropdown-item.active { color: var(--accent); font-weight: 600; }
-.sidebar-dropdown-item.danger { color: var(--danger); }
+.sidebar-dropdown-item.sidebar-dropdown-item--danger { color: var(--danger); }
 .sidebar a {
   color: var(--text-dim);
   text-decoration: none;

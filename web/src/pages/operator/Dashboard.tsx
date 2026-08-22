@@ -5,6 +5,7 @@ import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useAuth } from "../../shared/AuthContext";
 import { api } from "../../shared/api";
 import { PUMP_STATUS_LABEL, FUEL_LABEL, PAYMENT_METHOD_LABEL, formatCurrency } from "../../shared/format";
+import { AlertIcon, CheckCircleIcon, FuelIcon, SyncIcon, WalletIcon } from "../../shared/icons";
 
 interface SyncStatus {
   lastHeartbeatAt: string | null;
@@ -33,7 +34,7 @@ function SyncStatusCard() {
 
   return (
     <div className="card stat dash-stat">
-      <div className="stat-icon" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}>🔄</div>
+      <div className="stat-icon" style={{ background: "rgba(167,139,250,0.15)", color: "#a78bfa" }}><SyncIcon /></div>
       <div className="stat-body">
         <span className="label">İstasyon Ajanı</span>
         <span className="value" style={{ fontSize: "1rem", fontWeight: 600, color }}>{label}</span>
@@ -206,7 +207,7 @@ export default function Dashboard() {
       </div>
       <div className="grid stats-grid">
         <div className="card stat dash-stat">
-          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}>💰</div>
+          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}><WalletIcon /></div>
           <div className="stat-body">
             <span className="label">Toplam Ciro</span>
             <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
@@ -214,7 +215,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="card stat dash-stat">
-          <div className="stat-icon" style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80" }}>✅</div>
+          <div className="stat-icon" style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80" }}><CheckCircleIcon /></div>
           <div className="stat-body">
             <span className="label">Tamamlanan İşlem</span>
             <span className="value">{summary?.totals.completedCount ?? "..."}</span>
@@ -222,7 +223,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="card stat dash-stat">
-          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}>⛽</div>
+          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}><FuelIcon /></div>
           <div className="stat-body">
             <span className="label">Aktif Dolum</span>
             <span className="value">{dispensing} / {pumps.length}</span>
@@ -230,7 +231,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="card stat dash-stat">
-          <div className="stat-icon" style={{ background: alarms.length ? "rgba(248,113,113,0.15)" : "rgba(139,152,165,0.15)", color: alarms.length ? "#f87171" : "var(--text-dim)" }}>🚨</div>
+          <div className="stat-icon" style={{ background: alarms.length ? "rgba(248,113,113,0.15)" : "rgba(139,152,165,0.15)", color: alarms.length ? "#f87171" : "var(--text-dim)" }}><AlertIcon /></div>
           <div className="stat-body">
             <span className="label">Aktif Alarm</span>
             <span className="value" style={{ color: alarms.length ? "#f87171" : undefined }}>{alarms.length}</span>
