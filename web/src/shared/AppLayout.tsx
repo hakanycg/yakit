@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
@@ -14,6 +14,59 @@ const ROLE_LABEL: Record<string, string> = {
   operator: "Operator",
   viewer: "İzleyici",
 };
+
+/** Sidebar'daki "Ayarlar" acilir menusundeki sayfalar (bkz. App.tsx /admin/ayarlar/* rotalari). */
+const SETTINGS_PAGES = [
+  { to: "/admin/ayarlar/yakit-fiyatlari", label: "Yakıt Fiyatları" },
+  { to: "/admin/ayarlar/odeme", label: "Ödeme (iyzico)" },
+  { to: "/admin/ayarlar/sadakat", label: "Sadakat / Puan" },
+  { to: "/admin/ayarlar/fatura", label: "Fatura / İrsaliye" },
+  { to: "/admin/ayarlar/ozet-raporu", label: "Otomatik Özet Raporu" },
+  { to: "/admin/ayarlar/istasyon-ajani", label: "İstasyon Ajanı" },
+];
+
+/**
+ * Sidebar'da tek bir link yerine, tiklaninca alt sayfalarini acan menu basligi.
+ * Bulundugunuz sayfa bu grubun icindeyse menu bastan acik gelir ki nerede
+ * oldugunuz kaybolmasin.
+ */
+function SidebarSubmenu({ label, pages, onNavigate }: { label: string; pages: { to: string; label: string }[]; onNavigate: () => void }) {
+  const { pathname } = useLocation();
+  const containsActive = pages.some((p) => pathname.startsWith(p.to));
+  const [open, setOpen] = useState(containsActive);
+
+  useEffect(() => {
+    if (containsActive) setOpen(true);
+  }, [containsActive]);
+
+  return (
+    <div className="sidebar-submenu">
+      <button
+        type="button"
+        className={`sidebar-submenu-trigger${containsActive ? " active" : ""}`}
+        // <nav> uzerindeki tiklama mobilde sidebar'i kapatiyor; alt menuyu acmak
+        // bir gezinme degil, o yuzden bu tiklamanin yukari kabarmasi engelleniyor.
+        onClick={(e) => {
+          e.stopPropagation();
+          setOpen((v) => !v);
+        }}
+        aria-expanded={open}
+      >
+        <span>{label}</span>
+        <span className={`sidebar-chevron${open ? " open" : ""}`}>▾</span>
+      </button>
+      {open && (
+        <div className="sidebar-submenu-items">
+          {pages.map((p) => (
+            <NavLink key={p.to} to={p.to} onClick={onNavigate}>
+              {p.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 /** Hesap kartinin acilir menusundeki sayfalar (bkz. App.tsx /operator/hesabim/* rotalari). */
 const ACCOUNT_PAGES = [
@@ -122,7 +175,7 @@ export default function AppLayout() {
               <NavLink to="/admin/sadakat-puanlari">Sadakat Puanları</NavLink>
               <NavLink to="/admin/kvkk">KVKK Başvuruları</NavLink>
               <NavLink to="/admin/kullanicilar">Kullanıcı / Rol Yönetimi</NavLink>
-              <NavLink to="/admin/ayarlar">Ayarlar</NavLink>
+              <SidebarSubmenu label="Ayarlar" pages={SETTINGS_PAGES} onNavigate={() => setMenuOpen(false)} />
             </>
           )}
         </nav>

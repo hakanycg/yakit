@@ -24,7 +24,12 @@ import LoyaltyLookup from "./pages/admin/LoyaltyLookup";
 import KvkkRequests from "./pages/admin/KvkkRequests";
 import Users from "./pages/admin/Users";
 import AuditLog from "./pages/admin/AuditLog";
-import Settings from "./pages/admin/Settings";
+import FuelPrices from "./pages/admin/settings/FuelPrices";
+import PaymentSettings from "./pages/admin/settings/PaymentSettings";
+import LoyaltySettings from "./pages/admin/settings/LoyaltySettings";
+import InvoiceSettings from "./pages/admin/settings/InvoiceSettings";
+import ReportEmailSettings from "./pages/admin/settings/ReportEmailSettings";
+import StationAgentSettings from "./pages/admin/settings/StationAgentSettings";
 import DemoReset from "./pages/admin/DemoReset";
 import Stations from "./pages/admin/Stations";
 
@@ -60,7 +65,14 @@ export default function App() {
           <Route element={<RequireRole roles={["admin"]} />}>
             <Route path="/admin" element={<Navigate to="/admin/kullanicilar" replace />} />
             <Route path="/admin/kullanicilar" element={<Users />} />
-            <Route path="/admin/ayarlar" element={<Settings />} />
+            {/* Ayar sayfalari - sidebar'daki "Ayarlar" acilir menusunden ulasilir. */}
+            <Route path="/admin/ayarlar" element={<Navigate to="/admin/ayarlar/yakit-fiyatlari" replace />} />
+            <Route path="/admin/ayarlar/yakit-fiyatlari" element={<FuelPrices />} />
+            <Route path="/admin/ayarlar/odeme" element={<PaymentSettings />} />
+            <Route path="/admin/ayarlar/sadakat" element={<LoyaltySettings />} />
+            <Route path="/admin/ayarlar/fatura" element={<InvoiceSettings />} />
+            <Route path="/admin/ayarlar/ozet-raporu" element={<ReportEmailSettings />} />
+            <Route path="/admin/ayarlar/istasyon-ajani" element={<StationAgentSettings />} />
             <Route path="/operator/stok" element={<FuelStock />} />
             <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
             <Route path="/admin/filo-hesaplari" element={<FleetAccounts />} />
