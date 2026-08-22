@@ -420,6 +420,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   --k-opt-sel-bg: #eaf1fc;
   --k-step-bg: #e4e8ee;
   --k-accent-ring: rgba(44,110,203,0.18);
+  --k-switcher-bg: #f6f8fb;
 
   min-height: 100vh;
   background: var(--k-bg);
@@ -442,6 +443,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   --k-opt-sel-bg: rgba(91,155,240,0.14);
   --k-step-bg: rgba(255,255,255,0.08);
   --k-accent-ring: rgba(91,155,240,0.28);
+  --k-switcher-bg: #1c2530;
 
   background:
     radial-gradient(circle at 15% 0%, rgba(91,155,240,0.08), transparent 45%),
@@ -471,7 +473,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   right: 1.4rem;
   display: flex;
   gap: 0.2rem;
-  background: var(--k-opt-bg);
+  background: var(--k-switcher-bg);
   border: 1px solid var(--k-card-border);
   border-radius: 999px;
   padding: 0.22rem;
