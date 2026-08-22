@@ -56,7 +56,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
 }
 
 a { color: var(--accent); }
@@ -115,9 +115,49 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
      gorunmez/erisilemez olurdu. */
   overflow-y: auto;
 }
-.sidebar h1 { font-size: 1.05rem; margin: 0 0.5rem 1rem; }
-.sidebar .brand-sub { font-size: 0.75rem; color: var(--text-dim); margin: -0.75rem 0.5rem 1.25rem; }
 .sidebar nav { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; }
+
+/* Sidebar'in ust ("istasyon karti" - StationSwitcher.tsx) ve alt ("hesap karti" -
+   SidebarAccountCard, AppLayout.tsx) kartlari - ikisi de ayni gorsel dile sahip:
+   yuvarlak avatar rozeti + isim/alt yazi + (tiklanabilirse) sag tarafta ok. */
+.sidebar-org-card { position: relative; margin-bottom: 1rem; }
+.sidebar-account-card { margin-bottom: 0; margin-top: 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.sidebar-card-trigger {
+  width: 100%; display: flex; align-items: center; gap: 0.6rem;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.55rem 0.6rem; text-align: left; font-size: 0.85rem;
+}
+.sidebar-avatar {
+  flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accent); color: #05141f; font-weight: 700; font-size: 0.8rem;
+}
+.sidebar-card-text { display: flex; flex-direction: column; gap: 0.05rem; min-width: 0; flex: 1; }
+.sidebar-card-text strong {
+  font-size: 0.88rem; line-height: 1.2; display: -webkit-box;
+  -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.sidebar-card-text .hint-text { font-size: 0.7rem; }
+.sidebar-chevron { flex-shrink: 0; color: var(--text-dim); font-size: 0.75rem; transition: transform 0.15s ease; }
+.sidebar-chevron.open { transform: rotate(180deg); }
+
+.sidebar-dropdown {
+  position: absolute; left: 0; right: 0; z-index: 45;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0,0,0,0.28);
+  padding: 0.35rem; display: flex; flex-direction: column; gap: 0.1rem;
+  max-height: 220px; overflow-y: auto;
+}
+.sidebar-dropdown { top: calc(100% + 0.35rem); }
+.sidebar-dropdown-up { top: auto; bottom: calc(100% + 0.35rem); }
+.sidebar-dropdown-item {
+  display: block; width: 100%; text-align: left; background: transparent; border: none;
+  color: var(--text); padding: 0.5rem 0.6rem; border-radius: 6px; font-size: 0.85rem;
+  text-decoration: none;
+}
+.sidebar-dropdown-item:hover { background: var(--row-hover); }
+.sidebar-dropdown-item.active { color: var(--accent); font-weight: 600; }
+.sidebar-dropdown-item.danger { color: var(--danger); }
 .sidebar a {
   color: var(--text-dim);
   text-decoration: none;

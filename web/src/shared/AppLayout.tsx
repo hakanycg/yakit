@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
 import { useThemePreference } from "./useThemePreference";
+import { initials } from "./format";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Platform Yöneticisi",
@@ -12,6 +13,47 @@ const ROLE_LABEL: Record<string, string> = {
   operator: "Operator",
   viewer: "İzleyici",
 };
+
+/** Sidebar'in en altindaki hesap karti - tiklaninca "Hesabim"/"Cikis Yap" acilir menusunu gosterir. */
+function SidebarAccountCard({ onLogout }: { onLogout: () => void }) {
+  const { user } = useAuth();
+  const [open, setOpen] = useState(false);
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  if (!user) return null;
+
+  return (
+    <div className="sidebar-org-card sidebar-account-card" ref={boxRef}>
+      {open && (
+        <div className="sidebar-dropdown sidebar-dropdown-up">
+          <NavLink to="/operator/sifre-degistir" className="sidebar-dropdown-item" onClick={() => setOpen(false)}>
+            Hesabım
+          </NavLink>
+          <button type="button" className="sidebar-dropdown-item danger" onClick={onLogout}>
+            Çıkış Yap
+          </button>
+        </div>
+      )}
+      <button type="button" className="sidebar-card-trigger" onClick={() => setOpen((v) => !v)}>
+        <span className="sidebar-avatar">{initials(user.displayName)}</span>
+        <span className="sidebar-card-text">
+          <strong>{user.displayName}</strong>
+          <span className="hint-text">{ROLE_LABEL[user.role] ?? user.role}</span>
+        </span>
+        <span className={`sidebar-chevron${open ? " open" : ""}`}>▾</span>
+      </button>
+    </div>
+  );
+}
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
@@ -34,8 +76,7 @@ export default function AppLayout() {
     <div className="app-shell">
       {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar${menuOpen ? " open" : ""}`}>
-        <h1>Yakıt İstasyonu</h1>
-        <p className="brand-sub">Yönetim Sistemi</p>
+        <StationSwitcher />
         <nav onClick={() => setMenuOpen(false)}>
           {isSuperAdmin && (
             <>
@@ -68,31 +109,22 @@ export default function AppLayout() {
             </>
           )}
         </nav>
+        <SidebarAccountCard onLogout={handleLogout} />
       </aside>
       <div className="main-content">
         <header className="topbar">
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <button className="menu-toggle ghost" aria-label="Menu" onClick={() => setMenuOpen((v) => !v)}>
-              &#9776;
-            </button>
-            <div>
-              <strong>{user.displayName}</strong>{" "}
-              <span className="hint-text">({ROLE_LABEL[user.role] ?? user.role})</span>
-            </div>
-            {isSuperAdmin && <StationSwitcher />}
-          </div>
-          <div style={{ display: "flex", gap: "0.6rem" }}>
-            <button
-              className="ghost"
-              onClick={() => setThemeMode(themeMode === "night" ? "day" : "night")}
-              title={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
-              aria-label={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
-            >
-              {themeMode === "night" ? "☀️" : "🌙"}
-            </button>
-            <NavLink to="/operator/sifre-degistir"><button className="ghost">Hesabım</button></NavLink>
-            <button onClick={handleLogout}>Çıkış Yap</button>
-          </div>
+          <button className="menu-toggle ghost" aria-label="Menu" onClick={() => setMenuOpen((v) => !v)}>
+            &#9776;
+          </button>
+          <div className="spacer" />
+          <button
+            className="ghost"
+            onClick={() => setThemeMode(themeMode === "night" ? "day" : "night")}
+            title={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
+            aria-label={themeMode === "night" ? "Açık temaya geç" : "Koyu temaya geç"}
+          >
+            {themeMode === "night" ? "☀️" : "🌙"}
+          </button>
         </header>
         <ChangePasswordBanner />
         <main className="content">

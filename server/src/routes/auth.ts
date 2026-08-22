@@ -183,6 +183,11 @@ router.post("/logout", requireAuth, csrfProtection, (req, res) => {
 router.get("/me", requireAuth, (req, res) => {
   const user = req.user!;
   const role = req.role!;
+  // super_admin'in sabit bir istasyonu yok (ustten StationSwitcher ile secer); diger
+  // roller icin sidebar'da (bkz. StationSwitcher.tsx) gosterilecek kendi istasyon adi.
+  const station = user.station_id
+    ? db.prepare<[number], { name: string }>("SELECT name FROM stations WHERE id = ?").get(user.station_id)
+    : undefined;
   res.json({
     user: {
       id: user.id,
@@ -190,6 +195,7 @@ router.get("/me", requireAuth, (req, res) => {
       displayName: user.display_name,
       role: role.name,
       stationId: user.station_id,
+      stationName: station?.name ?? null,
       mustChangePassword: !!user.must_change_password,
       email: user.email,
       phone: user.phone,

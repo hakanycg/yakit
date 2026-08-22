@@ -16,6 +16,7 @@ export interface CurrentUser {
   displayName: string;
   role: RoleName;
   stationId: number | null;
+  stationName: string | null;
   mustChangePassword: boolean;
   email: string | null;
   phone: string | null;
