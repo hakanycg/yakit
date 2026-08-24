@@ -238,6 +238,30 @@ CREATE TABLE IF NOT EXISTS fuel_stock_movements (
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_stock_movements_station ON fuel_stock_movements(station_id, created_at);
 
+-- Fiziksel tank olcumleri (daldirma cubugu / seviye probu) ve kayit stoguyla farki.
+-- Personelsiz istasyonda tanki gozle kontrol eden kimse olmadigi icin sizinti, ayari
+-- kaymis pompa veya kayit disi cekimi yakalamanin tek yolu bu karsilastirmadir.
+CREATE TABLE IF NOT EXISTS fuel_tank_readings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,
+  measured_liters REAL NOT NULL,       -- fiziksel olcum
+  book_liters REAL NOT NULL,           -- olcum anindaki kayit stogu
+  variance_liters REAL NOT NULL,       -- measured - book (negatif: kayip, pozitif: fazla)
+  -- Sapma orani, tank kapasitesine degil ONCEKI OLCUMDEN BU YANA tanktan gecen
+  -- hacme (satis + teslimat) bolunerek hesaplanir: 50.000 L'de 200 L kayip normal
+  -- tolerans icindeyken, 2.000 L'de 200 L kayip ciddi bir sorundur.
+  throughput_liters REAL NOT NULL,
+  variance_pct REAL NOT NULL,
+  previous_reading_id INTEGER REFERENCES fuel_tank_readings(id),
+  alarm_id INTEGER REFERENCES alarms(id),
+  note TEXT,
+  measured_at TEXT NOT NULL,
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fuel_tank_readings_station ON fuel_tank_readings(station_id, fuel_type, measured_at);
+
 CREATE TABLE IF NOT EXISTS loyalty_accounts (
   station_id INTEGER NOT NULL REFERENCES stations(id),
   plate TEXT NOT NULL,

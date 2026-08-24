@@ -62,7 +62,7 @@ export function serializeMovement(m: FuelStockMovementRow, username: string | nu
   };
 }
 
-function getTank(stationId: number, fuelType: FuelType): FuelTankRow {
+export function getTank(stationId: number, fuelType: FuelType): FuelTankRow {
   const row = db
     .prepare<[number, string], FuelTankRow>("SELECT * FROM fuel_tanks WHERE station_id = ? AND fuel_type = ?")
     .get(stationId, fuelType);

@@ -104,6 +104,37 @@ export interface FuelTank {
   updatedAt: string;
 }
 
+export interface FuelTankReading {
+  id: number;
+  fuelType: FuelType;
+  measuredLiters: number;
+  bookLiters: number;
+  varianceLiters: number;
+  throughputLiters: number;
+  variancePct: number;
+  previousReadingId: number | null;
+  alarmId: number | null;
+  note: string | null;
+  measuredAt: string;
+  createdAt: string;
+  username: string | null;
+}
+
+export interface VarianceSummaryRow {
+  fuelType: FuelType;
+  readingCount: number;
+  totalVarianceLiters: number;
+  totalThroughputLiters: number;
+  netVariancePct: number;
+  lastMeasuredAt: string | null;
+  lastVarianceLiters: number | null;
+}
+
+export interface VarianceSettings {
+  thresholdPct: number;
+  minLiters: number;
+}
+
 export type FuelStockMovementType = "delivery" | "sale" | "adjustment";
 
 export interface FuelStockMovement {

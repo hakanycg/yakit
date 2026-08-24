@@ -317,6 +317,45 @@ dışarıdan pompa rezerve edilebilirdi. Koruma **cihaz doğrulaması** ile sağ
 > bir tanımlayıcıdır: destek, envanter ve istasyon adı değişse de sabit kalan adres
 > içindir. Güvenliği sağlayan şey cihaz tokenidir.
 
+## Yakıt sapma (kaçak/kayıp) takibi
+
+Personelsiz istasyonda tankı gözüyle kontrol eden kimse yoktur. Sızıntı yapan bir tank,
+ayarı kaymış bir pompa sayacı veya kayıt dışı çekim ancak şu karşılaştırmayla yakalanır:
+**kayıttaki stok** ile **fiziksel ölçüm** arasındaki fark.
+
+**Yakıt Sapma** ekranından (İstasyon Yönetimi menüsü) daldırma çubuğu veya seviye probuyla
+okunan gerçek litre girilir. Sistem:
+
+1. O anki kayıt stoğuyla farkı hesaplar (`sapma = ölçüm − kayıt`).
+2. Farkı, önceki ölçümden bu yana tanktan geçen hacme (satış + teslimat) oranlar.
+3. Eşik aşılırsa **kritik alarm** üretir — Alarm Merkezi'ne düşer ve kritik alarm
+   bildirimleri (e-posta/SMS) aynı kuyruktan gönderilir.
+4. Kayıt stoğunu ölçüme eşitler; fark, denetim izine `adjustment` hareketi olarak yazılır.
+
+### Sapma oranı neden kapasiteye göre hesaplanmıyor?
+
+50.000 L'lik bir dolaşımda 200 L fark sıcaklık ve sayaç toleransıyla açıklanabilir;
+2.000 L'lik dolaşımda aynı 200 L ciddi bir kayıptır. Oranı tank kapasitesine bölmek bu
+ayrımı tamamen kaybettirirdi, bu yüzden payda **hareket hacmidir**.
+
+### İki eşik birden
+
+Kritik alarm, iki koşul da sağlandığında oluşur:
+
+| Ayar | Varsayılan | Amaç |
+| --- | --- | --- |
+| Sapma oranı eşiği | %0.5 | Sektörde kabul gören ölçüm/sıcaklık toleransı |
+| En düşük sapma (litre) | 50 L | Az satış olan günlerde küçük ölçüm hatalarının yüzde olarak büyük görünüp yanlış alarm üretmesini engeller |
+
+Her iki değer de istasyon bazında ayarlanabilir.
+
+### Kümülatif bakış
+
+Tek tek ölçümlerdeki artı/eksi salınımlar uzun vadede birbirini götürür; **sürekli aynı
+yönde biriken** bir toplam ise gerçek bir kayıptır. Bu yüzden ekranın üstündeki özet
+kartları son ölçümü değil kümülatif farkı gösterir ve yalnızca kümülatif kayıp eşiği
+aştığında kırmızıya döner.
+
 ## Üretime alırken (7/24 yayında tutma)
 
 `npm run build` her iki workspace'i de derler; Express sunucusu `NODE_ENV=production`

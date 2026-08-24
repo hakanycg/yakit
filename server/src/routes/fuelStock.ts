@@ -17,6 +17,14 @@ import {
   setDeliveryRef,
   updateTankSettings,
 } from "../services/fuelStockService.js";
+import {
+  getVarianceSettings,
+  getVarianceSummary,
+  listReadings,
+  recordReading,
+  serializeReading,
+  updateVarianceSettings,
+} from "../services/fuelVarianceService.js";
 import { createWaybill, WaybillError } from "../services/waybillService.js";
 import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, serializeWaybill } from "../services/waybillRecordService.js";
 
@@ -69,6 +77,138 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
 
 router.get("/suppliers/summary", (req, res) => {
   res.json({ suppliers: getSupplierSummary(req.stationId!) });
+});
+
+// --- Yakit sapma (fiziksel tank olcumu) ---------------------------------------
+
+const readingsQuerySchema = z.object({
+  fuelType: fuelTypeEnum.optional(),
+  limit: z.coerce.number().int().positive().max(500).optional(),
+});
+
+router.get("/readings", validateQuery(readingsQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof readingsQuerySchema> }).validatedQuery;
+  const rows = listReadings(req.stationId!, q);
+  res.json({
+    readings: rows.map((r) => serializeReading(r, r.username)),
+    summary: getVarianceSummary(req.stationId!),
+    settings: getVarianceSettings(req.stationId!),
+  });
+});
+
+router.get("/readings/export.csv", validateQuery(readingsQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof readingsQuerySchema> }).validatedQuery;
+  const rows = listReadings(req.stationId!, { ...q, limit: q.limit ?? 500 });
+
+  const header = [
+    "id",
+    "yakit_tipi",
+    "olcum_litre",
+    "kayit_litre",
+    "sapma_litre",
+    "hareket_hacmi_litre",
+    "sapma_yuzde",
+    "alarm_id",
+    "not",
+    "kullanici",
+    "olcum_tarihi",
+  ];
+  const escape = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [header.join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        r.id,
+        r.fuel_type,
+        r.measured_liters,
+        r.book_liters,
+        r.variance_liters,
+        r.throughput_liters,
+        r.variance_pct,
+        r.alarm_id,
+        r.note,
+        r.username,
+        r.measured_at,
+      ]
+        .map(escape)
+        .join(",")
+    );
+  }
+
+  recordAudit({ user: req.user!, action: "fuel_tank_readings_exported", details: { count: rows.length }, ip: req.ip, stationId: req.stationId });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="yakit-sapma-${Date.now()}.csv"`);
+  res.send("\ufeff" + lines.join("\n"));
+});
+
+const varianceSettingsSchema = z.object({
+  thresholdPct: z.number().min(0).max(100).optional(),
+  minLiters: z.number().min(0).max(10000).optional(),
+});
+
+router.patch("/readings/settings", csrfProtection, validateBody(varianceSettingsSchema), (req, res) => {
+  try {
+    const settings = updateVarianceSettings(req.stationId!, req.body as z.infer<typeof varianceSettingsSchema>, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_variance_settings_updated",
+      details: settings,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ settings });
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const readingSchema = z.object({
+  measuredLiters: z.number().min(0).max(1000000),
+  measuredAt: z.string().datetime().optional(),
+  note: z.string().max(300).optional(),
+});
+
+router.post("/:fuelType/reading", csrfProtection, validateBody(readingSchema), (req, res) => {
+  const fuelType = fuelTypeEnum.safeParse(req.params.fuelType);
+  if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
+
+  try {
+    const { measuredLiters, measuredAt, note } = req.body as z.infer<typeof readingSchema>;
+    const { reading, alarmRaised } = recordReading({
+      stationId: req.stationId!,
+      fuelType: fuelType.data,
+      measuredLiters,
+      measuredAt,
+      note,
+      actor: req.user!,
+    });
+
+    recordAudit({
+      user: req.user!,
+      action: "fuel_tank_reading_recorded",
+      entityType: "fuel_tank_reading",
+      entityId: reading.id,
+      details: {
+        fuelType: reading.fuel_type,
+        measuredLiters: reading.measured_liters,
+        bookLiters: reading.book_liters,
+        varianceLiters: reading.variance_liters,
+        variancePct: reading.variance_pct,
+        alarmRaised,
+      },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+
+    res.status(201).json({ reading: serializeReading(reading, req.user!.username), alarmRaised });
+  } catch (err) {
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 const addSchema = z.object({

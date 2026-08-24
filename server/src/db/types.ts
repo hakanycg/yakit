@@ -303,6 +303,23 @@ export interface FuelTankRow {
   updated_by: number | null;
 }
 
+export interface FuelTankReadingRow {
+  id: number;
+  station_id: number;
+  fuel_type: FuelType;
+  measured_liters: number;
+  book_liters: number;
+  variance_liters: number;
+  throughput_liters: number;
+  variance_pct: number;
+  previous_reading_id: number | null;
+  alarm_id: number | null;
+  note: string | null;
+  measured_at: string;
+  user_id: number | null;
+  created_at: string;
+}
+
 export type FuelStockMovementType = "delivery" | "sale" | "adjustment";
 
 export interface FuelStockMovementRow {
