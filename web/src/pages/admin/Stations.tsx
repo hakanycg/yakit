@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
 import { useCurrentStationId } from "../../shared/useCurrentStation";
+import { useEscapeKey } from "../../shared/useEscapeKey";
 import type { Station, StationKiosk } from "../../shared/types";
 
 function syncBadge(s: Station): { label: string; className: string } | null {
@@ -25,7 +26,7 @@ function slugify(name: string): string {
 export default function Stations() {
   const [stations, setStations] = useState<Station[]>([]);
   const [showCreate, setShowCreate] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [detailId, setDetailId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
   const [, setCurrentStationId] = useCurrentStationId();
 
@@ -43,27 +44,11 @@ export default function Stations() {
     ? stations.filter((s) => [s.name, s.address, s.slug, s.code ?? ""].some((field) => field.toLowerCase().includes(q)))
     : stations;
 
-  async function toggleActive(s: Station) {
-    await api.patch(`/api/stations/${s.id}`, { active: !s.active });
-    load();
-  }
-
-  async function deleteStation(s: Station) {
-    const userWarning = (s.userCount ?? 0) > 0 ? ` Bu istasyona bağlı ${s.userCount} kullanıcı hesabı da kalıcı olarak silinecek.` : "";
-    if (!confirm(`"${s.name}" istasyonunu kalıcı olarak silmek istediğinize emin misiniz?${userWarning} Bu işlem geri alınamaz.`)) return;
-    setError(null);
-    try {
-      await api.delete(`/api/stations/${s.id}`);
-      load();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "İstasyon silinemedi.");
-    }
-  }
+  const detailStation = detailId === null ? null : stations.find((s) => s.id === detailId) ?? null;
 
   return (
     <div>
       <h2>İstasyonlar</h2>
-      {error && <p className="error-text">{error}</p>}
       <div className="toolbar">
         <input
           value={search}
@@ -76,85 +61,27 @@ export default function Stations() {
         <button className="primary" onClick={() => setShowCreate(true)}>Yeni İstasyon</button>
       </div>
 
-      <div className="grid cols-2">
+      {/* Liste: her istasyon tek satir - isim + kod + durum + sayaclar. Detayin
+          tamami (adres, kiosk'lar, guvenlik, yonetim) satira tiklaninca acilan
+          pencerede; boylece onlarca istasyonda sayfa taranabilir kalir. */}
+      <div className="station-list">
         {visibleStations.map((s) => (
-          <div className="card station-card" key={s.id}>
-            <div className="station-card-header">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="station-name">{s.name}</div>
-                <div className="station-card-badges">
-                  <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
-                  {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
-                </div>
-              </div>
-              <button className="ghost btn-sm" onClick={() => setCurrentStationId(s.id)}>Bu istasyona geç</button>
-            </div>
-
-            <section className="station-section">
-              <div className="station-section-head">
-                <h4 className="station-section-title">İşyeri Bilgileri</h4>
-              </div>
-              <dl className="detail-list">
-                <dt>Adres</dt>
-                <dd>{s.address || <span className="hint-text">Girilmemiş</span>}</dd>
-                <dt>İstasyon kodu</dt>
-                <dd><code>{s.code ?? "-"}</code></dd>
-                <dt>Kiosk adresi</dt>
-                <dd>
-                  <span className="with-action">
-                    <code>/kiosk/{s.code ?? s.slug}</code>
-                    <CopyButton value={`${window.location.origin}/kiosk/${s.code ?? s.slug}`} label="Kopyala" />
-                  </span>
-                </dd>
-                <dt>Oluşturulma</dt>
-                <dd>{s.createdAt ? formatDateTime(s.createdAt) : "-"}</dd>
-              </dl>
-            </section>
-
-            <section className="station-section">
-              <div className="station-section-head">
-                <h4 className="station-section-title">Özet</h4>
-              </div>
-              <div className="stat-chip-row">
-                <span className="stat-chip"><strong>{s.pumpCount ?? 0}</strong> Pompa</span>
-                <span className="stat-chip"><strong>{s.userCount ?? 0}</strong> Kullanıcı</span>
-                <span className={`stat-chip${(s.activeAlarms ?? 0) > 0 ? " danger" : ""}`}>
-                  <strong>{s.activeAlarms ?? 0}</strong> Aktif alarm
-                </span>
-              </div>
-            </section>
-
-            <section className="station-section">
-              <div className="station-section-head">
-                <h4 className="station-section-title">Kiosk Güvenliği</h4>
-              </div>
-              <KioskTokenToggle station={s} onChanged={load} />
-            </section>
-
-            <StationKiosksSection stationId={s.id} stationCode={s.code ?? s.slug} />
-
-            <section className="station-section">
-              <div className="station-section-head">
-                <h4 className="station-section-title">İstasyon Yönetimi</h4>
-              </div>
-              <div className="toolbar" style={{ margin: 0 }}>
-                <button className="btn-sm" onClick={() => toggleActive(s)}>{s.active ? "Devre Dışı Bırak" : "Etkinleştir"}</button>
-                {(s.transactionCount ?? 0) === 0 && (
-                  <button className="danger btn-sm" onClick={() => deleteStation(s)}>Kalıcı Olarak Sil</button>
-                )}
-              </div>
-              {(s.transactionCount ?? 0) > 0 && (
-                <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>
-                  İşlem kaydı olduğu için kalıcı olarak silinemez; sadece devre dışı bırakılabilir.
-                </p>
-              )}
-              {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) > 0 && (
-                <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>
-                  Silme, buradaki {s.userCount} kullanıcı hesabını da kalıcı olarak kaldırır.
-                </p>
-              )}
-            </section>
-          </div>
+          <button type="button" className="station-row" key={s.id} onClick={() => setDetailId(s.id)}>
+            <span className="station-row-main">
+              <span className="station-row-name">{s.name}</span>
+              <span className="station-row-sub">
+                <code>{s.code ?? s.slug}</code>
+                {s.address && <span className="station-row-address">{s.address}</span>}
+              </span>
+            </span>
+            <span className="station-row-badges">
+              <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
+              {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
+              {(s.activeAlarms ?? 0) > 0 && <span className="badge critical">{s.activeAlarms} alarm</span>}
+            </span>
+            <span className="station-row-counts hint-text">{s.pumpCount ?? 0} pompa</span>
+            <span className="station-row-chevron">›</span>
+          </button>
         ))}
         {stations.length === 0 && (
           <p className="hint-text">Henüz istasyon yok. "Yeni İstasyon" ile ilk istasyonunuzu oluşturun.</p>
@@ -163,6 +90,19 @@ export default function Stations() {
           <p className="hint-text">"{search}" ile eşleşen bir istasyon bulunamadı.</p>
         )}
       </div>
+
+      {detailStation && (
+        <StationDetailDialog
+          station={detailStation}
+          onClose={() => setDetailId(null)}
+          onChanged={load}
+          onDeleted={() => {
+            setDetailId(null);
+            load();
+          }}
+          onSwitchTo={() => setCurrentStationId(detailStation.id)}
+        />
+      )}
 
       {showCreate && (
         <CreateStationDialog
@@ -173,6 +113,131 @@ export default function Stations() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * Istasyonun tum detayi - listedeki satira tiklaninca acilan pencere.
+ * Bolumler: Isyeri Bilgileri / Ozet / Kiosk Guvenligi / Kiosk Bilgisayarlari /
+ * Istasyon Yonetimi.
+ */
+function StationDetailDialog({
+  station: s,
+  onClose,
+  onChanged,
+  onDeleted,
+  onSwitchTo,
+}: {
+  station: Station;
+  onClose: () => void;
+  onChanged: () => void;
+  onDeleted: () => void;
+  onSwitchTo: () => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+
+  useEscapeKey(onClose);
+
+  async function toggleActive() {
+    await api.patch(`/api/stations/${s.id}`, { active: !s.active });
+    onChanged();
+  }
+
+  async function deleteStation() {
+    const userWarning = (s.userCount ?? 0) > 0 ? ` Bu istasyona bağlı ${s.userCount} kullanıcı hesabı da kalıcı olarak silinecek.` : "";
+    if (!confirm(`"${s.name}" istasyonunu kalıcı olarak silmek istediğinize emin misiniz?${userWarning} Bu işlem geri alınamaz.`)) return;
+    setError(null);
+    try {
+      await api.delete(`/api/stations/${s.id}`);
+      onDeleted();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "İstasyon silinemedi.");
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="station-card-header">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="station-name">{s.name}</div>
+            <div className="station-card-badges">
+              <span className={`badge ${s.active ? "resolved" : "fault"}`}>{s.active ? "Aktif" : "Pasif"}</span>
+              {syncBadge(s) && <span className={`badge ${syncBadge(s)!.className}`}>{syncBadge(s)!.label}</span>}
+            </div>
+          </div>
+          <button className="ghost btn-sm" onClick={onSwitchTo}>Bu istasyona geç</button>
+          <button className="ghost btn-sm" onClick={onClose} aria-label="Kapat">✕</button>
+        </div>
+
+        {error && <p className="error-text">{error}</p>}
+
+        <section className="station-section">
+          <div className="station-section-head">
+            <h4 className="station-section-title">İşyeri Bilgileri</h4>
+          </div>
+          <dl className="detail-list">
+            <dt>Adres</dt>
+            <dd>{s.address || <span className="hint-text">Girilmemiş</span>}</dd>
+            <dt>İstasyon kodu</dt>
+            <dd><code>{s.code ?? "-"}</code></dd>
+            <dt>Kiosk adresi</dt>
+            <dd>
+              <span className="with-action">
+                <code>/kiosk/{s.code ?? s.slug}</code>
+                <CopyButton value={`${window.location.origin}/kiosk/${s.code ?? s.slug}`} label="Kopyala" />
+              </span>
+            </dd>
+            <dt>Oluşturulma</dt>
+            <dd>{s.createdAt ? formatDateTime(s.createdAt) : "-"}</dd>
+          </dl>
+        </section>
+
+        <section className="station-section">
+          <div className="station-section-head">
+            <h4 className="station-section-title">Özet</h4>
+          </div>
+          <div className="stat-chip-row">
+            <span className="stat-chip"><strong>{s.pumpCount ?? 0}</strong> Pompa</span>
+            <span className="stat-chip"><strong>{s.userCount ?? 0}</strong> Kullanıcı</span>
+            <span className={`stat-chip${(s.activeAlarms ?? 0) > 0 ? " danger" : ""}`}>
+              <strong>{s.activeAlarms ?? 0}</strong> Aktif alarm
+            </span>
+          </div>
+        </section>
+
+        <section className="station-section">
+          <div className="station-section-head">
+            <h4 className="station-section-title">Kiosk Güvenliği</h4>
+          </div>
+          <KioskTokenToggle station={s} onChanged={onChanged} />
+        </section>
+
+        <StationKiosksSection stationId={s.id} stationCode={s.code ?? s.slug} />
+
+        <section className="station-section">
+          <div className="station-section-head">
+            <h4 className="station-section-title">İstasyon Yönetimi</h4>
+          </div>
+          <div className="toolbar" style={{ margin: 0 }}>
+            <button className="btn-sm" onClick={toggleActive}>{s.active ? "Devre Dışı Bırak" : "Etkinleştir"}</button>
+            {(s.transactionCount ?? 0) === 0 && (
+              <button className="danger btn-sm" onClick={deleteStation}>Kalıcı Olarak Sil</button>
+            )}
+          </div>
+          {(s.transactionCount ?? 0) > 0 && (
+            <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>
+              İşlem kaydı olduğu için kalıcı olarak silinemez; sadece devre dışı bırakılabilir.
+            </p>
+          )}
+          {(s.transactionCount ?? 0) === 0 && (s.userCount ?? 0) > 0 && (
+            <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>
+              Silme, buradaki {s.userCount} kullanıcı hesabını da kalıcı olarak kaldırır.
+            </p>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
@@ -240,6 +305,8 @@ function AddKioskDialog({ stationId, onClose, onCreated }: { stationId: number; 
   const [anydeskId, setAnydeskId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEscapeKey(onClose);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
