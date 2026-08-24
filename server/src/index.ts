@@ -8,6 +8,7 @@ import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from ".
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
+import { checkOfflineKiosks } from "./services/kioskFleetService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
@@ -61,6 +62,12 @@ sessionCleanupInterval.unref();
 // Esik 15 dakika oldugundan 5 dakikada bir kontrol yeterince hassastir.
 const offlineStationInterval = setInterval(checkOfflineStations, 5 * 60 * 1000);
 offlineStationInterval.unref();
+
+// Kiosk ekranlarinin kalp atisi. Personelsiz istasyonda dusmus bir kiosk, o adada hic
+// satis yapilamamasi demektir ve kimse fark etmeden saatlerce boyle kalabilir. Esik
+// 10 dakika oldugundan 2 dakikada bir kontrol yeterince hassastir.
+const offlineKioskInterval = setInterval(() => checkOfflineKiosks(), 2 * 60 * 1000);
+offlineKioskInterval.unref();
 
 // Yangin/gaz alarm sistemi (bkz. safetySensorDriver.ts) - can guvenligi soz konusu
 // oldugundan cok daha sik kontrol edilir (diger periyodik islerin aksine saniyeler

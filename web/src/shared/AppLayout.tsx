@@ -149,6 +149,7 @@ export default function AppLayout() {
             <>
               <p className="section-label">Platform</p>
               <NavLink to="/admin/istasyonlar">İstasyonlar</NavLink>
+              <NavLink to="/admin/kiosk-filosu">Kiosk Filosu</NavLink>
               <NavLink to="/admin/audit-log">Audit Log</NavLink>
               <NavLink to="/admin/sifirla">Demo Verilerini Sıfırla</NavLink>
             </>

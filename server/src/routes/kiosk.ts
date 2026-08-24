@@ -55,6 +55,24 @@ function isPlausiblePlate(plate: string): boolean {
  * ESKI slug'i ("merkez") kabul eder - boylece daha once dagitilmis kiosk adresleri
  * ve iyzico donus baglantilari calismaya devam eder.
  */
+/**
+ * Kiosk kalp atisi.
+ *
+ * Kiosk ekrani API'yi normalde YALNIZCA bir musteri kullanirken cagirir; gece boyu
+ * musteri gelmeyen bir istasyonun kiosk'u bu yuzden "olu" gorunurdu. Bu uc, ekranin
+ * acik ve merkeze baglanabilir oldugunu duzenli araliklarla bildirir; boylece
+ * "kimse kullanmiyor" ile "cihaz cevrimdisi" birbirinden ayrisir.
+ *
+ * last_seen_at guncellemesi attachKioskDevice icinde yapilir; bu ucun tek isi
+ * gecerli bir token'la duzenli olarak cagrilmis olmaktir.
+ */
+router.post("/heartbeat", (req, res) => {
+  if (!req.kioskDevice) {
+    return void res.status(401).json({ error: "Kiosk cihaz tokeni gerekiyor." });
+  }
+  res.status(204).end();
+});
+
 router.get("/station/:slug", (req, res) => {
   const param = req.params.slug ?? "";
   const station =

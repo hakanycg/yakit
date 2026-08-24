@@ -61,23 +61,23 @@ export default function FuelVariance() {
         <ThresholdCard settings={data?.settings ?? null} onSaved={load} />
       </div>
 
-      <div className="card">
-        <div className="table-toolbar">
-          <h3>Ölçüm Geçmişi</h3>
-          <div className="spacer" />
-          <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Yakıt tipi filtresi">
-            <option value="">Tüm yakıt tipleri</option>
-            {(["benzin", "motorin", "lpg"] as FuelType[]).map((f) => (
-              <option key={f} value={f}>
-                {FUEL_LABEL[f]}
-              </option>
-            ))}
-          </select>
-          <a href={csvHref}>
-            <button type="button">CSV İndir</button>
-          </a>
-        </div>
+      <div className="toolbar">
+        <h3 style={{ margin: 0 }}>Ölçüm Geçmişi</h3>
+        <div className="spacer" />
+        <select value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Yakıt tipi filtresi" style={{ width: 200 }}>
+          <option value="">Tüm yakıt tipleri</option>
+          {(["benzin", "motorin", "lpg"] as FuelType[]).map((f) => (
+            <option key={f} value={f}>
+              {FUEL_LABEL[f]}
+            </option>
+          ))}
+        </select>
+        <a href={csvHref}>
+          <button type="button">CSV İndir</button>
+        </a>
+      </div>
 
+      <div className="card">
         <div className="table-wrap">
           <table>
             <thead>

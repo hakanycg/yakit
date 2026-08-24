@@ -11,6 +11,13 @@ export interface StationResponse {
 export const kioskApi = {
   getStation: (slug: string) => api.get<StationResponse>(`/api/kiosk/station/${encodeURIComponent(slug)}`),
 
+  /**
+   * Kalp atisi. Kiosk ekrani API'yi normalde yalnizca bir musteri kullanirken cagirir;
+   * gece boyu musteri gelmeyen bir istasyonun kiosk'u bu yuzden "olu" gorunurdu.
+   * Panel bu sinyale bakarak "kimse kullanmiyor" ile "cihaz dusmus"u ayirir.
+   */
+  heartbeat: () => api.post<void>("/api/kiosk/heartbeat"),
+
   recognizePlate: (plate: string) =>
     api.post<{ plate: string; valid: boolean; confidence: number }>("/api/kiosk/lpr/recognize", { plate }),
 

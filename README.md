@@ -317,6 +317,30 @@ dışarıdan pompa rezerve edilebilirdi. Koruma **cihaz doğrulaması** ile sağ
 > bir tanımlayıcıdır: destek, envanter ve istasyon adı değişse de sabit kalan adres
 > içindir. Güvenliği sağlayan şey cihaz tokenidir.
 
+## Kiosk filosu (çok istasyonlu sağlık izleme)
+
+**Kiosk Filosu** ekranı (Platform menüsü, yalnızca platform yöneticisi) tüm istasyonlardaki
+fiziksel kiosk bilgisayarlarını tek listede gösterir: durum, son bağlantı, AnyDesk ID ve
+istasyonundaki açık donanım arızaları. Duruma göre filtrelenebilir; kiosk adı, istasyon adı,
+istasyon kodu veya AnyDesk ID ile aranabilir.
+
+### Kalp atışı neden gerekli?
+
+Kiosk ekranı API'yi normalde **yalnızca bir müşteri kullanırken** çağırır. Bu yüzden gece
+boyu müşteri gelmeyen bir istasyonun sapasağlam kiosk'u "ölü" görünürdü. Kiosk artık
+`POST /api/kiosk/heartbeat` ucunu dakikada bir çağırır (cihaz tokeniyle); böylece
+*"kimse kullanmıyor"* ile *"cihaz düşmüş"* birbirinden ayrışır.
+
+| Durum | Anlamı |
+| --- | --- |
+| Çevrimiçi | Son 10 dakika içinde kalp atışı geldi |
+| Çevrimdışı | 10 dakikadan uzun süredir sinyal yok — **uyarı alarmı açılır** |
+| Kurulum bekliyor | Kayıt açıldı, kurulum adresi henüz cihaza uygulanmadı (arıza değildir) |
+
+Çevrimdışı kalan kiosk için `kiosk_offline` uyarı alarmı açılır, kiosk geri dönünce alarm
+kendiliğinden kapanır. Pasif istasyonların kiosk'ları için alarm üretilmez — kapalı olmaları
+zaten beklenen durumdur.
+
 ## Yakıt sapma (kaçak/kayıp) takibi
 
 Personelsiz istasyonda tankı gözüyle kontrol eden kimse yoktur. Sızıntı yapan bir tank,

@@ -109,9 +109,10 @@ describe("recordReading", () => {
     expect(alarmRaised).toBe(true);
     const alarms = alarmsFor(station.id);
     expect(alarms).toHaveLength(1);
-    expect(alarms[0].severity).toBe("critical");
-    expect(alarms[0].message).toContain("200 L KAYIP");
-    expect(reading.alarm_id).toBe(alarms[0].id);
+    const alarm = alarms[0]!;
+    expect(alarm.severity).toBe("critical");
+    expect(alarm.message).toContain("200 L KAYIP");
+    expect(reading.alarm_id).toBe(alarm.id);
   });
 
   it("olcum toleransi icindeki kucuk farklar alarm uretmez", () => {
@@ -163,7 +164,7 @@ describe("recordReading", () => {
     const { alarmRaised } = recordReading({ stationId: station.id, fuelType: "motorin", measuredLiters: 3300, measuredAt: at(3), actor });
 
     expect(alarmRaised).toBe(true);
-    expect(alarmsFor(station.id)[0].message).toContain("300 L FAZLA");
+    expect(alarmsFor(station.id)[0]!.message).toContain("300 L FAZLA");
   });
 
   it("tank kapasitesinin uzerindeki olcumu reddeder", () => {

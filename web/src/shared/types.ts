@@ -104,6 +104,31 @@ export interface FuelTank {
   updatedAt: string;
 }
 
+export type KioskHealthStatus = "online" | "offline" | "never_seen";
+
+export interface FleetKiosk {
+  id: number;
+  label: string;
+  anydeskId: string | null;
+  stationId: number;
+  stationName: string;
+  stationCode: string | null;
+  stationActive: boolean;
+  lastSeenAt: string | null;
+  createdAt: string;
+  status: KioskHealthStatus;
+  offlineMinutes: number | null;
+  stationFaultAlarms: number;
+}
+
+export interface KioskFleetSummary {
+  total: number;
+  online: number;
+  offline: number;
+  neverSeen: number;
+  stationsWithFault: number;
+}
+
 export interface FuelTankReading {
   id: number;
   fuelType: FuelType;

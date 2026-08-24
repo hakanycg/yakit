@@ -80,6 +80,25 @@ function KioskFlowInner() {
   }, [slug]);
 
   useEffect(loadStation, [loadStation]);
+
+  /**
+   * Kiosk kalp atisi. Bu olmadan panel, gece boyu musteri gelmeyen bir istasyonun
+   * saglam kiosk'unu "cevrimdisi" gosterirdi: last_seen_at yalnizca musteri
+   * kullandiginda guncellenirdi. Duzenli sinyal, "kimse kullanmiyor" ile "cihaz
+   * dusmus" durumlarini birbirinden ayirir.
+   *
+   * Hatalar sessizce yutulur: kalp atisi musteriyi ilgilendiren bir akis degil,
+   * gecici bir kesinti kiosk ekraninda hata gostermemeli.
+   */
+  useEffect(() => {
+    if (!station) return;
+    const beat = () => {
+      kioskApi.heartbeat().catch(() => {});
+    };
+    beat();
+    const interval = setInterval(beat, 60_000);
+    return () => clearInterval(interval);
+  }, [station]);
   useTopicSubscription(station ? `pumps:${station.station.id}` : null, (payload) => {
     setStation((prev) => (prev ? { ...prev, pumps: payload as Pump[] } : prev));
   });

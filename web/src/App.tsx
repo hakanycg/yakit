@@ -33,6 +33,7 @@ import ReportEmailSettings from "./pages/admin/settings/ReportEmailSettings";
 import StationAgentSettings from "./pages/admin/settings/StationAgentSettings";
 import DemoReset from "./pages/admin/DemoReset";
 import Stations from "./pages/admin/Stations";
+import KioskFleet from "./pages/admin/KioskFleet";
 
 export default function App() {
   return (
@@ -84,6 +85,7 @@ export default function App() {
 
           <Route element={<RequireRole roles={["super_admin"]} />}>
             <Route path="/admin/istasyonlar" element={<Stations />} />
+            <Route path="/admin/kiosk-filosu" element={<KioskFleet />} />
             <Route path="/admin/audit-log" element={<AuditLog />} />
             <Route path="/admin/sifirla" element={<DemoReset />} />
           </Route>
