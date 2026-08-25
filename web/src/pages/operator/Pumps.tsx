@@ -107,10 +107,10 @@ export default function Pumps() {
                   Durdur
                 </button>
                 <button disabled={busyId === p.id} onClick={() => runAction(p.id, "reset")}>
-                  Reset
+                  Hizmete Al
                 </button>
                 <button disabled={busyId === p.id} className="danger" onClick={() => setFaultTarget(p)}>
-                  Arıza Simüle Et
+                  Arızaya Al
                 </button>
                 <button disabled={busyId === p.id} onClick={() => setMaintenanceTarget(p)}>
                   Bakım Geçmişi
@@ -222,7 +222,11 @@ function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <div className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h3>{pump.label} - Arıza Simülasyonu</h3>
+        <h3>{pump.label} · Arızaya Al</h3>
+        <p className="hint-text">
+          Pompa satıştan çekilir ve kiosk bu pompadan yakıt veremez. Devam eden dolum varsa durdurulur ve
+          kritik alarm açılır. Pompa, <strong>Hizmete Al</strong> ile geri açılana kadar kapalı kalır.
+        </p>
         <label>Arıza Kodu</label>
         <input value={faultCode} onChange={(e) => setFaultCode(e.target.value)} />
         <label>Arıza Mesajı</label>
@@ -232,7 +236,7 @@ function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
           <button onClick={onClose} disabled={submitting}>Vazgeç</button>
           <div className="spacer" />
           <button className="danger" onClick={submit} disabled={submitting}>
-            {submitting ? "Uygulanıyor..." : "Arıza Oluştur"}
+            {submitting ? "Alınıyor..." : "Arızaya Al"}
           </button>
         </div>
       </div>
