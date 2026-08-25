@@ -465,12 +465,12 @@ Artık `styles.css` içinde tek bir merdiven var ve sayfalar boyut değil **rol*
 
 | Değişken | Kullanım |
 | --- | --- |
-| `--fs-2xs` | rozet, tablo başlığı, bölüm etiketi |
-| `--fs-xs` | meta bilgi, alt not |
-| `--fs-sm` | yardım metni |
+| `--fs-2xs` | rozet, pill, tablo başlığı |
+| `--fs-xs` | meta bilgi, kart içi bölüm etiketi |
+| `--fs-sm` | yardım metni, kenar çubuğu bölüm başlığı |
 | `--fs-md` | panel gövde metni (varsayılan) |
 | `--fs-lg` | form girdisi |
-| `--fs-xl` / `--fs-2xl` / `--fs-3xl` | h3 / h2 / h1 |
+| `--fs-xl` / `--fs-2xl` / `--fs-3xl` | h3 (kart başlığı) / h2 (sayfa başlığı) / h1 |
 | `--fs-num` | büyük sayı (istatistik kutusu) |
 
 Başlıkların **üst marjı yoktur** (kutusunun üstüne yaslanır, alt boşluk sabittir);
