@@ -104,6 +104,56 @@ export interface FuelTank {
   updatedAt: string;
 }
 
+export interface ReconciliationPaymentRow {
+  paymentMethod: string;
+  count: number;
+  amount: number;
+}
+
+export interface ReconciliationFuelRow {
+  fuelType: FuelType;
+  count: number;
+  liters: number;
+  amount: number;
+}
+
+export interface PendingTransaction {
+  id: number;
+  plate: string;
+  status: string;
+  paymentMethod: string;
+  paymentStatus: string;
+  amount: number;
+  createdAt: string;
+}
+
+export interface ReconciliationRecord {
+  id: number;
+  businessDate: string;
+  expectedTotal: number;
+  declaredTotal: number;
+  difference: number;
+  pendingCount: number;
+  breakdown: ReconciliationPaymentRow[];
+  note: string | null;
+  closedAt: string;
+  closedBy: string | null;
+}
+
+export interface DaySummary {
+  businessDate: string;
+  transactionCount: number;
+  grossAmount: number;
+  discountAmount: number;
+  expectedTotal: number;
+  refundedAmount: number;
+  refundedCount: number;
+  byPaymentMethod: ReconciliationPaymentRow[];
+  byFuelType: ReconciliationFuelRow[];
+  pending: PendingTransaction[];
+  closed: ReconciliationRecord | null;
+}
+
 export type KioskHealthStatus = "online" | "offline" | "never_seen";
 
 export interface FleetKiosk {

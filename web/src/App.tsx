@@ -19,6 +19,7 @@ import NotificationSettings from "./pages/operator/account/NotificationSettings"
 import Shift from "./pages/operator/Shift";
 import FuelStock from "./pages/operator/FuelStock";
 import FuelVariance from "./pages/operator/FuelVariance";
+import Reconciliation from "./pages/operator/Reconciliation";
 import DiscountCodes from "./pages/admin/DiscountCodes";
 import FleetAccounts from "./pages/admin/FleetAccounts";
 import LoyaltyLookup from "./pages/admin/LoyaltyLookup";
@@ -77,6 +78,7 @@ export default function App() {
             <Route path="/admin/ayarlar/istasyon-ajani" element={<StationAgentSettings />} />
             <Route path="/operator/stok" element={<FuelStock />} />
             <Route path="/operator/sapma" element={<FuelVariance />} />
+            <Route path="/operator/mutabakat" element={<Reconciliation />} />
             <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
             <Route path="/admin/filo-hesaplari" element={<FleetAccounts />} />
             <Route path="/admin/sadakat-puanlari" element={<LoyaltyLookup />} />

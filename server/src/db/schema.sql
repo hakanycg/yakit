@@ -262,6 +262,29 @@ CREATE TABLE IF NOT EXISTS fuel_tank_readings (
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_tank_readings_station ON fuel_tank_readings(station_id, fuel_type, measured_at);
 
+-- Gun sonu kasa/odeme mutabakati: sistemin hesapladigi tahsilat ile hesaba GERCEKTEN
+-- gecen tutarin karsilastirilmasi. Yakit sapmasiyla ayni mantik - orada kayit stogu
+-- fiziksel olcumle, burada kayit tahsilati banka/POS ekstresiyle karsilastirilir.
+CREATE TABLE IF NOT EXISTS daily_reconciliations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  business_date TEXT NOT NULL,         -- YYYY-MM-DD, istasyonun YEREL is gunu (UTC degil)
+  expected_total REAL NOT NULL,        -- sistemin kaydina gore tahsil edilmis olmasi gereken tutar
+  declared_total REAL NOT NULL,        -- hesaba/kasaya gercekten gecen tutar (ekstreden girilir)
+  difference REAL NOT NULL,            -- declared - expected (eksi: eksik yatmis)
+  -- Kapanis anindaki kirilim FOTOGRAF olarak saklanir. Sonradan gelen iade/duzeltmeler
+  -- yeniden hesaplanan bir rakami degistirirdi ve kapatilmis gun, imzalanan rakamla
+  -- artik tutmazdi (bkz. fuel_tank_readings.book_liters ile ayni gerekce).
+  breakdown_json TEXT NOT NULL,
+  pending_count INTEGER NOT NULL,      -- kapanis aninda askida kalan (para bloke, is bitmemis) islem sayisi
+  note TEXT,
+  closed_by INTEGER REFERENCES users(id),
+  closed_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(station_id, business_date)
+);
+CREATE INDEX IF NOT EXISTS idx_daily_reconciliations_station ON daily_reconciliations(station_id, business_date);
+
 CREATE TABLE IF NOT EXISTS loyalty_accounts (
   station_id INTEGER NOT NULL REFERENCES stations(id),
   plate TEXT NOT NULL,

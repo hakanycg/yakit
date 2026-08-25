@@ -317,6 +317,45 @@ dışarıdan pompa rezerve edilebilirdi. Koruma **cihaz doğrulaması** ile sağ
 > bir tanımlayıcıdır: destek, envanter ve istasyon adı değişse de sabit kalan adres
 > içindir. Güvenliği sağlayan şey cihaz tokenidir.
 
+## Gün sonu kasa/ödeme mutabakatı
+
+**Gün Sonu Mutabakatı** ekranı (İstasyon Yönetimi menüsü), sistemin kaydına göre tahsil
+edilmiş olması gereken tutarı banka/POS ekstresine **gerçekten** geçen tutarla
+karşılaştırır. Yakıt sapmasıyla aynı mantık: orada kayıt stoğu fiziksel ölçümle,
+burada kayıt tahsilatı parayla sınanır.
+
+Gerçekleşen tutar **elle** girilir. Bu bilinçli bir sınır: iyzico'nun hakediş/ekstre
+raporunu çekecek bir ucu yok (`iyzicoService.ts` yalnızca checkout, capture ve iptal
+sağlar), ve zaten mutabakatın anlamı sistem dışı bir kaynağı sisteme karşı doğrulamaktır —
+sayıyı sistemin kendisi üretirse mutabakat yapılmış olmaz.
+
+### İş günü Türkiye saatiyle başlar
+
+İşlem zaman damgaları UTC'dir. UTC tarihine göre gruplamak günü yerel saatle **03:00'te**
+bölerdi: gece 01:30'daki bir satış bir önceki günün kasasına yazılır, kasayı kapatan kişi
+ekstresiyle tutmayan bir rakam görürdü. Bu yüzden mutabakat, iş gününü UTC+3 ofsetiyle
+hesaplar (Türkiye 2016'dan beri yıl boyu UTC+3, yaz saati uygulaması yok).
+
+> Not: Raporlama sayfasındaki günlük ciro grafiği hâlâ UTC tarihine göre grupluyor
+> (`reports.ts`). Trend grafiği için bu küçük bir kayma, mutabakat için ise kabul edilemezdi.
+
+### Askıda kalan işlemler
+
+Ekstre ile kayıt arasındaki farkın kaynağı genelde şunlardır ve ayrı bir listede gösterilir:
+
+- **Parası bloke, işi bitmemiş** (`authorized`/`processing` ama tamamlanmamış): müşteri ödedi, yakıt akmadı.
+- **Tahsilatı başarısız veya iade edilmiş** (`failed`/`refunded`): ekstredeki tutarı doğrudan etkiler.
+
+İade edilmiş işlemler beklenen tutara **dahildir** — kart o gün gerçekten çekilmiştir ve
+ekstrede öyle görünür. İadenin hesaba ne zaman yansıyacağı sağlayıcıya göre değiştiğinden,
+iade tutarı ayrıca raporlanır.
+
+### Kapanış fotoğraftır
+
+Gün kapatıldığında o anki kırılım JSON olarak saklanır. Sonradan gelen bir iade veya
+düzeltme, yeniden hesaplanan bir rakamı değiştirirdi ve kapatılmış gün imzalanan rakamla
+artık tutmazdı. Aynı gün iki kez kapatılamaz; henüz gelmemiş bir günün kasası kapatılamaz.
+
 ## Kiosk filosu (çok istasyonlu sağlık izleme)
 
 **Kiosk Filosu** ekranı (Platform menüsü, yalnızca platform yöneticisi) tüm istasyonlardaki
