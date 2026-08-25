@@ -257,7 +257,27 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
   font-size: var(--fs-md);
 }
 .sidebar a.active, .sidebar a:hover { background: var(--panel-2); color: var(--text); }
-.sidebar .section-label { font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); margin: 1.15rem 0.75rem 0.3rem; }
+/* Bolum basligi: kucuk buyuk-harf etiket DEGIL, gercek bir baslik.
+   Belirginligi iki ayri kanaldan alir - punto ve tam metin rengi basligi okutur,
+   ust cizgi de bolumun nerede bittigini gosterir. Renk vurgu (--accent) icin
+   harcanmaz: panelde mavi "tiklanabilir" demektir, etiketler ise tiklanamaz.
+   Hem renk hem cizgi tema degiskeninden gelir, gunduz temasinda kendiliginden doner. */
+.sidebar .section-label {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: -0.01em;
+  color: var(--text);
+  margin: 1.35rem 0 0.4rem;
+  padding: 0.9rem 0.75rem 0;
+  border-top: 1px solid var(--border);
+}
+/* Menunun en ustundeki bolumun uzerinde ayiracak bir sey yok. */
+.sidebar nav > .section-label:first-child {
+  margin-top: 0.2rem;
+  padding-top: 0;
+  border-top: none;
+}
 
 /* Sidebar'da acilir alt menu ("Ayarlar") - basligi normal bir menu linki gibi
    gorunur, altindaki sayfalar girintili listelenir. */

@@ -467,7 +467,7 @@ Artık `styles.css` içinde tek bir merdiven var ve sayfalar boyut değil **rol*
 | --- | --- |
 | `--fs-2xs` | rozet, pill, tablo başlığı |
 | `--fs-xs` | meta bilgi, kart içi bölüm etiketi |
-| `--fs-sm` | yardım metni, kenar çubuğu bölüm başlığı |
+| `--fs-sm` | yardım metni |
 | `--fs-md` | panel gövde metni (varsayılan) |
 | `--fs-lg` | form girdisi |
 | `--fs-xl` / `--fs-2xl` / `--fs-3xl` | h3 (kart başlığı) / h2 (sayfa başlığı) / h1 |
@@ -479,6 +479,14 @@ bir başlıktan önce içerik varsa aralığı `* + h2/h3/h4` kuralı verir. Bu,
 
 Kiosk (dokunmatik, ayakta okunan) ve yazıcı çıktısı bu ölçeğin dışındadır — panel
 puntosu onlara küçük gelir.
+
+Kenar çubuğundaki bölüm başlıkları (Günlük İşleyiş / İstasyon Yönetimi) küçük
+büyük-harf etiket değil, **gerçek başlıktır**: `--fs-lg`, tam metin rengi, üstünde
+bir ayraç çizgisi. Belirginliği iki ayrı kanaldan alır — punto ve renk başlığı
+okutur, çizgi bölümün nerede bittiğini gösterir. Renk vurgu (`--accent`) için
+harcanmaz: panelde mavi "tıklanabilir" demektir, bölüm başlıkları ise tıklanamaz.
+Hem yazı hem çizgi rengi tema değişkeninden geldiği için gündüz temasında
+kendiliğinden döner.
 
 ### Onay kutuları
 
