@@ -254,6 +254,10 @@ CREATE TABLE IF NOT EXISTS fuel_tank_readings (
   throughput_liters REAL NOT NULL,
   variance_pct REAL NOT NULL,
   previous_reading_id INTEGER REFERENCES fuel_tank_readings(id),
+  -- manual: personel daldirma cubuguyla olcup girdi. auto: seviye probu okudu
+  -- (bkz. tankGaugeDriver.ts). Panelde "kim olctu" sutunu bos gorunmesin diye ayrilir.
+  source TEXT NOT NULL DEFAULT 'manual',
+  temperature_celsius REAL,            -- prob destekliyorsa; genlesme mi kayip mi ayirmaya yardim eder
   alarm_id INTEGER REFERENCES alarms(id),
   note TEXT,
   measured_at TEXT NOT NULL,

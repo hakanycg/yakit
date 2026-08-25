@@ -89,7 +89,7 @@ export default function FuelVariance() {
                 <th>Sapma</th>
                 <th>Hareket hacmi</th>
                 <th>Oran</th>
-                <th>Kullanıcı</th>
+                <th>Ölçen</th>
                 <th>Not</th>
               </tr>
             </thead>
@@ -107,7 +107,16 @@ export default function FuelVariance() {
                   </td>
                   <td>{formatLiters(r.throughputLiters)}</td>
                   <td>%{r.variancePct}</td>
-                  <td>{r.username ?? "—"}</td>
+                  <td>
+                    {r.source === "auto" ? (
+                      <>
+                        <span className="badge resolved">Seviye probu</span>
+                        {r.temperatureCelsius !== null && <div className="hint-text">{r.temperatureCelsius} °C</div>}
+                      </>
+                    ) : (
+                      (r.username ?? "—")
+                    )}
+                  </td>
                   <td>{r.note ?? "—"}</td>
                 </tr>
               ))}

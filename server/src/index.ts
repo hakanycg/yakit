@@ -9,6 +9,7 @@ import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js
 import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkOfflineKiosks } from "./services/kioskFleetService.js";
+import { sweepTankGauges } from "./services/tankGaugeService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
@@ -68,6 +69,19 @@ offlineStationInterval.unref();
 // 10 dakika oldugundan 2 dakikada bir kontrol yeterince hassastir.
 const offlineKioskInterval = setInterval(() => checkOfflineKiosks(), 2 * 60 * 1000);
 offlineKioskInterval.unref();
+
+// Tank seviye probundan otomatik olcum. Prob bagli degilse (bugunku durum) surucu null
+// doner ve hicbir sey kaydedilmez; asagidaki dongu bosa donmus olur. Aralik saatlik
+// esikten (bkz. tankGaugeService.ts) daha sik: dolum suruyorsa okuma atlanacagindan,
+// sik denemek "istasyon sakinlestigi anda oku" davranisini verir.
+const tankGaugeInterval = setInterval(() => {
+  try {
+    sweepTankGauges();
+  } catch (err) {
+    logger.error({ err }, "Tank seviye probu taramasi basarisiz.");
+  }
+}, 10 * 60 * 1000);
+tankGaugeInterval.unref();
 
 // Yangin/gaz alarm sistemi (bkz. safetySensorDriver.ts) - can guvenligi soz konusu
 // oldugundan cok daha sik kontrol edilir (diger periyodik islerin aksine saniyeler

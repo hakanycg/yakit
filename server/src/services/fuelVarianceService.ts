@@ -86,6 +86,8 @@ export function serializeReading(r: FuelTankReadingRow, username: string | null)
     note: r.note,
     measuredAt: r.measured_at,
     createdAt: r.created_at,
+    source: r.source,
+    temperatureCelsius: r.temperature_celsius,
     username,
   };
 }
@@ -127,7 +129,10 @@ export interface RecordReadingInput {
   measuredLiters: number;
   measuredAt?: string;
   note?: string | null;
-  actor: UserRow;
+  /** Seviye probundan gelen otomatik olcumlerin kullanicisi yoktur; o durumda null. */
+  actor: UserRow | null;
+  source?: "manual" | "auto";
+  temperatureCelsius?: number | null;
 }
 
 export interface RecordReadingResult {
@@ -183,8 +188,8 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
       .prepare(
         `INSERT INTO fuel_tank_readings
            (station_id, fuel_type, measured_liters, book_liters, variance_liters, throughput_liters,
-            variance_pct, previous_reading_id, note, measured_at, user_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            variance_pct, previous_reading_id, note, measured_at, user_id, source, temperature_celsius)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         stationId,
@@ -197,7 +202,9 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
         previous?.id ?? null,
         input.note?.trim() || null,
         measuredAt,
-        actor.id
+        actor?.id ?? null,
+        input.source ?? "manual",
+        input.temperatureCelsius ?? null
       );
     const id = result.lastInsertRowid as number;
 

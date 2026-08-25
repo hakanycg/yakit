@@ -419,6 +419,35 @@ okunan gerçek litre girilir. Sistem:
    bildirimleri (e-posta/SMS) aynı kuyruktan gönderilir.
 4. Kayıt stoğunu ölçüme eşitler; fark, denetim izine `adjustment` hareketi olarak yazılır.
 
+### Otomatik tank seviye okuma (ATG probu)
+
+Ölçüm elle girildiği sürece bu özellik insan disiplinine bağlıdır: pratikte ya seyrek
+yapılır ya hiç, ve sızıntı tespiti sessizce çalışmaz hale gelir. Gerçek istasyonların
+tanklarında zaten bir seviye probu bulunur (Veeder-Root TLS, Start Italiana, OPW vb.).
+
+`TankGaugeDriver` (bkz. `services/tankGaugeDriver.ts`) o probu sisteme bağlamak içindir —
+`SafetySensorDriver`/`DispenserDriver`/`PrinterDriver` ile **aynı desen**: bugün tek
+uygulama `noopTankGaugeDriver` (hep `null` döner, "prob bağlı değil"). Gerçek donanım
+bağlanınca arayüzü uygulayan bir sürücü yazılıp `setTankGaugeDriver()` ile devreye alınır;
+periyodik okuma döngüsüne dokunmaya gerek kalmaz.
+
+Otomatik ölçüm, elle girilen ölçümle **aynı yoldan** (`recordReading`) geçer: eşik
+kontrolü, alarm üretimi ve tank düzeltmesi tek yerde kalır. Ölçüm satırında kaynak
+`auto` olarak işaretlenir ve panelde "Seviye probu" rozetiyle gösterilir — kullanıcı
+sütunu boş görünüp "kim ölçtü?" sorusu havada kalmasın diye.
+
+**Üç koruma:**
+
+| Durum | Davranış | Neden |
+| --- | --- | --- |
+| Prob `null` döndürdü | Hiçbir ölçüm kaydedilmez | `null`, "sıfır litre" değildir. Okunamayan probu boş tank saymak doğrudan yanlış bir kayıp alarmı üretirdi. |
+| Dolum sürüyor | Ölçüm atlanır | Yakıt akarken seviye hem düşer hem çalkalanır; probun o anki okuması kararsızdır. Gerçek ATG sistemleri de "sakin dönem" bekler. |
+| Son ölçümden 1 saat geçmedi | Ölçüm atlanır | Sapma oranı iki ölçüm arasındaki hacme bölünür. 5 dakikada bir ölçülse aradaki hacim sıfıra yaklaşır ve probun normal salınımı yüzde olarak devasa görünürdü. |
+
+Otomatik ölçümün **kullanıcısı yoktur**: denetim izinde `user_id` boş kalır. Sistemin
+kendi yaptığı bir düzeltmeyi rastgele bir kullanıcıya yazmak denetim izini yanıltıcı
+hale getirirdi.
+
 ### Sapma oranı neden kapasiteye göre hesaplanmıyor?
 
 50.000 L'lik bir dolaşımda 200 L fark sıcaklık ve sayaç toleransıyla açıklanabilir;

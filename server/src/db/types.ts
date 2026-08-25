@@ -313,6 +313,8 @@ export interface FuelTankReadingRow {
   throughput_liters: number;
   variance_pct: number;
   previous_reading_id: number | null;
+  source: "manual" | "auto";
+  temperature_celsius: number | null;
   alarm_id: number | null;
   note: string | null;
   measured_at: string;

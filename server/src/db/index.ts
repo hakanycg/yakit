@@ -54,6 +54,10 @@ export function applyMigrations(): void {
 
   ensureColumn("station_kiosks", "device_token", "TEXT");
   ensureColumn("station_kiosks", "last_seen_at", "TEXT");
+  // Sema henuz "source" kolonu olmadan olusmus kurulumlar: mevcut tum olcumler elle
+  // girilmistir, varsayilan dogru degeri zaten verir.
+  ensureColumn("fuel_tank_readings", "source", "TEXT NOT NULL DEFAULT 'manual'");
+  ensureColumn("fuel_tank_readings", "temperature_celsius", "REAL");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_station_kiosks_device_token ON station_kiosks(device_token) WHERE device_token IS NOT NULL");
 
   // Kiosk cihaz dogrulamasi YENI istasyonlarda varsayilan olarak aciktir (schema.sql'de

@@ -213,6 +213,8 @@ export interface FuelTankReading {
   note: string | null;
   measuredAt: string;
   createdAt: string;
+  source: "manual" | "auto";
+  temperatureCelsius: number | null;
   username: string | null;
 }
 

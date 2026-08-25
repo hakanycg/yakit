@@ -261,7 +261,19 @@ export function recordSaleMovement(stationId: number, fuelType: FuelType, liters
 }
 
 /** Yonetici, fiziksel olcum sonrasi tank seviyesini dogrudan duzeltir (ör. sayac farki). Aciklama zorunludur - denetim icin her duzeltmenin gercek bir gerekcesi kayit altina alinir. */
-export function adjustStock(stationId: number, fuelType: FuelType, newLiters: number, note: string, actor: UserRow): FuelTankRow {
+/**
+ * `actor` null olabilir: seviye probundan gelen OTOMATIK olcumlerin (bkz.
+ * tankGaugeService.ts) bir kullanicisi yoktur. Denetim izinde bu, "kullanici yok"
+ * olarak gorunur - sistemin kendi yaptigi bir duzeltmeyi rastgele bir kullaniciya
+ * yazmak, denetim izini yaniltici hale getirirdi.
+ */
+export function adjustStock(
+  stationId: number,
+  fuelType: FuelType,
+  newLiters: number,
+  note: string,
+  actor: UserRow | null
+): FuelTankRow {
   if (newLiters < 0) throw new FuelStockError("Stok miktari negatif olamaz.", 400);
   const tank = getTank(stationId, fuelType);
   const clamped = Math.min(newLiters, tank.capacity_liters);
@@ -269,7 +281,7 @@ export function adjustStock(stationId: number, fuelType: FuelType, newLiters: nu
 
   db.prepare(
     "UPDATE fuel_tanks SET current_liters = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
-  ).run(clamped, new Date().toISOString(), actor.id, stationId, fuelType);
+  ).run(clamped, new Date().toISOString(), actor?.id ?? null, stationId, fuelType);
 
   insertMovement({
     stationId,
@@ -278,7 +290,7 @@ export function adjustStock(stationId: number, fuelType: FuelType, newLiters: nu
     liters: delta,
     balanceAfter: clamped,
     note,
-    userId: actor.id,
+    userId: actor?.id ?? null,
   });
 
   if (clamped <= tank.low_stock_threshold_liters) {
@@ -421,11 +433,11 @@ function raiseLowStockAlarmIfNeeded(stationId: number, fuelType: FuelType, level
   createAlarm({ stationId, type: lowStockAlarmType(fuelType), severity: "critical", message });
 }
 
-function resolveLowStockAlarmIfRecovered(stationId: number, fuelType: FuelType, level: number, threshold: number, actor: UserRow): void {
+function resolveLowStockAlarmIfRecovered(stationId: number, fuelType: FuelType, level: number, threshold: number, actor: UserRow | null): void {
   if (level <= threshold) return;
   const now = new Date().toISOString();
   const result = db
     .prepare("UPDATE alarms SET status = 'resolved', resolved_by = ?, resolved_at = ? WHERE station_id = ? AND type = ? AND status != 'resolved'")
-    .run(actor.id, now, stationId, lowStockAlarmType(fuelType));
+    .run(actor?.id ?? null, now, stationId, lowStockAlarmType(fuelType));
   if (result.changes > 0) broadcastAlarms(stationId);
 }
