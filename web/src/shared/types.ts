@@ -104,6 +104,27 @@ export interface FuelTank {
   updatedAt: string;
 }
 
+export type SupportCategory = "payment" | "dispenser" | "receipt" | "other";
+
+export interface SupportRequest {
+  id: number;
+  stationId: number;
+  kioskId: number | null;
+  pumpId: number | null;
+  pumpNumber: number | null;
+  transactionId: number | null;
+  category: SupportCategory;
+  categoryLabel: string;
+  message: string | null;
+  contactPhone: string | null;
+  status: "open" | "resolved";
+  alarmId: number | null;
+  resolvedBy: string | null;
+  resolvedAt: string | null;
+  resolutionNote: string | null;
+  createdAt: string;
+}
+
 export interface ReconciliationPaymentRow {
   paymentMethod: string;
   count: number;

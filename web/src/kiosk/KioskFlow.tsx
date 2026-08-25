@@ -15,6 +15,7 @@ import { ApiError } from "../shared/api";
 import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./resumeStorage";
 import { KioskLangProvider, LanguageSwitcher, RTL_LANGS, useKioskLang } from "./i18n";
 import PrivacyNoticeLink from "./PrivacyNotice";
+import HelpRequestLink from "./HelpRequest";
 import PriceHistoryLink from "./PriceHistory";
 import VoiceGuidanceToggle from "./VoiceGuidanceToggle";
 import { playClickSound, speak } from "./voiceGuidance";
@@ -405,6 +406,10 @@ function KioskFlowInner() {
         )}
 
         <div className="toolbar" style={{ justifyContent: "center", gap: "1rem" }}>
+          {/* Yardim her adimda erisilebilir olmali: musteri en cok odeme/dolum sirasinda
+              takilir ve o an ekrandan cikip bir "yardim sayfasi" aramaz. Icinde bulundugu
+              pompa ve islem, talebe otomatik iliskilendirilir. */}
+          <HelpRequestLink pumpId={pump?.id ?? null} transactionId={transaction?.id ?? null} />
           <PriceHistoryLink stationId={station.station.id} fuelPrices={station.fuelPrices} />
           <PrivacyNoticeLink stationName={station.station.name} stationAddress={station.station.address} />
         </div>

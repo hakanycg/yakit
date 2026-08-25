@@ -285,6 +285,33 @@ CREATE TABLE IF NOT EXISTS daily_reconciliations (
 );
 CREATE INDEX IF NOT EXISTS idx_daily_reconciliations_station ON daily_reconciliations(station_id, business_date);
 
+-- Kiosk'tan gelen musteri destek talepleri.
+--
+-- Personelsiz istasyonda karti cekilip yakit akmayan ya da tabancayi calistiramayan
+-- bir musterinin baska hicbir yolu yok: ekranin ona soyledigi tek sey "istasyon
+-- yoneticinizle iletisime gecin" idi - personeli olmayan bir istasyonda. Bu tablo o
+-- deligi kapatir.
+CREATE TABLE IF NOT EXISTS support_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  kiosk_id INTEGER REFERENCES station_kiosks(id),
+  pump_id INTEGER REFERENCES pumps(id),
+  transaction_id INTEGER REFERENCES transactions(id),
+  category TEXT NOT NULL,              -- payment | dispenser | receipt | other
+  -- Musterinin serbest metni. KVKK geregi zorunlu degildir ve panelde ham gosterilir;
+  -- plaka/telefon gibi kimlik bilgileri ISTENMEZ, kendisi yazarsa da o an zaten
+  -- islemin kendi kaydinda mevcuttur.
+  message TEXT,
+  contact_phone TEXT,                  -- musteri geri aranmak isterse (opsiyonel)
+  status TEXT NOT NULL DEFAULT 'open', -- open | resolved
+  alarm_id INTEGER REFERENCES alarms(id),
+  resolved_by INTEGER REFERENCES users(id),
+  resolved_at TEXT,
+  resolution_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_support_requests_station ON support_requests(station_id, status, created_at);
+
 CREATE TABLE IF NOT EXISTS loyalty_accounts (
   station_id INTEGER NOT NULL REFERENCES stations(id),
   plate TEXT NOT NULL,

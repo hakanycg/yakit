@@ -32,6 +32,7 @@ import type { FuelPriceRow, FuelType, StationRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
 import { attachKioskDevice, requireKioskDevice } from "../middleware/kioskDevice.js";
 import { normalizeStationCode } from "../utils/stationCode.js";
+import { SUPPORT_CATEGORIES, SupportError, createSupportRequest, serializeSupportRequest } from "../services/supportService.js";
 
 const router = Router();
 router.use(kioskRateLimit);
@@ -71,6 +72,45 @@ router.post("/heartbeat", (req, res) => {
     return void res.status(401).json({ error: "Kiosk cihaz tokeni gerekiyor." });
   }
   res.status(204).end();
+});
+
+/**
+ * Musteri destek talebi.
+ *
+ * Personelsiz istasyonda karti cekilip yakit akmayan bir musterinin baska hicbir yolu
+ * yok. Talep, kritik alarma cevrilerek mevcut bildirim zincirine (e-posta/SMS) girer.
+ *
+ * Cihaz tokeni ZORUNLU: aksi halde bu uc, istasyon kimligini bilen herkesin nobetci
+ * personele SMS yagdirabilecegi bir kanala donusurdu.
+ */
+const supportSchema = z.object({
+  category: z.enum(SUPPORT_CATEGORIES),
+  message: z.string().trim().max(500).optional(),
+  contactPhone: z.string().trim().max(30).optional(),
+  pumpId: z.number().int().positive().optional(),
+  transactionId: z.number().int().positive().optional(),
+});
+
+router.post("/support", validateBody(supportSchema), (req, res) => {
+  if (!req.kioskDevice || !req.kioskStation) {
+    return void res.status(401).json({ error: "Kiosk cihaz tokeni gerekiyor." });
+  }
+  try {
+    const body = req.body as z.infer<typeof supportSchema>;
+    const { request, alarmRaised } = createSupportRequest({
+      stationId: req.kioskStation.id,
+      kioskId: req.kioskDevice.id,
+      pumpId: body.pumpId ?? null,
+      transactionId: body.transactionId ?? null,
+      category: body.category,
+      message: body.message ?? null,
+      contactPhone: body.contactPhone ?? null,
+    });
+    res.status(201).json({ request: serializeSupportRequest(request), alarmRaised });
+  } catch (err) {
+    if (err instanceof SupportError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 router.get("/station/:slug", (req, res) => {

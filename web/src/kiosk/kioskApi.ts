@@ -18,6 +18,19 @@ export const kioskApi = {
    */
   heartbeat: () => api.post<void>("/api/kiosk/heartbeat"),
 
+  /**
+   * Musteri destek cagrisi. Cihaz tokeni zorunludur (bkz. routes/kiosk.ts): aksi halde
+   * bu uc, istasyon kimligini bilen herkesin nobetci personele SMS yagdirabilecegi bir
+   * kanala donusurdu.
+   */
+  createSupportRequest: (input: {
+    category: "payment" | "dispenser" | "receipt" | "other";
+    message?: string;
+    contactPhone?: string;
+    pumpId?: number;
+    transactionId?: number;
+  }) => api.post<{ alarmRaised: boolean }>("/api/kiosk/support", input),
+
   recognizePlate: (plate: string) =>
     api.post<{ plate: string; valid: boolean; confidence: number }>("/api/kiosk/lpr/recognize", { plate }),
 

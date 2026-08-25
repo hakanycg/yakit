@@ -160,6 +160,7 @@ export default function AppLayout() {
           <NavLink to="/operator/pompalar">Pompalar</NavLink>
           <NavLink to="/operator/islemler">İşlem Listesi</NavLink>
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
+          <NavLink to="/operator/destek">Destek Talepleri</NavLink>
           <NavLink to="/operator/harita">İstasyon Haritası</NavLink>
           <NavLink to="/operator/raporlar">Raporlama</NavLink>
           <NavLink to="/operator/vardiya">Vardiya</NavLink>

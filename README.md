@@ -317,6 +317,30 @@ dışarıdan pompa rezerve edilebilirdi. Koruma **cihaz doğrulaması** ile sağ
 > bir tanımlayıcıdır: destek, envanter ve istasyon adı değişse de sabit kalan adres
 > içindir. Güvenliği sağlayan şey cihaz tokenidir.
 
+## Kiosk yardım/destek çağrısı
+
+Personelsiz istasyonda kartı çekilip yakıt akmayan ya da tabancayı çalıştıramayan bir
+müşterinin başka hiçbir yolu yoktu: ekranın ona söylediği tek şey *"istasyon
+yöneticinizle iletişime geçin"* idi — personeli olmayan bir istasyonda.
+
+Kiosk ekranının altındaki **Yardım / Destek** butonu (her adımda erişilebilir) bir talep
+açar. Müşteri sorun kategorisini seçer, isterse kısa bir not ve geri arama telefonu
+bırakır; içinde bulunduğu **pompa ve işlem talebe otomatik iliştirilir**.
+
+Talep **kritik alarma** çevrilir. Bu bilinçli: mevcut kritik alarm bildirim zinciri
+(e-posta/SMS, dayanıklı yazma kuyruğu üzerinden) hiçbir ek iş yapılmadan devreye girer.
+Panelde **Destek Talepleri** sayfasından takip edilir; talep kapatıldığında bağlı alarm
+da otomatik çözülür — ikisi ayrı kalırsa alarm merkezi kirli birikirdi.
+
+### İki koruma
+
+- **Cihaz tokeni zorunlu.** Aksi halde bu uç, istasyon kimliğini bilen herkesin nöbetçi
+  personele SMS yağdırabileceği bir kanala dönüşürdü.
+- **Alarm susturma penceresi (10 dk).** Paniğe kapılan bir müşteri butona üst üste
+  basabilir; her basış ayrı bir SMS gönderirse bildirim zinciri işe yaramaz hale gelir.
+  Talepler yine de kaydedilir, yalnızca alarm tekrarlanmaz. Farklı kiosk'lar birbirini
+  susturmaz.
+
 ## Gün sonu kasa/ödeme mutabakatı
 
 **Gün Sonu Mutabakatı** ekranı (İstasyon Yönetimi menüsü), sistemin kaydına göre tahsil
