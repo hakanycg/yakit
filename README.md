@@ -824,6 +824,47 @@ Eşikler istasyon bazında ayarlanır ve **ikisi birden** aşılmadıkça alarm 
 alarm üretirdi. Yüzde, **irsaliye** miktarına bölünerek hesaplanır: fiilen girene bölmek,
 eksik geldikçe paydayı küçültüp farkı olduğundan büyük gösterirdi.
 
+### Pompa ayarı (kalibrasyon) ve damga
+
+Yakıt sapma takibi tankı, teslimat kabul farkı tankere gireni izler. Üçüncü kayıp
+noktası **pompa sayacının kendisidir.** Ayarı kaymış bir pompa:
+
+- **Yasa dışıdır** — akaryakıt sayaçları periyodik muayeneye ve damgaya tabidir.
+- **Her dolumda çalar** — pompa fazla gösteriyorsa müşteriden, eksik gösteriyorsa
+  işletmeden.
+- **Yanlış yere baktırır** — yakıt sapma takibinde açıklanamayan bir kayıp olarak görünür
+  ve operatör olmayan bir sızıntıyı aramaya başlar. Teslimat kabul farkıyla tam olarak
+  aynı desen: *kaybı kaynağında yakalamazsan, kaynağı belirsiz bir sapmaya dönüşür.*
+
+Pompalar sayfasında **Ayar / Damga** ile bilinen hacimli bir ayar kabına (prover) yapılan
+test kaydedilir: kabın gerçek hacmi ile sayacın gösterdiği miktar girilir, sistem hatayı
+hesaplar. Ekran, kaydetmeden önce sonucu canlı gösterir — *"her 1000 L'de kaç litre fark
+oluşur"* dahil; bu bir tahmin değil, doğrudan aritmetiktir.
+
+**Hata, ayar kabına göre hesaplanır** — sayaç okumasına göre değil. Hatanın büyüklüğü,
+gerçekte ne kadar yakıt verildiğine göre anlamlıdır; pompanın kendi (hatalı) rakamına göre
+değil.
+
+| Yön | Anlamı |
+| --- | --- |
+| Hata **+** | Pompa olduğundan fazla gösteriyor — **müşteri aleyhine** |
+| Hata **−** | Pompa olduğundan az gösteriyor — **işletme aleyhine** |
+
+Azami kabul edilebilir hata **±%0,5**'tir ve bu bir işletme tercihi değil yasal bir
+sınırdır — istasyon ayarıyla değiştirilemez (aynı gerekçe: güvenlik alarmlarının yükseltme
+süresi). Aşılırsa **kritik alarm** üretilir. *Mevzuattaki güncel değeri kendi muayene
+kuruluşunuzla teyit edin; değişirse kodda tek noktadan güncellenir.*
+
+**Damga takibi**: her testte periyodik muayene damgasının geçerlilik bitişi ve belge
+numarası kaydedilebilir. Süresi dolmuş damgayla satış yapmak yasa dışıdır, bu yüzden
+dolmuş damga **kritik**, dolmaya 30 günden az kalan damga **uyarı** alarmı üretir. Damga
+yenilenip yeni bir test girildiğinde alarm kendiliğinden çözülür.
+
+Damga tarihi **girilmemiş** pompa için alarm üretilmez: veriyi henüz girmemiş her istasyonu
+alarma boğmak, özelliği kullanılamaz kılardı. Pompa kartında bu durum *"damga tarihi
+girilmemiş"* olarak ayrıca görünür — "test edilmedi" ile "test edildi, geçti" ayrı
+şeylerdir.
+
 ### Tedarikçi karnesi
 
 Tek bir teslimattaki %0,4'lük fark tolerans içindedir ve alarm üretmez. Ama aynı tedarikçi

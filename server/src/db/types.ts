@@ -420,6 +420,24 @@ export interface PumpMaintenanceLogRow {
   created_at: string;
 }
 
+export interface PumpCalibrationRow {
+  id: number;
+  station_id: number;
+  pump_id: number;
+  fuel_type: FuelType;
+  reference_liters: number;
+  metered_liters: number;
+  /** metered - reference. Arti: pompa oldugundan FAZLA gosteriyor (musteri aleyhine). */
+  error_liters: number;
+  error_pct: number;
+  within_tolerance: number;
+  seal_valid_until: string | null;
+  seal_reference: string | null;
+  note: string | null;
+  tested_at: string;
+  user_id: number | null;
+}
+
 export type ScheduledPriceChangeStatus = "pending" | "applied" | "cancelled";
 
 export interface ScheduledPriceChangeRow {

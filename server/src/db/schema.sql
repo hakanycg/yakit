@@ -427,6 +427,36 @@ CREATE TABLE IF NOT EXISTS pump_maintenance_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_pump_maintenance_pump ON pump_maintenance_logs(pump_id, created_at);
 
+-- Pompa kalibrasyon (ayar) testi ve damga takibi.
+--
+-- Ayari kaymis bir pompa iki yonden de sorundur: yasa disidir (periyodik muayene ve
+-- damga zorunlulugu) ve her dolumda ya musteriden ya isletmeden calar. Dahasi, yakit
+-- sapma takibinde (bkz. fuel_tank_readings) aciklanamayan bir kayip olarak gorunup
+-- operatoru olmayan bir sizintiyi aramaya yollar - teslimat kabul farkiyla ayni desen.
+CREATE TABLE IF NOT EXISTS pump_calibrations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  pump_id INTEGER NOT NULL REFERENCES pumps(id),
+  fuel_type TEXT NOT NULL,
+  -- Ayar kabinin (prover) hacmi: testte gercekte olculen miktar.
+  reference_liters REAL NOT NULL,
+  -- Pompa sayacinin ayni test icin gosterdigi miktar.
+  metered_liters REAL NOT NULL,
+  -- metered - reference. Arti: pompa oldugundan FAZLA gosteriyor (musteri aleyhine).
+  error_liters REAL NOT NULL,
+  error_pct REAL NOT NULL,
+  within_tolerance INTEGER NOT NULL,
+  -- Periyodik muayene damgasinin gecerlilik bitisi. Suresi dolmus damgayla calismak
+  -- yasa disidir; bu tarih hicbir yerde tutulmuyordu.
+  seal_valid_until TEXT,
+  seal_reference TEXT,               -- damga/muayene belge no
+  note TEXT,
+  tested_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  user_id INTEGER REFERENCES users(id)
+);
+CREATE INDEX IF NOT EXISTS idx_pump_calibrations_pump ON pump_calibrations(pump_id, tested_at);
+CREATE INDEX IF NOT EXISTS idx_pump_calibrations_station ON pump_calibrations(station_id, tested_at);
+
 -- Filo/kurumsal musteri hesaplari: sirketlerin birden fazla plakasini tek bir
 -- bakiyeye (on odemeli) veya kredi limitine (sonradan faturalandirma) baglar.
 CREATE TABLE IF NOT EXISTS fleet_accounts (

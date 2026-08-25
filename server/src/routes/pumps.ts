@@ -6,6 +6,14 @@ import { getPump, listPumps, serializePump, setPumpStatus } from "../services/pu
 import { emergencyStopStation, emergencyStopTransaction, TransactionError } from "../services/transactionService.js";
 import { createAlarm } from "../services/alarmService.js";
 import { recordAudit } from "../services/auditService.js";
+import {
+  MAX_PERMISSIBLE_ERROR_PCT,
+  PumpCalibrationError,
+  getStationCalibrationStatus,
+  listCalibrations,
+  recordCalibration,
+  serializeCalibration,
+} from "../services/pumpCalibrationService.js";
 import { addMaintenanceLog, listMaintenanceLogs, serializeMaintenanceLog } from "../services/pumpMaintenanceService.js";
 
 const router = Router();
@@ -112,6 +120,71 @@ router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBod
     stationId: req.stationId,
   });
   res.json({ pump: serializePump(getPump(pump.id)!) });
+});
+
+// --- Kalibrasyon (ayar) testi ve damga -------------------------------------
+
+router.get("/calibration-status", (req, res) => {
+  res.json({ pumps: getStationCalibrationStatus(req.stationId!), maxErrorPct: MAX_PERMISSIBLE_ERROR_PCT });
+});
+
+router.get("/:id/calibrations", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz pompa kimligi." });
+  try {
+    res.json({ calibrations: listCalibrations(req.stationId!, id).map(serializeCalibration) });
+  } catch (err) {
+    if (err instanceof PumpCalibrationError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const calibrationSchema = z.object({
+  fuelType: z.enum(["benzin", "motorin", "lpg"]),
+  referenceLiters: z.number().positive().max(1000),
+  meteredLiters: z.number().min(0).max(1000),
+  sealValidUntil: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  sealReference: z.string().trim().max(60).optional(),
+  note: z.string().trim().max(300).optional(),
+});
+
+// csrfProtection router genelinde zaten uygulaniyor (yukaridaki router.use).
+router.post("/:id/calibrations", requireRole("super_admin", "tenant_admin", "admin"), validateBody(calibrationSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz pompa kimligi." });
+  try {
+    const body = req.body as z.infer<typeof calibrationSchema>;
+    const calibration = recordCalibration(
+      req.stationId!,
+      id,
+      {
+        ...body,
+        // Tarih gun bazinda girilir; gunun SONU kabul edilir - o gun damga hala gecerlidir.
+        sealValidUntil: body.sealValidUntil ? `${body.sealValidUntil}T23:59:59.000Z` : null,
+        sealReference: body.sealReference || null,
+        note: body.note || null,
+      },
+      req.user!
+    );
+    recordAudit({
+      user: req.user!,
+      action: "pump_calibration_recorded",
+      entityType: "pump",
+      entityId: id,
+      details: {
+        referenceLiters: body.referenceLiters,
+        meteredLiters: body.meteredLiters,
+        errorPct: calibration.evaluation.errorPct,
+        withinTolerance: calibration.evaluation.withinTolerance,
+      },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ calibration: serializeCalibration(calibration), evaluation: calibration.evaluation });
+  } catch (err) {
+    if (err instanceof PumpCalibrationError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 router.get("/:id/maintenance-logs", (req, res) => {

@@ -13,6 +13,7 @@ import { checkOfflineStations } from "./services/syncService.js";
 import { checkOfflineKiosks } from "./services/kioskFleetService.js";
 import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
 import { sweepDataRetention } from "./services/dataRetentionService.js";
+import { checkExpiringSeals } from "./services/pumpCalibrationService.js";
 import { sweepTankGauges } from "./services/tankGaugeService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
@@ -67,6 +68,21 @@ const sessionCleanupInterval = setInterval(() => {
   purgeExpiredPortalSessions();
 }, 10 * 60 * 1000);
 sessionCleanupInterval.unref();
+
+// Damgasi dolan/dolmak uzere olan pompalar icin alarm uretir. Gunde bir kez yeterlidir:
+// damga suresi aylarla olculur ve daha sik kontrol etmek ayni sonucu tekrar tekrar
+// hesaplamaktan ibaret olurdu.
+const sealCheckInterval = setInterval(
+  () => {
+    try {
+      checkExpiringSeals();
+    } catch (err) {
+      logger.error({ err }, "Pompa damga kontrolu basarisiz.");
+    }
+  },
+  24 * 60 * 60 * 1000
+);
+sealCheckInterval.unref();
 
 // KVKK saklama suresi: penceresi dolmus kisisel veriyi anonimlestirir. Gunde bir kez
 // yeterlidir - saklama suresi aylarla olculur, birkac saatlik gecikme onemsizdir ve daha
