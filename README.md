@@ -294,6 +294,41 @@ olan bir belge ikinci kez kesilebilirdi. Zaten gönderilmiş bir fatura tekrar g
   edilmelidir** — özellikle kurumsal e-Fatura için `DeliveryType` ve
   `AccountingCustomerParty` alanlarının Uyumsoft'un güncel sözleşmesine uyduğu.
 
+## Fiyat değişikliği güvenlik kontrolü (fat-finger koruması)
+
+Fiyat güncellemesinin tek kontrolü *"pozitif ve 1000'den küçük"* idi. **54,20 yerine 5,42**
+yazmak — bir ondalık kayması — bu kontrolden geçer. Personelsiz istasyonda bunu fark edecek
+bir kasiyer yoktur: gece boyunca motorin maliyetin onda birine satılır. Ters yönde de aynı
+derecede kötüdür; 542,00 yazılırsa müşteriler on kat fazla öder.
+
+İki ayrı kontrol vardır ve **birbirinin yerine geçmez**:
+
+| Kontrol | Ne yakalar |
+| --- | --- |
+| **Sapma** — mevcut fiyattan %20'den (ayarlanabilir) fazla uzaklaşma | Ondalık kayması, fazladan/eksik hane |
+| **Maliyet altı** — yeni fiyat, o tankın ağırlıklı ortalama alış maliyetinin altında | Sapma küçük olsa bile zararına satış (maliyet yükselmişken fiyatın geride kalması) |
+
+Bunlardan biri bile tetiklenirse istek **409** ile döner ve ekranda mevcut fiyat, yeni fiyat
+ve değişim yüzdesi yan yana gösterilerek açık onay istenir. Onaylanırsa istek `force` ile
+tekrarlanır ve denetim izine `forcedPastGuard: true` yazılır — *"bu fiyatı kim, uyarıya
+rağmen mi girdi?"* sorusu sonradan aranır.
+
+**Bu bir yasak değil, bir hız kesicidir.** Gerçek fiyat sıçramaları olur (ÖTV değişikliği,
+kur şoku) ve sistemin *"olamaz"* demeye hakkı yoktur. Yapabileceği şey, olağandışı bir
+değişikliği kullanıcıya **sayıyla** göstermektir; yanlışlıkla yazılan bir rakam ile bilerek
+girilen bir rakam arasındaki farkı ancak insanın kendisi bilebilir. Eşik bilinçli olarak
+gevşek tutulmuştur (%20): her küçük zamda onay istemek uyarıyı anlamsızlaştırır ve kullanıcı
+gözü kapalı onaylamayı öğrenir.
+
+**İleri tarihli fiyat değişikliği de aynı kontrolden geçer** — hatta orada daha kritiktir:
+yanlış rakam gece yarısı devreye girer ve o saatte ekrana bakan kimse yoktur. Karşılaştırma
+bugünkü fiyata göre yapılır; plan uygulanana kadar araya başka bir değişiklik girmiş olabilir
+ama elde daha iyi bir referans yoktur ve ondalık kaymasını yakalamak için fazlasıyla yeterlidir.
+
+Maliyet karşılaştırması yalnızca ortalama maliyet **biliniyorsa** yapılır: birim maliyeti
+girilmemiş teslimatlar ortalamayı etkilemez, yani 0 *"bedava aldık"* değil *"bilmiyoruz"*
+demektir.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
-import type { FuelPriceRow } from "../db/types.js";
+import type { FuelPriceRow, FuelType } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
@@ -11,6 +11,12 @@ import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../s
 import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
 import { ScheduledPriceError, cancelSchedule, createSchedule, listSchedules, serializeSchedule } from "../services/scheduledPriceService.js";
 import { broadcastFuelPrices } from "../services/fuelPriceService.js";
+import {
+  PriceGuardError,
+  assertPriceChangeAllowed,
+  getPriceGuardSettings,
+  updatePriceGuardSettings,
+} from "../services/priceGuardService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -20,7 +26,11 @@ router.get("/fuel-prices", (req, res) => {
   res.json({ fuelPrices: rows.map((r) => ({ fuelType: r.fuel_type, label: r.label, pricePerLiter: r.price_per_liter, updatedAt: r.updated_at })) });
 });
 
-const priceSchema = z.object({ pricePerLiter: z.number().positive().max(1000) });
+const priceSchema = z.object({
+  pricePerLiter: z.number().positive().max(1000),
+  // Kullanici ekranda uyariyi gorup onayladiginda gelir (bkz. services/priceGuardService.ts).
+  force: z.boolean().optional(),
+});
 
 router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => {
   const fuelType = req.params.fuelType ?? "";
@@ -29,7 +39,16 @@ router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => 
     .get(req.stationId!, fuelType);
   if (!existing) return void res.status(404).json({ error: "Gecersiz yakit tipi." });
 
-  const { pricePerLiter } = req.body as z.infer<typeof priceSchema>;
+  const { pricePerLiter, force } = req.body as z.infer<typeof priceSchema>;
+  // Fat-finger korumasi: olagandisi bir degisiklik acik onay ister. Personelsiz
+  // istasyonda yanlis yazilan bir rakami fark edecek kimse yoktur.
+  try {
+    assertPriceChangeAllowed(req.stationId!, fuelType as FuelType, pricePerLiter, !!force);
+  } catch (err) {
+    if (err instanceof PriceGuardError) return void res.status(err.status).json({ error: err.message, details: err.details });
+    throw err;
+  }
+
   db.prepare("UPDATE fuel_prices SET price_per_liter = ?, updated_at = ? WHERE station_id = ? AND fuel_type = ?").run(
     pricePerLiter,
     new Date().toISOString(),
@@ -48,7 +67,9 @@ router.patch("/fuel-prices/:fuelType", validateBody(priceSchema), (req, res) => 
     action: "fuel_price_updated",
     entityType: "fuel_price",
     entityId: fuelType,
-    details: { oldPricePerLiter: existing.price_per_liter, newPricePerLiter: pricePerLiter },
+    // Onaylanarak gecilen bir uyari denetim izinde gorunmelidir: "bu fiyati kim, uyariya
+    // ragmen mi girdi?" sorusunun cevabi sonradan aranir.
+    details: { oldPricePerLiter: existing.price_per_liter, newPricePerLiter: pricePerLiter, forcedPastGuard: !!force },
     ip: req.ip,
     stationId: req.stationId,
   });
@@ -60,15 +81,40 @@ router.get("/fuel-prices/scheduled", (req, res) => {
   res.json({ schedules: listSchedules(req.stationId!).map(serializeSchedule) });
 });
 
+router.get("/price-guard", (req, res) => {
+  res.json({ settings: getPriceGuardSettings(req.stationId!) });
+});
+
+const priceGuardSchema = z.object({ maxChangePct: z.number().min(0).max(100) });
+
+router.patch("/price-guard", csrfProtection, validateBody(priceGuardSchema), (req, res) => {
+  try {
+    const { maxChangePct } = req.body as z.infer<typeof priceGuardSchema>;
+    const settings = updatePriceGuardSettings(req.stationId!, maxChangePct, req.user!);
+    recordAudit({ user: req.user!, action: "price_guard_settings_updated", details: settings, ip: req.ip, stationId: req.stationId });
+    res.json({ settings });
+  } catch (err) {
+    if (err instanceof PriceGuardError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
 const scheduleSchema = z.object({
   fuelType: z.enum(["benzin", "motorin", "lpg"]),
   pricePerLiter: z.number().positive().max(1000),
   scheduledFor: z.string().datetime({ message: "Gecerli bir ISO tarih/saat giriniz." }).or(z.string().min(1)),
+  force: z.boolean().optional(),
 });
 
 router.post("/fuel-prices/scheduled", validateBody(scheduleSchema), (req, res) => {
   const body = req.body as z.infer<typeof scheduleSchema>;
   try {
+    // Ileri tarihli degisiklik de ayni kontrolden gecer: yanlis rakam bugun degil gece
+    // yarisi devreye girecegi icin daha da tehlikelidir - o saatte ekrana bakan yoktur.
+    // Kiyaslama BUGUNKU fiyata gore yapilir; plan uygulandiginda araya baska bir
+    // degisiklik girmis olabilir, ama elde daha iyi bir referans yok ve ondalik
+    // kaymasini yakalamak icin fazlasiyla yeterlidir.
+    assertPriceChangeAllowed(req.stationId!, body.fuelType, body.pricePerLiter, !!body.force);
     const schedule = createSchedule(req.stationId!, body.fuelType, body.pricePerLiter, body.scheduledFor, req.user!);
     recordAudit({
       user: req.user!,
@@ -81,6 +127,7 @@ router.post("/fuel-prices/scheduled", validateBody(scheduleSchema), (req, res) =
     });
     res.status(201).json({ schedule: serializeSchedule(schedule) });
   } catch (err) {
+    if (err instanceof PriceGuardError) return void res.status(err.status).json({ error: err.message, details: err.details });
     if (err instanceof ScheduledPriceError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }

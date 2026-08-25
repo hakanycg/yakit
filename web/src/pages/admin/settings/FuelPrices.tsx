@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../shared/api";
+import { useEscapeKey } from "../../../shared/useEscapeKey";
 import { useEffectiveStationId } from "../../../shared/useEffectiveStation";
 import { FUEL_LABEL, formatCurrency, formatDateTime } from "../../../shared/format";
-import type { FuelPrice } from "../../../shared/types";
+import type { FuelPrice, PriceGuardWarning } from "../../../shared/types";
 
 interface ScheduledPriceChange {
   id: number;
@@ -34,7 +35,20 @@ export default function FuelPrices() {
   }
   useEffect(load, [stationId]);
 
-  async function submitSchedule() {
+  /**
+   * Fat-finger onayi. Sunucu olagandisi bir fiyat degisikliginde 409 + uyari detayi
+   * dondurur (bkz. server/src/services/priceGuardService.ts); ekran rakami kullaniciya
+   * gosterip acik onay ister. Onay verilirse ayni istek force ile tekrarlanir.
+   */
+  const [guard, setGuard] = useState<{ warning: PriceGuardWarning; confirm: () => void } | null>(null);
+
+  function extractGuard(err: unknown): PriceGuardWarning | null {
+    if (!(err instanceof ApiError) || err.status !== 409 || !err.details || typeof err.details !== "object") return null;
+    const d = err.details as { priceGuard?: PriceGuardWarning };
+    return d.priceGuard ?? null;
+  }
+
+  async function submitSchedule(force = false) {
     setScheduleError(null);
     const price = Number(schedulePrice);
     if (!scheduleFuelType || !schedulePrice || Number.isNaN(price) || price <= 0 || !scheduleAt) {
@@ -47,12 +61,19 @@ export default function FuelPrices() {
         fuelType: scheduleFuelType,
         pricePerLiter: price,
         scheduledFor: new Date(scheduleAt).toISOString(),
+        force: force || undefined,
       });
+      setGuard(null);
       setScheduleFuelType("");
       setSchedulePrice("");
       setScheduleAt("");
       load();
     } catch (err) {
+      const warning = extractGuard(err);
+      if (warning) {
+        setGuard({ warning, confirm: () => void submitSchedule(true) });
+        return;
+      }
       setScheduleError(err instanceof ApiError ? err.message : "Planlanamadı.");
     } finally {
       setScheduleSubmitting(false);
@@ -71,7 +92,7 @@ export default function FuelPrices() {
 
   const pendingSchedules = schedules.filter((s) => s.status === "pending");
 
-  async function save(fuelType: string) {
+  async function save(fuelType: string, force = false) {
     const raw = edits[fuelType];
     const value = Number(raw);
     setError(null);
@@ -81,16 +102,23 @@ export default function FuelPrices() {
       return;
     }
     try {
-      await api.patch(`/api/settings/fuel-prices/${fuelType}`, { pricePerLiter: value });
+      await api.patch(`/api/settings/fuel-prices/${fuelType}`, { pricePerLiter: value, force: force || undefined });
+      setGuard(null);
       setSavedMsg(`${FUEL_LABEL[fuelType] ?? fuelType} fiyatı güncellendi.`);
       load();
     } catch (err) {
+      const warning = extractGuard(err);
+      if (warning) {
+        setGuard({ warning, confirm: () => void save(fuelType, true) });
+        return;
+      }
       setError(err instanceof ApiError ? err.message : "Güncelleme başarısız.");
     }
   }
 
   return (
     <div className="settings-page">
+      {guard && <PriceGuardDialog warning={guard.warning} onConfirm={guard.confirm} onCancel={() => setGuard(null)} />}
       <div className="card settings-card">
         <div className="card-head">
           <h3>Yakıt Fiyatları</h3>
@@ -134,7 +162,9 @@ export default function FuelPrices() {
           </select>
           <input type="number" step="0.01" min="0" placeholder="Yeni fiyat (TL/L)" value={schedulePrice} onChange={(e) => setSchedulePrice(e.target.value)} style={{ width: "10rem" }} />
           <input type="datetime-local" value={scheduleAt} onChange={(e) => setScheduleAt(e.target.value)} />
-          <button className="primary" onClick={submitSchedule} disabled={scheduleSubmitting}>
+          {/* Ok fonksiyonu SART: dogrudan baglansaydi tiklama olayi `force` parametresine
+              gecer ve nesne truthy oldugu icin her planlama guvenlik kontrolunu atlardi. */}
+          <button className="primary" onClick={() => void submitSchedule()} disabled={scheduleSubmitting}>
             {scheduleSubmitting ? "Planlanıyor..." : "Planla"}
           </button>
         </div>
@@ -157,6 +187,75 @@ export default function FuelPrices() {
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Onay penceresi. Amac kullaniciyi durdurmak degil, RAKAMI ONA GOSTERMEK: yanlislikla
+ * yazilan bir sayi ile bilerek girilen bir sayi arasindaki fark ancak insanin kendisi
+ * tarafindan bilinebilir.
+ */
+function PriceGuardDialog({
+  warning,
+  onConfirm,
+  onCancel,
+}: {
+  warning: PriceGuardWarning;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  useEscapeKey(onCancel);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="price-guard-title"
+    >
+      <div className="card" style={{ width: "min(520px, 92vw)", borderColor: "#f87171" }}>
+        <h3 id="price-guard-title" style={{ marginTop: 0, color: "#f87171" }}>
+          Fiyat Değişikliğini Onaylayın
+        </h3>
+
+        <div className="grid cols-2" style={{ marginBottom: "0.5rem" }}>
+          <div>
+            <span className="label">Mevcut fiyat</span>
+            <div className="value" style={{ fontSize: "1.4rem" }}>{formatCurrency(warning.currentPrice)}</div>
+          </div>
+          <div>
+            <span className="label">Yeni fiyat</span>
+            <div className="value" style={{ fontSize: "1.4rem", color: "#f87171" }}>{formatCurrency(warning.newPrice)}</div>
+          </div>
+        </div>
+
+        {warning.exceedsThreshold && (
+          <p className="error-text">
+            Değişim: <strong>%{Math.abs(warning.changePct).toFixed(2)}</strong> {warning.changePct > 0 ? "artış" : "azalış"}.
+            Bu olağandışı bir sıçrama — ondalık hatası olabilir (örn. 54,20 yerine 5,42).
+          </p>
+        )}
+        {warning.belowCost && warning.averageCostPerLiter !== null && (
+          <p className="error-text">
+            Yeni fiyat, ortalama alış maliyetinin ({formatCurrency(warning.averageCostPerLiter)}/L) <strong>altında</strong> —
+            zararına satış.
+          </p>
+        )}
+        <p className="hint-text">
+          İstasyon personelsiz çalıştığı için yanlış bir fiyatı fark edecek kimse yoktur. Rakamı doğruladıysanız onaylayın.
+        </p>
+
+        <div className="toolbar" style={{ marginTop: "1.25rem", marginBottom: 0 }}>
+          <button type="button" onClick={onCancel} autoFocus>
+            Vazgeç
+          </button>
+          <div className="spacer" />
+          <button type="button" className="danger" onClick={onConfirm}>
+            Evet, Bu Fiyatı Uygula
+          </button>
+        </div>
       </div>
     </div>
   );

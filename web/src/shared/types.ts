@@ -258,6 +258,18 @@ export interface FuelStockMovement {
   createdAt: string;
 }
 
+/** Fiyat degisikligi guvenlik kontrolu uyarisi (bkz. server/src/services/priceGuardService.ts). */
+export interface PriceGuardWarning {
+  currentPrice: number;
+  newPrice: number;
+  changePct: number;
+  exceedsThreshold: boolean;
+  belowCost: boolean;
+  averageCostPerLiter: number | null;
+  requiresConfirmation: boolean;
+  message: string;
+}
+
 export interface DeliveryVariance {
   acceptedLiters: number;
   varianceLiters: number | null;
