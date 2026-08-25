@@ -8,6 +8,7 @@ import { purgeExpiredPortalSessions } from "./services/fleetPortalService.js";
 import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { runBackup } from "./services/backupService.js";
+import { verifyLatestBackup } from "./services/backupVerifyService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkOfflineKiosks } from "./services/kioskFleetService.js";
 import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
@@ -143,12 +144,29 @@ const reportEmailInterval = setInterval(() => {
 }, 60 * 60 * 1000);
 reportEmailInterval.unref();
 
-// Veritabani yedekleme: BACKUP_DIR ayarlanmamissa runBackup() no-op'tur. Sunucu
-// baslarken bir kez ve ardindan BACKUP_INTERVAL_HOURS'ta bir calisir.
-runBackup().catch((err) => logger.error({ err }, "Veritabani yedeklemesi basarisiz."));
-const backupInterval = setInterval(() => {
-  runBackup().catch((err) => logger.error({ err }, "Veritabani yedeklemesi basarisiz."));
-}, env.BACKUP_INTERVAL_HOURS * 60 * 60 * 1000);
+/**
+ * Veritabani yedekleme: BACKUP_DIR ayarlanmamissa runBackup() no-op'tur. Sunucu
+ * baslarken bir kez ve ardindan BACKUP_INTERVAL_HOURS'ta bir calisir.
+ *
+ * Her yedegin ardindan DOGRULAMA calisir: yedek gercekten cozulup acilabiliyor mu?
+ * Hic geri yuklenmemis bir yedek, yedek degildir - bkz. backupVerifyService.ts.
+ * Dogrulama yedekten sonra ve ayni zincirde yapilir ki "yedek alindi ama bozuk" durumu
+ * bir sonraki tura kalmadan ogrenilsin.
+ */
+function backupAndVerify(): void {
+  runBackup()
+    .then(() => {
+      try {
+        verifyLatestBackup();
+      } catch (err) {
+        logger.error({ err }, "Yedek dogrulamasi calistirilamadi.");
+      }
+    })
+    .catch((err) => logger.error({ err }, "Veritabani yedeklemesi basarisiz."));
+}
+
+backupAndVerify();
+const backupInterval = setInterval(backupAndVerify, env.BACKUP_INTERVAL_HOURS * 60 * 60 * 1000);
 backupInterval.unref();
 
 server.listen(env.PORT, () => {

@@ -9,6 +9,7 @@ import { env, isProd } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { db } from "./db/index.js";
 import { attachSession } from "./middleware/auth.js";
+import { getLastVerification } from "./services/backupVerifyService.js";
 import { attachFleetPortalSession } from "./middleware/fleetPortalAuth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
@@ -93,8 +94,19 @@ export function createApp() {
     } catch {
       dbOk = false;
     }
+    // Yedek dogrulamasi saglik cevabinda yer alir ki disaridan izleme (bkz. README
+    // "disis uptime izleme") "sistem ayakta ama yedegi bozuk" durumunu da gorebilsin.
+    // Saglik DURUMUNU dusurmez: bozuk yedek acil bir kesinti degil, kritik bir alarmdir
+    // ve 503 dondurmek izlemeyi yanlis yere - servis kesintisine - yonlendirirdi.
+    const backup = getLastVerification();
     const status = dbOk ? "ok" : "degraded";
-    res.status(dbOk ? 200 : 503).json({ status, dbOk, uptimeSeconds: Math.round(process.uptime()), time: new Date().toISOString() });
+    res.status(dbOk ? 200 : 503).json({
+      status,
+      dbOk,
+      lastBackupVerification: backup ? { ok: backup.ok, verifiedAt: backup.verifiedAt, error: backup.error } : null,
+      uptimeSeconds: Math.round(process.uptime()),
+      time: new Date().toISOString(),
+    });
   });
 
   app.use("/api/auth", authRouter);

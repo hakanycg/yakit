@@ -909,9 +909,44 @@ npm run decrypt-backup -- yedek-dosyasi.sqlite.enc geri-yuklenecek.sqlite
 (yedeğin alındığı sunucudaki AYNI `SESSION_SECRET`/`SETTINGS_ENCRYPTION_KEY` ortamda tanımlı
 olmalı), sonra çıkan dosyayı `DATABASE_PATH`'in üzerine kopyalayıp sunucuyu yeniden başlatın.
 
+### Yedek doğrulama (geri yükleme tatbikatı)
+
+Yedekler alınıyor, şifreleniyor ve rotasyona giriyordu — ama hiçbir aşamada
+**doğrulanmıyordu**. Şifresi çözülebiliyor mu, geçerli bir SQLite dosyası mı, içinde veri
+var mı: kimse bakmıyordu. **Hiç geri yüklenmemiş bir yedek, yedek değildir.**
+
+Her yedeğin ardından sistem yedeği **gerçekten açar ve okur**:
+
+1. Şifresini çözer (geçici bir dosyaya)
+2. SQLite olarak açar ve `PRAGMA integrity_check` çalıştırır
+3. Sistemin çalışması için vazgeçilmez tabloların varlığını kontrol eder
+4. Canlı veritabanında verisi olan bir tablonun yedekte **boş** olmadığını doğrular
+5. Geçici dosyayı — **ve `-wal`/`-shm` yan dosyalarını** — siler
+
+Herhangi biri başarısız olursa **kritik alarm** üretilir (ve alarm yükseltme zincirine
+girer). Yedek düzelince alarm kendiliğinden çözülür; operatörün elle temizlemesi gereken
+bir kalıntı bırakılmaz.
+
+**Satır sayılarının birebir eşit olması aranmaz.** Yedek, alındığı andaki anlık
+görüntüdür; eşitlik beklemek sürekli yanlış alarm üretirdi. Anlamlı olan kontrol
+"canlıda veri var ama yedekte hiç yok" durumudur.
+
+**En sinsi senaryo şifreleme anahtarının değişmesidir:** dosyalar diskte durur, boyutları
+doğrudur, isimleri doğrudur — ama hiçbiri açılamaz. Bunu ancak açmayı deneyerek
+öğrenebilirsiniz, ve bunu felaket günü öğrenmek istemezsiniz.
+
+Geçici olarak çözülen dosya `try/finally` ile her durumda silinir. SQLite'ı açmak `-wal` ve
+`-shm` yan dosyaları da oluşturur ve bunlar da **çözülmüş veritabanı içeriği** taşır;
+yalnızca ana dosyayı silmek, şifrelemenin engellemek için var olduğu şeyi diskte bırakmak
+olurdu.
+
 **Sağlık kontrolü**: `GET /api/health` kimlik doğrulama gerektirmez, veritabanı bağlantısını
 gerçekten sorgulayıp (`dbOk`) çalışma süresini (`uptimeSeconds`) döner — uptime izleme
-araçları (UptimeRobot vb.) veya konteyner orkestrasyon health-check'leri için uygundur. Ayrıca
+araçları (UptimeRobot vb.) veya konteyner orkestrasyon health-check'leri için uygundur.
+Cevapta ayrıca `lastBackupVerification` alanı bulunur — dışarıdan izleme *"sistem ayakta ama
+yedeği bozuk"* durumunu da görebilsin diye. Bu alan sağlık **durumunu** düşürmez: bozuk yedek
+acil bir kesinti değil kritik bir alarmdır ve 503 döndürmek izlemeyi yanlış yere — servis
+kesintisine — yönlendirirdi. Ayrıca
 `.github/workflows/uptime-check.yml`, GitHub Actions üzerinden 10 dakikada bir bu uç noktayı
 dışarıdan (sunucunun kendi süreçlerinden bağımsız olarak) kontrol eder — çalışması için repo
 ayarlarında (Settings → Secrets and variables → Actions → Variables) `HEALTH_CHECK_URL` adında
