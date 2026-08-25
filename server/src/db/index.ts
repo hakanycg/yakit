@@ -66,6 +66,15 @@ export function applyMigrations(): void {
   ensureColumn("users", "tenant_id", "INTEGER REFERENCES tenants(id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_stations_tenant ON stations(tenant_id)");
 
+  // Teslimat kabul farki: irsaliyedeki miktar ile tanka FIILEN giren miktar ayri
+  // kolonlarda tutulur. Tek bir "liters" alani, eksik gelen bir tankeri tespit
+  // edilemez hale getiriyordu - bkz. services/deliveryVarianceService.ts.
+  ensureColumn("fuel_stock_movements", "declared_liters", "REAL");
+  ensureColumn("fuel_stock_movements", "measured_before_liters", "REAL");
+  ensureColumn("fuel_stock_movements", "measured_after_liters", "REAL");
+  ensureColumn("fuel_stock_movements", "delivery_variance_liters", "REAL");
+  ensureColumn("fuel_stock_movements", "delivery_variance_pct", "REAL");
+
   // Bir hareket YALNIZCA BIR KEZ faturalanabilir: donem faturasinin kapsami tarihle
   // degil bu kolonla belirlenir, boylece bir dolumun iki faturada birden cikmasi
   // (kurumsal musteriye ciftfaturalama) sema seviyesinde imkansiz hale gelir.

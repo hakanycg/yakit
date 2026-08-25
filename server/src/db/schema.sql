@@ -250,6 +250,16 @@ CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   delivery_ref TEXT,
   note TEXT,
   unit_cost REAL,                      -- sadece delivery: opsiyonel alis maliyeti (TL/L)
+  -- Teslimat kabul farki (yalnizca delivery). liters = tanka FIILEN giren miktar;
+  -- declared_liters = irsaliyede yazan (ve faturalandigimiz) miktar. Ikisinin farki,
+  -- sizintidan sonra en yaygin kayip kaynagidir ve teslimat ANINDA yakalanmalidir:
+  -- irsaliye rakami kayit stoguna yazilirsa, eksik gelen yakit sonraki gunlere yayilmis
+  -- gizemli bir sapma olarak gorunur (bkz. fuel_tank_readings).
+  declared_liters REAL,
+  measured_before_liters REAL,         -- teslimattan onceki tank seviyesi (olculduyse)
+  measured_after_liters REAL,          -- teslimattan sonraki tank seviyesi (olculduyse)
+  delivery_variance_liters REAL,       -- fiilen giren - irsaliye (eksi: eksik geldi)
+  delivery_variance_pct REAL,
   transaction_id INTEGER REFERENCES transactions(id),
   user_id INTEGER REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))

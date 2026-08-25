@@ -654,6 +654,49 @@ okunan gerçek litre girilir. Sistem:
    bildirimleri (e-posta/SMS) aynı kuyruktan gönderilir.
 4. Kayıt stoğunu ölçüme eşitler; fark, denetim izine `adjustment` hareketi olarak yazılır.
 
+### Teslimat kabul farkı (eksik gelen tanker)
+
+Yakıt sapma takibi tankı izler; ama kayıp çoğu zaman tank<em>a</em> girmeden önce olur.
+Bir teslimatın **iki** rakamı vardır:
+
+1. **İrsaliyedeki miktar** — faturalandığımız miktar
+2. **Tanka fiilen giren miktar** — boşaltmadan önceki ve sonraki tank seviyesinin farkı
+
+20.000 L yazıp 19.600 L boşaltan bir tanker, günün fiyatıyla ~22.000 TL'lik bir kayıptır ve
+tek rakamla kaydedilen bir sistemde hiçbir yerde görünmez.
+
+**Daha kötüsü:** irsaliye rakamı kayıt stoğuna yazıldığında yakıt sapma takibini de
+zehirler. Şişmiş kayıt stoğu, eksik gelen yakıtı teslimat anında değil *sonraki günlere
+yayılmış* gizemli bir kayıp olarak gösterir — yani operatör sızıntı arar, oysa sorun
+tankerdedir. Bu yüzden ölçüm girildiğinde kayıt stoğuna **fiilen giren** miktar yazılır;
+fark ayrı bir kalem olarak kayda geçer.
+
+Stok Ekle formunda teslimat öncesi/sonrası tank seviyesi girilir (öncesi, tankın o anki
+kayıt seviyesiyle önceden doldurulur). Eşik aşılırsa **kritik alarm** üretilir; alarm mesajı
+tedarikçi adını ve irsaliye numarasını içerir, çünkü itiraz ancak tanker şoförü daha
+sahadayken yapılabilir.
+
+| Durum | Davranış |
+| --- | --- |
+| Ölçüm girilmedi | İrsaliyedeki miktar eklenir (eski davranış). Fark alanları **null** kalır — "ölçtük, tuttu" ile "hiç ölçmedik" ayrı şeylerdir |
+| Fark tolerans içinde | Fiilen giren eklenir, fark kaydedilir, alarm yok |
+| Eksik geldi, eşik aşıldı | Fiilen giren eklenir, fark kaydedilir, **kritik alarm** |
+| Fazla geldi | Fark kaydedilir, **alarm yok** — fazlası istasyonun aleyhine değildir ve kritik alarm kuyruğunu doldurması gerçek alarmların kaçırılmasına yol açardı |
+
+Eşikler istasyon bazında ayarlanır ve **ikisi birden** aşılmadıkça alarm çıkmaz
+(varsayılan: %0,5 **ve** 100 L). Sadece yüzde kullanılsaydı 500 L'lik bir LPG teslimatında
+%0,5 yalnızca 2,5 L eder ve ölçüm hassasiyeti bunun altında kaldığı için sürekli yanlış
+alarm üretirdi. Yüzde, **irsaliye** miktarına bölünerek hesaplanır: fiilen girene bölmek,
+eksik geldikçe paydayı küçültüp farkı olduğundan büyük gösterirdi.
+
+### Tedarikçi karnesi
+
+Tek bir teslimattaki %0,4'lük fark tolerans içindedir ve alarm üretmez. Ama aynı tedarikçi
+**her seferinde** %0,4 eksik getiriyorsa bu bir tolerans değil bir **desendir** ve yalnızca
+toplamda görünür. Yakıt Stoku sayfasındaki *Teslimat Kabul Farkı — Tedarikçi Karnesi*
+tablosu tedarikçi başına kümülatif farkı gösterir; alarm tek teslimata, bu rapor ilişkiye
+bakar. Yalnızca ölçümü girilmiş teslimatlar sayılır.
+
 ### Otomatik tank seviye okuma (ATG probu)
 
 Ölçüm elle girildiği sürece bu özellik insan disiplinine bağlıdır: pratikte ya seyrek

@@ -4,7 +4,13 @@ import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useTopicSubscription } from "../../shared/useWebSocket";
 import { FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
-import type { FuelStockMovement, FuelTank, SupplierSummaryRow } from "../../shared/types";
+import type {
+  DeliveryVariance,
+  FuelStockMovement,
+  FuelTank,
+  SupplierDeliveryVarianceRow,
+  SupplierSummaryRow,
+} from "../../shared/types";
 
 const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Düşük", critical: "Kritik" };
 const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical" };
@@ -16,6 +22,7 @@ export default function FuelStock() {
   const [movements, setMovements] = useState<FuelStockMovement[]>([]);
   const [movementFilter, setMovementFilter] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierSummaryRow[]>([]);
+  const [deliveryVariance, setDeliveryVariance] = useState<SupplierDeliveryVarianceRow[]>([]);
 
   function loadTanks() {
     if (stationId === null) return;
@@ -29,6 +36,10 @@ export default function FuelStock() {
   function loadSuppliers() {
     if (stationId === null) return;
     api.get<{ suppliers: SupplierSummaryRow[] }>("/api/fuel-stock/suppliers/summary").then((res) => setSuppliers(res.suppliers));
+    api
+      .get<{ suppliers: SupplierDeliveryVarianceRow[] }>("/api/fuel-stock/delivery-variance/suppliers")
+      .then((res) => setDeliveryVariance(res.suppliers))
+      .catch(() => setDeliveryVariance([]));
   }
 
   useEffect(loadTanks, [stationId]);
@@ -106,7 +117,17 @@ export default function FuelStock() {
                   )}
                 </td>
                 <td className="hint-text">
-                  {[m.supplier, m.unitCost ? `Maliyet: ${formatCurrency(m.unitCost)}/L` : null, m.note, m.transactionId ? `İşlem #${m.transactionId}` : null]
+                  {[
+                    m.supplier,
+                    // Eksik gelen teslimat listede de gorunmeli: alarm kapatilmis olsa
+                    // bile kayit kalicidir ve tedarikciyle gorusmenin dayanagi budur.
+                    m.deliveryVarianceLiters !== null && m.deliveryVarianceLiters !== 0
+                      ? `İrsaliye: ${formatLiters(m.declaredLiters ?? 0)} · Fark: ${m.deliveryVarianceLiters > 0 ? "+" : ""}${formatLiters(m.deliveryVarianceLiters)} (%${Math.abs(m.deliveryVariancePct ?? 0)})`
+                      : null,
+                    m.unitCost ? `Maliyet: ${formatCurrency(m.unitCost)}/L` : null,
+                    m.note,
+                    m.transactionId ? `İşlem #${m.transactionId}` : null,
+                  ]
                     .filter(Boolean)
                     .join(" · ") || "-"}
                 </td>
@@ -115,6 +136,54 @@ export default function FuelStock() {
               </tr>
             ))}
             {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayıt yok.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card" style={{ marginTop: "1rem" }}>
+        <h3 style={{ marginTop: 0 }}>Teslimat Kabul Farkı — Tedarikçi Karnesi</h3>
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          İrsaliyedeki miktar ile tanka <strong>fiilen giren</strong> miktarın farkı. Tek bir teslimattaki küçük fark
+          tolerans içindedir ve alarm üretmez; ama aynı tedarikçi <em>her seferinde</em> eksik getiriyorsa bu bir tolerans
+          değil bir <strong>desendir</strong> ve yalnızca toplamda görünür. Yalnızca ölçümü girilen teslimatlar sayılır.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Tedarikçi</th>
+              <th className="numeric">Teslimat</th>
+              <th className="numeric">Ölçülen</th>
+              <th className="numeric">İrsaliye</th>
+              <th className="numeric">Fiilen Giren</th>
+              <th className="numeric">Fark</th>
+              <th>Son Teslimat</th>
+            </tr>
+          </thead>
+          <tbody>
+            {deliveryVariance.map((s) => (
+              <tr key={s.supplier}>
+                <td>{s.supplier}</td>
+                <td className="numeric">{s.deliveryCount}</td>
+                <td className="numeric">{s.measuredCount}</td>
+                <td className="numeric">{s.measuredCount > 0 ? formatLiters(s.declaredLiters) : "-"}</td>
+                <td className="numeric">{s.measuredCount > 0 ? formatLiters(s.acceptedLiters) : "-"}</td>
+                <td className="numeric">
+                  {s.measuredCount === 0 ? (
+                    <span className="hint-text">ölçüm yok</span>
+                  ) : (
+                    <span className={`badge ${s.varianceLiters < 0 ? "critical" : "resolved"}`}>
+                      {s.varianceLiters > 0 ? "+" : ""}
+                      {formatLiters(s.varianceLiters)}
+                      {/* Isaret zaten litrede: yuzdeyi mutlak yazmak "%-2" gibi bozuk
+                          bir Turkce ifadeden kurtarir. */}
+                      {s.varianceLiters !== 0 && ` (%${Math.abs(s.variancePct)})`}
+                    </span>
+                  )}
+                </td>
+                <td>{s.lastDeliveryAt ? formatDateTime(s.lastDeliveryAt) : "-"}</td>
+              </tr>
+            ))}
+            {deliveryVariance.length === 0 && <tr><td colSpan={7} className="hint-text">Tedarikçili teslimat kaydı yok.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -246,23 +315,49 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
   const [deliveryRef, setDeliveryRef] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [note, setNote] = useState("");
+  // Teslimat oncesi seviye varsayilan olarak tankin SU ANKI kayit seviyesidir: tanker
+  // bosaltmadan once okunan gercek deger genelde budur ve operatorun elle yazmasi
+  // gereksiz bir hata kaynagi olurdu. Yine de duzeltilebilir.
+  const [measuredBefore, setMeasuredBefore] = useState(String(Math.round(tank.currentLiters * 100) / 100));
+  const [measuredAfter, setMeasuredAfter] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  const bothMeasured = measuredBefore.trim() !== "" && measuredAfter.trim() !== "";
+  const measuredDiff = bothMeasured ? Math.round((Number(measuredAfter) - Number(measuredBefore)) * 100) / 100 : 0;
+  const previewVariance = bothMeasured && liters ? Math.round((measuredDiff - Number(liters)) * 100) / 100 : 0;
 
   async function submit(force = false) {
     setSubmitting(true);
     setError(null);
     if (!force) setDuplicateWarning(null);
     try {
-      const res = await api.post<{ tank: FuelTank; overflow: number }>(`/api/fuel-stock/${tank.fuelType}/add`, {
-        liters: Number(liters),
-        supplier: supplier.trim(),
-        deliveryRef: deliveryRef.trim() || undefined,
-        unitCost: unitCost.trim() ? Number(unitCost) : undefined,
-        note: note.trim() || undefined,
-        force: force || undefined,
-      });
+      const res = await api.post<{ tank: FuelTank; overflow: number; variance: DeliveryVariance }>(
+        `/api/fuel-stock/${tank.fuelType}/add`,
+        {
+          liters: Number(liters),
+          supplier: supplier.trim(),
+          deliveryRef: deliveryRef.trim() || undefined,
+          unitCost: unitCost.trim() ? Number(unitCost) : undefined,
+          note: note.trim() || undefined,
+          force: force || undefined,
+          // Ikisi birden girilmedikce fark hesaplanamaz; yarim olcum gondermek yerine
+          // hic gondermemek, sunucunun "olculmedi" demesini saglar.
+          measuredBefore: bothMeasured ? Number(measuredBefore) : undefined,
+          measuredAfter: bothMeasured ? Number(measuredAfter) : undefined,
+        }
+      );
+      if (res.variance.exceedsThreshold && res.variance.varianceLiters !== null) {
+        // Bu ekran kapanmadan gosterilmeli: itiraz ancak tanker sahadayken yapilabilir.
+        setError(
+          `Teslimat EKSİK geldi: irsaliye ${formatLiters(Number(liters))}, tanka giren ${formatLiters(res.variance.acceptedLiters)} ` +
+            `(${formatLiters(res.variance.varianceLiters)}, %${Math.abs(res.variance.variancePct ?? 0)}). Tanker ayrılmadan tutanak tutun. ` +
+            `Kritik alarm oluşturuldu.`
+        );
+        setTimeout(onAdded, 6000);
+        return;
+      }
       if (res.overflow > 0) {
         setError(`Uyarı: tank kapasitesi nedeniyle ${formatLiters(res.overflow)} eklenemedi.`);
         setTimeout(onAdded, 1400);
@@ -290,7 +385,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
         Mevcut: {formatLiters(tank.currentLiters)} / {formatLiters(tank.capacityLiters)}
       </p>
 
-      <label>Eklenecek Miktar (L)</label>
+      <label>İrsaliyedeki Miktar (L)</label>
       <input type="number" min={1} value={liters} onChange={(e) => setLiters(e.target.value)} autoFocus />
 
       <label>Tedarikçi</label>
@@ -310,6 +405,36 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
 
       <label>Not (opsiyonel)</label>
       <input value={note} onChange={(e) => setNote(e.target.value)} />
+
+      <h4 style={{ marginBottom: "0.25rem" }}>Tank Ölçümü (teslimat kabul farkı)</h4>
+      <p className="hint-text" style={{ marginTop: 0 }}>
+        Tankerin boşaltmadan önceki ve sonraki tank seviyesini girerseniz, irsaliyedeki miktar ile{" "}
+        <strong>fiilen giren</strong> miktar karşılaştırılır. Eksik gelen yakıt böylece teslimat anında yakalanır — aksi
+        halde sonraki günlere yayılmış gizemli bir stok sapması olarak görünür. Ölçüm girilirse kayıt stoğuna{" "}
+        <strong>fiilen giren</strong> miktar yazılır.
+      </p>
+      <div className="grid cols-2">
+        <div>
+          <label>Teslimat Öncesi Seviye (L)</label>
+          <input type="number" min={0} step="0.01" value={measuredBefore} onChange={(e) => setMeasuredBefore(e.target.value)} />
+        </div>
+        <div>
+          <label>Teslimat Sonrası Seviye (L)</label>
+          <input type="number" min={0} step="0.01" value={measuredAfter} onChange={(e) => setMeasuredAfter(e.target.value)} />
+        </div>
+      </div>
+      {bothMeasured ? (
+        <p className={previewVariance < 0 ? "error-text" : "hint-text"}>
+          Tanka giren: <strong>{formatLiters(measuredDiff)}</strong>
+          {liters && Number(liters) > 0 && (
+            <>
+              {" · "}Fark: <strong>{previewVariance > 0 ? "+" : ""}{formatLiters(previewVariance)}</strong>
+            </>
+          )}
+        </p>
+      ) : (
+        <p className="hint-text">Ölçüm girilmezse fark hesaplanamaz ve irsaliyedeki miktar kayıt stoğuna eklenir.</p>
+      )}
 
       {error && <p className="error-text">{error}</p>}
       {duplicateWarning && (

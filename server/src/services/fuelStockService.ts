@@ -1,4 +1,5 @@
 import { db } from "../db/index.js";
+import { evaluateDelivery, raiseShortDeliveryAlarm, type DeliveryVarianceResult } from "./deliveryVarianceService.js";
 import type { FuelStockMovementRow, FuelTankRow, FuelType, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { createAlarm, broadcastAlarms } from "./alarmService.js";
@@ -56,6 +57,13 @@ export function serializeMovement(m: FuelStockMovementRow, username: string | nu
     deliveryRef: m.delivery_ref,
     note: m.note,
     unitCost: m.unit_cost,
+    // Teslimat kabul farki. Olculmeyen teslimatta hepsi null kalir - "olctuk, tuttu"
+    // ile "hic olcmedik" ayni sey degildir.
+    declaredLiters: m.declared_liters,
+    measuredBeforeLiters: m.measured_before_liters,
+    measuredAfterLiters: m.measured_after_liters,
+    deliveryVarianceLiters: m.delivery_variance_liters,
+    deliveryVariancePct: m.delivery_variance_pct,
     transactionId: m.transaction_id,
     username,
     createdAt: m.created_at,
@@ -93,13 +101,21 @@ function insertMovement(params: {
   deliveryRef?: string | null;
   note?: string | null;
   unitCost?: number | null;
+  /** Teslimat kabul farki alanlari - yalnizca delivery hareketinde doldurulur. */
+  declaredLiters?: number | null;
+  measuredBefore?: number | null;
+  measuredAfter?: number | null;
+  varianceLiters?: number | null;
+  variancePct?: number | null;
   transactionId?: number | null;
   userId?: number | null;
 }): void {
   db.prepare(
     `INSERT INTO fuel_stock_movements
-      (station_id, fuel_type, type, liters, balance_after, supplier, delivery_ref, note, unit_cost, transaction_id, user_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      (station_id, fuel_type, type, liters, balance_after, supplier, delivery_ref, note, unit_cost,
+       declared_liters, measured_before_liters, measured_after_liters, delivery_variance_liters, delivery_variance_pct,
+       transaction_id, user_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     params.stationId,
     params.fuelType,
@@ -110,6 +126,11 @@ function insertMovement(params: {
     params.deliveryRef ?? null,
     params.note ?? null,
     params.unitCost ?? null,
+    params.declaredLiters ?? null,
+    params.measuredBefore ?? null,
+    params.measuredAfter ?? null,
+    params.varianceLiters ?? null,
+    params.variancePct ?? null,
     params.transactionId ?? null,
     params.userId ?? null
   );
@@ -146,9 +167,18 @@ export function addStock(
   stationId: number,
   fuelType: FuelType,
   liters: number,
-  meta: { supplier: string; deliveryRef?: string | null; note?: string; unitCost?: number | null; force?: boolean },
+  meta: {
+    supplier: string;
+    deliveryRef?: string | null;
+    note?: string;
+    unitCost?: number | null;
+    force?: boolean;
+    /** Teslimat oncesi/sonrasi tank seviyesi. Ikisi de verilirse kabul farki hesaplanir. */
+    measuredBefore?: number | null;
+    measuredAfter?: number | null;
+  },
   actor: UserRow
-): { tank: FuelTankRow; overflow: number } {
+): { tank: FuelTankRow; overflow: number; variance: DeliveryVarianceResult } {
   if (liters <= 0) throw new FuelStockError("Eklenecek miktar sifirdan buyuk olmalidir.", 400);
 
   if (meta.deliveryRef && !meta.force) {
@@ -156,10 +186,20 @@ export function addStock(
     if (duplicate) throw new DuplicateDeliveryRefError(duplicate.id, duplicate.createdAt);
   }
 
+  // `liters` IRSALIYEDE yazan miktardir. Kayit stoguna girecek olan ise tanka FIILEN
+  // giren miktardir: irsaliye rakami yazilirsa eksik gelen yakit, teslimat aninda
+  // yakalanmak yerine sonraki gunlere yayilmis gizemli bir sapma olarak gorunur
+  // (bkz. services/deliveryVarianceService.ts).
+  const variance = evaluateDelivery(stationId, {
+    declaredLiters: liters,
+    measuredBefore: meta.measuredBefore ?? undefined,
+    measuredAfter: meta.measuredAfter ?? undefined,
+  });
+
   const tank = getTank(stationId, fuelType);
   const capacityLeft = Math.max(0, tank.capacity_liters - tank.current_liters);
-  const actualAdded = Math.min(liters, capacityLeft);
-  const overflow = Math.round((liters - actualAdded) * 100) / 100;
+  const actualAdded = Math.min(variance.acceptedLiters, capacityLeft);
+  const overflow = Math.round((variance.acceptedLiters - actualAdded) * 100) / 100;
   const newLevel = Math.round((tank.current_liters + actualAdded) * 100) / 100;
 
   // Birim maliyet girildiyse, tankin agirlikli ortalama maliyetini guncelle. Maliyet
@@ -188,13 +228,35 @@ export function addStock(
     deliveryRef: meta.deliveryRef,
     note,
     unitCost: meta.unitCost || null,
+    // Olcum yoksa fark alanlari NULL kalir: "olctuk, tuttu" ile "hic olcmedik" ayni sey
+    // degildir ve tedarikci karnesi yalnizca olculen teslimatlari kapsamalidir.
+    declaredLiters: variance.unmeasured ? null : liters,
+    measuredBefore: meta.measuredBefore ?? null,
+    measuredAfter: meta.measuredAfter ?? null,
+    varianceLiters: variance.varianceLiters,
+    variancePct: variance.variancePct,
     userId: actor.id,
   });
+
+  // Alarm stok yazildiktan SONRA uretilir: alarm servisi patlarsa teslimat kaydi yine de
+  // dogru sekilde durur (ayni sira: fuelVarianceService.recordReading).
+  if (variance.exceedsThreshold && variance.varianceLiters !== null && variance.variancePct !== null) {
+    raiseShortDeliveryAlarm({
+      stationId,
+      fuelType,
+      supplier: meta.supplier,
+      deliveryRef: meta.deliveryRef ?? null,
+      declaredLiters: liters,
+      acceptedLiters: variance.acceptedLiters,
+      varianceLiters: variance.varianceLiters,
+      variancePct: variance.variancePct,
+    });
+  }
 
   resolveLowStockAlarmIfRecovered(stationId, fuelType, newLevel, tank.low_stock_threshold_liters, actor);
 
   broadcastTanks(stationId);
-  return { tank: getTank(stationId, fuelType), overflow };
+  return { tank: getTank(stationId, fuelType), overflow, variance };
 }
 
 export function getAvailableLiters(stationId: number, fuelType: FuelType): number {

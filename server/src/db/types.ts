@@ -393,6 +393,13 @@ export interface FuelStockMovementRow {
   delivery_ref: string | null;
   note: string | null;
   unit_cost: number | null;
+  /** Yalnizca delivery: irsaliyede yazan miktar. liters ise tanka FIILEN giren miktardir. */
+  declared_liters: number | null;
+  measured_before_liters: number | null;
+  measured_after_liters: number | null;
+  /** Fiilen giren - irsaliye. Eksi: teslimat eksik geldi. Olcum yoksa null. */
+  delivery_variance_liters: number | null;
+  delivery_variance_pct: number | null;
   transaction_id: number | null;
   user_id: number | null;
   created_at: string;

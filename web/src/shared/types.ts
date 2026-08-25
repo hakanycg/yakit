@@ -247,9 +247,34 @@ export interface FuelStockMovement {
   deliveryRef: string | null;
   note: string | null;
   unitCost: number | null;
+  /** Teslimat kabul farki. Olculmeyen teslimatta hepsi null. */
+  declaredLiters: number | null;
+  measuredBeforeLiters: number | null;
+  measuredAfterLiters: number | null;
+  deliveryVarianceLiters: number | null;
+  deliveryVariancePct: number | null;
   transactionId: number | null;
   username: string | null;
   createdAt: string;
+}
+
+export interface DeliveryVariance {
+  acceptedLiters: number;
+  varianceLiters: number | null;
+  variancePct: number | null;
+  exceedsThreshold: boolean;
+  unmeasured: boolean;
+}
+
+export interface SupplierDeliveryVarianceRow {
+  supplier: string;
+  deliveryCount: number;
+  measuredCount: number;
+  declaredLiters: number;
+  acceptedLiters: number;
+  varianceLiters: number;
+  variancePct: number;
+  lastDeliveryAt: string | null;
 }
 
 export interface SupplierSummaryRow {

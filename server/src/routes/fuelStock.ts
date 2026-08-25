@@ -25,6 +25,12 @@ import {
   serializeReading,
   updateVarianceSettings,
 } from "../services/fuelVarianceService.js";
+import {
+  DeliveryVarianceError,
+  getDeliveryVarianceSettings,
+  getSupplierDeliveryVariance,
+  updateDeliveryVarianceSettings,
+} from "../services/deliveryVarianceService.js";
 import { createWaybill, WaybillError } from "../services/waybillService.js";
 import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, serializeWaybill } from "../services/waybillRecordService.js";
 
@@ -218,6 +224,10 @@ const addSchema = z.object({
   note: z.string().max(300).optional(),
   unitCost: z.number().positive().max(1000).optional(),
   force: z.boolean().optional(),
+  // Teslimat oncesi/sonrasi tank seviyesi. Ikisi de girilirse kabul farki hesaplanir;
+  // yalnizca biri girilirse fark hesaplanamaz ve teslimat olculmemis sayilir.
+  measuredBefore: z.number().min(0).max(1000000).optional(),
+  measuredAfter: z.number().min(0).max(1000000).optional(),
 });
 
 router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res) => {
@@ -225,12 +235,22 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 
   try {
-    const { liters, supplier, deliveryRef, note, unitCost, force } = req.body as z.infer<typeof addSchema>;
-    const { tank, overflow } = addStock(
+    const { liters, supplier, deliveryRef, note, unitCost, force, measuredBefore, measuredAfter } = req.body as z.infer<
+      typeof addSchema
+    >;
+    const { tank, overflow, variance } = addStock(
       req.stationId!,
       fuelType.data,
       liters,
-      { supplier, deliveryRef: deliveryRef || null, note, unitCost: unitCost || null, force },
+      {
+        supplier,
+        deliveryRef: deliveryRef || null,
+        note,
+        unitCost: unitCost || null,
+        force,
+        measuredBefore,
+        measuredAfter,
+      },
       req.user!
     );
     recordAudit({
@@ -238,11 +258,21 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
       action: "fuel_stock_added",
       entityType: "fuel_tank",
       entityId: fuelType.data,
-      details: { liters, overflow, supplier, deliveryRef, unitCost },
+      // Irsaliye ve fiilen kabul edilen miktar AYRI kaydedilir: denetim izinde
+      // "20.000 L geldi" ile "20.000 L yazildi, 19.600 L girdi" ayirt edilebilmeli.
+      details: {
+        declaredLiters: liters,
+        acceptedLiters: variance.acceptedLiters,
+        varianceLiters: variance.varianceLiters,
+        overflow,
+        supplier,
+        deliveryRef,
+        unitCost,
+      },
       ip: req.ip,
       stationId: req.stationId,
     });
-    res.status(201).json({ tank: serializeTank(tank), overflow });
+    res.status(201).json({ tank: serializeTank(tank), overflow, variance });
   } catch (err) {
     if (err instanceof DuplicateDeliveryRefError) {
       return void res.status(err.status).json({
@@ -253,6 +283,45 @@ router.post("/:fuelType/add", csrfProtection, validateBody(addSchema), (req, res
     if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }
+});
+
+// --- Teslimat kabul farki: esikler ve tedarikci karnesi ---------------------
+
+router.get("/delivery-variance/settings", (req, res) => {
+  res.json({ settings: getDeliveryVarianceSettings(req.stationId!) });
+});
+
+const deliveryVarianceSettingsSchema = z.object({
+  thresholdPct: z.number().min(0).max(100).optional(),
+  minLiters: z.number().min(0).max(100000).optional(),
+});
+
+router.patch("/delivery-variance/settings", csrfProtection, validateBody(deliveryVarianceSettingsSchema), (req, res) => {
+  try {
+    const body = req.body as z.infer<typeof deliveryVarianceSettingsSchema>;
+    const settings = updateDeliveryVarianceSettings(req.stationId!, body, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "delivery_variance_settings_updated",
+      details: settings,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ settings });
+  } catch (err) {
+    if (err instanceof DeliveryVarianceError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const supplierVarianceQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+router.get("/delivery-variance/suppliers", validateQuery(supplierVarianceQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof supplierVarianceQuerySchema> }).validatedQuery;
+  res.json({ suppliers: getSupplierDeliveryVariance(req.stationId!, q.from, q.to) });
 });
 
 const adjustSchema = z.object({
