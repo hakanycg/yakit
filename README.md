@@ -222,6 +222,78 @@ bakiye odur; müşteriye de o gösterilir. Gün sınırı Türkiye saatiyle gece
 sonu mutabakatı ve konsolide raporla **aynı** tanım (bkz. `utils/businessDay.ts`), böylece
 müşteri ile istasyon aynı gün için farklı rakam görmez.
 
+## Filo dönem (icmal) faturası
+
+Sonradan faturalı (postpaid) bir filo hesabında borç birikiyor, personel ödeme kaydı
+girebiliyordu — ama arada **fatura yoktu**. Mevcut e-Fatura yolu ise tek bir işleme
+bağlıdır (`invoices` tablosunda `UNIQUE(transaction_id)`) ve alıcı kimliği kiosk'ta
+toplanmadığı için VKN'siz **"Nihai Tüketici" e-Arşiv** olarak kesilir. Kurumsal bir
+müşteri için bu iki yönden de yanlıştır: ayda 200 kez dolum yapan nakliye şirketine 200
+perakende fişi değil, **kendi VKN'siyle dönem başına tek e-Fatura** gerekir.
+
+**Filo Hesapları → hesap detayı → Dönem Faturası** bölümünden kesilir. Ekran önce
+kesilecek faturanın önizlemesini gösterir (kaç hareket, hangi araç hangi yakıttan ne kadar,
+KDV hariç/KDV/toplam), sonra "Fatura Kes" ile Uyumsoft'a gönderilir. Müşteri de kendi
+faturalarını `/filo` portalında görür.
+
+### Kapsam tarihle değil, hareketle belirlenir
+
+Fatura *"1–31 Ağustos arası"* diye seçilseydi, 30 Ağustos'ta girilmiş ama 2 Eylül'de fark
+edilen bir hareket ya iki kez faturalanır ya da hiç faturalanmazdı. Onun yerine her hareket
+faturalandığında `fleet_movements.fleet_invoice_id` yazılır; bir sonraki fatura yalnızca
+`NULL` olanları toplar. Böylece:
+
+- Geç gelen bir hareket sessizce kaybolmaz, sıradaki faturaya düşer.
+- Hiçbir hareket iki faturada birden çıkamaz — **kurumsal müşteriyi çift borçlandırmak** bu
+  özellikteki en ağır hatadır, bu yüzden şema seviyesinde imkânsız kılınmıştır.
+
+Bağlama işlemi tek bir veritabanı işlemi içinde ve yalnızca `fleet_invoice_id IS NULL` olan
+satırlar üzerinde yapılır; eş zamanlı iki istek gelse ikincisi hiçbir satır bağlayamaz ve
+reddedilir.
+
+### Ne faturalanır, ne faturalanmaz
+
+| Hareket | Faturaya girer mi? |
+| --- | --- |
+| Yakıt alımı (`charge`) | Evet |
+| İade (`refund`) | Evet — ait olduğu plakanın satırından düşülür |
+| Bakiye yükleme / ödeme (`topup`) | **Hayır** — bu bir satış değil ödemedir; faturalanırsa müşteri ödediği para için ikinci kez borçlandırılır |
+| Düzeltme (`adjustment`) | **Hayır** — elle yapılan bir düzeltmenin faturaya hangi kalem adıyla gireceği operatörün kararıdır; sessizce bir yakıt satırı uydurmak doğru olmaz |
+
+Satırlar **plaka + yakıt tipi** bazında toplanır: 200 dolumlu bir ayda 200 satırlık fatura
+kimsenin işine yaramaz, müşterinin istediği kırılım "hangi araç, hangi yakıttan ne kadar".
+Dolum dökümü zaten portalın ekstresinde ve CSV'sinde durur.
+
+### Rakamlar neden satırlardan türetiliyor?
+
+Fatura başlığındaki KDV hariç tutar, satırların KDV hariç tutarlarının **toplamıdır** —
+bağımsız hesaplanmaz. Bağımsız hesaplansaydı satır başına yuvarlama ile başlık arasında 1
+kuruşluk fark oluşabilirdi (ör. 0,01 + 0,03 TL'lik iki satır: satırlar 0,04, başlık 0,03) ve
+GİB, kalemleri genel toplamıyla tutmayan bir belgeyi reddeder.
+
+Tutarlar fatura kesildiği **anda dondurulur** (`fleet_invoices.lines_json` ve tutar
+alanları). Sonradan gelen bir iade, imzalanmış bir faturanın rakamını geriye dönük
+değiştiremez; o iade sıradaki faturaya düşer. Aynı gerekçe `fuel_tank_readings.book_liters`
+ve gün sonu mutabakatının gün kapanışı için de geçerlidir.
+
+### Gönderim başarısız olursa
+
+Fatura kaydı `failed` olarak **kalır** ve hareketler ona bağlı kalır; personel aynı faturayı
+"Yeniden Gönder" ile tekrar gönderir. Bağlantı geri alınsaydı, sağlayıcıya gerçekte ulaşmış
+olan bir belge ikinci kez kesilebilirdi. Zaten gönderilmiş bir fatura tekrar gönderilemez.
+
+### Teyit edilmesi gerekenler
+
+- **İade faturası:** Halihazırda faturalanmış bir döneme ait bir iade, bu tasarımda sıradaki
+  faturaya eksi kalem olarak düşer. Türkiye'de kesilmiş bir e-Faturanın düzeltilmesi için
+  alıcının **iade faturası** kesmesi gerekebilir; hangi durumda hangisinin geçerli olduğu
+  mali müşavirinizle teyit edilmelidir.
+- **Bu ortamda canlı test edilemedi:** Uyumsoft'un sunucularına bu sandbox'tan erişilemiyor
+  (bkz. aşağıdaki e-Fatura bölümündeki aynı not). İstek gövdesi ve akışın tamamı yerel bir
+  taklit uçla uçtan uca doğrulandı; gerçek Uyumsoft hesabıyla **sizin tarafınızdan test
+  edilmelidir** — özellikle kurumsal e-Fatura için `DeliveryType` ve
+  `AccountingCustomerParty` alanlarının Uyumsoft'un güncel sözleşmesine uyduğu.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

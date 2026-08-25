@@ -21,6 +21,7 @@ import {
   listAccountsForPortalUser,
 } from "../services/fleetPortalService.js";
 import { listPlates, serializePlate } from "../services/fleetService.js";
+import { listInvoicesForAccount, serializeFleetInvoice } from "../services/fleetInvoiceService.js";
 import { recordAudit } from "../services/auditService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 
@@ -162,6 +163,22 @@ router.get("/accounts/:id/statement", validateQuery(rangeSchema), (req, res) => 
 router.get("/accounts/:id/plates", (req, res) => {
   const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
   res.json({ plates: listPlates(accountId).map(serializePlate) });
+});
+
+/**
+ * Musteri kendi donem faturalarini gorur - "fatura geldi mi?" sorusunun cevabi icin
+ * istasyonu aramasi gerekmesin. Yalnizca GONDERILMIS faturalar listelenir: henuz
+ * kesilmemis (pending) veya saglayiciya ulasmamis (failed) bir belge musteri icin
+ * mevcut degildir, gostermek "faturam var ama gelmemis" karisikligi yaratirdi.
+ */
+router.get("/accounts/:id/invoices", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const invoices = listInvoicesForAccount(accountId)
+    .filter((i) => i.status === "sent")
+    .map(serializeFleetInvoice)
+    // Saglayici hata mesaji musteriyi ilgilendirmez (ve ic ayrinti sizdirabilir).
+    .map(({ errorMessage: _errorMessage, ...rest }) => rest);
+  res.json({ invoices });
 });
 
 router.get("/accounts/:id/plate-breakdown", validateQuery(rangeSchema), (req, res) => {

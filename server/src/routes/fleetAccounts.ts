@@ -27,6 +27,14 @@ import {
   setPortalUserActive,
   unlinkPortalUser,
 } from "../services/fleetPortalService.js";
+import {
+  FleetInvoiceError,
+  createPeriodInvoice,
+  getInvoiceDraft,
+  listFleetInvoices,
+  retryFleetInvoice,
+  serializeFleetInvoice,
+} from "../services/fleetInvoiceService.js";
 
 const router = Router();
 // Filo hesaplari yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
@@ -188,7 +196,7 @@ router.post("/:id/topup", csrfProtection, validateBody(topUpSchema), (req, res) 
 // ---------------------------------------------------------------------------
 
 function handlePortalError(err: unknown, res: Response): boolean {
-  if (err instanceof FleetPortalError || err instanceof FleetError) {
+  if (err instanceof FleetPortalError || err instanceof FleetError || err instanceof FleetInvoiceError) {
     res.status(err.status).json({ error: err.message });
     return true;
   }
@@ -295,6 +303,66 @@ router.delete("/:id/portal-users/:portalUserId", csrfProtection, (req, res) => {
       stationId: req.stationId,
     });
     res.json({ ok: true });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Filo donem (icmal) faturasi (bkz. services/fleetInvoiceService.ts)
+// ---------------------------------------------------------------------------
+
+router.get("/:id/invoices", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    res.json({
+      invoices: listFleetInvoices(req.stationId!, id).map(serializeFleetInvoice),
+      // Onizleme ayni yanitta: personel "neyi imzalayacagim" sorusunu ayri bir istek
+      // atmadan gorur ve ekran iki cagri arasinda tutarsiz kalmaz.
+      draft: getInvoiceDraft(req.stationId!, id),
+    });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+router.post("/:id/invoices", csrfProtection, async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    const invoice = await createPeriodInvoice(req.stationId!, id, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_period_invoice_created",
+      entityType: "fleet_account",
+      entityId: id,
+      details: { invoiceId: invoice.id, status: invoice.status, payableAmount: invoice.payable_amount },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ invoice: serializeFleetInvoice(invoice) });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+router.post("/:id/invoices/:invoiceId/retry", csrfProtection, async (req, res) => {
+  const id = Number(req.params.id);
+  const invoiceId = Number(req.params.invoiceId);
+  if (!Number.isInteger(id) || !Number.isInteger(invoiceId)) return void res.status(400).json({ error: "Gecersiz kimlik." });
+  try {
+    const invoice = await retryFleetInvoice(req.stationId!, id, invoiceId);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_period_invoice_retried",
+      entityType: "fleet_account",
+      entityId: id,
+      details: { invoiceId, status: invoice.status },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ invoice: serializeFleetInvoice(invoice) });
   } catch (err) {
     if (!handlePortalError(err, res)) throw err;
   }

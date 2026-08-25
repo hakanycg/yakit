@@ -450,9 +450,18 @@ CREATE TABLE IF NOT EXISTS fleet_movements (
   transaction_id INTEGER REFERENCES transactions(id),
   note TEXT,
   user_id INTEGER REFERENCES users(id),
+  -- Bu hareketi kapsayan donem faturasi. NULL: henuz faturalanmadi. Bir hareket
+  -- yalnizca BIR faturaya baglanabilir - donem faturasinin kapsami tarihle degil bu
+  -- kolonla belirlenir, boylece cift faturalama mumkun olmaz.
+  fleet_invoice_id INTEGER REFERENCES fleet_invoices(id),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_fleet_movements_account ON fleet_movements(fleet_account_id, created_at);
+-- fleet_invoice_id'nin indeksi burada DEGIL applyMigrations'ta olusturulur: mevcut bir
+-- veritabaninda yukaridaki CREATE TABLE IF NOT EXISTS hicbir sey yapmaz, yani kolon o
+-- anda henuz yoktur ve buradaki bir indeks acilista "no such column" ile patlardi.
+-- Kolonu ekleyen ensureColumn ile indeksi yan yana tutmak ikisinin ayrisamamasini
+-- garanti eder.
 
 -- Filo musteri self-servis portali.
 --
@@ -500,6 +509,40 @@ CREATE TABLE IF NOT EXISTS fleet_portal_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_fleet_portal_sessions_user ON fleet_portal_sessions(portal_user_id);
 CREATE INDEX IF NOT EXISTS idx_fleet_portal_sessions_expires ON fleet_portal_sessions(expires_at);
+
+-- Filo donem (icmal) faturasi.
+--
+-- Mevcut invoices tablosu TEK BIR ISLEME baglidir (UNIQUE(transaction_id)) ve alici
+-- kimligi toplanmadigi icin "Nihai Tuketici" e-Arsiv olarak kesilir. Kurumsal bir
+-- musteriye bu yanlistir: ayda 200 kez dolum yapan nakliye sirketine 200 perakende
+-- fisi degil, KENDI VKN'siyle donem basina TEK fatura gerekir.
+CREATE TABLE IF NOT EXISTS fleet_invoices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id),
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | sent | failed
+  provider TEXT NOT NULL DEFAULT 'uyumsoft',
+  provider_invoice_id TEXT,
+  error_message TEXT,
+  -- Faturanin kapsadigi ilk/son hareket tarihi. Donem SECIMLE degil, faturalanmamis
+  -- hareketlerle belirlenir (bkz. fleet_movements.fleet_invoice_id); bu iki alan
+  -- yalnizca "hangi araligi kapsiyor" bilgisini gostermek icindir.
+  period_start TEXT NOT NULL,
+  period_end TEXT NOT NULL,
+  -- Tutarlar fatura kesildigi ANDA dondurulur. Sonradan gelen bir iade, imzalanmis
+  -- bir faturanin rakamini geriye donuk degistiremez (ayni gerekce:
+  -- fuel_tank_readings.book_liters ve mutabakat gun kapanisi).
+  total_liters REAL NOT NULL,
+  tax_exclusive_amount REAL NOT NULL,
+  tax_amount REAL NOT NULL,
+  payable_amount REAL NOT NULL,
+  -- Fatura satirlarinin (plaka/yakit bazinda kirilim) o anki goruntusu.
+  lines_json TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_invoices_account ON fleet_invoices(fleet_account_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_fleet_invoices_station ON fleet_invoices(station_id, created_at);
 
 -- Fiyat seffafligi ekrani icin yakit fiyati her degistiginde bir satir eklenir
 -- (audit_log genel amacli oldugundan station+fuel_type bazinda sorgulamak icin

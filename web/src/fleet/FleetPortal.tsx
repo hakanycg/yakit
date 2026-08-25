@@ -3,7 +3,7 @@ import { ApiError } from "../shared/api";
 import { formatCurrency, formatDateTime, formatLiters } from "../shared/format";
 import { useThemePreference } from "../shared/useThemePreference";
 import { AlertIcon, CheckCircleIcon, FuelIcon, MoonIcon, SunIcon, WalletIcon } from "../shared/icons";
-import { fleetApi, type PlateSummary, type PortalAccount, type PortalUser, type Statement } from "./fleetApi";
+import { fleetApi, type FleetInvoice, type PlateSummary, type PortalAccount, type PortalUser, type Statement } from "./fleetApi";
 
 /**
  * Filo musteri self-servis portali (/filo).
@@ -171,6 +171,7 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
   const [plateFilter, setPlateFilter] = useState("");
   const [statement, setStatement] = useState<Statement | null>(null);
   const [plates, setPlates] = useState<PlateSummary[]>([]);
+  const [invoices, setInvoices] = useState<FleetInvoice[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const account = accounts.find((a) => a.accountId === accountId) ?? null;
@@ -184,6 +185,16 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
       .then((r) => setStatement(r.statement))
       .catch((err) => setError(err instanceof ApiError ? err.message : "Ekstre yüklenemedi."));
   }, [accountId, from, to, plateFilter]);
+
+  // Faturalar tarih araligindan da bagimsizdir: "faturam kesildi mi?" sorusu secilen
+  // donemle degil hesabin kendisiyle ilgilidir.
+  useEffect(() => {
+    if (accountId === null) return;
+    fleetApi
+      .get<{ invoices: FleetInvoice[] }>(`/api/fleet-portal/accounts/${accountId}/invoices`)
+      .then((r) => setInvoices(r.invoices))
+      .catch(() => setInvoices([]));
+  }, [accountId]);
 
   // Arac ozeti plaka filtresinden ETKILENMEZ: filtre ekstreyi daraltir, aracin donem
   // toplamlarini degil. Ayni efekte konulsaydi her filtre degisiminde gereksiz yere
@@ -376,6 +387,46 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
                 </tbody>
               </table>
             </div>
+
+            {invoices.length > 0 && (
+              <>
+                <h3>Faturalarım</h3>
+                <div className="card">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Fatura tarihi</th>
+                        <th>Dönem</th>
+                        <th>Litre</th>
+                        <th>KDV hariç</th>
+                        <th>KDV</th>
+                        <th>Toplam</th>
+                        <th>Fatura no</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {invoices.map((i) => (
+                        <tr key={i.id}>
+                          <td>{formatDateTime(i.createdAt)}</td>
+                          <td className="hint-text">
+                            {i.periodStart.slice(0, 10)} — {i.periodEnd.slice(0, 10)}
+                          </td>
+                          <td>{formatLiters(i.totalLiters)}</td>
+                          <td className="hint-text">{formatCurrency(i.taxExclusiveAmount)}</td>
+                          <td className="hint-text">{formatCurrency(i.taxAmount)}</td>
+                          <td>
+                            <strong>{formatCurrency(i.payableAmount)}</strong>
+                          </td>
+                          <td className="hint-text">
+                            <code>{i.providerInvoiceId ?? "—"}</code>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
 
             <h3>Hesap Ekstresi</h3>
             <div className="card">

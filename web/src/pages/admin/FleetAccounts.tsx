@@ -47,6 +47,41 @@ interface PortalUser {
   createdAt: string;
 }
 
+interface FleetInvoiceLine {
+  plate: string;
+  fuelType: string;
+  liters: number;
+  amount: number;
+  taxExclusiveAmount: number;
+  taxAmount: number;
+}
+
+interface FleetInvoice {
+  id: number;
+  status: "pending" | "sent" | "failed";
+  providerInvoiceId: string | null;
+  errorMessage: string | null;
+  periodStart: string;
+  periodEnd: string;
+  totalLiters: number;
+  taxExclusiveAmount: number;
+  taxAmount: number;
+  payableAmount: number;
+  lines: FleetInvoiceLine[];
+  createdAt: string;
+}
+
+interface FleetInvoiceDraft {
+  movementCount: number;
+  periodStart: string | null;
+  periodEnd: string | null;
+  lines: FleetInvoiceLine[];
+  totalLiters: number;
+  taxExclusiveAmount: number;
+  taxAmount: number;
+  payableAmount: number;
+}
+
 const MOVEMENT_LABEL: Record<FleetMovement["type"], string> = {
   topup: "Bakiye Yükleme / Ödeme",
   charge: "Tahsilat",
@@ -237,6 +272,8 @@ function AccountDetailDialog({
 }) {
   const [movements, setMovements] = useState<FleetMovement[]>([]);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
+  const [invoices, setInvoices] = useState<FleetInvoice[]>([]);
+  const [invoiceDraft, setInvoiceDraft] = useState<FleetInvoiceDraft | null>(null);
   const [portalEmail, setPortalEmail] = useState("");
   /** Gecici sifre yalnizca olusturma/sifirlama yanitinda gelir; hicbir yerde saklanmaz. */
   const [temporaryPassword, setTemporaryPassword] = useState<{ email: string; password: string } | null>(null);
@@ -259,6 +296,51 @@ function AccountDetailDialog({
     api.get<{ portalUsers: PortalUser[] }>(`/api/fleet-accounts/${accountId}/portal-users`).then((res) => setPortalUsers(res.portalUsers));
   }
   useEffect(loadPortalUsers, [accountId]);
+
+  function loadInvoices() {
+    api
+      .get<{ invoices: FleetInvoice[]; draft: FleetInvoiceDraft }>(`/api/fleet-accounts/${accountId}/invoices`)
+      .then((res) => {
+        setInvoices(res.invoices);
+        setInvoiceDraft(res.draft);
+      })
+      .catch(() => {
+        setInvoices([]);
+        setInvoiceDraft(null);
+      });
+  }
+  useEffect(loadInvoices, [accountId]);
+
+  async function createInvoice() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ invoice: FleetInvoice }>(`/api/fleet-accounts/${accountId}/invoices`);
+      // Gonderim basarisiz olsa bile fatura kaydi olusur (durumu 'failed'); listeyi
+      // yenilemek personelin tekrar deneyebilmesi icin gerekli.
+      if (res.invoice.status === "failed") setError(`Fatura kesildi ama gonderilemedi: ${res.invoice.errorMessage ?? ""}`);
+      loadInvoices();
+      loadMovements();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Fatura kesilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function retryInvoice(invoiceId: number) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ invoice: FleetInvoice }>(`/api/fleet-accounts/${accountId}/invoices/${invoiceId}/retry`);
+      if (res.invoice.status === "failed") setError(`Yeniden gonderilemedi: ${res.invoice.errorMessage ?? ""}`);
+      loadInvoices();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Yeniden gonderilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addPortalUser() {
     if (!portalEmail.trim()) return;
@@ -455,6 +537,90 @@ function AccountDetailDialog({
         <div className="spacer" />
         <button onClick={saveContact} disabled={busy}>İletişim Bilgilerini Kaydet</button>
       </div>
+
+      <h4 style={{ marginTop: "1.5rem" }}>Dönem Faturası</h4>
+      <p className="hint-text">
+        Kurumsal müşteriye her dolum için ayrı fiş değil, biriken hareketler için şirketin kendi VKN'siyle{" "}
+        <strong>tek e-Fatura</strong> kesilir. Kapsam tarihle değil, <em>henüz faturalanmamış hareketlerle</em>
+        {" "}belirlenir; geç fark edilen bir hareket sıradaki faturaya düşer, hiçbir hareket iki kez faturalanmaz.
+      </p>
+      {!account.vkn && <p className="error-text">Fatura kesebilmek için hesaba VKN girilmelidir.</p>}
+      {invoiceDraft && (
+        <div className="card">
+          {invoiceDraft.movementCount === 0 ? (
+            <span className="hint-text">Faturalanacak yeni hareket yok.</span>
+          ) : (
+            <>
+              <strong>
+                Bekleyen: {invoiceDraft.movementCount} hareket · {formatCurrency(invoiceDraft.payableAmount)}
+              </strong>
+              <div className="hint-text">
+                {invoiceDraft.totalLiters.toFixed(2)} L · KDV hariç {formatCurrency(invoiceDraft.taxExclusiveAmount)} + KDV{" "}
+                {formatCurrency(invoiceDraft.taxAmount)}
+                {invoiceDraft.periodStart && ` · ${formatDateTime(invoiceDraft.periodStart)} — ${formatDateTime(invoiceDraft.periodEnd)}`}
+              </div>
+              <div className="table-scroll">
+                <table style={{ marginTop: "0.75rem" }}>
+                  <thead>
+                    <tr><th>Plaka</th><th>Yakıt</th><th className="numeric">Litre</th><th className="numeric">Tutar</th></tr>
+                  </thead>
+                  <tbody>
+                    {invoiceDraft.lines.map((l) => (
+                      <tr key={`${l.plate}-${l.fuelType}`}>
+                        <td>{l.plate}</td>
+                        <td>{l.fuelType}</td>
+                        <td className="numeric">{l.liters.toFixed(2)}</td>
+                        <td className="numeric">{formatCurrency(l.amount)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="toolbar" style={{ marginTop: "0.75rem", marginBottom: 0 }}>
+                <div className="spacer" />
+                <button className="primary" onClick={createInvoice} disabled={busy || !account.vkn}>
+                  Fatura Kes
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+      {invoices.length > 0 && (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr><th>Tarih</th><th>Dönem</th><th className="numeric">Tutar</th><th>Durum</th><th></th></tr>
+            </thead>
+            <tbody>
+              {invoices.map((i) => (
+                <tr key={i.id}>
+                  <td>{formatDateTime(i.createdAt)}</td>
+                  <td className="hint-text">
+                    {i.periodStart.slice(0, 10)} — {i.periodEnd.slice(0, 10)}
+                  </td>
+                  <td className="numeric">{formatCurrency(i.payableAmount)}</td>
+                  <td>
+                    {i.status === "sent" ? (
+                      <span className="badge resolved">Gönderildi</span>
+                    ) : i.status === "failed" ? (
+                      <span className="badge critical" title={i.errorMessage ?? undefined}>Başarısız</span>
+                    ) : (
+                      <span className="badge warning">Bekliyor</span>
+                    )}
+                    {i.providerInvoiceId && <div className="hint-text"><code>{i.providerInvoiceId}</code></div>}
+                  </td>
+                  <td>
+                    {i.status !== "sent" && (
+                      <button onClick={() => retryInvoice(i.id)} disabled={busy}>Yeniden Gönder</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       <h4 style={{ marginTop: "1.5rem" }}>Portal Erişimi</h4>
       <p className="hint-text">

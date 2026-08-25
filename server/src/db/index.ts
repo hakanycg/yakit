@@ -66,6 +66,12 @@ export function applyMigrations(): void {
   ensureColumn("users", "tenant_id", "INTEGER REFERENCES tenants(id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_stations_tenant ON stations(tenant_id)");
 
+  // Bir hareket YALNIZCA BIR KEZ faturalanabilir: donem faturasinin kapsami tarihle
+  // degil bu kolonla belirlenir, boylece bir dolumun iki faturada birden cikmasi
+  // (kurumsal musteriye ciftfaturalama) sema seviyesinde imkansiz hale gelir.
+  ensureColumn("fleet_movements", "fleet_invoice_id", "INTEGER REFERENCES fleet_invoices(id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_fleet_movements_invoice ON fleet_movements(fleet_invoice_id)");
+
   ensureColumn("fuel_tank_readings", "source", "TEXT NOT NULL DEFAULT 'manual'");
   ensureColumn("fuel_tank_readings", "temperature_celsius", "REAL");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_station_kiosks_device_token ON station_kiosks(device_token) WHERE device_token IS NOT NULL");

@@ -208,6 +208,27 @@ export interface FleetMovementRow {
   transaction_id: number | null;
   note: string | null;
   user_id: number | null;
+  /** Bu hareketi kapsayan donem faturasi. null: henuz faturalanmadi. */
+  fleet_invoice_id: number | null;
+  created_at: string;
+}
+
+export interface FleetInvoiceRow {
+  id: number;
+  station_id: number;
+  fleet_account_id: number;
+  status: "pending" | "sent" | "failed";
+  provider: string;
+  provider_invoice_id: string | null;
+  error_message: string | null;
+  period_start: string;
+  period_end: string;
+  total_liters: number;
+  tax_exclusive_amount: number;
+  tax_amount: number;
+  payable_amount: number;
+  lines_json: string;
+  created_by: number | null;
   created_at: string;
 }
 

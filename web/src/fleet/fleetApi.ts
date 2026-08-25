@@ -94,6 +94,29 @@ export interface Statement {
   };
 }
 
+export interface FleetInvoiceLine {
+  plate: string;
+  fuelType: string;
+  liters: number;
+  amount: number;
+  taxExclusiveAmount: number;
+  taxAmount: number;
+}
+
+export interface FleetInvoice {
+  id: number;
+  status: "sent";
+  providerInvoiceId: string | null;
+  periodStart: string;
+  periodEnd: string;
+  totalLiters: number;
+  taxExclusiveAmount: number;
+  taxAmount: number;
+  payableAmount: number;
+  lines: FleetInvoiceLine[];
+  createdAt: string;
+}
+
 export interface PlateSummary {
   plate: string;
   fillCount: number;
