@@ -36,6 +36,17 @@ interface FleetMovement {
   createdAt: string;
 }
 
+interface PortalUser {
+  id: number;
+  email: string;
+  displayName: string | null;
+  active: boolean;
+  mustChangePassword: boolean;
+  locked: boolean;
+  lastLoginAt: string | null;
+  createdAt: string;
+}
+
 const MOVEMENT_LABEL: Record<FleetMovement["type"], string> = {
   topup: "Bakiye Yükleme / Ödeme",
   charge: "Tahsilat",
@@ -225,6 +236,10 @@ function AccountDetailDialog({
   onChanged: () => void;
 }) {
   const [movements, setMovements] = useState<FleetMovement[]>([]);
+  const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
+  const [portalEmail, setPortalEmail] = useState("");
+  /** Gecici sifre yalnizca olusturma/sifirlama yanitinda gelir; hicbir yerde saklanmaz. */
+  const [temporaryPassword, setTemporaryPassword] = useState<{ email: string; password: string } | null>(null);
   const [newPlate, setNewPlate] = useState("");
   const [topUpAmount, setTopUpAmount] = useState("");
   const [topUpNote, setTopUpNote] = useState("");
@@ -239,6 +254,74 @@ function AccountDetailDialog({
     api.get<{ movements: FleetMovement[] }>(`/api/fleet-accounts/${accountId}/movements`).then((res) => setMovements(res.movements));
   }
   useEffect(loadMovements, [accountId]);
+
+  function loadPortalUsers() {
+    api.get<{ portalUsers: PortalUser[] }>(`/api/fleet-accounts/${accountId}/portal-users`).then((res) => setPortalUsers(res.portalUsers));
+  }
+  useEffect(loadPortalUsers, [accountId]);
+
+  async function addPortalUser() {
+    if (!portalEmail.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ portalUser: PortalUser; temporaryPassword: string | null }>(
+        `/api/fleet-accounts/${accountId}/portal-users`,
+        { email: portalEmail.trim() }
+      );
+      // Sifre yalnizca YENI kullanicida doner; var olan bir kullanici bu hesaba baglandiysa
+      // mevcut sifresi degistirilmez (baska istasyondaki erisimi bozardi).
+      setTemporaryPassword(res.temporaryPassword ? { email: res.portalUser.email, password: res.temporaryPassword } : null);
+      setPortalEmail("");
+      loadPortalUsers();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Portal kullanicisi eklenemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resetPortalPassword(u: PortalUser) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await api.post<{ temporaryPassword: string }>(
+        `/api/fleet-accounts/${accountId}/portal-users/${u.id}/reset-password`
+      );
+      setTemporaryPassword({ email: u.email, password: res.temporaryPassword });
+      loadPortalUsers();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Şifre sıfırlanamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePortalUser(u: PortalUser) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/api/fleet-accounts/${accountId}/portal-users/${u.id}`, { active: !u.active });
+      loadPortalUsers();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Güncellenemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removePortalUser(u: PortalUser) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.delete(`/api/fleet-accounts/${accountId}/portal-users/${u.id}`);
+      loadPortalUsers();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kaldırılamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function addPlate() {
     if (!newPlate.trim()) return;
@@ -373,25 +456,88 @@ function AccountDetailDialog({
         <button onClick={saveContact} disabled={busy}>İletişim Bilgilerini Kaydet</button>
       </div>
 
+      <h4 style={{ marginTop: "1.5rem" }}>Portal Erişimi</h4>
+      <p className="hint-text">
+        Şirket yetkilisi <code>/filo</code> adresinden kendi bakiyesini, ekstresini ve araç bazında harcamalarını
+        görebilir. Portal salt okunurdur: bakiye yükleme burada, istasyonda kalır.
+      </p>
+      <div className="toolbar">
+        <input
+          type="email"
+          value={portalEmail}
+          onChange={(e) => setPortalEmail(e.target.value)}
+          placeholder="yetkili@sirket.com"
+          style={{ minWidth: 240 }}
+        />
+        <button onClick={addPortalUser} disabled={busy || !portalEmail.trim()}>Portal Erişimi Ver</button>
+      </div>
+      {temporaryPassword && (
+        <div className="card" style={{ borderColor: "var(--accent)" }}>
+          <strong>Geçici şifre — bu ekran kapanınca bir daha gösterilemez.</strong>
+          <p className="hint-text" style={{ marginBottom: "0.35rem" }}>
+            {temporaryPassword.email} kullanıcısına iletin; ilk girişinde kendi şifresini belirleyecek.
+          </p>
+          <code style={{ fontSize: "1.1rem", userSelect: "all" }}>{temporaryPassword.password}</code>
+          <div className="toolbar" style={{ marginTop: "0.75rem", marginBottom: 0 }}>
+            <div className="spacer" />
+            <button onClick={() => setTemporaryPassword(null)}>Gizle</button>
+          </div>
+        </div>
+      )}
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr><th>E-posta</th><th>Durum</th><th>Son Giriş</th><th></th></tr>
+          </thead>
+          <tbody>
+            {portalUsers.map((u) => (
+              <tr key={u.id}>
+                <td>{u.email}</td>
+                <td>
+                  {!u.active ? (
+                    <span className="badge cancelled">Devre dışı</span>
+                  ) : u.locked ? (
+                    <span className="badge critical">Kilitli</span>
+                  ) : u.mustChangePassword ? (
+                    <span className="badge warning">Şifre bekliyor</span>
+                  ) : (
+                    <span className="badge resolved">Aktif</span>
+                  )}
+                </td>
+                <td>{u.lastLoginAt ? formatDateTime(u.lastLoginAt) : <span className="hint-text">Hiç girmedi</span>}</td>
+                <td className="toolbar" style={{ margin: 0, justifyContent: "flex-end" }}>
+                  <button onClick={() => resetPortalPassword(u)} disabled={busy}>Şifre Sıfırla</button>
+                  <button onClick={() => togglePortalUser(u)} disabled={busy}>{u.active ? "Devre Dışı" : "Etkinleştir"}</button>
+                  <button onClick={() => removePortalUser(u)} disabled={busy}>Kaldır</button>
+                </td>
+              </tr>
+            ))}
+            {portalUsers.length === 0 && <tr><td colSpan={4} className="hint-text">Portal erişimi verilmemiş.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
       <h4 style={{ marginTop: "1.5rem" }}>Hareket Geçmişi</h4>
-      <table>
-        <thead>
-          <tr><th>Tarih</th><th>Tip</th><th className="numeric">Tutar</th><th className="numeric">Sonraki Bakiye</th><th>Not</th><th>Kullanıcı</th></tr>
-        </thead>
-        <tbody>
-          {movements.map((m) => (
-            <tr key={m.id}>
-              <td>{formatDateTime(m.createdAt)}</td>
-              <td>{MOVEMENT_LABEL[m.type]}</td>
-              <td className="numeric">{formatCurrency(m.amount)}</td>
-              <td className="numeric">{formatCurrency(m.balanceAfter)}</td>
-              <td>{m.note ?? (m.transactionId ? `İşlem #${m.transactionId}` : "-")}</td>
-              <td>{m.username ?? "-"}</td>
-            </tr>
-          ))}
-          {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Henüz hareket yok.</td></tr>}
-        </tbody>
-      </table>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Tarih</th><th>Tip</th><th className="numeric">Tutar</th><th className="numeric">Sonraki Bakiye</th><th>Not</th><th>Kullanıcı</th></tr>
+          </thead>
+          <tbody>
+            {movements.map((m) => (
+              <tr key={m.id}>
+                <td>{formatDateTime(m.createdAt)}</td>
+                <td>{MOVEMENT_LABEL[m.type]}</td>
+                <td className="numeric">{formatCurrency(m.amount)}</td>
+                <td className="numeric">{formatCurrency(m.balanceAfter)}</td>
+                <td>{m.note ?? (m.transactionId ? `İşlem #${m.transactionId}` : "-")}</td>
+                <td>{m.username ?? "-"}</td>
+              </tr>
+            ))}
+            {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Henüz hareket yok.</td></tr>}
+          </tbody>
+        </table>
+      </div>
     </Modal>
   );
 }

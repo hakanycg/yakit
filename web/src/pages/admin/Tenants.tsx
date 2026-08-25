@@ -45,34 +45,32 @@ export default function Tenants() {
       </div>
 
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
+        <table>
+          <thead>
+            <tr>
+              <th>Şirket</th>
+              <th>Kısa ad</th>
+              <th>İstasyon</th>
+              <th>Kullanıcı</th>
+              <th>Durum</th>
+              <th>Oluşturulma</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {tenants.map((t) => (
+              <TenantRow key={t.id} tenant={t} onChanged={load} />
+            ))}
+            {tenants.length === 0 && (
               <tr>
-                <th>Şirket</th>
-                <th>Kısa ad</th>
-                <th>İstasyon</th>
-                <th>Kullanıcı</th>
-                <th>Durum</th>
-                <th>Oluşturulma</th>
-                <th></th>
+                <td colSpan={7} className="hint-text">
+                  Henüz dağıtım şirketi yok. Bir şirket açıp istasyon atadığınızda, o şirketin yöneticisi yalnızca
+                  kendi istasyonlarını görecek.
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {tenants.map((t) => (
-                <TenantRow key={t.id} tenant={t} onChanged={load} />
-              ))}
-              {tenants.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="hint-text">
-                    Henüz dağıtım şirketi yok. Bir şirket açıp istasyon atadığınızda, o şirketin yöneticisi yalnızca
-                    kendi istasyonlarını görecek.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

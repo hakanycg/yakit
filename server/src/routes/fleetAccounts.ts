@@ -1,4 +1,5 @@
 import { Router } from "express";
+import type { Response } from "express";
 import { z } from "zod";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
@@ -18,6 +19,14 @@ import {
   topUp,
   updateContact,
 } from "../services/fleetService.js";
+import {
+  FleetPortalError,
+  createOrLinkPortalUser,
+  listPortalUsersForAccount,
+  resetPortalUserPassword,
+  setPortalUserActive,
+  unlinkPortalUser,
+} from "../services/fleetPortalService.js";
 
 const router = Router();
 // Filo hesaplari yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
@@ -168,6 +177,126 @@ router.post("/:id/topup", csrfProtection, validateBody(topUpSchema), (req, res) 
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
     throw err;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Filo musteri portali kullanicilari (bkz. services/fleetPortalService.ts)
+//
+// Sirket yetkilisine portal erisimi vermek, bakiye yuklemekle ayni yetki seviyesindedir:
+// bu router'in basindaki requireRole zaten operator/viewer'i disarida birakiyor.
+// ---------------------------------------------------------------------------
+
+function handlePortalError(err: unknown, res: Response): boolean {
+  if (err instanceof FleetPortalError || err instanceof FleetError) {
+    res.status(err.status).json({ error: err.message });
+    return true;
+  }
+  return false;
+}
+
+router.get("/:id/portal-users", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    res.json({ portalUsers: listPortalUsersForAccount(req.stationId!, id) });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+const portalUserSchema = z.object({
+  email: z.string().trim().email("Gecerli bir e-posta girin.").max(160),
+  displayName: z.string().trim().max(120).optional(),
+});
+
+router.post("/:id/portal-users", csrfProtection, validateBody(portalUserSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    const body = req.body as z.infer<typeof portalUserSchema>;
+    const created = createOrLinkPortalUser(req.stationId!, id, body, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_portal_user_created",
+      entityType: "fleet_account",
+      entityId: id,
+      // Gecici sifre denetim izine YAZILMAZ: audit_log'u okuyabilen herkes o hesaba
+      // girebilir hale gelirdi.
+      details: { email: body.email, linkedExisting: created.temporaryPassword === "" },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    // Gecici sifre yalnizca BU yanitla, bir kez dondurulur; hicbir yerde saklanmaz.
+    res.status(201).json({ portalUser: created.user, temporaryPassword: created.temporaryPassword || null });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+router.post("/:id/portal-users/:portalUserId/reset-password", csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  const portalUserId = Number(req.params.portalUserId);
+  if (!Number.isInteger(id) || !Number.isInteger(portalUserId)) return void res.status(400).json({ error: "Gecersiz kimlik." });
+  try {
+    const temporaryPassword = resetPortalUserPassword(req.stationId!, id, portalUserId);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_portal_user_password_reset",
+      entityType: "fleet_account",
+      entityId: id,
+      details: { portalUserId },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ temporaryPassword });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+const portalUserActiveSchema = z.object({ active: z.boolean() });
+
+router.patch("/:id/portal-users/:portalUserId", csrfProtection, validateBody(portalUserActiveSchema), (req, res) => {
+  const id = Number(req.params.id);
+  const portalUserId = Number(req.params.portalUserId);
+  if (!Number.isInteger(id) || !Number.isInteger(portalUserId)) return void res.status(400).json({ error: "Gecersiz kimlik." });
+  try {
+    const { active } = req.body as z.infer<typeof portalUserActiveSchema>;
+    const portalUser = setPortalUserActive(req.stationId!, id, portalUserId, active);
+    recordAudit({
+      user: req.user!,
+      action: active ? "fleet_portal_user_enabled" : "fleet_portal_user_disabled",
+      entityType: "fleet_account",
+      entityId: id,
+      details: { portalUserId },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ portalUser });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
+  }
+});
+
+router.delete("/:id/portal-users/:portalUserId", csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  const portalUserId = Number(req.params.portalUserId);
+  if (!Number.isInteger(id) || !Number.isInteger(portalUserId)) return void res.status(400).json({ error: "Gecersiz kimlik." });
+  try {
+    unlinkPortalUser(req.stationId!, id, portalUserId);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_portal_user_removed",
+      entityType: "fleet_account",
+      entityId: id,
+      details: { portalUserId },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    if (!handlePortalError(err, res)) throw err;
   }
 });
 

@@ -158,6 +158,70 @@ Sidebar'daki istasyon listesini sunucu belirler: `/api/stations`, `tenant_admin`
 yalnızca kendi kiracısının istasyonlarını döner. Menüde neyin göründüğü kolaylık
 içindir; izolasyon her zaman sunucuda zorlanır.
 
+## Filo müşteri self-servis portalı (`/filo`)
+
+Bir filo müşterisi — 30 kamyonu olan bir nakliye şirketi — bugüne kadar kendi hesabını
+hiç göremiyordu. Bakiyesini, hangi aracın ne zaman ne kadar yakıt aldığını öğrenmek için
+istasyonu telefonla araması gerekiyordu. Düşük bakiye uyarısı şirkete gidiyordu ama şirket
+o uyarıyla hiçbir şey yapamıyordu: *"ne harcadık da bitti?"* sorusunun cevabı yine
+istasyondaydı.
+
+`/filo` adresi şirket yetkilisine kendi hesabını açar:
+
+- Kalan bakiye (veya faturalı hesapta ödenmemiş borç) ve harcanabilir tutar
+- Seçilen tarih aralığında **araç bazında** dolum sayısı, litre ve tutar
+- Hesap ekstresi (yakıt alımı / bakiye yükleme / iade / düzeltme) ve **CSV indirme**
+- Kendi şifresini değiştirme
+
+Erişim istasyondan verilir: **Filo Hesapları → hesap detayı → Portal Erişimi**. Sistem bir
+**geçici şifre** üretir; bu şifre yalnızca o ekranda **bir kez** gösterilir, hiçbir yerde
+saklanmaz ve denetim izine de yazılmaz (audit log'u okuyabilen herkes o hesaba girebilir
+hale gelirdi). Yetkili ilk girişinde kendi şifresini belirlemek zorundadır.
+
+### Kimlik neden personel oturumundan ayrı?
+
+Şirket yetkilisi **personel değildir**. `users` tablosuna bir rol olarak eklenseydi,
+`requireAuth` kullanıp ayrıca rol kontrolü yapmayan **her uç** onu kabul ederdi — tek bir
+eksik kontrol dış bir şirkete istasyon verisi açardı. Bu yüzden portal kimliği baştan aşağı
+ayrıdır: ayrı tablo (`fleet_portal_users`), ayrı oturum tablosu, ayrı çerez
+(`yakit_fleet_sid` / `yakit_fleet_csrf`) ve ayrı middleware
+(`middleware/fleetPortalAuth.ts`). Aynı gerekçe kiosk cihaz tokeni için de geçerlidir.
+
+Ayrı çerez adı, aynı tarayıcıda hem personel hem müşteri oturumunun yan yana durabilmesini
+de sağlar.
+
+Kapsam kontrolü **tek yerde**: bütün müşteri uçları `assertAccountAccess` üzerinden geçer
+ve hangi hesaplara erişilebildiğini `fleet_portal_user_accounts` belirler —
+`attachStationScope`'un personel tarafında oynadığı rolün aynısı. Erişilemeyen hesapla var
+olmayan hesap **aynı** cevabı döner (404); giriş ekranında da yanlış şifre ile olmayan
+e-posta aynı cevabı verir, aksi halde portal bir şirketin bizde hesabı olup olmadığını
+sızdıran bir sorgu aracı olurdu. Personel girişindeki savunmalar da aynen geçerli: sabit iş
+yükü (kullanıcı bulunamasa da bir PBKDF2 doğrulaması yapılır) ve 5 başarısız denemede 15
+dakika kilit.
+
+### Portal salt okunurdur
+
+Yetkili **kendi şifresi dışında hiçbir şey yazamaz**. Bakiye yükleme parayla ilgilidir ve
+istasyonda kalır; portaldaki düşük bakiye uyarısı da kullanıcıyı istasyona yönlendirir.
+
+### Bir şirket, birden fazla istasyon
+
+Filo hesapları istasyon bazlıdır: bir şirket zincirin üç istasyonunda yakıt alıyorsa üç ayrı
+`fleet_accounts` kaydı olur. Portal kullanıcısı **birden fazla hesaba bağlanabilir** (aynı
+e-posta ikinci bir hesaba eklendiğinde yeni şifre üretilmez, mevcut şifresi de
+değiştirilmez — bu, o kişinin diğer istasyondaki erişimini bozardı); portalda hesaplar
+arasında geçiş yapılır. Erişim kaldırıldığında ya da hesap devre dışı bırakıldığında açık
+oturumlar **anında** düşer; şifre değişiminde de tüm oturumlar kapanır.
+
+### Ekstre neden hareket defterinden üretiliyor?
+
+Ekstre `fleet_movements` üzerinden çıkarılır, işlemler üzerinden değil. İşlemlerden ayrı bir
+"dolumlar" listesi çıkarılsaydı bakiyeyle tutmayan bir tablo elde ederdik: iptal edilip
+iadesi yapılmış bir dolum listede görünür ama bakiyeye yansımamış olurdu. Defter neyse
+bakiye odur; müşteriye de o gösterilir. Gün sınırı Türkiye saatiyle gece yarısıdır — gün
+sonu mutabakatı ve konsolide raporla **aynı** tanım (bkz. `utils/businessDay.ts`), böylece
+müşteri ile istasyon aynı gün için farklı rakam görmez.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

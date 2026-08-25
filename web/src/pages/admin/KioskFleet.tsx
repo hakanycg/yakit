@@ -122,58 +122,56 @@ export default function KioskFleet() {
       </div>
 
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Kiosk</th>
-                <th>İstasyon</th>
-                <th>Durum</th>
-                <th>Son bağlantı</th>
-                <th>AnyDesk</th>
-                <th>Uyarı</th>
+        <table>
+          <thead>
+            <tr>
+              <th>Kiosk</th>
+              <th>İstasyon</th>
+              <th>Durum</th>
+              <th>Son bağlantı</th>
+              <th>AnyDesk</th>
+              <th>Uyarı</th>
+            </tr>
+          </thead>
+          <tbody>
+            {kiosks.map((k) => (
+              <tr key={k.id}>
+                <td>
+                  <strong>{k.label}</strong>
+                  <div className="hint-text">#{k.id}</div>
+                </td>
+                <td>
+                  {k.stationName}
+                  <div className="hint-text">
+                    <code>{k.stationCode ?? "—"}</code>
+                    {!k.stationActive && " · pasif"}
+                  </div>
+                </td>
+                <td>
+                  <span className={`badge ${STATUS_BADGE[k.status]}`}>{STATUS_LABEL[k.status]}</span>
+                </td>
+                <td>{lastSeenText(k)}</td>
+                <td>
+                  {k.anydeskId ? <code>{k.anydeskId}</code> : <span className="hint-text">—</span>}
+                </td>
+                <td>
+                  {k.stationFaultAlarms > 0 ? (
+                    <span className="badge critical">{k.stationFaultAlarms} donanım arızası</span>
+                  ) : (
+                    <span className="hint-text">—</span>
+                  )}
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {kiosks.map((k) => (
-                <tr key={k.id}>
-                  <td>
-                    <strong>{k.label}</strong>
-                    <div className="hint-text">#{k.id}</div>
-                  </td>
-                  <td>
-                    {k.stationName}
-                    <div className="hint-text">
-                      <code>{k.stationCode ?? "—"}</code>
-                      {!k.stationActive && " · pasif"}
-                    </div>
-                  </td>
-                  <td>
-                    <span className={`badge ${STATUS_BADGE[k.status]}`}>{STATUS_LABEL[k.status]}</span>
-                  </td>
-                  <td>{lastSeenText(k)}</td>
-                  <td>
-                    {k.anydeskId ? <code>{k.anydeskId}</code> : <span className="hint-text">—</span>}
-                  </td>
-                  <td>
-                    {k.stationFaultAlarms > 0 ? (
-                      <span className="badge critical">{k.stationFaultAlarms} donanım arızası</span>
-                    ) : (
-                      <span className="hint-text">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-              {kiosks.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="hint-text">
-                    {q || status ? "Bu filtreye uyan kiosk yok." : "Henüz kiosk eklenmemiş. İstasyonlar sayfasından ekleyebilirsiniz."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {kiosks.length === 0 && (
+              <tr>
+                <td colSpan={6} className="hint-text">
+                  {q || status ? "Bu filtreye uyan kiosk yok." : "Henüz kiosk eklenmemiş. İstasyonlar sayfasından ekleyebilirsiniz."}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

@@ -4,6 +4,7 @@ import { env, isProd } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { initWebSocketHub } from "./ws/hub.js";
 import { purgeExpiredSessions } from "./services/sessionService.js";
+import { purgeExpiredPortalSessions } from "./services/fleetPortalService.js";
 import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { runBackup } from "./services/backupService.js";
@@ -56,7 +57,12 @@ const app = createApp();
 const server = createServer(app);
 initWebSocketHub(server);
 
-const sessionCleanupInterval = setInterval(purgeExpiredSessions, 10 * 60 * 1000);
+const sessionCleanupInterval = setInterval(() => {
+  purgeExpiredSessions();
+  // Filo musteri portali oturumlari ayri tablodadir; ayni temizlikten gecmezse
+  // suresi dolmus satirlar sonsuza kadar birikirdi.
+  purgeExpiredPortalSessions();
+}, 10 * 60 * 1000);
 sessionCleanupInterval.unref();
 
 // Istasyon ajaniyla haberlesme kesilirse (offline-queue mimarisi) alarm uretir.

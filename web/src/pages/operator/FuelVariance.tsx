@@ -78,59 +78,57 @@ export default function FuelVariance() {
       </div>
 
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Ölçüm tarihi</th>
-                <th>Yakıt</th>
-                <th>Fiziksel ölçüm</th>
-                <th>Kayıttaki stok</th>
-                <th>Sapma</th>
-                <th>Hareket hacmi</th>
-                <th>Oran</th>
-                <th>Ölçen</th>
-                <th>Not</th>
+        <table>
+          <thead>
+            <tr>
+              <th>Ölçüm tarihi</th>
+              <th>Yakıt</th>
+              <th>Fiziksel ölçüm</th>
+              <th>Kayıttaki stok</th>
+              <th>Sapma</th>
+              <th>Hareket hacmi</th>
+              <th>Oran</th>
+              <th>Ölçen</th>
+              <th>Not</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(data?.readings ?? []).map((r) => (
+              <tr key={r.id}>
+                <td>{formatDateTime(r.measuredAt)}</td>
+                <td>{FUEL_LABEL[r.fuelType]}</td>
+                <td>{formatLiters(r.measuredLiters)}</td>
+                <td>{formatLiters(r.bookLiters)}</td>
+                <td>
+                  <span className={`badge ${varianceTone(r.varianceLiters, r.alarmId !== null)}`}>
+                    {formatVariance(r.varianceLiters)}
+                  </span>
+                </td>
+                <td>{formatLiters(r.throughputLiters)}</td>
+                <td>%{r.variancePct}</td>
+                <td>
+                  {r.source === "auto" ? (
+                    <>
+                      <span className="badge resolved">Seviye probu</span>
+                      {r.temperatureCelsius !== null && <div className="hint-text">{r.temperatureCelsius} °C</div>}
+                    </>
+                  ) : (
+                    (r.username ?? "—")
+                  )}
+                </td>
+                <td>{r.note ?? "—"}</td>
               </tr>
-            </thead>
-            <tbody>
-              {(data?.readings ?? []).map((r) => (
-                <tr key={r.id}>
-                  <td>{formatDateTime(r.measuredAt)}</td>
-                  <td>{FUEL_LABEL[r.fuelType]}</td>
-                  <td>{formatLiters(r.measuredLiters)}</td>
-                  <td>{formatLiters(r.bookLiters)}</td>
-                  <td>
-                    <span className={`badge ${varianceTone(r.varianceLiters, r.alarmId !== null)}`}>
-                      {formatVariance(r.varianceLiters)}
-                    </span>
-                  </td>
-                  <td>{formatLiters(r.throughputLiters)}</td>
-                  <td>%{r.variancePct}</td>
-                  <td>
-                    {r.source === "auto" ? (
-                      <>
-                        <span className="badge resolved">Seviye probu</span>
-                        {r.temperatureCelsius !== null && <div className="hint-text">{r.temperatureCelsius} °C</div>}
-                      </>
-                    ) : (
-                      (r.username ?? "—")
-                    )}
-                  </td>
-                  <td>{r.note ?? "—"}</td>
-                </tr>
-              ))}
-              {data !== null && data.readings.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="hint-text">
-                    Henüz ölçüm girilmemiş. İlk ölçüm bir referans noktası oluşturur; sapma oranı ikinci ölçümden
-                    itibaren anlamlı olur.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {data !== null && data.readings.length === 0 && (
+              <tr>
+                <td colSpan={9} className="hint-text">
+                  Henüz ölçüm girilmemiş. İlk ölçüm bir referans noktası oluşturur; sapma oranı ikinci ölçümden
+                  itibaren anlamlı olur.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

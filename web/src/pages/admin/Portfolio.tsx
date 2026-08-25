@@ -118,77 +118,75 @@ export default function Portfolio() {
       </div>
 
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>İstasyon</th>
-                <th>İşlem</th>
-                <th>Ciro</th>
-                <th>Litre</th>
-                <th>Sapma</th>
-                <th>Alarm</th>
-                <th>Destek</th>
-                <th>Son senkron</th>
+        <table>
+          <thead>
+            <tr>
+              <th>İstasyon</th>
+              <th>İşlem</th>
+              <th>Ciro</th>
+              <th>Litre</th>
+              <th>Sapma</th>
+              <th>Alarm</th>
+              <th>Destek</th>
+              <th>Son senkron</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(report?.stations ?? []).map((s) => (
+              <tr key={s.stationId}>
+                <td>
+                  <strong>{s.stationName}</strong>
+                  <div className="hint-text">
+                    <code>{s.stationCode ?? "—"}</code>
+                    {s.active === 0 && " · pasif"}
+                  </div>
+                </td>
+                <td>{s.transactionCount}</td>
+                <td>
+                  <strong>{formatCurrency(s.revenue)}</strong>
+                  {s.discount > 0 && <div className="hint-text">−{formatCurrency(s.discount)} indirim</div>}
+                </td>
+                <td>{formatLiters(s.liters)}</td>
+                <td>
+                  {s.varianceLiters === null ? (
+                    // Olcum yoklugu ile "olctuk, fark yok" ayni sey degil.
+                    <span className="hint-text">ölçüm yok</span>
+                  ) : (
+                    <span className={`badge ${s.varianceLiters < 0 ? "critical" : "resolved"}`}>
+                      {s.varianceLiters > 0 ? "+" : ""}
+                      {formatLiters(s.varianceLiters)}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {s.activeAlarms === 0 ? (
+                    <span className="hint-text">—</span>
+                  ) : (
+                    <span className={`badge ${s.criticalAlarms > 0 ? "critical" : "warning"}`}>
+                      {s.activeAlarms}
+                      {s.criticalAlarms > 0 && ` (${s.criticalAlarms} kritik)`}
+                    </span>
+                  )}
+                </td>
+                <td>
+                  {s.openSupportRequests > 0 ? (
+                    <span className="badge critical">{s.openSupportRequests}</span>
+                  ) : (
+                    <span className="hint-text">—</span>
+                  )}
+                </td>
+                <td className="hint-text">{s.lastSyncedAt ? formatDateTime(s.lastSyncedAt) : "—"}</td>
               </tr>
-            </thead>
-            <tbody>
-              {(report?.stations ?? []).map((s) => (
-                <tr key={s.stationId}>
-                  <td>
-                    <strong>{s.stationName}</strong>
-                    <div className="hint-text">
-                      <code>{s.stationCode ?? "—"}</code>
-                      {s.active === 0 && " · pasif"}
-                    </div>
-                  </td>
-                  <td>{s.transactionCount}</td>
-                  <td>
-                    <strong>{formatCurrency(s.revenue)}</strong>
-                    {s.discount > 0 && <div className="hint-text">−{formatCurrency(s.discount)} indirim</div>}
-                  </td>
-                  <td>{formatLiters(s.liters)}</td>
-                  <td>
-                    {s.varianceLiters === null ? (
-                      // Olcum yoklugu ile "olctuk, fark yok" ayni sey degil.
-                      <span className="hint-text">ölçüm yok</span>
-                    ) : (
-                      <span className={`badge ${s.varianceLiters < 0 ? "critical" : "resolved"}`}>
-                        {s.varianceLiters > 0 ? "+" : ""}
-                        {formatLiters(s.varianceLiters)}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {s.activeAlarms === 0 ? (
-                      <span className="hint-text">—</span>
-                    ) : (
-                      <span className={`badge ${s.criticalAlarms > 0 ? "critical" : "warning"}`}>
-                        {s.activeAlarms}
-                        {s.criticalAlarms > 0 && ` (${s.criticalAlarms} kritik)`}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    {s.openSupportRequests > 0 ? (
-                      <span className="badge critical">{s.openSupportRequests}</span>
-                    ) : (
-                      <span className="hint-text">—</span>
-                    )}
-                  </td>
-                  <td className="hint-text">{s.lastSyncedAt ? formatDateTime(s.lastSyncedAt) : "—"}</td>
-                </tr>
-              ))}
-              {report !== null && report.stations.length === 0 && (
-                <tr>
-                  <td colSpan={8} className="hint-text">
-                    Henüz istasyon yok.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {report !== null && report.stations.length === 0 && (
+              <tr>
+                <td colSpan={8} className="hint-text">
+                  Henüz istasyon yok.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );

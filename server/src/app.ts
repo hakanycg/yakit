@@ -9,6 +9,7 @@ import { env, isProd } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { db } from "./db/index.js";
 import { attachSession } from "./middleware/auth.js";
+import { attachFleetPortalSession } from "./middleware/fleetPortalAuth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import { authRouter } from "./routes/auth.js";
@@ -31,6 +32,7 @@ import { fuelStockRouter } from "./routes/fuelStock.js";
 import { loyaltyRouter } from "./routes/loyalty.js";
 import { discountCodesRouter } from "./routes/discountCodes.js";
 import { fleetAccountsRouter } from "./routes/fleetAccounts.js";
+import { fleetPortalRouter } from "./routes/fleetPortal.js";
 import { syncRouter } from "./routes/sync.js";
 import { kvkkRouter } from "./routes/kvkk.js";
 
@@ -77,6 +79,9 @@ export function createApp() {
   app.use(express.json({ limit: "64kb" }));
   app.use(pinoHttp({ logger, autoLogging: !isProd }));
   app.use(attachSession);
+  // Filo musteri portali kimligi personel oturumundan ayri bir cerezde tasinir; ikisi
+  // ayni tarayicida yan yana durabilir (bkz. middleware/fleetPortalAuth.ts).
+  app.use(attachFleetPortalSession);
   app.use("/api", apiRateLimit);
 
   app.get("/api/health", (_req, res) => {
@@ -112,6 +117,7 @@ export function createApp() {
   app.use("/api/loyalty", loyaltyRouter);
   app.use("/api/discount-codes", discountCodesRouter);
   app.use("/api/fleet-accounts", fleetAccountsRouter);
+  app.use("/api/fleet-portal", fleetPortalRouter);
   app.use("/api/sync", syncRouter);
   app.use("/api/kvkk", kvkkRouter);
 

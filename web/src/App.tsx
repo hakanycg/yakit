@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import KioskFlow from "./kiosk/KioskFlow";
+import FleetPortal from "./fleet/FleetPortal";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -44,6 +45,9 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/giris" replace />} />
       <Route path="/kiosk/:slug" element={<KioskFlow />} />
+      {/* Filo musteri portali: personel oturumundan tamamen ayri bir kimlikle calisir
+          (bkz. fleet/FleetPortal.tsx), bu yuzden RequireRole/AppLayout disindadir. */}
+      <Route path="/filo" element={<FleetPortal />} />
       <Route path="/giris" element={<Login />} />
       <Route path="/sifremi-unuttum" element={<ForgotPassword />} />
       <Route path="/sifre-sifirla" element={<ResetPassword />} />

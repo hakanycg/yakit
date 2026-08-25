@@ -454,6 +454,53 @@ CREATE TABLE IF NOT EXISTS fleet_movements (
 );
 CREATE INDEX IF NOT EXISTS idx_fleet_movements_account ON fleet_movements(fleet_account_id, created_at);
 
+-- Filo musteri self-servis portali.
+--
+-- Sirket yetkilisi personel DEGILDIR: users tablosuna bir rol olarak eklemek, bir
+-- yetki kontrolundeki tek bir hata yuzunden dis bir sirketin istasyon verisine
+-- erisebilmesi demek olurdu. Bu yuzden portal kimligi ayri tabloda, ayri cerezde ve
+-- ayri middleware'de durur (bkz. middleware/fleetPortalAuth.ts) - kiosk cihaz
+-- tokeninin de personel oturumundan ayri tutulmasiyla ayni gerekce.
+CREATE TABLE IF NOT EXISTS fleet_portal_users (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  email TEXT NOT NULL UNIQUE,          -- kucuk harfe normalize edilerek saklanir
+  display_name TEXT,
+  password_hash TEXT NOT NULL,
+  password_salt TEXT NOT NULL,
+  password_iterations INTEGER NOT NULL,
+  must_change_password INTEGER NOT NULL DEFAULT 1,
+  active INTEGER NOT NULL DEFAULT 1,
+  failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+  locked_until TEXT,
+  last_login_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by INTEGER REFERENCES users(id)
+);
+
+-- Bir sirket ayni zincirin birden fazla istasyonunda yakit aliyorsa her istasyonda
+-- AYRI bir fleet_accounts kaydi olur. Portal kullanicisini tek hesaba baglamak, o
+-- sirkete istasyon sayisi kadar sifre vermek demekti; bu yuzden baglanti cok-cok.
+CREATE TABLE IF NOT EXISTS fleet_portal_user_accounts (
+  portal_user_id INTEGER NOT NULL REFERENCES fleet_portal_users(id) ON DELETE CASCADE,
+  fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (portal_user_id, fleet_account_id)
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_portal_links_account ON fleet_portal_user_accounts(fleet_account_id);
+
+CREATE TABLE IF NOT EXISTS fleet_portal_sessions (
+  id TEXT PRIMARY KEY,                 -- token'in SHA-256 hash'i (ham token saklanmaz)
+  portal_user_id INTEGER NOT NULL REFERENCES fleet_portal_users(id) ON DELETE CASCADE,
+  csrf_token TEXT NOT NULL,
+  ip_address TEXT,
+  user_agent TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  expires_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_portal_sessions_user ON fleet_portal_sessions(portal_user_id);
+CREATE INDEX IF NOT EXISTS idx_fleet_portal_sessions_expires ON fleet_portal_sessions(expires_at);
+
 -- Fiyat seffafligi ekrani icin yakit fiyati her degistiginde bir satir eklenir
 -- (audit_log genel amacli oldugundan station+fuel_type bazinda sorgulamak icin
 -- ayri, indeksli bir tablo daha uygundur).

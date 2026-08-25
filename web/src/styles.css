@@ -336,6 +336,9 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .modal-card.modal-lg { width: min(720px, 100%); }
 .modal-card h3 { margin: 0 0 0.35rem; }
 .modal-actions { display: flex; gap: 0.6rem; align-items: center; margin-top: 1.25rem; }
+/* Acilir pencere icindeki genis tablolar: kaydirma TABLONUN kendi kutusunda kalmali.
+   Modal'in tamami yatay kayarsa baslik, form alanlari ve butonlar da ekrandan cikar. */
+.table-scroll { overflow-x: auto; }
 
 /* ---- Istasyon karti: bilgiler kategorilere ayrilmis bloklar halinde ---- */
 .station-card { display: flex; flex-direction: column; gap: 0; }
@@ -792,6 +795,22 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 
 .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
 .login-card { width: min(380px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 2rem; }
+
+/* Filo musteri portali (/filo) - yonetim panelinin sidebar'li kabugunu KULLANMAZ:
+   buraya giren kisi personel degildir, gezinecek bir menusu yoktur. Ayni renk
+   degiskenlerini kullanir, boylece gun/gece temasi burada da calisir. */
+.fleet-portal { min-height: 100vh; background: var(--bg); color: var(--text); }
+.fleet-portal-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+  padding: 0.9rem 1.5rem; background: var(--panel); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 5;
+}
+.fleet-portal-main { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
+.fleet-portal-main h3 { margin: 1.75rem 0 0.75rem; }
+@media (max-width: 600px) {
+  .fleet-portal-header { padding: 0.75rem 1rem; }
+  .fleet-portal-main { padding: 1rem; }
+}
 
 /* Kiosk fis yazdirma: normalde ekranda (koyu tema, genis kart) gorunen makbuz, yazdirma
    sirasinda dar bir termal fis genisligine (80mm) donusur; sayfadaki geri kalan her sey

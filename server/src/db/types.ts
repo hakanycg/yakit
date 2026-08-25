@@ -211,6 +211,33 @@ export interface FleetMovementRow {
   created_at: string;
 }
 
+export interface FleetPortalUserRow {
+  id: number;
+  email: string;
+  display_name: string | null;
+  password_hash: string;
+  password_salt: string;
+  password_iterations: number;
+  must_change_password: number;
+  active: number;
+  failed_login_attempts: number;
+  locked_until: string | null;
+  last_login_at: string | null;
+  created_at: string;
+  created_by: number | null;
+}
+
+export interface FleetPortalSessionRow {
+  id: string;
+  portal_user_id: number;
+  csrf_token: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+  expires_at: string;
+  last_seen_at: string;
+}
+
 export interface FuelPriceHistoryRow {
   id: number;
   station_id: number;

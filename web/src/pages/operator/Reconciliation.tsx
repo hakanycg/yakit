@@ -69,49 +69,47 @@ export default function Reconciliation() {
 
       <h3>Kapatılmış Günler</h3>
       <div className="card">
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>İş günü</th>
-                <th>Beklenen</th>
-                <th>Gerçekleşen</th>
-                <th>Fark</th>
-                <th>Askıda</th>
-                <th>Kapatan</th>
-                <th>Not</th>
+        <table>
+          <thead>
+            <tr>
+              <th>İş günü</th>
+              <th>Beklenen</th>
+              <th>Gerçekleşen</th>
+              <th>Fark</th>
+              <th>Askıda</th>
+              <th>Kapatan</th>
+              <th>Not</th>
+            </tr>
+          </thead>
+          <tbody>
+            {history.map((r) => (
+              <tr key={r.id}>
+                <td>
+                  <strong>{r.businessDate}</strong>
+                  <div className="hint-text">{formatDateTime(r.closedAt)}</div>
+                </td>
+                <td>{formatCurrency(r.expectedTotal)}</td>
+                <td>{formatCurrency(r.declaredTotal)}</td>
+                <td>
+                  <span className={`badge ${r.difference === 0 ? "resolved" : "critical"}`}>
+                    {r.difference > 0 ? "+" : ""}
+                    {formatCurrency(r.difference)}
+                  </span>
+                </td>
+                <td>{r.pendingCount > 0 ? <span className="badge warning">{r.pendingCount}</span> : "—"}</td>
+                <td>{r.closedBy ?? "—"}</td>
+                <td>{r.note ?? "—"}</td>
               </tr>
-            </thead>
-            <tbody>
-              {history.map((r) => (
-                <tr key={r.id}>
-                  <td>
-                    <strong>{r.businessDate}</strong>
-                    <div className="hint-text">{formatDateTime(r.closedAt)}</div>
-                  </td>
-                  <td>{formatCurrency(r.expectedTotal)}</td>
-                  <td>{formatCurrency(r.declaredTotal)}</td>
-                  <td>
-                    <span className={`badge ${r.difference === 0 ? "resolved" : "critical"}`}>
-                      {r.difference > 0 ? "+" : ""}
-                      {formatCurrency(r.difference)}
-                    </span>
-                  </td>
-                  <td>{r.pendingCount > 0 ? <span className="badge warning">{r.pendingCount}</span> : "—"}</td>
-                  <td>{r.closedBy ?? "—"}</td>
-                  <td>{r.note ?? "—"}</td>
-                </tr>
-              ))}
-              {history.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="hint-text">
-                    Henüz kapatılmış gün yok.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+            ))}
+            {history.length === 0 && (
+              <tr>
+                <td colSpan={7} className="hint-text">
+                  Henüz kapatılmış gün yok.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -375,37 +373,35 @@ function PendingCard({ summary }: { summary: DaySummary }) {
         Parası bloke edilmiş ama işi bitmemiş, ya da tahsilatı başarısız/iade olmuş işlemler. Ekstre ile kayıt
         arasındaki farkın kaynağı genelde buradadır.
       </p>
-      <div className="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>İşlem</th>
-              <th>Plaka</th>
-              <th>Durum</th>
-              <th>Ödeme</th>
-              <th>Tutar</th>
-              <th>Saat</th>
+      <table>
+        <thead>
+          <tr>
+            <th>İşlem</th>
+            <th>Plaka</th>
+            <th>Durum</th>
+            <th>Ödeme</th>
+            <th>Tutar</th>
+            <th>Saat</th>
+          </tr>
+        </thead>
+        <tbody>
+          {summary.pending.map((p) => (
+            <tr key={p.id}>
+              <td>#{p.id}</td>
+              <td>
+                <code>{p.plate}</code>
+              </td>
+              <td>{TRANSACTION_STATUS_LABEL[p.status] ?? p.status}</td>
+              <td>
+                {PAYMENT_METHOD_LABEL[p.paymentMethod] ?? p.paymentMethod}
+                <div className="hint-text">{p.paymentStatus}</div>
+              </td>
+              <td>{formatCurrency(p.amount)}</td>
+              <td>{formatDateTime(p.createdAt)}</td>
             </tr>
-          </thead>
-          <tbody>
-            {summary.pending.map((p) => (
-              <tr key={p.id}>
-                <td>#{p.id}</td>
-                <td>
-                  <code>{p.plate}</code>
-                </td>
-                <td>{TRANSACTION_STATUS_LABEL[p.status] ?? p.status}</td>
-                <td>
-                  {PAYMENT_METHOD_LABEL[p.paymentMethod] ?? p.paymentMethod}
-                  <div className="hint-text">{p.paymentStatus}</div>
-                </td>
-                <td>{formatCurrency(p.amount)}</td>
-                <td>{formatDateTime(p.createdAt)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
