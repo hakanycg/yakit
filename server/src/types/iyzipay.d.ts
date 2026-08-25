@@ -92,6 +92,26 @@ declare module "iyzipay" {
     create(request: Record<string, unknown>, callback: IyzipayCallback<CancelResult>): void;
   }
 
+  /** TAHSIL EDILMIS bir odemenin tamaminin veya bir kismisinin iadesi. */
+  interface RefundResult {
+    status: "success" | "failure";
+    errorCode?: string;
+    errorMessage?: string;
+    errorGroup?: string;
+    locale?: string;
+    systemTime?: number;
+    conversationId?: string;
+    paymentId?: string;
+    paymentTransactionId?: string;
+    price?: string;
+    currency?: string;
+    signature?: string;
+  }
+
+  interface RefundResource {
+    create(request: Record<string, unknown>, callback: IyzipayCallback<RefundResult>): void;
+  }
+
   export default class Iyzipay {
     static LOCALE: { TR: string; EN: string };
     static CURRENCY: { TRY: string; USD: string; EUR: string; GBP: string };
@@ -107,6 +127,8 @@ declare module "iyzipay" {
     checkoutForm: CheckoutFormResource;
     /** On-provizyonu, gercek/nihai tutar uzerinden kapatir (capture). */
     paymentPostAuth: PaymentPostAuthResource;
+    /** Tahsil edilmis bir odemeyi (kismen veya tamamen) musteriye geri gonderir - bkz. refundPayment. */
+    refund: RefundResource;
     /** Bir odemeyi (henuz uzlasmamissa) tamamen iptal eder/serbest birakir - on-provizyon blokajinin sifir tahsilatla iptali dahil. */
     cancel: CancelResource;
   }

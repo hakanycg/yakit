@@ -1,9 +1,17 @@
 import { Router } from "express";
 import { z } from "zod";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
-import { validateQuery } from "../middleware/validate.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
 import { chargeAmount, getTransactionById, listTransactions, serializeTransaction, TransactionError } from "../services/transactionService.js";
 import { recordAudit } from "../services/auditService.js";
+import {
+  RefundError,
+  getRefundableInfo,
+  listRefunds,
+  refundTransaction,
+  refundedTotalsFor,
+  serializeRefund,
+} from "../services/refundService.js";
 import { createInvoice, InvoiceError } from "../services/invoiceService.js";
 import { getInvoiceForTransaction, recordInvoiceFailure, recordInvoiceSuccess, serializeInvoice } from "../services/invoiceRecordService.js";
 
@@ -20,12 +28,19 @@ const listSchema = z.object({
 router.get("/", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
   const rows = listTransactions(req.stationId!, q);
-  res.json({ transactions: rows.map(serializeTransaction) });
+  // Iade ozeti listeyle birlikte gelir: aksi halde ekran her satir icin ayri istek atardi.
+  const refunded = refundedTotalsFor(rows.map((t) => t.id));
+  res.json({
+    transactions: rows.map((t) => ({ ...serializeTransaction(t), refundedAmount: refunded.get(t.id) ?? 0 })),
+  });
 });
 
 router.get("/export.csv", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
   const rows = listTransactions(req.stationId!, { ...q, limit: q.limit ?? 1000 });
+  // Mutabakat iadeleri kasadan dusuyor; ciro dokumu onlari gostermezse iki rapor
+  // birbiriyle celisir ve fark aciklanamaz gorunur.
+  const csvRefunded = refundedTotalsFor(rows.map((t) => t.id));
 
   const header = [
     "id",
@@ -39,6 +54,7 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
     "discount_code",
     "discount_amount",
     "charge_amount",
+    "refunded_amount",
     "loyalty_points_redeemed",
     "loyalty_points_earned",
     "payment_status",
@@ -65,6 +81,7 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
         t.discount_code,
         t.discount_amount,
         chargeAmount(t),
+        csvRefunded.get(t.id) ?? 0,
         t.loyalty_points_redeemed,
         t.loyalty_points_earned,
         t.payment_status,
@@ -142,5 +159,59 @@ router.post("/:id/invoice", requireRole("super_admin", "tenant_admin", "admin", 
     res.status(status).json({ error: message });
   }
 });
+
+// --- Iade (refund) ----------------------------------------------------------
+// Para disari cikan bir islem oldugu icin yalnizca yoneticiye acik; operator/viewer
+// iade yapamaz.
+
+router.get("/:id/refunds", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz islem kimligi." });
+  try {
+    res.json({
+      refunds: listRefunds(req.stationId!, id).map(serializeRefund),
+      // Onizleme ayni yanitta: "ne kadari iade edilebilir" sorusu ekranda durmali.
+      info: getRefundableInfo(req.stationId!, id),
+    });
+  } catch (err) {
+    if (err instanceof RefundError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const refundSchema = z.object({
+  amount: z.number().positive().max(1000000).optional(),
+  reason: z.string().trim().min(3, "Iade gerekcesi zorunludur.").max(300),
+});
+
+// csrfProtection bu router'da rota BASINA uygulaniyor (pumps.ts'teki gibi router
+// genelinde degil); para disari cikaran bir uc icin atlanmasi kabul edilemez.
+router.post(
+  "/:id/refunds",
+  requireRole("super_admin", "tenant_admin", "admin"),
+  csrfProtection,
+  validateBody(refundSchema),
+  async (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz islem kimligi." });
+    try {
+      const body = req.body as z.infer<typeof refundSchema>;
+      const refund = await refundTransaction(req.stationId!, id, { ...body, ip: req.ip }, req.user!);
+      recordAudit({
+        user: req.user!,
+        action: "transaction_refunded",
+        entityType: "transaction",
+        entityId: id,
+        details: { amount: refund.amount, reason: refund.reason, paymentMethod: refund.payment_method },
+        ip: req.ip,
+        stationId: req.stationId,
+      });
+      res.status(201).json({ refund: serializeRefund(refund), info: getRefundableInfo(req.stationId!, id) });
+    } catch (err) {
+      if (err instanceof RefundError) return void res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  }
+);
 
 export { router as transactionsRouter };

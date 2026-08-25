@@ -65,13 +65,16 @@ export interface DaySummary {
   grossAmount: number;
   discountAmount: number;
   /**
-   * Tahsil edilmis tutar: brut - indirim/puan kullanimi. IADE EDILEN islemler de bu
-   * toplama DAHILDIR - cunku kart o gun gercekten cekilmistir ve ekstrede oyle gorunur.
-   * Iadenin ne zaman hesaba yansiyacagi saglayiciya/bankaya gore degistiginden, iade
-   * tutari ayrica asagida raporlanir ve operator farki ona bakarak aciklar.
+   * O gun kasada kalmasi beklenen NET tutar: (brut - indirim/puan) - O GUN KESILEN iadeler.
+   *
+   * Iade dusulur cunku para gercekten geri gitmistir; gun kapatilirken ciroda saymak
+   * kasayi kalici olarak yanlis gosterirdi. Karta yapilan iadenin hesaba yansimasi
+   * saglayiciya gore gecikebileceginden, dusulen tutar refundedAmount olarak AYRICA
+   * raporlanir: ekstre henuz brut gorunuyorsa operator farkin sebebini ekranda gorur,
+   * ve bu fark kalici degil zamanlama kaynaklidir.
    */
   expectedTotal: number;
-  /** expectedTotal icindeki, sonradan iade edilmis tutar. */
+  /** Bu gun KESILEN ve expectedTotal'dan dusulen iade tutari (islemin kendi gunu degil). */
   refundedAmount: number;
   refundedCount: number;
   byPaymentMethod: PaymentMethodRow[];
@@ -203,12 +206,23 @@ export function getDaySummary(stationId: number, businessDate: string): DaySumma
     )
     .all(...params);
 
+  /**
+   * Iadeler, ait olduklari islemin gunune degil KESILDIKLERI gune yazilir.
+   *
+   * Bugun kesilen bir iade gecen aya ait bir islem icin olsa bile bugunun kasasindan
+   * cikar: kapanmis bir gunun rakamini geriye donuk degistirmek, imzalanmis bir
+   * mutabakati bozmak demek olurdu (ayni gerekce: fleet_invoices, book_liters).
+   *
+   * Kaynak refunds tablosudur, islem uzerindeki bayrak degil - kismi iadeyi yalnizca o
+   * ifade edebilir. Onceden yalnizca payment_status='refunded' okunuyordu ve o degeri
+   * YAZAN HICBIR KOD YOKTU; yani iade satiri hicbir zaman sifirdan farkli olamiyordu.
+   */
   const refunded = db
     .prepare<[number, string], { count: number; amount: number }>(
-      `SELECT COUNT(*) AS count,
-              ROUND(COALESCE(SUM(MAX(0, total_amount - discount_amount)), 0), 2) AS amount
-       FROM transactions
-       WHERE ${dayFilter} AND status = 'completed' AND payment_status = 'refunded'`
+      `SELECT COUNT(*) AS count, ROUND(COALESCE(SUM(amount), 0), 2) AS amount
+       FROM refunds
+       WHERE station_id = ? AND status = 'completed'
+         AND date(created_at, '${BUSINESS_DAY_OFFSET}') = ?`
     )
     .get(...params)!;
 
@@ -219,7 +233,9 @@ export function getDaySummary(stationId: number, businessDate: string): DaySumma
     refundedCount: refunded.count,
     grossAmount: round2(totals.gross),
     discountAmount: round2(totals.discount),
-    expectedTotal: round2(byPaymentMethod.reduce((sum, r) => sum + r.amount, 0)),
+    // Beklenen tutardan iadeler DUSULUR: geri gonderilen para kasada olamaz. Onceden
+    // dusulmuyordu, yani ilk iade yapildigi anda mutabakat sessizce sapacakti.
+    expectedTotal: round2(byPaymentMethod.reduce((sum, r) => sum + r.amount, 0) - refunded.amount),
     byPaymentMethod,
     byFuelType,
     pending,

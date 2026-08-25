@@ -1,16 +1,24 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
 import { useTopicSubscription } from "../../shared/useWebSocket";
+import { useEscapeKey } from "../../shared/useEscapeKey";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
+import { useAuth } from "../../shared/AuthContext";
 import { appendStationParam } from "../../shared/stationScope";
 import { TRANSACTION_STATUS_LABEL, FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 import type { Transaction } from "../../shared/types";
 
+/** Iade yalnizca yoneticide: para disari cikaran tek ekran burasi (bkz. refundService.ts). */
+const REFUND_ROLES = ["super_admin", "tenant_admin", "admin"];
+
 export default function Transactions() {
+  const { user } = useAuth();
   const stationId = useEffectiveStationId();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const [refunding, setRefunding] = useState<Transaction | null>(null);
+  const canRefund = user !== null && REFUND_ROLES.includes(user.role);
 
   function load() {
     if (stationId === null) return;
@@ -51,7 +59,7 @@ export default function Transactions() {
           <table>
             <thead>
               <tr>
-                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakıt</th><th>Litre</th><th className="numeric">Tutar</th><th className="numeric">İndirim</th><th className="numeric">Puan</th><th>Durum</th><th>Oluşturulma</th><th>E-Fatura</th>
+                <th>#</th><th>Pompa</th><th>Plaka</th><th>Yakıt</th><th>Litre</th><th className="numeric">Tutar</th><th className="numeric">İndirim</th><th className="numeric">Puan</th><th>Durum</th><th>Oluşturulma</th><th>E-Fatura</th>{canRefund && <th>İade</th>}
               </tr>
             </thead>
             <tbody>
@@ -84,15 +92,33 @@ export default function Transactions() {
                   <td><span className={`badge ${t.status}`}>{TRANSACTION_STATUS_LABEL[t.status]}</span></td>
                   <td>{formatDateTime(t.createdAt)}</td>
                   <td>{t.status === "completed" && <InvoiceCell transactionId={t.id} />}</td>
+                  {canRefund && (
+                    <td>
+                      {t.status === "completed" && (
+                        <RefundCell transaction={t} onOpen={() => setRefunding(t)} />
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {transactions.length === 0 && (
-                <tr><td colSpan={11} className="hint-text">Kayıt bulunamadı.</td></tr>
+                <tr><td colSpan={canRefund ? 12 : 11} className="hint-text">Kayıt bulunamadı.</td></tr>
               )}
             </tbody>
           </table>
         )}
       </div>
+
+      {refunding && (
+        <RefundDialog
+          transaction={refunding}
+          onClose={() => setRefunding(null)}
+          onDone={() => {
+            setRefunding(null);
+            load();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -139,6 +165,208 @@ function InvoiceCell({ transactionId }: { transactionId: number }) {
       {!error && invoice?.status === "failed" && (
         <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{invoice.errorMessage}</div>
       )}
+    </div>
+  );
+}
+
+interface RefundRecord {
+  id: number;
+  amount: number;
+  reason: string;
+  paymentMethod: string;
+  status: "completed" | "failed";
+  errorMessage: string | null;
+  username: string | null;
+  createdAt: string;
+}
+
+interface RefundableInfo {
+  chargedAmount: number;
+  refundedAmount: number;
+  refundableAmount: number;
+  refundable: boolean;
+  reason: string | null;
+}
+
+interface RefundState {
+  refunds: RefundRecord[];
+  info: RefundableInfo;
+}
+
+/** Listede yalnizca ozet; ayrinti ve iade formu acilir pencerede. */
+function RefundCell({ transaction, onOpen }: { transaction: Transaction; onOpen: () => void }) {
+  const refunded = transaction.refundedAmount ?? 0;
+  // Iade bir ariza degil: kirmizi rozet operatore "bir sey bozuldu" derdi. Rozet
+  // dikkat cekmek icin sari; tam mi kismi mi oldugunu etiketin kendisi soyluyor.
+  const partial = refunded > 0 && refunded < transaction.chargeAmount;
+  return (
+    <div>
+      {refunded > 0 && (
+        <div className="badge warning" title={`İade edilen: ${formatCurrency(refunded)}`}>
+          {partial ? "Kısmi iade" : "İade edildi"}
+        </div>
+      )}
+      <button className="ghost btn-sm" onClick={onOpen} style={{ marginTop: refunded > 0 ? "0.35rem" : 0 }}>
+        {refunded > 0 ? "Detay" : "İade"}
+      </button>
+    </div>
+  );
+}
+
+function RefundDialog({
+  transaction,
+  onClose,
+  onDone,
+}: {
+  transaction: Transaction;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [state, setState] = useState<RefundState | null>(null);
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEscapeKey(onClose);
+
+  function load() {
+    api
+      .get<RefundState>(`/api/transactions/${transaction.id}/refunds`)
+      .then((res) => {
+        setState(res);
+        // Varsayilan olarak kalanin tamami: en sik durum "islemi tumuyle geri al".
+        setAmount(res.info.refundableAmount > 0 ? String(res.info.refundableAmount) : "");
+      })
+      .catch((err) => setError(err instanceof ApiError ? err.message : "İade bilgisi alınamadı."));
+  }
+  useEffect(load, [transaction.id]);
+
+  async function submit() {
+    if (!state) return;
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("Geçerli bir iade tutarı girin.");
+      return;
+    }
+    if (
+      !confirm(
+        `${formatCurrency(value)} tutarında iade yapılacak. Para müşteriye geri gönderilir ve bu işlem geri alınamaz. Onaylıyor musunuz?`
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/transactions/${transaction.id}/refunds`, { amount: value, reason: reason.trim() });
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "İade yapılamadı.");
+      load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card modal-lg" onClick={(e) => e.stopPropagation()}>
+        <div className="station-card-header">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <h3>İade — İşlem #{transaction.id}</h3>
+            <p className="hint-text" style={{ marginTop: 0 }}>
+              {transaction.plate} · {FUEL_LABEL[transaction.fuelType]} · {formatDateTime(transaction.createdAt)}
+            </p>
+          </div>
+          <button className="ghost btn-sm" onClick={onClose} aria-label="Kapat">✕</button>
+        </div>
+
+        {error && <p className="error-text">{error}</p>}
+        {!state ? (
+          <p className="hint-text">Yükleniyor...</p>
+        ) : (
+          <>
+            <dl className="detail-list">
+              <dt>Tahsil edilen</dt>
+              <dd>{formatCurrency(state.info.chargedAmount)}</dd>
+              <dt>İade edilen</dt>
+              <dd>{formatCurrency(state.info.refundedAmount)}</dd>
+              <dt>İade edilebilir</dt>
+              <dd>{formatCurrency(state.info.refundableAmount)}</dd>
+            </dl>
+
+            {state.info.refundable ? (
+              <>
+                <label>
+                  İade tutarı (TL)
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={state.info.refundableAmount}
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </label>
+                <label>
+                  Gerekçe
+                  <input
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                    placeholder="Örn. yakıt akmadı, müşteri talebi"
+                    maxLength={300}
+                  />
+                </label>
+                <p className="hint-text">
+                  Kısmi iade yapılabilir. Kazanılan sadakat puanı iade oranında geri alınır. İade, işlemin gününe
+                  değil kesildiği günün kasasına yazılır.
+                </p>
+                <div className="modal-actions">
+                  <button onClick={() => void submit()} disabled={busy || reason.trim().length < 3}>
+                    {busy ? "İade yapılıyor..." : "İadeyi Yap"}
+                  </button>
+                  <button className="ghost" onClick={onClose}>Vazgeç</button>
+                </div>
+              </>
+            ) : (
+              <p className="hint-text">{state.info.reason}</p>
+            )}
+
+            {state.refunds.length > 0 && (
+              <section className="station-section">
+                <div className="station-section-head">
+                  <h4 className="station-section-title">İade Geçmişi</h4>
+                </div>
+                <div className="table-scroll">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th className="numeric">Tutar</th><th>Gerekçe</th><th>Durum</th><th>Kullanıcı</th><th>Tarih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {state.refunds.map((r) => (
+                        <tr key={r.id}>
+                          <td className="numeric">{formatCurrency(r.amount)}</td>
+                          <td>{r.reason}</td>
+                          <td>
+                            <span className={`badge ${r.status === "completed" ? "resolved" : "fault"}`}>
+                              {r.status === "completed" ? "Tamamlandı" : "Başarısız"}
+                            </span>
+                            {r.errorMessage && <div className="error-text" style={{ fontSize: "0.75rem" }}>{r.errorMessage}</div>}
+                          </td>
+                          <td>{r.username ?? "-"}</td>
+                          <td>{formatDateTime(r.createdAt)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -195,6 +195,59 @@ export function retrieveCheckoutForm(stationId: number, token: string): Promise<
   });
 }
 
+export interface RefundResult {
+  refundId: string;
+}
+
+/**
+ * TAHSIL EDILMIS bir odemenin tamamini veya bir kismini iade eder.
+ *
+ * capturePostAuth'tan farkli bir sey yapar: orada bloke edilen ama tahsil edilmeyen kisim
+ * bankada kendiliginden serbest kalir. Burada ise para MUSTERIDEN CIKMISTIR ve geri
+ * gonderilmesi gerekir - iyzico'nun refund ucu bunun icindir.
+ *
+ * Kismi iade desteklenir: 50 L'lik bir tahsilatin 30 L'lik kismi iade edilebilir.
+ */
+export function refundPayment(
+  stationId: number,
+  transactionId: number,
+  paymentTransactionId: string,
+  amount: number,
+  ip?: string
+): Promise<RefundResult> {
+  const { client, secretKey } = getClient(stationId);
+  const request = {
+    locale: Iyzipay.LOCALE.TR,
+    conversationId: String(transactionId),
+    paymentTransactionId,
+    price: amount.toFixed(2),
+    currency: Iyzipay.CURRENCY.TRY,
+    ip: ip ?? "127.0.0.1",
+  };
+
+  return new Promise((resolve, reject) => {
+    client.refund.create(request, (err, result) => {
+      if (err) return reject(new IyzicoError(`iyzico iade baglanti hatasi: ${err.message}`, 502));
+      if (result.status !== "success") {
+        return reject(new IyzicoError(result.errorMessage ?? "iyzico iade islemi basarisiz.", 502));
+      }
+      // Yanit imzasi dogrulanir: iade tutarinin ve kimliginin gercekten iyzico'dan
+      // geldigini teyit etmeden kayda gecirmek, cevaba kosulsuz guvenmek olurdu
+      // (ayni gerekce: odeme callback'inde imza dogrulamasi).
+      if (
+        !verifySignature(
+          [result.paymentId, result.price, result.currency, result.conversationId],
+          secretKey,
+          result.signature
+        )
+      ) {
+        return reject(new IyzicoError("iyzico iade yaniti imzasi dogrulanamadi.", 502));
+      }
+      resolve({ refundId: String(result.paymentTransactionId ?? result.paymentId) });
+    });
+  });
+}
+
 export interface SettlementResult {
   success: boolean;
   message: string;

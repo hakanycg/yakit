@@ -60,6 +60,8 @@ export interface Transaction {
   loyaltyPointsRedeemed: number;
   loyaltyPointsEarned: number;
   chargeAmount: number;
+  /** Bu isleme yapilmis basarili iadelerin toplami; yalnizca islem LISTESI ucundan gelir. */
+  refundedAmount?: number;
   paymentMethod: string;
   paymentStatus: string;
   status: TransactionStatus;

@@ -438,6 +438,20 @@ export interface PumpCalibrationRow {
   user_id: number | null;
 }
 
+export interface RefundRow {
+  id: number;
+  station_id: number;
+  transaction_id: number;
+  amount: number;
+  reason: string;
+  payment_method: string;
+  provider_refund_id: string | null;
+  status: "completed" | "failed";
+  error_message: string | null;
+  user_id: number | null;
+  created_at: string;
+}
+
 export type ScheduledPriceChangeStatus = "pending" | "applied" | "cancelled";
 
 export interface ScheduledPriceChangeRow {

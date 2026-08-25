@@ -51,6 +51,13 @@ function addSale(input: SaleInput): number {
   return r.lastInsertRowid as number;
 }
 
+function addRefund(input: { transactionId: number; amount: number; at: string; status?: string }): void {
+  db.prepare(
+    `INSERT INTO refunds (station_id, transaction_id, amount, reason, payment_method, status, created_at)
+     VALUES (?, ?, ?, 'Musteri talebi', 'iyzico', ?, ?)`
+  ).run(station.id, input.transactionId, input.amount, input.status ?? "completed", input.at);
+}
+
 beforeEach(() => {
   station = createTestStation();
   pumpId = createTestPump(station.id);
@@ -133,18 +140,59 @@ describe("getDaySummary", () => {
     expect(s.expectedTotal).toBe(0);
   });
 
-  it("iade edilmis islemi tahsilata dahil eder ama ayrica raporlar", () => {
-    // Kart o gun gercekten cekilmistir ve ekstrede oyle gorunur; iadenin hesaba ne zaman
-    // yansiyacagi ise saglayiciya gore degisir. Bu yuzden tutar toplamda kalir, iade
-    // ayrica gosterilir ve islem askida listesine dusurulur - operator farki boyle aciklar.
-    addSale({ at: "2026-08-10T09:00:00.000Z", amount: 1000 });
-    addSale({ at: "2026-08-10T10:00:00.000Z", amount: 250, status: "completed", paymentStatus: "refunded" });
+  it("o gun kesilen iadeyi beklenen tutardan duser ve ayrica raporlar", () => {
+    const id = addSale({ at: "2026-08-10T09:00:00.000Z", amount: 1000 });
+    addRefund({ transactionId: id, amount: 250, at: "2026-08-10T11:00:00.000Z" });
 
     const s = getDaySummary(station.id, "2026-08-10");
-    expect(s.expectedTotal).toBe(1250);
+    expect(s.expectedTotal).toBe(750);
     expect(s.refundedAmount).toBe(250);
     expect(s.refundedCount).toBe(1);
-    expect(s.pending).toHaveLength(1);
+  });
+
+  it("iadeyi islemin gunune degil KESILDIGI gune yazar", () => {
+    // Kapanmis bir gunun rakamini geriye donuk degistirmek, imzalanmis bir mutabakati
+    // bozmak demek olurdu. Dun satilan, bugun iade edilen para BUGUNUN kasasindan cikar.
+    const id = addSale({ at: "2026-08-09T09:00:00.000Z", amount: 1000 });
+    addRefund({ transactionId: id, amount: 400, at: "2026-08-10T09:00:00.000Z" });
+
+    expect(getDaySummary(station.id, "2026-08-09").expectedTotal).toBe(1000);
+    expect(getDaySummary(station.id, "2026-08-09").refundedAmount).toBe(0);
+
+    const today = getDaySummary(station.id, "2026-08-10");
+    expect(today.refundedAmount).toBe(400);
+    // O gun hic satis yoksa bile iade kasadan cikmistir: beklenen tutar eksiye duser.
+    expect(today.expectedTotal).toBe(-400);
+  });
+
+  it("basarisiz iade denemesini kasadan dusmez", () => {
+    // Saglayici reddettiyse para hala bizdedir; 'failed' kaydi yalnizca denendigini gosterir.
+    const id = addSale({ at: "2026-08-10T09:00:00.000Z", amount: 1000 });
+    addRefund({ transactionId: id, amount: 250, at: "2026-08-10T11:00:00.000Z", status: "failed" });
+
+    const s = getDaySummary(station.id, "2026-08-10");
+    expect(s.expectedTotal).toBe(1000);
+    expect(s.refundedAmount).toBe(0);
+  });
+
+  it("baska istasyonun iadesini bu istasyonun kasasindan dusmez", () => {
+    const other = createTestStation();
+    const otherPump = createTestPump(other.id);
+    const otherTx = db
+      .prepare(
+        `INSERT INTO transactions (station_id, pump_id, plate, fuel_type, amount_mode, price_per_liter,
+           total_amount, payment_status, status, kiosk_access_token, created_at, completed_at)
+         VALUES (?, ?, '06XYZ99', 'motorin', 'amount', 45, 500, 'captured', 'completed', ?, ?, ?)`
+      )
+      .run(other.id, otherPump, `tok-${Math.random()}`, "2026-08-10T09:00:00.000Z", "2026-08-10T09:00:00.000Z")
+      .lastInsertRowid as number;
+    db.prepare(
+      `INSERT INTO refunds (station_id, transaction_id, amount, reason, payment_method, created_at)
+       VALUES (?, ?, 500, 'test', 'iyzico', '2026-08-10T11:00:00.000Z')`
+    ).run(other.id, otherTx);
+
+    addSale({ at: "2026-08-10T09:00:00.000Z", amount: 1000 });
+    expect(getDaySummary(station.id, "2026-08-10").expectedTotal).toBe(1000);
   });
 
   it("baska istasyonun satisini karistirmaz", () => {

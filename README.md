@@ -715,15 +715,77 @@ Ekstre ile kayıt arasındaki farkın kaynağı genelde şunlardır ve ayrı bir
 - **Parası bloke, işi bitmemiş** (`authorized`/`processing` ama tamamlanmamış): müşteri ödedi, yakıt akmadı.
 - **Tahsilatı başarısız veya iade edilmiş** (`failed`/`refunded`): ekstredeki tutarı doğrudan etkiler.
 
-İade edilmiş işlemler beklenen tutara **dahildir** — kart o gün gerçekten çekilmiştir ve
-ekstrede öyle görünür. İadenin hesaba ne zaman yansıyacağı sağlayıcıya göre değiştiğinden,
-iade tutarı ayrıca raporlanır.
+O gün **kesilen** iadeler beklenen tutardan **düşülür** — geri gönderilen para kasada
+olamaz. Karta yapılan iadenin hesaba yansıması sağlayıcıya göre gecikebileceğinden,
+düşülen tutar ayrıca raporlanır: ekstre henüz brüt görünüyorsa operatör farkın sebebini
+aynı ekranda görür ve bu fark kalıcı değil zamanlama kaynaklıdır.
 
 ### Kapanış fotoğraftır
 
 Gün kapatıldığında o anki kırılım JSON olarak saklanır. Sonradan gelen bir iade veya
 düzeltme, yeniden hesaplanan bir rakamı değiştirirdi ve kapatılmış gün imzalanan rakamla
 artık tutmazdı. Aynı gün iki kez kapatılamaz; henüz gelmemiş bir günün kasası kapatılamaz.
+
+## İade (refund)
+
+**İşlem Listesi** ekranında, tamamlanmış her işlemin satırında bir **İade** düğmesi vardır
+(yalnızca yönetici rolleri; operatör/görüntüleyici iade yapamaz). Açılan pencere ne kadarın
+iade edilebilir olduğunu gösterir, kısmi tutar girilmesine izin verir ve gerekçe ister.
+
+Bu özellik gelmeden önce sistemde para iade etmenin **hiçbir yolu yoktu**: tahsil edilmiş
+bir ödeme yalnızca iyzico panelinden elle iade edilebiliyor, sistemde izi kalmıyordu. Gün
+sonu kasası geri gönderilen parayı ciroda saymaya devam ediyor, denetim izinde hiçbir şey
+görünmüyordu. Personelsiz istasyonda bu boşluk daha da ağırdır: "ödedim ama yakıt akmadı"
+diyen müşteriye yerinde çözüm üretecek bir görevli yoktur; tek çözüm sistemin kendisidir.
+
+### İade bir bayrak değil, kendi başına bir olaydır
+
+İade kayıtları ayrı bir `refunds` tablosunda tutulur, işlem üzerinde bir durum değeri
+olarak değil. Kısmi iade ancak böyle ifade edilebilir — ve iadenin **kesildiği** güne
+yazılması da. `payment_status` yalnızca tamamı iade edildiğinde `refunded` olur; kısmi
+iadede işlem hâlâ tahsil edilmiş durumdadır ve farkı `refunds` tablosu taşır.
+
+> Bu değişiklik iki sessiz hatayı da kapattı: mutabakat `payment_status = 'refunded'`
+> okuyordu ama o değeri **yazan hiçbir kod yoktu** (iade satırı hiçbir zaman sıfırdan
+> farklı olamıyordu), ve beklenen tutardan iade **düşülmüyordu** — yani ilk iade
+> yapıldığı anda kasa sessizce sapacaktı.
+
+### İade, işlemin gününe değil kesildiği güne yazılır
+
+Geçen aya ait bir işlem için bugün kesilen iade **bugünün** kasasından çıkar. Kapanmış bir
+günün rakamını geriye dönük değiştirmek, imzalanmış bir mutabakatı bozmak demek olurdu
+(aynı gerekçe: filo icmal faturası satırları, tank defter stoğu fotoğrafı).
+
+### Yalnızca tahsil edilmiş para iade edilebilir
+
+Ödemesi alınmamış (`authorized`/`processing`) bir işlemde iade değil **iptal** gerekir —
+blokaj bankada zaten kendiliğinden serbest kalır. Kısmi iadeler birikerek tahsil edilen
+tutarı aşamaz.
+
+### Ödeme yöntemine göre yönlendirme
+
+| Yöntem | Ne olur |
+| --- | --- |
+| `iyzico` | Gerçek iade çağrısı; para karta döner, yanıt imzası doğrulanır |
+| `fleet` | Filo hesabına geri yüklenir (mevcut `refundCharge` yolundan, bakiye ile hareket defteri ayrılmasın diye) |
+| diğer | Sanal POS simülasyonu; kayıt yeterlidir |
+
+Sağlayıcı çağrısı **başarısız** olursa kayıt `failed` olarak düşer ve işlem
+**değiştirilmez**: para hâlâ müşteride değildir, "iade edildi" demek yanlış olurdu.
+Başarısız deneme yine de kaydedilir — "iade denendi mi?" sorusunun cevabı, müşteri tekrar
+aradığında aranan ilk şeydir — ama kalan iade edilebilir tutarı tüketmez.
+
+### Sadakat puanı orantılı geri alınır
+
+İade edilen bir dolumdan puan kazanılmış kalması, müşteriye iki kez ödeme yapmak olurdu.
+Kısmi iadede puan orantılı düşülür. Bakiye yetmiyorsa (puan harcanmış olabilir) sıfıra
+çekilir — eksiye düşürmek, müşteriyi bir sonraki alışverişinde borçlandırmak demek olurdu.
+Puan geri alınamazsa iade **yine de geçerlidir**; durum loglanır, elle düzeltilebilir.
+
+Her iade denetim iznine (`transaction_refunded`) tutar, gerekçe ve ödeme yöntemiyle
+birlikte işlenir. İade toplamı işlem listesi ucuyla birlikte gelir ve CSV dökümünde
+`refunded_amount` sütunu olarak yer alır — ciro dökümü iadeleri göstermezse mutabakatla
+çelişir ve fark açıklanamaz görünür.
 
 ## Kiosk filosu (çok istasyonlu sağlık izleme)
 

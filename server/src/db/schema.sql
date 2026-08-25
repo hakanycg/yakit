@@ -427,6 +427,34 @@ CREATE TABLE IF NOT EXISTS pump_maintenance_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_pump_maintenance_pump ON pump_maintenance_logs(pump_id, created_at);
 
+-- Iade (refund) kayitlari.
+--
+-- Sistemde para iade etmenin hicbir yolu yoktu: iyzico'da tahsil edilmis bir odeme
+-- yalnizca iyzico panelinden elle iade edilebiliyordu ve bizde izi kalmiyordu. Bu tablo
+-- iadeyi KENDI BASINA bir olay olarak kaydeder.
+--
+-- Neden ayri tablo, islem uzerinde bir bayrak degil?
+--  1. KISMI IADE: 50 L'lik bir tahsilatin 30 L'si iade edilebilir; tek bir bayrak bunu
+--     ifade edemez.
+--  2. TARIH: bugun kesilen bir iade, gecen aya ait bir isleme ait olsa bile BUGUNUN
+--     kasasini etkiler. Kapanmis bir gunun rakamini geriye donuk degistirmek, imzalanmis
+--     mutabakati bozmak demek olurdu (ayni gerekce: fleet_invoices, book_liters).
+CREATE TABLE IF NOT EXISTS refunds (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  transaction_id INTEGER NOT NULL REFERENCES transactions(id),
+  amount REAL NOT NULL,
+  reason TEXT NOT NULL,
+  payment_method TEXT NOT NULL,        -- islemin odeme yontemi: iade nereye gitti
+  provider_refund_id TEXT,             -- iyzico iade kimligi (varsa)
+  status TEXT NOT NULL DEFAULT 'completed', -- completed | failed
+  error_message TEXT,
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_refunds_transaction ON refunds(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_refunds_station ON refunds(station_id, created_at);
+
 -- Pompa kalibrasyon (ayar) testi ve damga takibi.
 --
 -- Ayari kaymis bir pompa iki yonden de sorundur: yasa disidir (periyodik muayene ve
