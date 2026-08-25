@@ -7,9 +7,39 @@ import { validateBody, validateQuery } from "../middleware/validate.js";
 import { listAlarms, serializeAlarm, broadcastAlarms } from "../services/alarmService.js";
 import { getPump, setPumpStatus } from "../services/pumpService.js";
 import { recordAudit } from "../services/auditService.js";
+import {
+  AlarmEscalationError,
+  getEscalationSettings,
+  updateEscalationSettings,
+} from "../services/alarmEscalationService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+
+// --- Yukseltme ayarlari ------------------------------------------------------
+// ":id/ack" gibi parametreli yollardan ONCE tanimlanir; aksi halde "escalation"
+// bir alarm kimligi olarak yorumlanirdi.
+
+router.get("/escalation", (req, res) => {
+  res.json({ settings: getEscalationSettings(req.stationId!) });
+});
+
+const escalationSchema = z.object({
+  reminderMinutes: z.number().int().min(1).max(1440).optional(),
+  escalateMinutes: z.number().int().min(1).max(1440).optional(),
+});
+
+router.patch("/escalation", csrfProtection, requireRole("super_admin", "tenant_admin", "admin"), validateBody(escalationSchema), (req, res) => {
+  try {
+    const body = req.body as z.infer<typeof escalationSchema>;
+    const settings = updateEscalationSettings(req.stationId!, body, req.user!);
+    recordAudit({ user: req.user!, action: "alarm_escalation_settings_updated", details: settings, ip: req.ip, stationId: req.stationId });
+    res.json({ settings });
+  } catch (err) {
+    if (err instanceof AlarmEscalationError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
 
 const listSchema = z.object({ status: z.enum(["active", "acknowledged", "resolved"]).optional() });
 

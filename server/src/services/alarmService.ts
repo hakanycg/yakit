@@ -17,6 +17,10 @@ export function serializeAlarm(a: AlarmRow) {
     acknowledgedAt: a.acknowledged_at,
     resolvedBy: a.resolved_by,
     resolvedAt: a.resolved_at,
+    // Cevapsiz kritik alarmin kacinci asamada oldugu: operator "haber verildi mi?"
+    // sorusunun cevabini alarm listesinde gorebilmeli.
+    escalationLevel: a.escalation_level,
+    lastNotifiedAt: a.last_notified_at,
     createdAt: a.created_at,
   };
 }
@@ -39,6 +43,9 @@ export function createAlarm(params: {
     // gecici olarak erisilemez olsun, bildirim SESSIZCE KAYBOLMAZ; bir sonraki
     // processWriteQueue() turunda otomatik olarak (gerekirse tekrar) denenir.
     enqueueWrite("critical_alarm_notification", alarm);
+    // Ilk bildirim yapildi; bundan sonrasi (cevap gelmezse hatirlatma ve yukseltme)
+    // periyodik taramanin isi - bkz. services/alarmEscalationService.ts.
+    db.prepare("UPDATE alarms SET last_notified_at = ? WHERE id = ?").run(new Date().toISOString(), alarm.id);
   }
   return alarm;
 }

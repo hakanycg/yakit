@@ -10,6 +10,7 @@ import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js
 import { runBackup } from "./services/backupService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkOfflineKiosks } from "./services/kioskFleetService.js";
+import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
 import { sweepTankGauges } from "./services/tankGaugeService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
@@ -64,6 +65,18 @@ const sessionCleanupInterval = setInterval(() => {
   purgeExpiredPortalSessions();
 }, 10 * 60 * 1000);
 sessionCleanupInterval.unref();
+
+// Cevaplanmayan kritik alarmlari hatirlatir/yukseltir. Dakikada bir calisir: guvenlik
+// kaynakli alarmlarin (yangin/gaz) hatirlatma esigi 3 dakikadir ve daha seyrek bir tarama
+// o esigi anlamsizlastirirdi.
+const alarmEscalationInterval = setInterval(() => {
+  try {
+    sweepAlarmEscalations();
+  } catch (err) {
+    logger.error({ err }, "Alarm yukseltme taramasi basarisiz.");
+  }
+}, 60 * 1000);
+alarmEscalationInterval.unref();
 
 // Istasyon ajaniyla haberlesme kesilirse (offline-queue mimarisi) alarm uretir.
 // Esik 15 dakika oldugundan 5 dakikada bir kontrol yeterince hassastir.

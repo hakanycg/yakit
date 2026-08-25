@@ -307,6 +307,9 @@ export interface AlarmRow {
   acknowledged_at: string | null;
   resolved_by: number | null;
   resolved_at: string | null;
+  /** 0 = yalnizca ilk bildirim, 1 = hatirlatma, 2 = ust kademeye yukseltildi. */
+  escalation_level: number;
+  last_notified_at: string | null;
   created_at: string;
 }
 

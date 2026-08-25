@@ -329,6 +329,54 @@ Maliyet karşılaştırması yalnızca ortalama maliyet **biliniyorsa** yapılı
 girilmemiş teslimatlar ortalamayı etkilemez, yani 0 *"bedava aldık"* değil *"bilmiyoruz"*
 demektir.
 
+## Kritik alarm yükseltme (cevapsız alarmın peşini bırakmama)
+
+Kritik bir alarm oluştuğunda **bir kez** bildirim gönderiliyor ve sistem susuyordu. Gece
+3'te telefon sessizdeyse, e-posta spam'e düştüyse ya da tek operatör uyuyorsa bir daha
+konuşan olmuyordu. Personelsiz istasyonda önemli olan senaryo tam da budur: **gören
+kimsenin olmadığı alarm, istasyonu yakan alarmdır.**
+
+Üç aşama vardır:
+
+| Aşama | Ne olur | Kim bilgilendirilir |
+| --- | --- | --- |
+| 0 | Alarm oluştuğu anda ilk bildirim | İstasyonun kendi admin/operatör kullanıcıları |
+| 1 | Varsayılan **15 dakika** sonra hatırlatma | Aynı kişiler |
+| 2 | Varsayılan **45 dakika** sonra yükseltme | Aynı kişiler **+ dağıtım şirketi yöneticisi + platform yöneticisi** |
+
+Sonra **durur**. Sınırsız tekrar, insanların bildirim kanalını tamamen susturmasına yol
+açar; o zaman özellik, çözmeye çalıştığı sorunun ta kendisine dönüşür.
+
+### Yükseltme onaylanınca durur — çözülmesi beklenmez
+
+`acknowledged` bir insanın alarmı **gördüğü ve ilgilendiği** anlamına gelir. Sahada arıza
+gideren birini aramaya devam etmek, onu telefonu susturmaya iter ve bir dahaki gerçek
+alarmı da kaçırır. Bu yüzden sayaç *onayda* durur, *çözümde* değil.
+
+### Yangın/gaz alarmı için süre sabittir
+
+Güvenlik sensöründen gelen otomatik acil durdurma (`emergency_stop`) için hatırlatma **3**,
+yükseltme **10** dakikadır ve istasyon ayarıyla **değiştirilemez**. Bir yangın alarmının
+yükseltme saatini 6 saate çekmek, işletmeye bırakılabilecek bir tercih değildir.
+
+### Ayrıntılar
+
+- **Sayaç alarmın oluşma anından işler**, son bildirimden değil: bildirim gecikmeli
+  gönderilse bile (kuyruk birikmiş olabilir) yükseltme takvimi kaymaz.
+- **Uzun süre fark edilmemiş alarm doğrudan 2. aşamaya geçer.** Sunucu kapalıyken 3 saat
+  geçmişse önce hatırlatma gönderip bir tur daha beklemek zaman kaybıdır.
+- **Yükseltmede istasyon ekibi listede kalır** — haberi almayı bıraktıkları için değil,
+  cevap veremedikleri için yükseltiyoruz.
+- **Aynı kişiye iki kez gönderilmez.** Tek kişilik bir işletmede aynı kişi hem istasyon
+  ekibinde hem üst kademede olabilir; aynı alarm için iki mesaj güveni azaltır.
+- **Yükseltme süresi hatırlatmadan uzun olmak zorundadır**, aksi halde alarm doğrudan üst
+  kademeye zıplar ve istasyonun kendi ekibine haber verme şansı elinden alınır.
+- Bildirimler **dayanıklı yazma kuyruğuna** yazılır (`writeQueueService.ts`): sunucu tam o
+  anda çöksün ya da SMTP/SMS sağlayıcısı erişilemez olsun, bildirim sessizce kaybolmaz.
+- Alarm Merkezi'nde her aktif alarmın yanında *"hatırlatma gönderildi"* / *"üst kademeye
+  yükseltildi"* bilgisi ve zamanı görünür — operatörün *"haber verildi mi?"* sorusunun
+  cevabı listede durmalıdır.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

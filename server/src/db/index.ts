@@ -66,6 +66,11 @@ export function applyMigrations(): void {
   ensureColumn("users", "tenant_id", "INTEGER REFERENCES tenants(id)");
   db.exec("CREATE INDEX IF NOT EXISTS idx_stations_tenant ON stations(tenant_id)");
 
+  // Kritik alarm yukseltme: cevaplanmayan alarmin kacinci asamada oldugu ve en son ne
+  // zaman bildirildigi (bkz. services/alarmEscalationService.ts).
+  ensureColumn("alarms", "escalation_level", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn("alarms", "last_notified_at", "TEXT");
+
   // Teslimat kabul farki: irsaliyedeki miktar ile tanka FIILEN giren miktar ayri
   // kolonlarda tutulur. Tek bir "liters" alani, eksik gelen bir tankeri tespit
   // edilemez hale getiriyordu - bkz. services/deliveryVarianceService.ts.

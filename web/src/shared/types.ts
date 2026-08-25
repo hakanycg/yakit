@@ -82,7 +82,15 @@ export interface Alarm {
   acknowledgedAt: string | null;
   resolvedBy: number | null;
   resolvedAt: string | null;
+  /** 0 = yalnizca ilk bildirim, 1 = hatirlatma gonderildi, 2 = ust kademeye yukseltildi. */
+  escalationLevel: number;
+  lastNotifiedAt: string | null;
   createdAt: string;
+}
+
+export interface AlarmEscalationSettings {
+  reminderMinutes: number;
+  escalateMinutes: number;
 }
 
 export interface FuelPrice {

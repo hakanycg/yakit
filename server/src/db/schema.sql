@@ -182,6 +182,10 @@ CREATE TABLE IF NOT EXISTS alarms (
   acknowledged_at TEXT,
   resolved_by INTEGER REFERENCES users(id),
   resolved_at TEXT,
+  -- Kritik alarm yukseltme (bkz. services/alarmEscalationService.ts):
+  -- 0 = yalnizca ilk bildirim yapildi, 1 = hatirlatma, 2 = ust kademeye yukseltildi.
+  escalation_level INTEGER NOT NULL DEFAULT 0,
+  last_notified_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_alarms_station ON alarms(station_id);
