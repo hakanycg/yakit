@@ -199,6 +199,46 @@ function KioskFlowInner() {
     return () => clearInterval(interval);
   }, [step, transaction, accessToken, applyTransactionUpdate]);
 
+  /**
+   * Odeme adiminda takili kalan ekrani kurtarir (bkz. gorev #99).
+   *
+   * Musteri odeme formunu acip uzaklasirsa hicbir sey ekrani sifirlamiyordu: bosta-kalma
+   * sayaci (useIdleReset) odeme adiminda bilincli olarak KAPALI, cunku iyzico formu
+   * capraz-kaynakli bir cerceve icinde ve musteri kart bilgisi yazarken bizim pencerede
+   * hicbir olay olusmuyor - sayac acik olsa musteriyi yazarken disari atardi. Sonuc:
+   * siradaki musteri, oncekinin yarim kalmis odeme formuyla karsilasiyordu.
+   *
+   * Cozum bir zamanlayici DEGIL: ekran islemin gercek durumunu izler. Sunucu, odemesi
+   * tamamlanmayan islemleri zaten 3 dakika sonra iptal ediyor (bkz.
+   * reconcileStaleCreatedTransactions) - pompayi serbest birakarak, rezerve puani/kodu
+   * iade ederek ve gec gelen odemeye karsi guvenlik agiyla. Burada ayri bir sure
+   * tanimlamak, iki tarafin farkli anlara karar vermesi demek olurdu; onun yerine
+   * kiosk o karari izleyip ekrani ona gore sifirliyor.
+   */
+  useEffect(() => {
+    if ((step !== "payment" && step !== "iyzico-wait") || !transaction || !accessToken) return;
+    const interval = setInterval(() => {
+      kioskApi
+        .getTransaction(transaction.id, accessToken)
+        .then((res) => {
+          const t = res.transaction;
+          if (t.status === "cancelled" || t.status === "failed") {
+            // Musteri odemeyi tamamlamadi ve sunucu islemi kapatti: ekrani siradaki
+            // musteri icin bosalt. Makbuz ekranina dusurmek yaniltici olurdu - ortada
+            // gosterilecek bir islem yok, musteri de coktan gitmis.
+            reset();
+            return;
+          }
+          applyTransactionUpdate(t);
+        })
+        .catch(() => {});
+    }, 5000);
+    return () => clearInterval(interval);
+    // reset bilerek bagimliliklarda degil: her render'da yeniden tanimlandigi icin
+    // eklenseydi sorgu araligi saniyede bir sifirlanip hic tetiklenmeyebilirdi.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, transaction, accessToken, applyTransactionUpdate]);
+
   function reset() {
     // Bir sonraki musteri icin kiosk her zaman karsilama/dil secim ekranina doner - onceki
     // musterinin plakasi/bilgileri gorunmez, dil secimi de sifirdan yapilir (bkz. WelcomeStep).

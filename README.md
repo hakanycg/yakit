@@ -478,6 +478,31 @@ boyu müşteri gelmeyen bir istasyonun sapasağlam kiosk'u "ölü" görünürdü
 kendiliğinden kapanır. Pasif istasyonların kiosk'ları için alarm üretilmez — kapalı olmaları
 zaten beklenen durumdur.
 
+### Ekran gözcüsü: ödeme adımında takılı kalan kiosk
+
+Kiosk'ta bir boşta-kalma sayacı vardır (60 sn sonra uyarı, 20 sn sonra karşılama ekranına
+dönüş), ancak **ödeme adımında bilinçli olarak kapalıdır**: iyzico ödeme formu çapraz
+kaynaklı bir çerçeve içinde açılır, müşteri kart bilgisini yazarken bizim pencerede hiçbir
+fare/klavye olayı oluşmaz — sayaç açık olsa müşteriyi kartını yazarken dışarı atardı.
+
+Bunun bedeli şuydu: ödeme formunu açıp vazgeçen bir müşteriden sonra ekran o formda takılı
+kalıyordu; sıradaki müşteri, öncekinin yarım kalmış ödeme ekranıyla karşılaşıyordu.
+
+Kiosk artık ödeme adımında işlemin durumunu **5 saniyede bir** sorgular ve sunucu işlemi
+`cancelled`/`failed` olarak kapattığı anda ekranı karşılama ekranına döndürür. Bu, kiosk
+tarafında **ayrı bir zamanlayıcı değildir**: paranın tarafı zaten sunucuda çözülüyor —
+ödemesi tamamlanmayan işlemler 3 dakika sonra iptal edilir, pompa serbest bırakılır, rezerve
+puan/indirim kodu iade edilir ve geç gelen ödemeye karşı bir güvenlik ağı çalışır
+(`reconcileStaleCreatedTransactions`). Kiosk'ta ikinci bir süre tanımlamak, iki tarafın
+farklı anlara karar vermesi demek olurdu; onun yerine ekran sunucunun kararını izler.
+
+**Kapsam dışında kalan tek durum:** iyzico ödeme sayfasına tam sayfa yönlendirme yapıldığında
+(`paymentPageUrl`) tarayıcı uygulamamızdan tamamen çıkar; o noktada çalışan bir JavaScript'imiz
+kalmadığı için ekranı geri getirmek yalnızca kiosk modundaki tarayıcı yapılandırmasıyla
+(ör. Chrome kiosk modu + zaman aşımında ana sayfaya dönüş) mümkündür. Müşteri kendi
+dönerse akış kaldığı yerden devam eder: işlem kimliği ve erişim token'ı `sessionStorage`'a
+yazıldığı için sayfa geri geldiğinde doğru adıma otomatik olarak konumlanır.
+
 ## Yakıt sapma (kaçak/kayıp) takibi
 
 Personelsiz istasyonda tankı gözüyle kontrol eden kimse yoktur. Sızıntı yapan bir tank,
