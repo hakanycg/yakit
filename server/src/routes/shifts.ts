@@ -7,7 +7,7 @@ import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
 
 interface ShiftStats {
   transactionCount: number;

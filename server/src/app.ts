@@ -22,6 +22,7 @@ import { settingsRouter } from "./routes/settings.js";
 import { reportsRouter } from "./routes/reports.js";
 import { stationsRouter } from "./routes/stations.js";
 import { kioskFleetRouter } from "./routes/kioskFleet.js";
+import { tenantsRouter } from "./routes/tenants.js";
 import { reconciliationRouter } from "./routes/reconciliation.js";
 import { supportRouter } from "./routes/support.js";
 import { shiftsRouter } from "./routes/shifts.js";
@@ -101,6 +102,7 @@ export function createApp() {
   app.use("/api/reports", reportsRouter);
   app.use("/api/stations", stationsRouter);
   app.use("/api/kiosk-fleet", kioskFleetRouter);
+  app.use("/api/tenants", tenantsRouter);
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/fuel-stock", fuelStockRouter);
   app.use("/api/reconciliation", reconciliationRouter);

@@ -84,6 +84,50 @@ yakit/
   sonrasında müşteri hizmetleri ekibine bu rolü vererek tüm istasyonlara destek erişimi
   sağlayabilirsiniz; her istasyon sahibi ise yalnızca kendi istasyonunun verisini görür.
 
+## Dağıtım şirketi (kiracı) katmanı
+
+Sistem tek bir işletmeye değil, birden fazla **dağıtım şirketine** hizmet verebilir.
+Her dağıtıcı yalnızca kendisine atanmış istasyonları görür; başka bir şirketin
+verisine hiçbir yoldan erişemez.
+
+### İzolasyon nerede zorlanıyor?
+
+**Tek yerde: `attachStationScope`** (`middleware/auth.ts`). İstasyona bağlı bütün veri
+(pompa, işlem, alarm, stok, rapor, ayar, mutabakat…) rotalarda `req.stationId` üzerinden
+okunuyor. Dolayısıyla *"bu kullanıcı hangi istasyona erişebilir"* sorusunu orada
+cevaplamak bütün sorguları kapsar — her sorguya ayrı ayrı kiracı koşulu eklemek
+gerekmez, ki bu yaklaşım tek bir unutulan sorguda sızıntı demek olurdu.
+
+İstasyonlar **arası** çalışan uçlar (istasyon listesi, kiosk filosu, kullanıcı yönetimi)
+bu akışın dışında kalır ve kendi filtrelerini uygulamak **zorundadır**;
+`middleware/tenantScope.ts` o filtreyi tek yerde toplar.
+
+### Roller
+
+| Rol | Kapsam |
+| --- | --- |
+| `super_admin` | Platform. Tüm istasyonlar, dağıtım şirketi açma/kapama, istasyon atama. |
+| `tenant_admin` | Bir dağıtım şirketi. Yalnızca kendi istasyonları; içlerinde istasyon yöneticisi yetkileri. |
+| `admin` / `operator` / `viewer` | Tek bir istasyon (değişmedi). |
+
+Kiracı açmak, istasyon atamak ve `tenant_admin` hesabı oluşturmak **ticari** kararlardır
+(kimin neyi işlettiği, faturalama) — yalnızca platform yöneticisi yapabilir. Bir
+dağıtıcının kendine istasyon eklemesi veya başka bir kiracı yöneticisi açması engellenir.
+
+Aynı sebeple istasyon **oluşturma** ve **silme** de platforma özeldir: silme geri
+alınamaz ve o istasyonun tüm verisini etkiler.
+
+### Sızdırmayan hata mesajları
+
+Erişilemeyen bir istasyon ile **var olmayan** bir istasyon aynı cevabı alır (403).
+"Bulunamadı" demek, hangi id'lerin var olduğunu sızdırırdı.
+
+### İstemciye güvenilmez
+
+Sidebar'daki istasyon listesini sunucu belirler: `/api/stations`, `tenant_admin`'e
+yalnızca kendi kiracısının istasyonlarını döner. Menüde neyin göründüğü kolaylık
+içindir; izolasyon her zaman sunucuda zorlanır.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

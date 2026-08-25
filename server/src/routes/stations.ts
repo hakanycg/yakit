@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import type { StationKioskRow, StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
+import { requireStationAccess, stationScopeFilter } from "../middleware/tenantScope.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { generateStationCode } from "../utils/stationCode.js";
@@ -16,6 +17,7 @@ function serializeStation(s: StationRow) {
     id: s.id,
     slug: s.slug,
     code: s.code,
+    tenantId: s.tenant_id,
     requireKioskToken: !!s.require_kiosk_token,
     name: s.name,
     address: s.address,
@@ -46,8 +48,13 @@ router.get("/current", requireStationSelected, (req, res) => {
   res.json({ station: serializeStation(station) });
 });
 
-router.get("/", requireRole("super_admin"), (_req, res) => {
-  const stations = db.prepare<[], StationRow>("SELECT * FROM stations ORDER BY name").all();
+router.get("/", requireRole("super_admin", "tenant_admin"), (req, res) => {
+  // Bu uc tek bir istasyona degil "tum istasyonlarim"a bakar; attachStationScope'un
+  // ?stationId= kapisindan gecmez, bu yuzden kiraci filtresini kendisi uygular.
+  const scope = stationScopeFilter(req, "id");
+  const stations = db
+    .prepare<number[], StationRow>(`SELECT * FROM stations WHERE ${scope.sql} ORDER BY name`)
+    .all(...scope.params);
   const withStats = stations.map((s) => {
     const pumpCount = (db.prepare("SELECT COUNT(*) as c FROM pumps WHERE station_id = ?").get(s.id) as { c: number }).c;
     const activeAlarms = (
@@ -161,8 +168,9 @@ const updateSchema = z.object({
   longitude: z.number().min(-180).max(180).nullable().optional(),
 });
 
-router.patch("/:id", requireRole("super_admin"), csrfProtection, validateBody(updateSchema), (req, res) => {
+router.patch("/:id", requireRole("super_admin", "tenant_admin"), csrfProtection, validateBody(updateSchema), (req, res) => {
   const id = Number(req.params.id);
+  if (!requireStationAccess(req, res, id)) return;
   const existing = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id);
   if (!existing) return void res.status(404).json({ error: "Istasyon bulunamadi." });
 
@@ -255,8 +263,9 @@ function getStationOr404(id: number, res: import("express").Response): StationRo
   return station ?? null;
 }
 
-router.get("/:stationId/kiosks", requireRole("super_admin"), (req, res) => {
+router.get("/:stationId/kiosks", requireRole("super_admin", "tenant_admin"), (req, res) => {
   const stationId = Number(req.params.stationId);
+  if (!requireStationAccess(req, res, stationId)) return;
   if (!getStationOr404(stationId, res)) return;
   const kiosks = db
     .prepare<[number], StationKioskRow>("SELECT * FROM station_kiosks WHERE station_id = ? ORDER BY id ASC")
@@ -269,8 +278,9 @@ const kioskSchema = z.object({
   anydeskId: z.string().trim().max(60).nullable().optional(),
 });
 
-router.post("/:stationId/kiosks", requireRole("super_admin"), csrfProtection, validateBody(kioskSchema), (req, res) => {
+router.post("/:stationId/kiosks", requireRole("super_admin", "tenant_admin"), csrfProtection, validateBody(kioskSchema), (req, res) => {
   const stationId = Number(req.params.stationId);
+  if (!requireStationAccess(req, res, stationId)) return;
   if (!getStationOr404(stationId, res)) return;
   const body = req.body as z.infer<typeof kioskSchema>;
   // Her fiziksel kiosk kendi cihaz tokeniyle olusturulur; kiosk uygulamasi bunu
@@ -299,11 +309,12 @@ const kioskUpdateSchema = z.object({
 
 router.patch(
   "/:stationId/kiosks/:kioskId",
-  requireRole("super_admin"),
+  requireRole("super_admin", "tenant_admin"),
   csrfProtection,
   validateBody(kioskUpdateSchema),
   (req, res) => {
     const stationId = Number(req.params.stationId);
+    if (!requireStationAccess(req, res, stationId)) return;
     const kioskId = Number(req.params.kioskId);
     const existing = db
       .prepare<[number, number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ? AND station_id = ?")
@@ -335,8 +346,9 @@ router.patch(
   }
 );
 
-router.delete("/:stationId/kiosks/:kioskId", requireRole("super_admin"), csrfProtection, (req, res) => {
+router.delete("/:stationId/kiosks/:kioskId", requireRole("super_admin", "tenant_admin"), csrfProtection, (req, res) => {
   const stationId = Number(req.params.stationId);
+  if (!requireStationAccess(req, res, stationId)) return;
   const kioskId = Number(req.params.kioskId);
   const existing = db
     .prepare<[number, number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ? AND station_id = ?")

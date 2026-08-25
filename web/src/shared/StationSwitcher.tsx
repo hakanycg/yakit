@@ -7,21 +7,27 @@ import { initials } from "./format";
 import type { Station } from "./types";
 
 /**
- * Sidebar'in en ustundeki "istasyon karti". super_admin icin gercek bir acilir
- * menu (istasyonlar arasi gecis, StationSwitcher'in eski <select> islevinin
- * yerini alir); diger roller icin kendi istasyonlarinin adini (bkz. auth.ts /me
- * -> stationName) sadece goruntuleyen, tiklanamayan sabit bir kart.
+ * Sidebar'in en ustundeki "istasyon karti".
+ *
+ * super_admin ve tenant_admin icin gercek bir acilir menu (istasyonlar arasi gecis);
+ * ikisinin de sabit bir istasyonu yoktur. Aradaki fark listenin icerigidir ve bunu
+ * SUNUCU belirler: /api/stations, tenant_admin'e yalnizca kendi kiracisinin
+ * istasyonlarini doner (bkz. routes/stations.ts). Istemcinin filtrelemesine
+ * guvenilmez - izolasyon sunucuda zorlanir.
+ *
+ * Diger roller icin kendi istasyonlarinin adini (bkz. auth.ts /me -> stationName)
+ * sadece goruntuleyen, tiklanamayan sabit bir kart.
  */
 export default function StationSwitcher() {
   const { user } = useAuth();
-  const isSuperAdmin = user?.role === "super_admin";
+  const canSwitch = user?.role === "super_admin" || user?.role === "tenant_admin";
   const [stations, setStations] = useState<Station[]>([]);
   const [stationId, setStationId] = useCurrentStationId();
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isSuperAdmin) return;
+    if (!canSwitch) return;
     api.get<{ stations: Station[] }>("/api/stations").then((res) => {
       setStations(res.stations);
       if (stationId === null && res.stations.length > 0) {
@@ -29,7 +35,7 @@ export default function StationSwitcher() {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSuperAdmin]);
+  }, [canSwitch]);
 
   useEffect(() => {
     if (!open) return;
@@ -42,7 +48,7 @@ export default function StationSwitcher() {
 
   if (!user) return null;
 
-  if (isSuperAdmin && stations.length === 0) {
+  if (user.role === "super_admin" && stations.length === 0) {
     return (
       <div className="sidebar-org-card">
         <Link to="/admin/istasyonlar">
@@ -52,7 +58,23 @@ export default function StationSwitcher() {
     );
   }
 
-  const currentName = isSuperAdmin
+  // Kiracisina hic istasyon atanmamis bir dagitim sirketi yoneticisi: "istasyon secin"
+  // demek yaniltici olurdu, secilecek bir sey yok.
+  if (user.role === "tenant_admin" && stations.length === 0) {
+    return (
+      <div className="sidebar-org-card">
+        <button type="button" className="sidebar-card-trigger" style={{ cursor: "default" }} disabled>
+          <span className="sidebar-avatar">{initials(user.tenantName ?? "?")}</span>
+          <span className="sidebar-card-text">
+            <strong>{user.tenantName ?? "Dağıtım Şirketi"}</strong>
+          </span>
+        </button>
+        <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>Henüz istasyon atanmamış.</p>
+      </div>
+    );
+  }
+
+  const currentName = canSwitch
     ? stations.find((s) => s.id === stationId)?.name ?? "İstasyon seçin"
     : user.stationName ?? "Yakıt İstasyonu";
 
@@ -61,16 +83,16 @@ export default function StationSwitcher() {
       <button
         type="button"
         className="sidebar-card-trigger"
-        onClick={() => isSuperAdmin && setOpen((v) => !v)}
-        style={{ cursor: isSuperAdmin ? "pointer" : "default" }}
+        onClick={() => canSwitch && setOpen((v) => !v)}
+        style={{ cursor: canSwitch ? "pointer" : "default" }}
       >
         <span className="sidebar-avatar">{initials(currentName)}</span>
         <span className="sidebar-card-text">
           <strong>{currentName}</strong>
         </span>
-        {isSuperAdmin && <span className={`sidebar-chevron${open ? " open" : ""}`}>▾</span>}
+        {canSwitch && <span className={`sidebar-chevron${open ? " open" : ""}`}>▾</span>}
       </button>
-      {isSuperAdmin && open && (
+      {canSwitch && open && (
         <div className="sidebar-dropdown">
           {stations.map((s) => (
             <button

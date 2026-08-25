@@ -16,7 +16,7 @@ import {
  * operatordur, bu yuzden yakit stogunun aksine operator de erisebilir.
  */
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin", "operator"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator"), attachStationScope, requireStationSelected);
 
 const listQuerySchema = z.object({
   status: z.enum(["open", "resolved"]).optional(),

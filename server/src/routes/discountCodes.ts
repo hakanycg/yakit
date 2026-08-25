@@ -8,7 +8,7 @@ import { DiscountError, createCode, getUsageStats, listCodes, serializeCode, set
 const router = Router();
 // Kampanya kodlari yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
 // (super_admin) acik; operator/viewer goremez/duzenleyemez.
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/", (req, res) => {
   const stats = getUsageStats(req.stationId!);

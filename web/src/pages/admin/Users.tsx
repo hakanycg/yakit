@@ -6,6 +6,7 @@ import type { AdminUser, RoleName } from "../../shared/types";
 import { useAuth } from "../../shared/AuthContext";
 
 const ROLE_LABEL: Record<RoleName, string> = {
+  tenant_admin: "Dağıtım Şirketi Yöneticisi",
   super_admin: "Platform Yöneticisi",
   admin: "İstasyon Yöneticisi",
   operator: "Operatör",

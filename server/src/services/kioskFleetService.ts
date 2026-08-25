@@ -68,9 +68,14 @@ export function serializeKioskFleetRow(k: KioskFleetRow) {
  * kiosk kimligi tasinmiyor), bu yuzden ayni istasyondaki her kiosk ayni sayiyi
  * gosterir - "bu istasyonda acik bir donanim arizasi var" anlaminda.
  */
-export function listKioskFleet(): KioskFleetRow[] {
+export function listKioskFleet(tenantId?: number | null): KioskFleetRow[] {
+  // tenantId verilirse yalnizca o dagitim sirketinin istasyonlarindaki kiosk'lar doner.
+  // Bu uc tek bir istasyona degil "tum kiosk'larim"a baktigindan attachStationScope'un
+  // korumasinin disindadir ve filtresini kendisi uygulamak zorundadir.
+  const tenantFilter = tenantId != null ? "AND s.tenant_id = ?" : "";
+  const params = tenantId != null ? [tenantId] : [];
   return db
-    .prepare<[], KioskFleetRow>(
+    .prepare<number[], KioskFleetRow>(
       `SELECT
          k.id, k.label, k.anydesk_id, k.station_id, k.last_seen_at, k.created_at,
          s.name AS station_name, s.code AS station_code, s.active AS station_active,
@@ -80,9 +85,10 @@ export function listKioskFleet(): KioskFleetRow[] {
              AND a.type IN ('printer_fault', 'okc_fault')) AS station_fault_alarms
        FROM station_kiosks k
        JOIN stations s ON s.id = k.station_id
+       WHERE 1 = 1 ${tenantFilter}
        ORDER BY s.name ASC, k.id ASC`
     )
-    .all();
+    .all(...params);
 }
 
 export interface KioskFleetSummary {

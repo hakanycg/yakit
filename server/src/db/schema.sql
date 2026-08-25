@@ -3,13 +3,28 @@ PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS roles (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL UNIQUE,           -- super_admin | admin | operator | viewer
+  name TEXT NOT NULL UNIQUE,           -- super_admin | tenant_admin | admin | operator | viewer
   description TEXT NOT NULL DEFAULT ''
+);
+
+-- Kiraci (dagitim sirketi / bayi grubu).
+--
+-- Bir dagitici yalnizca KENDI istasyonlarini gorur. Bu izolasyonun tek zorlandigi yer
+-- attachStationScope'tur (bkz. middleware/auth.ts): istasyona bagli tum veri zaten
+-- req.stationId uzerinden akiyor, dolayisiyla "hangi istasyona erisilebilir" sorusunu
+-- orada cevaplamak butun sorgulari kapsar.
+CREATE TABLE IF NOT EXISTS tenants (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 
 CREATE TABLE IF NOT EXISTS stations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   slug TEXT NOT NULL UNIQUE,           -- eski kiosk adresi: /kiosk/:slug (geriye donuk destek icin korunuyor)
+  tenant_id INTEGER REFERENCES tenants(id),  -- NULL = platformun kendi istasyonu (bir dagiticiya bagli degil)
   code TEXT UNIQUE,                    -- "STM1234" - kiosk adresi (/kiosk/STM1234) ve destek/envanter kimligi. SIR DEGILDIR (bkz. utils/stationCode.ts)
   require_kiosk_token INTEGER NOT NULL DEFAULT 1,  -- 1: kiosk uclarinda cihaz tokeni zorunlu (bkz. middleware/kioskDevice.ts)
   name TEXT NOT NULL,
@@ -53,7 +68,10 @@ CREATE TABLE IF NOT EXISTS users (
   password_salt TEXT NOT NULL,         -- hex(random salt)
   password_iterations INTEGER NOT NULL,
   role_id INTEGER NOT NULL REFERENCES roles(id),
-  station_id INTEGER REFERENCES stations(id), -- NULL = super_admin (tum istasyonlara erisir)
+  station_id INTEGER REFERENCES stations(id), -- NULL = super_admin veya tenant_admin (tek bir istasyona bagli degil)
+  -- tenant_admin icin zorunlu: kullanicinin yonetebilecegi istasyonlar bu kiraciyla sinirlidir.
+  -- super_admin ve istasyon rollerinde NULL'dir.
+  tenant_id INTEGER REFERENCES tenants(id),
   active INTEGER NOT NULL DEFAULT 1,   -- 0/1
   must_change_password INTEGER NOT NULL DEFAULT 0,
   failed_login_attempts INTEGER NOT NULL DEFAULT 0,

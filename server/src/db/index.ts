@@ -56,6 +56,16 @@ export function applyMigrations(): void {
   ensureColumn("station_kiosks", "last_seen_at", "TEXT");
   // Sema henuz "source" kolonu olmadan olusmus kurulumlar: mevcut tum olcumler elle
   // girilmistir, varsayilan dogru degeri zaten verir.
+  // Kiraci (dagitim sirketi) katmani. Roller yalnizca seed.ts'te olusturuluyor ve seed
+  // acilistan sonra calistirilmayabilir; tenant_admin rolu burada da garanti edilmezse
+  // mevcut kurulumlarda ozellik sessizce calismaz.
+  db.exec(
+    "INSERT OR IGNORE INTO roles (name, description) VALUES ('tenant_admin', 'Dagitim sirketi yoneticisi - yalnizca kendi istasyonlarina erisir')"
+  );
+  ensureColumn("stations", "tenant_id", "INTEGER REFERENCES tenants(id)");
+  ensureColumn("users", "tenant_id", "INTEGER REFERENCES tenants(id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_stations_tenant ON stations(tenant_id)");
+
   ensureColumn("fuel_tank_readings", "source", "TEXT NOT NULL DEFAULT 'manual'");
   ensureColumn("fuel_tank_readings", "temperature_celsius", "REAL");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_station_kiosks_device_token ON station_kiosks(device_token) WHERE device_token IS NOT NULL");

@@ -1,4 +1,4 @@
-export type RoleName = "super_admin" | "admin" | "operator" | "viewer";
+export type RoleName = "super_admin" | "tenant_admin" | "admin" | "operator" | "viewer";
 export type FuelType = "benzin" | "motorin" | "lpg";
 export type PumpStatus = "idle" | "reserved" | "dispensing" | "fault" | "offline";
 export type TransactionStatus =
@@ -17,6 +17,8 @@ export interface CurrentUser {
   role: RoleName;
   stationId: number | null;
   stationName: string | null;
+  tenantId: number | null;
+  tenantName: string | null;
   mustChangePassword: boolean;
   email: string | null;
   phone: string | null;
@@ -260,6 +262,7 @@ export interface SupplierSummaryRow {
 }
 
 export interface Station {
+  tenantId: number | null;
   id: number;
   slug: string;
   /** "STM1234" - kiosk adresi ve destek kimligi. Sir DEGILDIR (bkz. server/src/utils/stationCode.ts). */

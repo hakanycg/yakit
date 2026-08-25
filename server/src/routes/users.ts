@@ -3,13 +3,19 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import type { RoleRow, StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole, csrfProtection } from "../middleware/auth.js";
+import { canAccessStation, stationScopeFilter } from "../middleware/tenantScope.js";
 import { validateBody } from "../middleware/validate.js";
 import { hashPassword, validatePasswordPolicy } from "../utils/password.js";
 import { destroyAllSessionsForUser } from "../services/sessionService.js";
 import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, csrfProtection);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, csrfProtection);
+
+/** Dagitim sirketi yoneticisi, kendi kiracisi icinde super_admin gibi davranir: istasyon secebilir. */
+function isTenantAdmin(req: { role?: { name: string } }): boolean {
+  return req.role?.name === "tenant_admin";
+}
 
 function serializeUser(u: UserRow, roleName: string, stationName: string | null) {
   return {
@@ -32,7 +38,13 @@ function serializeUser(u: UserRow, roleName: string, stationName: string | null)
 }
 
 router.get("/", (req, res) => {
+  // Istasyon secilmisse ona, secilmemisse kiraci kapsamina daraltilir. tenant_admin
+  // icin bu SART: kapsam uygulanmazsa istasyon secmeden butun platformun kullanicilari
+  // donerdi.
   const scoped = req.stationId !== undefined;
+  const tenantScope = stationScopeFilter(req, "u.station_id");
+  const where = scoped ? "WHERE u.station_id = ?" : `WHERE ${tenantScope.sql}`;
+  const params: unknown[] = scoped ? [req.stationId] : tenantScope.params;
 
   const rows = db
     .prepare<unknown[], UserRow & { role_name: string; station_name: string | null }>(
@@ -40,10 +52,10 @@ router.get("/", (req, res) => {
        FROM users u
        JOIN roles r ON r.id = u.role_id
        LEFT JOIN stations s ON s.id = u.station_id
-       ${scoped ? "WHERE u.station_id = ?" : ""}
+       ${where}
        ORDER BY u.username`
     )
-    .all(...(scoped ? [req.stationId] : []));
+    .all(...params);
 
   res.json({ users: rows.map((r) => serializeUser(r, r.role_name, r.station_name)) });
 });
@@ -61,8 +73,10 @@ const createUserSchema = z.object({
     .regex(/^[a-z0-9._-]+$/, "Kullanici adi yalnizca kucuk harf, rakam, nokta, tire ve alt cizgi icerebilir."),
   displayName: z.string().min(2).max(80),
   password: z.string().min(1),
-  role: z.enum(["super_admin", "admin", "operator", "viewer"]),
+  role: z.enum(["super_admin", "tenant_admin", "admin", "operator", "viewer"]),
   stationId: z.number().int().positive().optional(),
+  /** Yalnizca tenant_admin rolu icin: yonetecegi dagitim sirketi. */
+  tenantId: z.number().int().positive().optional(),
   email: z.string().email().max(120).optional(),
   phone: z
     .string()
@@ -78,14 +92,30 @@ router.post("/", validateBody(createUserSchema), (req, res) => {
   if (body.role === "super_admin" && !requesterIsSuperAdmin) {
     return void res.status(403).json({ error: "Yalnizca super admin baska bir super admin hesabi olusturabilir." });
   }
+  // Kiraci yoneticisi hesabini yalnizca platform acabilir: bu rol, bir dagitim
+  // sirketinin TUM istasyonlarina erisim demektir ve ticari bir karardir.
+  if (body.role === "tenant_admin" && !requesterIsSuperAdmin) {
+    return void res.status(403).json({ error: "Dagitim sirketi yoneticisi hesabini yalnizca platform yoneticisi acabilir." });
+  }
 
   let targetStationId: number | null;
-  if (body.role === "super_admin") {
+  let targetTenantId: number | null = null;
+  if (body.role === "tenant_admin") {
     targetStationId = null;
-  } else if (requesterIsSuperAdmin) {
+    if (!body.tenantId) return void res.status(400).json({ error: "Bir dagitim sirketi secmelisiniz." });
+    const tenant = db.prepare<[number], { id: number }>("SELECT id FROM tenants WHERE id = ?").get(body.tenantId);
+    if (!tenant) return void res.status(400).json({ error: "Gecersiz dagitim sirketi." });
+    targetTenantId = body.tenantId;
+  } else if (body.role === "super_admin") {
+    targetStationId = null;
+  } else if (requesterIsSuperAdmin || isTenantAdmin(req)) {
     if (!body.stationId) return void res.status(400).json({ error: "Bir istasyon secmelisiniz." });
     const station = db.prepare<[number], StationRow>("SELECT id FROM stations WHERE id = ?").get(body.stationId);
     if (!station) return void res.status(400).json({ error: "Gecersiz istasyon." });
+    // Kiraci yoneticisi yalnizca KENDI istasyonlarina kullanici atayabilir.
+    if (!canAccessStation(req, body.stationId)) {
+      return void res.status(403).json({ error: "Bu istasyona kullanici ekleme yetkiniz yok." });
+    }
     targetStationId = body.stationId;
   } else {
     targetStationId = req.stationId!;
@@ -103,8 +133,8 @@ router.post("/", validateBody(createUserSchema), (req, res) => {
   const hashed = hashPassword(body.password);
   const result = db
     .prepare(
-      `INSERT INTO users (username, display_name, password_hash, password_salt, password_iterations, role_id, station_id, email, phone, must_change_password)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
+      `INSERT INTO users (username, display_name, password_hash, password_salt, password_iterations, role_id, station_id, tenant_id, email, phone, must_change_password)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
     )
     .run(
       username,
@@ -114,6 +144,7 @@ router.post("/", validateBody(createUserSchema), (req, res) => {
       hashed.iterations,
       role.id,
       targetStationId,
+      targetTenantId,
       body.email ?? null,
       body.phone ?? null
     );
@@ -123,7 +154,7 @@ router.post("/", validateBody(createUserSchema), (req, res) => {
     action: "user_created",
     entityType: "user",
     entityId: result.lastInsertRowid as number,
-    details: { username, role: role.name, stationId: targetStationId },
+    details: { username, role: role.name, stationId: targetStationId, tenantId: targetTenantId },
     ip: req.ip,
     stationId: targetStationId,
   });
@@ -155,11 +186,13 @@ router.patch("/:id", validateBody(updateUserSchema), (req, res) => {
   if (!target) return void res.status(404).json({ error: "Kullanici bulunamadi." });
 
   const requesterIsSuperAdmin = req.role!.name === "super_admin";
-  if (!requesterIsSuperAdmin && target.station_id !== req.stationId) {
+  const canEditTarget = requesterIsSuperAdmin
+    ? true
+    : target.station_id !== null && canAccessStation(req, target.station_id);
+  if (!canEditTarget) {
+    // Var olmayan ve erisilemeyen kullanici ayni cevabi alir: hangi id'lerin var
+    // oldugu sizdirilmaz.
     return void res.status(404).json({ error: "Kullanici bulunamadi." });
-  }
-  if (target.station_id === null && !requesterIsSuperAdmin) {
-    return void res.status(403).json({ error: "Bu hesabi duzenleme yetkiniz yok." });
   }
 
   const body = req.body as z.infer<typeof updateUserSchema>;

@@ -16,7 +16,7 @@ import {
 const router = Router();
 // Sadakat programi yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
 // (super_admin) acik; operator/viewer goremez/duzenleyemez.
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/config", (req, res) => {
   res.json({ config: getLoyaltyConfig(req.stationId!) });

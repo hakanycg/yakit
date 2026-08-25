@@ -10,6 +10,7 @@ import { MenuIcon, MoonIcon, SunIcon } from "./icons";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Platform Yöneticisi",
+  tenant_admin: "Dağıtım Şirketi Yöneticisi",
   admin: "İstasyon Yöneticisi",
   operator: "Operator",
   viewer: "İzleyici",
@@ -137,7 +138,8 @@ export default function AppLayout() {
   if (!user) return null;
 
   const isSuperAdmin = user.role === "super_admin";
-  const isStationAdmin = user.role === "admin" || isSuperAdmin;
+  const isTenantAdmin = user.role === "tenant_admin";
+  const isStationAdmin = user.role === "admin" || isSuperAdmin || isTenantAdmin;
 
   return (
     <div className="app-shell">
@@ -148,10 +150,22 @@ export default function AppLayout() {
           {isSuperAdmin && (
             <>
               <p className="section-label">Platform</p>
+              <NavLink to="/admin/dagitim-sirketleri">Dağıtım Şirketleri</NavLink>
               <NavLink to="/admin/istasyonlar">İstasyonlar</NavLink>
               <NavLink to="/admin/kiosk-filosu">Kiosk Filosu</NavLink>
               <NavLink to="/admin/audit-log">Audit Log</NavLink>
               <NavLink to="/admin/sifirla">Demo Verilerini Sıfırla</NavLink>
+            </>
+          )}
+
+          {/* Dagitim sirketi yoneticisi: kendi istasyonlarini ve kiosk'larini gorur.
+              Menude ne gorundugu kolaylik icindir; erisim izolasyonu sunucuda zorlanir
+              (bkz. middleware/tenantScope.ts). */}
+          {isTenantAdmin && (
+            <>
+              <p className="section-label">Dağıtım Şirketi</p>
+              <NavLink to="/admin/istasyonlar">İstasyonlarım</NavLink>
+              <NavLink to="/admin/kiosk-filosu">Kiosk Filosu</NavLink>
             </>
           )}
 

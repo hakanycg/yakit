@@ -36,6 +36,7 @@ import StationAgentSettings from "./pages/admin/settings/StationAgentSettings";
 import DemoReset from "./pages/admin/DemoReset";
 import Stations from "./pages/admin/Stations";
 import KioskFleet from "./pages/admin/KioskFleet";
+import Tenants from "./pages/admin/Tenants";
 
 export default function App() {
   return (
@@ -47,7 +48,7 @@ export default function App() {
       <Route path="/sifre-sifirla" element={<ResetPassword />} />
       <Route path="/yetkisiz" element={<Unauthorized />} />
 
-      <Route element={<RequireRole roles={["admin", "operator", "viewer"]} />}>
+      <Route element={<RequireRole roles={["tenant_admin", "admin", "operator", "viewer"]} />}>
         <Route element={<AppLayout />}>
           <Route path="/operator" element={<Dashboard />} />
           <Route path="/operator/pompalar" element={<Pumps />} />
@@ -66,7 +67,7 @@ export default function App() {
           {/* Eski tekil adres - zorunlu sifre degistirme uyarisi (ChangePasswordBanner) buraya isaret ediyordu. */}
           <Route path="/operator/sifre-degistir" element={<Navigate to="/operator/hesabim/sifre" replace />} />
 
-          <Route element={<RequireRole roles={["admin"]} />}>
+          <Route element={<RequireRole roles={["tenant_admin", "admin"]} />}>
             <Route path="/admin" element={<Navigate to="/admin/kullanicilar" replace />} />
             <Route path="/admin/kullanicilar" element={<Users />} />
             {/* Ayar sayfalari - sidebar'daki "Ayarlar" acilir menusunden ulasilir. */}
@@ -87,9 +88,16 @@ export default function App() {
             <Route path="/admin/kvkk" element={<KvkkRequests />} />
           </Route>
 
-          <Route element={<RequireRole roles={["super_admin"]} />}>
+          {/* Dagitim sirketi yoneticisi de kendi istasyonlarini ve kiosk'larini gorur;
+              hangi kayitlarin dondugunu sunucu belirler (bkz. middleware/tenantScope.ts).
+              Dagitim sirketi tanimlamak ise ticari bir karardir, platforma ozeldir. */}
+          <Route element={<RequireRole roles={["tenant_admin"]} />}>
             <Route path="/admin/istasyonlar" element={<Stations />} />
             <Route path="/admin/kiosk-filosu" element={<KioskFleet />} />
+          </Route>
+
+          <Route element={<RequireRole roles={["super_admin"]} />}>
+            <Route path="/admin/dagitim-sirketleri" element={<Tenants />} />
             <Route path="/admin/audit-log" element={<AuditLog />} />
             <Route path="/admin/sifirla" element={<DemoReset />} />
           </Route>

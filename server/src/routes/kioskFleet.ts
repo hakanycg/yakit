@@ -11,12 +11,14 @@ import {
 } from "../services/kioskFleetService.js";
 
 /**
- * Kiosk filosu - TUM istasyonlardaki fiziksel kiosk bilgisayarlarinin saglik gorunumu.
- * Istasyon bazli uclarin (/api/stations/:id/kiosks) aksine istasyonlar arasi oldugundan
- * yalnizca platform yoneticisine acilir.
+ * Kiosk filosu - istasyonlar arasi saglik gorunumu.
+ *
+ * attachStationScope'un ?stationId= kapisindan gecmez (tek bir istasyona degil "tum
+ * kiosk'larim"a bakar), bu yuzden kiraci filtresini kendisi uygular: platform yoneticisi
+ * hepsini gorur, dagitim sirketi yoneticisi yalnizca kendi istasyonlarini.
  */
 const router = Router();
-router.use(requireAuth, requireRole("super_admin"));
+router.use(requireAuth, requireRole("super_admin", "tenant_admin"));
 
 const querySchema = z.object({
   status: z.enum(["online", "offline", "never_seen"]).optional(),
@@ -25,7 +27,7 @@ const querySchema = z.object({
 
 router.get("/", validateQuery(querySchema), (req, res) => {
   const { status, q } = (req as unknown as { validatedQuery: z.infer<typeof querySchema> }).validatedQuery;
-  const all = listKioskFleet();
+  const all = listKioskFleet(req.user!.tenant_id);
 
   // Ozet HER ZAMAN filtrelenmemis listeden hesaplanir: "3 cevrimdisi" rakami,
   // kullanici listeyi daraltinca degisirse gosterge olmaktan cikardi.
@@ -45,7 +47,7 @@ router.get("/", validateQuery(querySchema), (req, res) => {
 });
 
 router.get("/export.csv", (req, res) => {
-  const rows = listKioskFleet().map(serializeKioskFleetRow);
+  const rows = listKioskFleet(req.user!.tenant_id).map(serializeKioskFleetRow);
   const statusLabel: Record<string, string> = {
     online: "Cevrimici",
     offline: "Cevrimdisi",

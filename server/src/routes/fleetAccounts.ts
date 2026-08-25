@@ -22,7 +22,7 @@ import {
 const router = Router();
 // Filo hesaplari yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
 // (super_admin) acik; operator/viewer goremez/duzenleyemez - kampanya kodlariyla ayni yetki seviyesi.
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/", (req, res) => {
   const accounts = listAccounts(req.stationId!).map((a) => ({ ...serializeAccountAdmin(a), plates: listPlates(a.id).map(serializePlate) }));

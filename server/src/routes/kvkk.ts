@@ -8,7 +8,7 @@ import { KvkkError, eraseByPlate, lookupPersonalData } from "../services/kvkkSer
 const router = Router();
 // KVKK veri sahibi basvurulari (erisim/silme) hassas oldugu icin yalnizca istasyon
 // yoneticisi (admin) ve platform yoneticisine (super_admin) acik.
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/lookup/:plate", (req, res) => {
   try {

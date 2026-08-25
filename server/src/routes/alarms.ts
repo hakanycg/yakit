@@ -9,7 +9,7 @@ import { getPump, setPumpStatus } from "../services/pumpService.js";
 import { recordAudit } from "../services/auditService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
 
 const listSchema = z.object({ status: z.enum(["active", "acknowledged", "resolved"]).optional() });
 

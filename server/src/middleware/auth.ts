@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { parse as parseCookie, serialize as serializeCookie } from "cookie";
 import { resolveSession } from "../services/sessionService.js";
-import type { RoleRow, UserRow } from "../db/types.js";
+import type { RoleName, RoleRow, UserRow } from "../db/types.js";
 import { db } from "../db/index.js";
 import { env } from "../config.js";
 
@@ -16,8 +16,10 @@ declare global {
       role?: RoleRow;
       sessionToken?: string;
       csrfToken?: string;
-      /** Istegin kapsandigi istasyon. super_admin icin ?stationId= ile secilir, digerlerinde kendi istasyonudur. */
+      /** Istegin kapsandigi istasyon. super_admin/tenant_admin icin ?stationId= ile secilir, digerlerinde kendi istasyonudur. */
       stationId?: number;
+      /** tenant_admin icin kullanicinin dagitim sirketi. Istasyonlar arasi uclarin filtresi budur. */
+      tenantId?: number;
     }
   }
 }
@@ -81,7 +83,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   next();
 }
 
-export function requireRole(...roles: Array<"super_admin" | "admin" | "operator" | "viewer">) {
+export function requireRole(...roles: RoleName[]) {
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user || !req.role) {
       res.status(401).json({ error: "Oturum gerekli. Lutfen giris yapin." });
@@ -102,15 +104,56 @@ export function requireRole(...roles: Array<"super_admin" | "admin" | "operator"
  * - super_admin: ?stationId= sorgu parametresiyle secilir (verilmezse req.stationId tanimsiz kalir).
  * - digerleri: her zaman kendi station_id'lerine sabitlenir; baska bir istasyon secemezler.
  */
+function parseStationIdQuery(req: Request, res: Response): number | undefined | null {
+  const raw = req.query.stationId;
+  if (raw === undefined) return undefined;
+  const id = Number(raw);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(400).json({ error: "Gecersiz stationId." });
+    return null; // hata yaziya dokuldu
+  }
+  return id;
+}
+
+/**
+ * Istegin hangi istasyon uzerinde calisacagini belirler.
+ *
+ * KIRACI IZOLASYONUNUN ZORLANDIGI TEK YER BURASIDIR. Istasyona bagli butun veri
+ * (pompa, islem, alarm, stok, rapor, ayar...) rotalarda req.stationId uzerinden
+ * okunuyor; dolayisiyla "bu kullanici hangi istasyona erisebilir" sorusunu burada
+ * cevaplamak butun sorgulari kapsar. Istasyonlar arasi calisan uclar (ör. kiosk
+ * filosu) bu akisin disinda kalir ve kendi filtresini uygulamak ZORUNDADIR -
+ * bkz. tenantScope.ts.
+ */
 export function attachStationScope(req: Request, res: Response, next: NextFunction): void {
   if (!req.user || !req.role) return next();
 
   if (req.role.name === "super_admin") {
-    const raw = req.query.stationId;
-    if (raw !== undefined) {
-      const id = Number(raw);
-      if (!Number.isInteger(id) || id <= 0) {
-        res.status(400).json({ error: "Gecersiz stationId." });
+    const id = parseStationIdQuery(req, res);
+    if (id === null) return;
+    if (id !== undefined) req.stationId = id;
+    return next();
+  }
+
+  // Dagitim sirketi yoneticisi: istasyon secebilir ama YALNIZCA kendi kiracisindan.
+  if (req.role.name === "tenant_admin") {
+    if (req.user.tenant_id === null) {
+      // Veri butunlugu ihlali: tenant_admin'in bir kiracisi olmali.
+      res.status(403).json({ error: "Hesabiniza bagli bir dagitim sirketi bulunamadi." });
+      return;
+    }
+    req.tenantId = req.user.tenant_id;
+
+    const id = parseStationIdQuery(req, res);
+    if (id === null) return;
+    if (id !== undefined) {
+      const owned = db
+        .prepare<[number, number], { id: number }>("SELECT id FROM stations WHERE id = ? AND tenant_id = ?")
+        .get(id, req.user.tenant_id);
+      if (!owned) {
+        // "Bulunamadi" degil "yetkiniz yok": hangi id'lerin var oldugunu sizdirmamak icin
+        // ayni cevap verilir (bkz. ayni desen requireKioskDevice'ta).
+        res.status(403).json({ error: "Bu istasyon sizin dagitim sirketinize bagli degil." });
         return;
       }
       req.stationId = id;

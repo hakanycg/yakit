@@ -31,7 +31,7 @@ import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, seri
 const router = Router();
 // Yakit stogu yalnizca istasyon yoneticisine (admin) ve platform yoneticisine (super_admin,
 // her zaman gectigi icin) acik; operator/viewer bu sayfayi goremez/duzenleyemez.
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 const fuelTypeEnum = z.enum(["benzin", "motorin", "lpg"]);
 

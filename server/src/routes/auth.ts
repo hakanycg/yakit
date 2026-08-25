@@ -188,6 +188,11 @@ router.get("/me", requireAuth, (req, res) => {
   const station = user.station_id
     ? db.prepare<[number], { name: string }>("SELECT name FROM stations WHERE id = ?").get(user.station_id)
     : undefined;
+  // tenant_admin'in de sabit bir istasyonu yoktur; sidebar'da istasyon adi yerine
+  // bagli oldugu dagitim sirketinin adi gosterilir.
+  const tenant = user.tenant_id
+    ? db.prepare<[number], { name: string }>("SELECT name FROM tenants WHERE id = ?").get(user.tenant_id)
+    : undefined;
   res.json({
     user: {
       id: user.id,
@@ -196,6 +201,8 @@ router.get("/me", requireAuth, (req, res) => {
       role: role.name,
       stationId: user.station_id,
       stationName: station?.name ?? null,
+      tenantId: user.tenant_id,
+      tenantName: tenant?.name ?? null,
       mustChangePassword: !!user.must_change_password,
       email: user.email,
       phone: user.phone,

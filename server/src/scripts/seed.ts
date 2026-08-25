@@ -11,6 +11,7 @@ const DEFAULT_STATION_SLUG = "merkez";
 function ensureRoles(): Record<string, number> {
   const roles: Array<{ name: string; description: string }> = [
     { name: "super_admin", description: "Platform sahibi - tum istasyonlara ve ekiplere erisir" },
+    { name: "tenant_admin", description: "Dagitim sirketi yoneticisi - yalnizca kendi istasyonlarina erisir" },
     { name: "admin", description: "Istasyon sahibi/yoneticisi - kendi istasyonunda tam yetki" },
     { name: "operator", description: "Operator - pompa/islem/alarm yonetimi" },
     { name: "viewer", description: "Izleyici - salt okunur erisim" },

@@ -69,7 +69,7 @@ router.post("/events", requireStationSyncToken, validateBody(eventsSchema), (req
 
 // Asagidaki uclar ise tam tersine bir yonetici oturumu gerektirir (token'i
 // gormek/uretmek icin) - fleet-accounts route'uyla ayni yetki seviyesi.
-router.get("/token", requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, (req, res) => {
+router.get("/token", requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected, (req, res) => {
   const token = ensureSyncToken(req.stationId!);
   res.json({ syncToken: token });
 });
@@ -85,7 +85,7 @@ const rotateTokenSchema = z.object({ code: z.string().trim().optional() });
 router.post(
   "/token/rotate",
   requireAuth,
-  requireRole("super_admin", "admin"),
+  requireRole("super_admin", "tenant_admin", "admin"),
   csrfProtection,
   attachStationScope,
   requireStationSelected,
@@ -113,7 +113,7 @@ router.post(
   }
 );
 
-router.get("/status", requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, (req, res) => {
+router.get("/status", requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected, (req, res) => {
   const state = getSyncState(req.stationId!);
   res.json({
     lastHeartbeatAt: state?.last_heartbeat_at ?? null,

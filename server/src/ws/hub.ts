@@ -3,11 +3,11 @@ import type { Server as HttpServer } from "node:http";
 import { parse as parseCookie } from "cookie";
 import { resolveSession } from "../services/sessionService.js";
 import { db } from "../db/index.js";
-import type { RoleRow } from "../db/types.js";
+import type { RoleName, RoleRow } from "../db/types.js";
 import { SESSION_COOKIE } from "../middleware/auth.js";
 import { safeCompare } from "../utils/safeCompare.js";
 
-type ClientRole = "super_admin" | "admin" | "operator" | "viewer" | null;
+type ClientRole = RoleName | null;
 
 interface ClientState {
   ws: WebSocket;

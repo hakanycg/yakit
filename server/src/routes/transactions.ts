@@ -8,7 +8,7 @@ import { createInvoice, InvoiceError } from "../services/invoiceService.js";
 import { getInvoiceForTransaction, recordInvoiceFailure, recordInvoiceSuccess, serializeInvoice } from "../services/invoiceRecordService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
 
 const listSchema = z.object({
   status: z.string().optional(),
@@ -100,7 +100,7 @@ router.get("/:id/invoice", (req, res) => {
   }
 });
 
-router.post("/:id/invoice", requireRole("super_admin", "admin", "operator"), csrfProtection, async (req, res) => {
+router.post("/:id/invoice", requireRole("super_admin", "tenant_admin", "admin", "operator"), csrfProtection, async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz islem." });
   let t;

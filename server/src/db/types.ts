@@ -1,8 +1,17 @@
-export type RoleName = "super_admin" | "admin" | "operator" | "viewer";
+export type RoleName = "super_admin" | "tenant_admin" | "admin" | "operator" | "viewer";
+
+export interface TenantRow {
+  id: number;
+  name: string;
+  slug: string;
+  active: 0 | 1;
+  created_at: string;
+}
 
 export interface StationRow {
   id: number;
   slug: string;
+  tenant_id: number | null;
   code: string | null;
   require_kiosk_token: 0 | 1;
   name: string;
@@ -32,7 +41,8 @@ export interface UserRow {
   password_salt: string;
   password_iterations: number;
   role_id: number;
-  station_id: number | null; // NULL = super_admin
+  station_id: number | null; // NULL = super_admin veya tenant_admin
+  tenant_id: number | null;  // tenant_admin icin zorunlu, digerlerinde NULL
   active: 0 | 1;
   must_change_password: 0 | 1;
   failed_login_attempts: number;

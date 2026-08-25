@@ -16,7 +16,7 @@ import {
  * yalnizca istasyon yoneticisine (ve her zaman gecen platform yoneticisine) acilir.
  */
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.");
 

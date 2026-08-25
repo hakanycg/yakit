@@ -3,7 +3,7 @@ import { db } from "../db/index.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
 
 router.get("/summary", (req, res) => {
   const stationId = req.stationId!;

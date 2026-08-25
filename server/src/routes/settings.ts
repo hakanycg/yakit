@@ -13,7 +13,7 @@ import { ScheduledPriceError, cancelSchedule, createSchedule, listSchedules, ser
 import { broadcastFuelPrices } from "../services/fuelPriceService.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
 
 router.get("/fuel-prices", (req, res) => {
   const rows = db.prepare<[number], FuelPriceRow>("SELECT * FROM fuel_prices WHERE station_id = ?").all(req.stationId!);

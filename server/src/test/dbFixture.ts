@@ -9,6 +9,7 @@ function ensureRoles(): Record<RoleName, number> {
   if (roleIds) return roleIds;
   const roles: Array<{ name: RoleName; description: string }> = [
     { name: "super_admin", description: "" },
+    { name: "tenant_admin", description: "" },
     { name: "admin", description: "" },
     { name: "operator", description: "" },
     { name: "viewer", description: "" },
@@ -27,12 +28,20 @@ const DEFAULT_TANKS: Array<{ fuelType: FuelType; capacity: number; current: numb
 ];
 
 /** Her testin kendi izole istasyonunu olusturur (paylasilan sabit veriye bagimliligi ve testler-arasi carpismayi onlemek icin), varsayilan tanklarla birlikte. */
-export function createTestStation(): StationRow {
+export function createTestTenant(): { id: number; name: string; slug: string } {
+  counter += 1;
+  const slug = `test-tenant-${Date.now()}-${counter}`;
+  const name = `Test Dagitim ${counter}`;
+  const id = db.prepare("INSERT INTO tenants (name, slug) VALUES (?, ?)").run(name, slug).lastInsertRowid as number;
+  return { id, name, slug };
+}
+
+export function createTestStation(tenantId: number | null = null): StationRow {
   counter += 1;
   const slug = `test-station-${Date.now()}-${counter}`;
   const result = db
-    .prepare("INSERT INTO stations (slug, name, address) VALUES (?, ?, ?)")
-    .run(slug, `Test Istasyon ${counter}`, "Test Adres");
+    .prepare("INSERT INTO stations (slug, name, address, tenant_id) VALUES (?, ?, ?, ?)")
+    .run(slug, `Test Istasyon ${counter}`, "Test Adres", tenantId);
   const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(result.lastInsertRowid as number)!;
 
   const insertTank = db.prepare(
@@ -43,16 +52,16 @@ export function createTestStation(): StationRow {
   return station;
 }
 
-export function createTestUser(stationId: number | null, role: RoleName = "admin"): UserRow {
+export function createTestUser(stationId: number | null, role: RoleName = "admin", tenantId: number | null = null): UserRow {
   const roles = ensureRoles();
   counter += 1;
   const username = `test-user-${Date.now()}-${counter}`;
   const result = db
     .prepare(
-      `INSERT INTO users (username, display_name, password_hash, password_salt, password_iterations, role_id, station_id)
-       VALUES (?, ?, 'x', 'x', 1, ?, ?)`
+      `INSERT INTO users (username, display_name, password_hash, password_salt, password_iterations, role_id, station_id, tenant_id)
+       VALUES (?, ?, 'x', 'x', 1, ?, ?, ?)`
     )
-    .run(username, username, roles[role], stationId);
+    .run(username, username, roles[role], stationId, tenantId);
   return db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(result.lastInsertRowid as number)!;
 }
 
