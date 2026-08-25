@@ -1,0 +1,103 @@
+import { Router } from "express";
+import { z } from "zod";
+import { requireAuth, requireRole } from "../middleware/auth.js";
+import { validateQuery } from "../middleware/validate.js";
+import { recordAudit } from "../services/auditService.js";
+import { getPortfolioReport } from "../services/portfolioService.js";
+import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
+
+/**
+ * Konsolide (cok istasyonlu) rapor.
+ *
+ * /api/reports'un aksine TEK BIR ISTASYONA bagli degildir, bu yuzden ayri bir router:
+ * reports router'i requireStationSelected uyguluyor ve bu ucun tam olarak o kisiti
+ * asmasi gerekiyor.
+ *
+ * Istasyonlar arasi calistigi icin attachStationScope'un korumasinin disindadir ve
+ * kiraci filtresini KENDISI uygular (bkz. middleware/tenantScope.ts'teki ayni desen):
+ * platform yoneticisi hepsini gorur, dagitim sirketi yoneticisi yalnizca kendi
+ * istasyonlarini. Tek istasyonlu roller bu uca ihtiyac duymaz - zaten tek istasyonlari
+ * var - ve erisemez.
+ */
+const router = Router();
+router.use(requireAuth, requireRole("super_admin", "tenant_admin"));
+
+const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.");
+
+const querySchema = z.object({
+  from: dateSchema.optional(),
+  to: dateSchema.optional(),
+});
+
+function resolveRange(q: z.infer<typeof querySchema>): { from: string; to: string } {
+  const to = q.to ?? currentBusinessDate();
+  const from = q.from ?? businessDateDaysAgo(29);
+  // Ters aralik sessizce bos sonuc dondururdu; kullanici tarihleri yanlis girdigini
+  // anlamazdi. Duzeltmek yerine reddetmek daha durust: hangisini kastettigini bilemeyiz.
+  return from > to ? { from: to, to: from } : { from, to };
+}
+
+router.get("/", validateQuery(querySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof querySchema> }).validatedQuery;
+  const { from, to } = resolveRange(q);
+  res.json({ report: getPortfolioReport({ tenantId: req.user!.tenant_id }, from, to) });
+});
+
+router.get("/export.csv", validateQuery(querySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof querySchema> }).validatedQuery;
+  const { from, to } = resolveRange(q);
+  const report = getPortfolioReport({ tenantId: req.user!.tenant_id }, from, to);
+
+  const header = [
+    "istasyon",
+    "kod",
+    "durum",
+    "islem",
+    "ciro",
+    "indirim",
+    "litre",
+    "acik_alarm",
+    "kritik_alarm",
+    "acik_destek",
+    "sapma_litre",
+    "son_senkron",
+  ];
+  const escape = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const lines = [header.join(",")];
+  for (const s of report.stations) {
+    lines.push(
+      [
+        s.stationName,
+        s.stationCode,
+        s.active === 1 ? "Aktif" : "Pasif",
+        s.transactionCount,
+        s.revenue,
+        s.discount,
+        s.liters,
+        s.activeAlarms,
+        s.criticalAlarms,
+        s.openSupportRequests,
+        s.varianceLiters,
+        s.lastSyncedAt,
+      ]
+        .map(escape)
+        .join(",")
+    );
+  }
+
+  recordAudit({
+    user: req.user!,
+    action: "portfolio_report_exported",
+    details: { from, to, stationCount: report.stations.length },
+    ip: req.ip,
+    stationId: null,
+  });
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="konsolide-rapor-${from}_${to}.csv"`);
+  res.send("﻿" + lines.join("\n"));
+});
+
+export const portfolioRouter = router;

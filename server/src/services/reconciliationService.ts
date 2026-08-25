@@ -1,5 +1,6 @@
 import { db } from "../db/index.js";
 import type { UserRow } from "../db/types.js";
+import { BUSINESS_DAY_ANCHOR, BUSINESS_DAY_SQL_OFFSET, currentBusinessDate } from "../utils/businessDay.js";
 
 /**
  * Gun sonu kasa/odeme mutabakati.
@@ -24,22 +25,12 @@ export class ReconciliationError extends Error {
   }
 }
 
-/**
- * Is gunu siniri. Turkiye 2016'dan beri yil boyu UTC+3'tur (yaz saati uygulamasi yok),
- * bu yuzden sabit ofset dogru sonuc verir.
- *
- * Bu ONEMLI: UTC tarihine gore gruplamak gunu yerel saatle 03:00'te bolerdi ve gece
- * 01:30'daki bir satis bir onceki gunun kasasina yazilirdi - kasayi kapatan kisi
- * ekstresiyle tutmayan bir rakam gorurdu.
- */
-const BUSINESS_DAY_OFFSET = "+3 hours";
+// Is gunu siniri utils/businessDay.ts'te TEK YERDE tanimlidir: mutabakat ile konsolide
+// rapor ayni "bugun"u kastetmeli (bkz. o dosyadaki aciklama).
+const BUSINESS_DAY_OFFSET = BUSINESS_DAY_SQL_OFFSET;
+const DAY_ANCHOR = BUSINESS_DAY_ANCHOR;
 
-/** Bir islemin hangi is gunune ait sayilacagi: para, islem tamamlandiginda hareket eder. */
-const DAY_ANCHOR = "COALESCE(completed_at, created_at)";
-
-export function currentBusinessDate(now = new Date()): string {
-  return new Date(now.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
-}
+export { currentBusinessDate };
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;

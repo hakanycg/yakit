@@ -84,6 +84,36 @@ yakit/
   sonrasında müşteri hizmetleri ekibine bu rolü vererek tüm istasyonlara destek erişimi
   sağlayabilirsiniz; her istasyon sahibi ise yalnızca kendi istasyonunun verisini görür.
 
+## Konsolide (çok istasyonlu) rapor
+
+**Konsolide Rapor** ekranı tüm istasyonları tek tabloda gösterir: istasyon bazında ciro,
+indirim, litre, kümülatif yakıt sapması, açık/kritik alarm, açık destek talebi ve son
+senkron zamanı — ciroya göre sıralı, CSV çıktılı.
+
+Buna ihtiyaç kiracı katmanıyla doğdu: 40 istasyonu olan bir dağıtıcı, toplam cirosunu
+görmek için 40 istasyonu tek tek gezmek zorunda kalıyordu (sistemdeki tek raporlama ucu
+`/api/reports/summary` idi ve tek istasyona bakıyordu).
+
+### Kapsam
+
+`/api/portfolio` istasyonlar **arası** çalışır, yani `attachStationScope`'un
+`?stationId=` kapısından geçmez — kiracı filtresini kendisi uygular: platform yöneticisi
+hepsini görür, dağıtım şirketi yöneticisi yalnızca kendi istasyonlarını. Tek istasyonlu
+roller bu uca erişemez; zaten tek istasyonları var.
+
+### Aynı "bugün"
+
+Tarih aralığı, Gün Sonu Mutabakatı ile **aynı** iş günü tanımını kullanır (Türkiye UTC+3,
+`utils/businessDay.ts`). İki ekranın "bugün"ü farklı anlaması, aynı gün için farklı
+rakamlar göstermeleri demek olurdu; bu yüzden sınır tek yerde tanımlıdır.
+
+### İki ayrım
+
+- **Satışı olmayan istasyon listeden düşmez**, sıfır değerlerle görünür. Düşseydi
+  "istasyonum kayboldu" izlenimi verirdi; oysa bilgi "bu aralıkta hiç satış yok".
+- **Ölçümü olmayan istasyonda sapma `null`**, sıfır değil. `0` yazmak "ölçtük, fark yok"
+  demek olurdu — ölçüm yokluğu başka bir şey.
+
 ## Dağıtım şirketi (kiracı) katmanı
 
 Sistem tek bir işletmeye değil, birden fazla **dağıtım şirketine** hizmet verebilir.

@@ -37,6 +37,7 @@ import DemoReset from "./pages/admin/DemoReset";
 import Stations from "./pages/admin/Stations";
 import KioskFleet from "./pages/admin/KioskFleet";
 import Tenants from "./pages/admin/Tenants";
+import Portfolio from "./pages/admin/Portfolio";
 
 export default function App() {
   return (
@@ -94,10 +95,12 @@ export default function App() {
           <Route element={<RequireRole roles={["tenant_admin"]} />}>
             <Route path="/admin/istasyonlar" element={<Stations />} />
             <Route path="/admin/kiosk-filosu" element={<KioskFleet />} />
+            <Route path="/admin/konsolide-rapor" element={<Portfolio />} />
           </Route>
 
           <Route element={<RequireRole roles={["super_admin"]} />}>
             <Route path="/admin/dagitim-sirketleri" element={<Tenants />} />
+            <Route path="/admin/konsolide-rapor" element={<Portfolio />} />
             <Route path="/admin/audit-log" element={<AuditLog />} />
             <Route path="/admin/sifirla" element={<DemoReset />} />
           </Route>

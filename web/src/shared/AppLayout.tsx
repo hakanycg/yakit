@@ -150,6 +150,7 @@ export default function AppLayout() {
           {isSuperAdmin && (
             <>
               <p className="section-label">Platform</p>
+              <NavLink to="/admin/konsolide-rapor">Konsolide Rapor</NavLink>
               <NavLink to="/admin/dagitim-sirketleri">Dağıtım Şirketleri</NavLink>
               <NavLink to="/admin/istasyonlar">İstasyonlar</NavLink>
               <NavLink to="/admin/kiosk-filosu">Kiosk Filosu</NavLink>
@@ -164,6 +165,7 @@ export default function AppLayout() {
           {isTenantAdmin && (
             <>
               <p className="section-label">Dağıtım Şirketi</p>
+              <NavLink to="/admin/konsolide-rapor">Konsolide Rapor</NavLink>
               <NavLink to="/admin/istasyonlar">İstasyonlarım</NavLink>
               <NavLink to="/admin/kiosk-filosu">Kiosk Filosu</NavLink>
             </>
