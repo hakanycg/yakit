@@ -44,7 +44,7 @@ export default function ChangePassword() {
   return (
     <div className="account-page">
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Şifre Değiştir</h2>
+        <h2>Şifre Değiştir</h2>
         <form onSubmit={handleSubmit}>
           <label>Mevcut şifre</label>
           <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />

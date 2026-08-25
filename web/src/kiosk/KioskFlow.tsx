@@ -458,7 +458,7 @@ function KioskFlowInner() {
       {idle.warning && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 30 }}>
           <div className="kiosk-card" style={{ width: "min(420px, 92vw)", textAlign: "center" }}>
-            <h3 style={{ marginTop: 0 }}>{t("idle.title")}</h3>
+            <h3>{t("idle.title")}</h3>
             <div className="kiosk-idle-countdown">{idle.secondsLeft}</div>
             <p className="hint-text">{t("idle.body", { seconds: idle.secondsLeft })}</p>
             <button className="primary" style={{ width: "100%", marginTop: "0.5rem" }} onClick={idle.dismiss}>

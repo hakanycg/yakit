@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
+import StatusToggle from "./settings/StatusToggle";
 
 interface RetentionSettings {
   enabled: boolean;
@@ -120,7 +121,7 @@ export default function KvkkRequests() {
       </p>
 
       <div className="card" style={{ marginTop: "1.1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Plaka Sorgula</h3>
+        <h3>Plaka Sorgula</h3>
         <div className="toolbar">
           <input
             value={plateInput}
@@ -315,44 +316,48 @@ function RetentionCard() {
 
   return (
     <div className="card" style={{ marginTop: "1rem" }}>
-      <h3 style={{ marginTop: 0 }}>Saklama Süresi (Otomatik İmha)</h3>
-      <p className="hint-text" style={{ marginTop: 0 }}>
+      <h3>Saklama Süresi (Otomatik İmha)</h3>
+      <p className="hint-text prose">
         KVKK, kişisel verinin işlendiği amaç için gerekli olan süreden uzun tutulmamasını ister — kimse talep etmese
         bile. Süresi dolan işlemlerin <strong>plaka, makbuz e-postası ve telefonu</strong> otomatik olarak kaldırılır;
         <strong> tutar, litre ve tarih olduğu gibi kalır</strong>, çünkü mali kaydın saklanması (VUK/TTK) ayrı bir yasal
         zorunluluktur. Kısacası: <em>parayı tut, kimliği düşür.</em>
       </p>
-      <p className="hint-text">
+      <p className="hint-text prose">
         Filo hesabına bağlı plakalara dokunulmaz — aktif bir ticari sözleşmeye bağlıdırlar, yani işleme amacı devam
         ediyordur.
       </p>
 
-      <div className="toolbar">
-        <label style={{ margin: 0 }}>
-          <input
-            type="checkbox"
-            checked={settings.enabled}
-            disabled={busy}
-            onChange={(e) => void save({ enabled: e.target.checked })}
-          />{" "}
-          Otomatik imha açık
-        </label>
-        <div className="spacer" />
-        <label htmlFor="ret-months" style={{ margin: 0 }}>
-          Saklama süresi (ay)
-        </label>
-        <input
-          id="ret-months"
-          type="number"
-          min={6}
-          max={240}
-          value={months}
-          onChange={(e) => setMonths(e.target.value)}
-          style={{ width: 100 }}
+      <div className="settings-row">
+        {/* Acik/kapali ayarlar panelin her yerinde ayni anahtar bilesenini kullanir
+            (bkz. settings/StatusToggle.tsx); burada ham bir onay kutusu duruyordu. */}
+        <StatusToggle
+          checked={settings.enabled}
+          disabled={busy}
+          onChange={() => void save({ enabled: !settings.enabled })}
+          activeLabel="Otomatik imha açık"
+          inactiveLabel="Otomatik imha kapalı"
         />
-        <button type="button" disabled={busy || months === String(settings.retentionMonths)} onClick={() => void save({ retentionMonths: Number(months) })}>
-          Kaydet
-        </button>
+        <div className="inline-field">
+          <label htmlFor="ret-months">Saklama süresi (ay)</label>
+          <div className="inline-field-controls">
+            <input
+              id="ret-months"
+              type="number"
+              min={6}
+              max={240}
+              value={months}
+              onChange={(e) => setMonths(e.target.value)}
+            />
+            <button
+              type="button"
+              disabled={busy || months === String(settings.retentionMonths)}
+              onClick={() => void save({ retentionMonths: Number(months) })}
+            >
+              Kaydet
+            </button>
+          </div>
+        </div>
       </div>
 
       {preview && (
@@ -365,11 +370,10 @@ function RetentionCard() {
       )}
 
       {error && <p className="error-text">{error}</p>}
-      {message && <p className="hint-text">{message}</p>}
+      {message && <p className="success-text">{message}</p>}
 
-      <div className="toolbar" style={{ marginBottom: 0 }}>
+      <div className="card-footer-row">
         <span className="hint-text">Otomatik imha günde bir kez çalışır.</span>
-        <div className="spacer" />
         <button type="button" className="danger" disabled={busy || !settings.enabled} onClick={runNow}>
           Şimdi Uygula
         </button>

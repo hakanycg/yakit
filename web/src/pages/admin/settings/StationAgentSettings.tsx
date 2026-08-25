@@ -38,7 +38,7 @@ function RotateTokenDialog({ requiresTotp, onClose, onRotated }: { requiresTotp:
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 20 }}>
       <div className="card" style={{ width: "min(420px, 92vw)" }}>
-        <h3 style={{ marginTop: 0 }}>Senkron Token'ı Yeniden Oluştur</h3>
+        <h3>Senkron Token'ı Yeniden Oluştur</h3>
         <p className="error-text">
           Bu işlem mevcut token'ı anında geçersiz kılar. İstasyondaki ajan, yeni token yapılandırılana kadar
           senkronizasyon yapamaz.

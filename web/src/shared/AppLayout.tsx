@@ -16,7 +16,16 @@ const ROLE_LABEL: Record<string, string> = {
   viewer: "İzleyici",
 };
 
-/** Sidebar'daki "Ayarlar" acilir menusundeki sayfalar (bkz. App.tsx /admin/ayarlar/* rotalari). */
+/**
+ * Sidebar menu gruplari.
+ *
+ * Once bolumler duz listelerdi: bir istasyon yoneticisi tek sutunda 20'ye yakin link
+ * goruyordu ve aralarinda hicbir hiyerarsi yoktu - aranan sayfa her seferinde
+ * bastan taranarak bulunuyordu. Ayni ise ait sayfalar artik "Ayarlar"da oldugu
+ * gibi acilir gruplar halinde. Gruplama yalnizca GORUNUM icindir; hangi rolun
+ * neyi gorecegi asagidaki kosullarla, erisim izolasyonu ise sunucuda belirlenir
+ * (bkz. middleware/tenantScope.ts).
+ */
 const SETTINGS_PAGES = [
   { to: "/admin/ayarlar/yakit-fiyatlari", label: "Yakıt Fiyatları" },
   { to: "/admin/ayarlar/odeme", label: "Ödeme (iyzico)" },
@@ -26,16 +35,56 @@ const SETTINGS_PAGES = [
   { to: "/admin/ayarlar/istasyon-ajani", label: "İstasyon Ajanı" },
 ];
 
+/** Sahadaki durumu izleyen sayfalar. */
+const FIELD_PAGES = [
+  { to: "/operator/harita", label: "İstasyon Haritası" },
+  { to: "/operator/vardiya", label: "Vardiya" },
+  { to: "/operator/destek", label: "Destek Talepleri" },
+];
+
+/** Akaryakitin fiziksel takibi: ne kadar var, ne kadari kayip. */
+const FUEL_PAGES = [
+  { to: "/operator/stok", label: "Yakıt Stoku" },
+  { to: "/operator/sapma", label: "Yakıt Sapma" },
+];
+
+/** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */
+const CUSTOMER_PAGES = [
+  { to: "/admin/kampanyalar", label: "Kampanyalar" },
+  { to: "/admin/filo-hesaplari", label: "Filo Hesapları" },
+  { to: "/admin/sadakat-puanlari", label: "Sadakat Puanları" },
+];
+
+/** Kim neye erisiyor, kisisel veri nasil yonetiliyor. */
+const COMPLIANCE_PAGES = [
+  { to: "/admin/kullanicilar", label: "Kullanıcı / Rol Yönetimi" },
+  { to: "/admin/kvkk", label: "KVKK Başvuruları" },
+];
+
+/** Platform yoneticisinin kurulus kayitlari. */
+const ORG_PAGES = [
+  { to: "/admin/dagitim-sirketleri", label: "Dağıtım Şirketleri" },
+  { to: "/admin/istasyonlar", label: "İstasyonlar" },
+];
+
+/** Platform yoneticisinin sistem araclari. */
+const SYSTEM_PAGES = [
+  { to: "/admin/audit-log", label: "Audit Log" },
+  { to: "/admin/sifirla", label: "Demo Verilerini Sıfırla" },
+];
+
 /**
  * Sidebar'da tek bir link yerine, tiklaninca alt sayfalarini acan menu basligi.
- * Menu HER ZAMAN kapali baslar; yalnizca kullanici tiklayinca acilir (bulunulan
- * sayfa bu grubun icinde olsa bile kendiliginden acilmaz). Hangi grupta
- * oldugunuz, baslikta "active" vurgusuyla belli olur.
+ *
+ * Bulundugunuz sayfayi iceren grup ACIK baslar. Menunun buyuk kismi artik gruplar
+ * halinde oldugundan, hepsinin kapali baslamasi her geciste yerinizi kaybetmeniz
+ * ve kardes sayfalara ulasmak icin grubu yeniden acmaniz demek olurdu. Kullanici
+ * yine de her grubu elle acip kapatabilir.
  */
 function SidebarSubmenu({ label, pages, onNavigate }: { label: string; pages: { to: string; label: string }[]; onNavigate: () => void }) {
   const { pathname } = useLocation();
   const containsActive = pages.some((p) => pathname.startsWith(p.to));
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(containsActive);
 
   return (
     <div className="sidebar-submenu">
@@ -135,6 +184,8 @@ export default function AppLayout() {
     navigate("/giris", { replace: true });
   }
 
+  const closeMenu = () => setMenuOpen(false);
+
   if (!user) return null;
 
   const isSuperAdmin = user.role === "super_admin";
@@ -151,11 +202,9 @@ export default function AppLayout() {
             <>
               <p className="section-label">Platform</p>
               <NavLink to="/admin/konsolide-rapor">Konsolide Rapor</NavLink>
-              <NavLink to="/admin/dagitim-sirketleri">Dağıtım Şirketleri</NavLink>
-              <NavLink to="/admin/istasyonlar">İstasyonlar</NavLink>
               <NavLink to="/admin/kiosk-filosu">Kiosk Filosu</NavLink>
-              <NavLink to="/admin/audit-log">Audit Log</NavLink>
-              <NavLink to="/admin/sifirla">Demo Verilerini Sıfırla</NavLink>
+              <SidebarSubmenu label="Kuruluşlar" pages={ORG_PAGES} onNavigate={closeMenu} />
+              <SidebarSubmenu label="Sistem" pages={SYSTEM_PAGES} onNavigate={closeMenu} />
             </>
           )}
 
@@ -171,28 +220,24 @@ export default function AppLayout() {
             </>
           )}
 
-          <p className="section-label">Operator</p>
+          <p className="section-label">Günlük İşleyiş</p>
           <NavLink to="/operator" end>Genel Bakış</NavLink>
           <NavLink to="/operator/pompalar">Pompalar</NavLink>
           <NavLink to="/operator/islemler">İşlem Listesi</NavLink>
+          {/* Alarm Merkezi bilerek grup icine alinmadi: yangin/gaz alarmi bir tik
+              arkasinda durmamali. */}
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
-          <NavLink to="/operator/destek">Destek Talepleri</NavLink>
-          <NavLink to="/operator/harita">İstasyon Haritası</NavLink>
           <NavLink to="/operator/raporlar">Raporlama</NavLink>
-          <NavLink to="/operator/vardiya">Vardiya</NavLink>
+          <SidebarSubmenu label="Saha" pages={FIELD_PAGES} onNavigate={closeMenu} />
 
           {isStationAdmin && (
             <>
               <p className="section-label">İstasyon Yönetimi</p>
-              <NavLink to="/operator/stok">Yakıt Stoku</NavLink>
-              <NavLink to="/operator/sapma">Yakıt Sapma</NavLink>
               <NavLink to="/operator/mutabakat">Gün Sonu Mutabakatı</NavLink>
-              <NavLink to="/admin/kampanyalar">Kampanyalar</NavLink>
-              <NavLink to="/admin/filo-hesaplari">Filo Hesapları</NavLink>
-              <NavLink to="/admin/sadakat-puanlari">Sadakat Puanları</NavLink>
-              <NavLink to="/admin/kvkk">KVKK Başvuruları</NavLink>
-              <NavLink to="/admin/kullanicilar">Kullanıcı / Rol Yönetimi</NavLink>
-              <SidebarSubmenu label="Ayarlar" pages={SETTINGS_PAGES} onNavigate={() => setMenuOpen(false)} />
+              <SidebarSubmenu label="Akaryakıt" pages={FUEL_PAGES} onNavigate={closeMenu} />
+              <SidebarSubmenu label="Müşteri" pages={CUSTOMER_PAGES} onNavigate={closeMenu} />
+              <SidebarSubmenu label="Yetki ve Uyum" pages={COMPLIANCE_PAGES} onNavigate={closeMenu} />
+              <SidebarSubmenu label="Ayarlar" pages={SETTINGS_PAGES} onNavigate={closeMenu} />
             </>
           )}
         </nav>

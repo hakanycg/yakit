@@ -83,7 +83,7 @@ export default function HelpRequestLink({ pumpId, transactionId }: { pumpId?: nu
           >
             {sent ? (
               <>
-                <h3 style={{ marginTop: 0 }}>{t("help.sentTitle")}</h3>
+                <h3>{t("help.sentTitle")}</h3>
                 <p className="hint-text">{t("help.sentBody")}</p>
                 <div className="kiosk-actions">
                   <span />
@@ -94,7 +94,7 @@ export default function HelpRequestLink({ pumpId, transactionId }: { pumpId?: nu
               </>
             ) : (
               <>
-                <h3 style={{ marginTop: 0 }}>{t("help.title")}</h3>
+                <h3>{t("help.title")}</h3>
                 <p className="hint-text">{t("help.intro")}</p>
 
                 {/* Kiosk'un kendi secenek stili (.option-btn) kullanilir: "ghost" butonlar

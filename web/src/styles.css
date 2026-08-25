@@ -12,6 +12,27 @@
   --danger: #ef4444;
   --warning: #f59e0b;
   --radius: 10px;
+
+  /* ---- Tipografi olcegi ----
+     Once h1-h4 icin HICBIR kural yoktu: her baslik tarayici varsayilanini
+     (h2 1.5em, h3 1.17em ve buyuk ust marjlar) kullaniyordu. Bu yuzden 142
+     basligin 59'u kendi inline style'iyla ayni varsayilanla tek tek dovusuyor
+     ve hicbiri digeriyle ayni gorunmuyordu. Punto da 20 ayri deger arasinda
+     dagilmisti (0.68 / 0.7 / 0.72 / 0.75 / 0.76 / 0.78 / 0.8 / 0.82 ...) -
+     birbirinden 1px farkli iki boyut duzensiz gorunur ama sebebi anlasilmaz.
+     Artik tek bir merdiven var; sayfalar boyut degil ROL secer. */
+  --fs-2xs: 0.7rem;   /* rozet, tablo basligi, bolum etiketi (buyuk harf) */
+  --fs-xs: 0.78rem;   /* meta bilgi, tablo alt notu */
+  --fs-sm: 0.85rem;   /* yardim metni, ikincil aciklama */
+  --fs-md: 0.92rem;   /* panel govde metni (varsayilan) */
+  --fs-lg: 1rem;      /* form girdisi, vurgulu govde */
+  --fs-xl: 1.15rem;   /* h3 - kart basligi */
+  --fs-2xl: 1.4rem;   /* h2 - sayfa basligi */
+  --fs-3xl: 1.75rem;  /* h1 */
+  --fs-num: 1.6rem;   /* buyuk sayi (istatistik kutusu) */
+  --lh-tight: 1.25;   /* basliklar */
+  --lh-base: 1.55;    /* govde */
+
   --row-alt: rgba(255,255,255,0.015);
   --row-hover: rgba(255,255,255,0.035);
   --yard-texture: rgba(255,255,255,0.015);
@@ -57,7 +78,34 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: "Plus Jakarta Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  /* Satir yuksekligi hic tanimli degildi; tarayici varsayilani (~1.2) uzun
+     aciklama paragraflarini (ör. KVKK saklama suresi karti) sikisik gosteriyordu. */
+  line-height: var(--lh-base);
 }
+
+/* ---- Baslik duzeni ----
+   Ust marj YOK: baslik her zaman kutusunun ustune yaslanir, alt bosluk sabittir.
+   Bir kart icinde basliktan ONCE icerik varsa (ikinci bir bolum basligi gibi)
+   asagidaki bitisik-kardes kurali araligi geri verir. */
+h1, h2, h3, h4, h5, h6 {
+  margin: 0 0 0.6rem;
+  line-height: var(--lh-tight);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+h1 { font-size: var(--fs-3xl); }
+h2 { font-size: var(--fs-2xl); }
+h3 { font-size: var(--fs-xl); }
+h4 { font-size: var(--fs-lg); font-weight: 600; }
+h5, h6 { font-size: var(--fs-md); font-weight: 600; }
+* + h2, * + h3, * + h4 { margin-top: 1.5rem; }
+
+p { margin: 0 0 0.75rem; }
+p:last-child { margin-bottom: 0; }
+
+/* Basligin hemen altindaki aciklama satiri basliga ait gorunmeli - araya
+   hem basligin alt marji hem de .hint-text'in ust marji girmemeli. */
+h1 + .hint-text, h2 + .hint-text, h3 + .hint-text, h4 + .hint-text { margin-top: -0.3rem; }
 
 a { color: var(--accent); }
 /* Uzun bosluksuz metinler (URL, kod vb.) dar ekranlarda konteynerini tasirmasin. */
@@ -71,7 +119,10 @@ button {
   color: var(--text);
   border-radius: 8px;
   padding: 0.55rem 1rem;
-  font-size: 0.95rem;
+  /* Form ogeleri punto/satir yuksekligini govdeden MIRAS ALMAZ; ikisi de burada
+     acikca verilmezse butonlar panelin geri kalanindan buyuk gorunur. */
+  font-size: var(--fs-md);
+  line-height: var(--lh-tight);
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 button:hover:not(:disabled) { border-color: var(--accent); }
@@ -88,18 +139,52 @@ input, select, textarea {
   color: var(--text);
   border-radius: 8px;
   padding: 0.6rem 0.75rem;
-  font-size: 1rem;
+  /* Girdiler bilincli olarak bir kademe buyuk: hem okunakli, hem de mobil
+     tarayicilar 16px altindaki alanlara odaklaninca sayfayi yakinlastirmaz. */
+  font-size: var(--fs-lg);
+  line-height: var(--lh-tight);
   width: 100%;
   max-width: 100%;
   font-family: inherit;
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); }
 
-label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var(--text-dim); }
+/* Onay/secim kutulari yukaridaki genel `input` kuralinin kurbaniydi: width:100%
+   ve 0.6rem dolgu aliyor, satiri boydan boya kaplayan bicimsiz beyaz bir kutuya
+   donusuyorlardi. Sayfalar bunu tek tek inline style={{ width: "auto" }} ile
+   yamiyor, yamamayanlar bozuk gorunuyordu (KVKK saklama suresi karti gibi).
+   Burada bir kez dogru tanimlanir. */
+input[type="checkbox"], input[type="radio"] {
+  width: 1.05rem;
+  height: 1.05rem;
+  min-width: 1.05rem;
+  padding: 0;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+input[type="checkbox"]:disabled, input[type="radio"]:disabled { cursor: not-allowed; opacity: 0.5; }
+
+label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color: var(--text-dim); }
+
+/* Kutu + metin ayni satirda, metin okunabilir renkte (etiketin soluk tonunda
+   degil): burada metin bir form alaninin adi degil, secenegin kendisidir. */
+.check {
+  /* inline-flex DEGIL: normal akista alt alta gelmeleri gerekiyor (iki secenek yan
+     yana yapisirdi). fit-content ise tiklama alanini metnin bittigi yerde bitirir -
+     tam genislikte bir etikette sagdaki bosluga tiklamak da kutuyu degistirirdi. */
+  display: flex; width: fit-content; align-items: center; gap: 0.5rem;
+  margin: 0; font-size: var(--fs-md); color: var(--text); cursor: pointer;
+  line-height: var(--lh-tight);
+}
+.check:has(input:disabled) { cursor: not-allowed; opacity: 0.6; }
 
 .page-loading { display: flex; align-items: center; justify-content: center; height: 100vh; color: var(--text-dim); }
 
-.app-shell { display: flex; min-height: 100vh; }
+/* Panelin govde puntosu. Kiosk (dokunmatik, ayakta okunan) ve filo portali bu
+   sarmalayicinin disinda kaldigi icin kendi olceklerini korur. */
+.app-shell { display: flex; min-height: 100vh; font-size: var(--fs-md); }
 
 .sidebar {
   width: 240px;
@@ -125,20 +210,20 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 .sidebar-card-trigger {
   width: 100%; display: flex; align-items: center; gap: 0.6rem;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 0.55rem 0.6rem; text-align: left; font-size: 0.85rem;
+  padding: 0.55rem 0.6rem; text-align: left; font-size: var(--fs-sm);
 }
 .sidebar-avatar {
   flex-shrink: 0; width: 34px; height: 34px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
-  background: var(--accent); color: #05141f; font-weight: 700; font-size: 0.8rem;
+  background: var(--accent); color: #05141f; font-weight: 700; font-size: var(--fs-sm);
 }
 .sidebar-card-text { display: flex; flex-direction: column; gap: 0.05rem; min-width: 0; flex: 1; }
 .sidebar-card-text strong {
-  font-size: 0.88rem; line-height: 1.2; display: -webkit-box;
+  font-size: var(--fs-sm); line-height: 1.2; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.sidebar-card-text .hint-text { font-size: 0.7rem; }
-.sidebar-chevron { flex-shrink: 0; color: var(--text-dim); font-size: 0.75rem; transition: transform 0.15s ease; }
+.sidebar-card-text .hint-text { font-size: var(--fs-2xs); }
+.sidebar-chevron { flex-shrink: 0; color: var(--text-dim); font-size: var(--fs-xs); transition: transform 0.15s ease; }
 .sidebar-chevron.open { transform: rotate(180deg); }
 
 .sidebar-dropdown {
@@ -152,7 +237,7 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 .sidebar-dropdown-up { top: auto; bottom: calc(100% + 0.35rem); }
 .sidebar-dropdown-item {
   display: block; width: 100%; text-align: left; background: transparent; border: none;
-  color: var(--text); padding: 0.5rem 0.6rem; border-radius: 6px; font-size: 0.85rem;
+  color: var(--text); padding: 0.5rem 0.6rem; border-radius: 6px; font-size: var(--fs-sm);
   text-decoration: none;
 }
 .sidebar-dropdown-item:hover { background: var(--row-hover); }
@@ -169,22 +254,22 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
   text-decoration: none;
   padding: 0.55rem 0.75rem;
   border-radius: 8px;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
 }
 .sidebar a.active, .sidebar a:hover { background: var(--panel-2); color: var(--text); }
-.sidebar .section-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 0.9rem 0.75rem 0.2rem; }
+.sidebar .section-label { font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); margin: 0.9rem 0.75rem 0.2rem; }
 
 /* Sidebar'da acilir alt menu ("Ayarlar") - basligi normal bir menu linki gibi
    gorunur, altindaki sayfalar girintili listelenir. */
 .sidebar-submenu-trigger {
   width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
   background: transparent; border: none; padding: 0.55rem 0.75rem; border-radius: 8px;
-  color: var(--text-dim); font-size: 0.92rem; text-align: left;
+  color: var(--text-dim); font-size: var(--fs-md); text-align: left;
 }
 .sidebar-submenu-trigger:hover { background: var(--panel-2); color: var(--text); border-color: transparent; }
 .sidebar-submenu-trigger.active { color: var(--text); }
 .sidebar-submenu-items { display: flex; flex-direction: column; gap: 0.15rem; margin: 0.15rem 0 0.15rem 0.75rem; border-left: 1px solid var(--border); padding-left: 0.4rem; }
-.sidebar-submenu-items a { font-size: 0.86rem; padding: 0.45rem 0.6rem; }
+.sidebar-submenu-items a { font-size: var(--fs-sm); padding: 0.45rem 0.6rem; }
 
 .main-content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
 .topbar {
@@ -257,16 +342,16 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: 0.85rem; color: var
 
 /* Genis tablolar dar ekranlarda sayfayi degil kendi konteynerini (kart) yatay kaydirir. */
 .card:has(table) { overflow-x: auto; }
-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 th, td { text-align: left; padding: 0.6rem 0.7rem; border-bottom: 1px solid var(--border); }
-th { color: var(--text-dim); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border); }
+th { color: var(--text-dim); font-weight: 600; font-size: var(--fs-2xs); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border); }
 tbody tr:nth-child(even) td { background: var(--row-alt); }
 tbody tr:hover td { background: var(--row-hover); }
 td.numeric, th.numeric { text-align: right; font-variant-numeric: tabular-nums; }
 tr.table-total td { border-top: 2px solid var(--border); border-bottom: none; font-weight: 700; padding-top: 0.7rem; }
-tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; font-size: 0.78rem; }
+tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; font-size: var(--fs-xs); }
 
-.badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+.badge { display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: var(--fs-xs); font-weight: 600; }
 .badge.idle { background: #1f2d3a; color: #8fb8d9; }
 .badge.reserved { background: #3a2d1f; color: #e0b96a; }
 .badge.dispensing { background: #143a25; color: #4ade80; }
@@ -284,8 +369,8 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .badge.resolved { background: #143a25; color: #4ade80; }
 
 .stat { display: flex; flex-direction: column; gap: 0.2rem; }
-.stat .label { color: var(--text-dim); font-size: 0.8rem; }
-.stat .value { font-size: 1.6rem; font-weight: 700; }
+.stat .label { color: var(--text-dim); font-size: var(--fs-sm); }
+.stat .value { font-size: var(--fs-num); font-weight: 700; }
 
 /* Panel (Dashboard) ust kisim: "Hosgeldin" basligi + esit boyutlu istatistik kutulari.
    auto-fit + 1fr, kutu sayisi 4 veya 5 (SyncStatusCard'a bagli) olsa da her satirdaki
@@ -293,12 +378,12 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
    (ör. senkron mesaji vs. sade sayi) farkli olsa bile ayni yukseklikte tutar. */
 .dash-welcome { margin-bottom: 1.25rem; }
 .dash-welcome .eyebrow {
-  margin: 0 0 0.3rem; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em;
+  margin: 0 0 0.3rem; font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--accent);
 }
 .dash-welcome h2 { margin: 0 0 0.2rem; }
 .dash-welcome .hint-text { margin: 0; }
-.stat-caption { font-size: 0.72rem; color: var(--text-dim); }
+.stat-caption { font-size: var(--fs-2xs); color: var(--text-dim); }
 .grid.stats-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
 .dash-stat {
   flex-direction: row;
@@ -343,7 +428,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 /* ---- Istasyon karti: bilgiler kategorilere ayrilmis bloklar halinde ---- */
 .station-card { display: flex; flex-direction: column; gap: 0; }
 .station-card-header { display: flex; align-items: flex-start; gap: 0.5rem; flex-wrap: wrap; }
-.station-card-header .station-name { font-size: 1.05rem; font-weight: 700; line-height: 1.25; }
+.station-card-header .station-name { font-size: var(--fs-xl); font-weight: 700; line-height: 1.25; }
 .station-card-badges { display: flex; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.3rem; }
 
 /* Her kategori kendi bandinda; ust cizgi bloklari birbirinden gorsel olarak ayirir. */
@@ -351,23 +436,23 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .station-section:first-of-type { margin-top: 0.75rem; }
 .station-section-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
 .station-section-title {
-  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+  font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
   color: var(--text-dim); margin: 0;
 }
 
 /* Etiket/deger listesi - metinlerin birbirine girmesini onler. */
 .detail-list { display: grid; grid-template-columns: minmax(90px, auto) 1fr; gap: 0.4rem 0.9rem; align-items: baseline; }
-.detail-list dt { font-size: 0.78rem; color: var(--text-dim); margin: 0; }
-.detail-list dd { margin: 0; font-size: 0.88rem; min-width: 0; overflow-wrap: anywhere; }
+.detail-list dt { font-size: var(--fs-xs); color: var(--text-dim); margin: 0; }
+.detail-list dd { margin: 0; font-size: var(--fs-sm); min-width: 0; overflow-wrap: anywhere; }
 .detail-list dd .with-action { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
 
 .stat-chip-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 .stat-chip {
   display: inline-flex; align-items: baseline; gap: 0.35rem;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
-  padding: 0.3rem 0.7rem; font-size: 0.8rem;
+  padding: 0.3rem 0.7rem; font-size: var(--fs-sm);
 }
-.stat-chip strong { font-size: 0.9rem; }
+.stat-chip strong { font-size: var(--fs-md); }
 .stat-chip.danger strong { color: var(--danger); }
 
 /* Kiosk listesi: her kiosk kendi satirinda, bilgiler ve eylemler ayri hizada. */
@@ -377,29 +462,29 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .kiosk-item:last-of-type { margin-bottom: 0; }
 .kiosk-item-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.35rem; }
-.kiosk-item-name { font-weight: 600; font-size: 0.92rem; }
-.kiosk-item-meta { display: flex; gap: 0.35rem 1rem; flex-wrap: wrap; font-size: 0.76rem; color: var(--text-dim); margin-bottom: 0.5rem; }
+.kiosk-item-name { font-weight: 600; font-size: var(--fs-md); }
+.kiosk-item-meta { display: flex; gap: 0.35rem 1rem; flex-wrap: wrap; font-size: var(--fs-xs); color: var(--text-dim); margin-bottom: 0.5rem; }
 .kiosk-item-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-.kiosk-item-actions button { padding: 0.35rem 0.7rem; font-size: 0.82rem; }
+.kiosk-item-actions button { padding: 0.35rem 0.7rem; font-size: var(--fs-sm); }
 
-.btn-sm { padding: 0.35rem 0.7rem; font-size: 0.82rem; }
+.btn-sm { padding: 0.35rem 0.7rem; font-size: var(--fs-sm); }
 
 /* ---- Istasyon listesi: her istasyon tek satir, detay acilir pencerede ---- */
 .station-list { display: flex; flex-direction: column; gap: 0.5rem; }
 .station-row {
   width: 100%; display: flex; align-items: center; gap: 0.9rem; text-align: left;
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 0.75rem 0.9rem; font-size: 0.9rem;
+  padding: 0.75rem 0.9rem; font-size: var(--fs-md);
   transition: border-color 0.15s ease, background 0.15s ease;
 }
 .station-row:hover { background: var(--panel-2); border-color: var(--accent); }
 .station-row-main { display: flex; flex-direction: column; gap: 0.15rem; flex: 1; min-width: 0; }
-.station-row-name { font-weight: 600; font-size: 0.98rem; }
-.station-row-sub { display: flex; align-items: baseline; gap: 0.6rem; font-size: 0.76rem; color: var(--text-dim); min-width: 0; }
+.station-row-name { font-weight: 600; font-size: var(--fs-lg); }
+.station-row-sub { display: flex; align-items: baseline; gap: 0.6rem; font-size: var(--fs-xs); color: var(--text-dim); min-width: 0; }
 .station-row-address { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .station-row-badges { display: flex; gap: 0.3rem; flex-wrap: wrap; flex-shrink: 0; }
-.station-row-counts { flex-shrink: 0; font-size: 0.78rem; }
-.station-row-chevron { flex-shrink: 0; color: var(--text-dim); font-size: 1.2rem; line-height: 1; }
+.station-row-counts { flex-shrink: 0; font-size: var(--fs-xs); }
+.station-row-chevron { flex-shrink: 0; color: var(--text-dim); font-size: var(--fs-xl); line-height: 1; }
 
 /* Dar ekranda satir alt alta sarilir; rozetler ve sayaclar isim altina duser. */
 @media (max-width: 720px) {
@@ -415,8 +500,8 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 0.6rem 1rem; min-width: 108px;
 }
-.summary-chip .value { font-size: 1.4rem; font-weight: 700; }
-.summary-chip .label { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
+.summary-chip .value { font-size: var(--fs-2xl); font-weight: 700; }
+.summary-chip .label { font-size: var(--fs-2xs); color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.03em; }
 .summary-chip.idle .value { color: #8fb8d9; }
 .summary-chip.dispensing .value { color: var(--accent-2); }
 .summary-chip.fault .value { color: var(--danger); }
@@ -444,14 +529,14 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   position: absolute; right: 3%; bottom: 6%; width: 78px; height: 48px;
   background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
   display: flex; align-items: flex-end; justify-content: center; padding-bottom: 0.35rem;
-  font-size: 0.68rem; color: var(--text-dim);
+  font-size: var(--fs-2xs); color: var(--text-dim);
 }
 .station-office .office-roof {
   position: absolute; top: -8px; left: -4px; right: -4px; height: 10px;
   background: var(--yard-office-roof); border-radius: 3px;
 }
 .lane-arrow {
-  position: absolute; left: 3%; font-size: 0.66rem; letter-spacing: 0.08em;
+  position: absolute; left: 3%; font-size: var(--fs-2xs); letter-spacing: 0.08em;
   color: var(--text-dim); opacity: 0.65;
 }
 .lane-arrow.lane-in { bottom: 8%; }
@@ -462,7 +547,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   position: absolute; transform: translate(-50%, -50%);
   width: 92px; border-radius: 10px; border: 2px solid var(--border);
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  font-size: 0.75rem; background: var(--panel); gap: 0.25rem; padding: 0.6rem 0.4rem 0.5rem;
+  font-size: var(--fs-xs); background: var(--panel); gap: 0.25rem; padding: 0.6rem 0.4rem 0.5rem;
   text-decoration: none; color: var(--text); cursor: pointer;
   box-shadow: 0 4px 10px rgba(0,0,0,0.3);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
@@ -472,9 +557,9 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .pump-marker .pump-number {
   position: absolute; top: -8px; left: -8px; width: 20px; height: 20px; border-radius: 50%;
   background: var(--panel-2); border: 1px solid var(--border);
-  display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; font-size: var(--fs-2xs); font-weight: 700;
 }
-.pump-status-pill { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.66rem; font-weight: 600; white-space: nowrap; }
+.pump-status-pill { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 600; white-space: nowrap; }
 
 .pump-marker.idle { border-color: #2f4256; }
 .pump-marker.idle .pump-status-pill { background: #1f2d3a; color: #8fb8d9; }
@@ -508,11 +593,11 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .pump-marker:hover .pump-tooltip, .pump-marker:focus-visible .pump-tooltip { opacity: 1; visibility: visible; }
 .tooltip-fuels { display: flex; flex-wrap: wrap; gap: 0.3rem; margin: 0.35rem 0; }
-.fuel-chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.5rem; font-size: 0.68rem; }
-.tooltip-cta { margin-top: 0.4rem; font-size: 0.72rem; color: var(--accent); }
+.fuel-chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px; padding: 0.1rem 0.5rem; font-size: var(--fs-2xs); }
+.tooltip-cta { margin-top: 0.4rem; font-size: var(--fs-2xs); color: var(--accent); }
 
 .map-legend { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
-.map-legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: 0.82rem; }
+.map-legend-item { display: flex; align-items: center; gap: 0.5rem; font-size: var(--fs-sm); }
 .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
 .legend-dot.idle { background: #2f4256; }
 .legend-dot.dispensing { background: var(--accent-2); box-shadow: 0 0 6px rgba(34,197,94,0.6); }
@@ -520,8 +605,8 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .legend-dot.reserved { background: var(--warning); }
 .legend-dot.offline { background: #444; }
 
-.error-text { color: var(--danger); font-size: 0.88rem; margin-top: 0.4rem; }
-.hint-text { color: var(--text-dim); font-size: 0.82rem; margin-top: 0.4rem; }
+.error-text { color: var(--danger); font-size: var(--fs-sm); margin-top: 0.4rem; }
+.hint-text { color: var(--text-dim); font-size: var(--fs-sm); margin-top: 0.4rem; }
 .toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
 .spacer { flex: 1; }
 
@@ -530,7 +615,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .fuel-dot.benzin { background: var(--accent); }
 .fuel-dot.motorin { background: var(--warning); }
 .fuel-dot.lpg { background: #a78bfa; }
-.share-pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--panel-2); font-size: 0.72rem; color: var(--text-dim); }
+.share-pill { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--panel-2); font-size: var(--fs-2xs); color: var(--text-dim); }
 .report-bar-cell { min-width: 140px; }
 .report-bar-track { background: var(--panel-2); border-radius: 6px; overflow: hidden; height: 8px; }
 .report-bar-fill { height: 100%; border-radius: 6px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }
@@ -542,14 +627,14 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   transition: opacity 0.15s ease;
 }
 .report-day-bar-wrap:hover .report-day-bar { opacity: 0.85; }
-.report-day-label { font-size: 0.62rem; color: var(--text-dim); writing-mode: vertical-rl; text-orientation: mixed; max-height: 60px; }
+.report-day-label { font-size: var(--fs-2xs); color: var(--text-dim); writing-mode: vertical-rl; text-orientation: mixed; max-height: 60px; }
 
 /* Yakit Stoku */
 .tank-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
 @media (max-width: 900px) { .tank-grid { grid-template-columns: 1fr; } }
 .tank-card { display: flex; flex-direction: column; }
 .tank-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-.tank-card-title { display: flex; align-items: center; font-weight: 700; font-size: 1.05rem; }
+.tank-card-title { display: flex; align-items: center; font-weight: 700; font-size: var(--fs-xl); }
 .tank-body { display: flex; gap: 1.25rem; align-items: stretch; }
 .tank-gauge {
   position: relative; width: 68px; height: 210px; flex-shrink: 0;
@@ -573,11 +658,11 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .tank-stats { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.55rem; }
 .tank-stat-row { display: flex; align-items: baseline; justify-content: space-between; }
-.tank-stat-row .k { color: var(--text-dim); font-size: 0.82rem; }
+.tank-stat-row .k { color: var(--text-dim); font-size: var(--fs-sm); }
 .tank-stat-row .v { font-weight: 700; }
-.tank-stat-row.headline .v { font-size: 1.7rem; }
+.tank-stat-row.headline .v { font-size: var(--fs-num); }
 .tank-actions { display: flex; gap: 0.5rem; margin-top: 1rem; flex-wrap: wrap; }
-.movement-type-pill { padding: 0.12rem 0.55rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; }
+.movement-type-pill { padding: 0.12rem 0.55rem; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 600; }
 .movement-type-pill.delivery { background: #143a25; color: #4ade80; }
 .movement-type-pill.sale { background: #1f2d3a; color: #8fb8d9; }
 .movement-type-pill.adjustment { background: #3a2d1f; color: #e0b96a; }
@@ -592,11 +677,41 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .settings-page { max-width: 760px; }
 
 .settings-card .card-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem 1rem; margin-bottom: 0.2rem; }
-.settings-card .card-head h3 { margin: 0; font-size: 1.05rem; min-width: 0; }
+.settings-card .card-head h3 { margin: 0; font-size: var(--fs-xl); min-width: 0; }
 .settings-card .card-desc { margin-top: 0.3rem; }
 
 .card-divider { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
-.success-text { color: var(--accent-2); font-size: 0.88rem; margin-top: 0.4rem; }
+
+/* Uzun aciklama metni. Kart tam genislige yayilinca satirlar 150+ karakter olur ve
+   goz satir basini kaybeder; okunabilir olcu 65-75 karakterdir. Kart icindeki duz
+   paragraflar bu olcuyu kendiliginden alir; .prose ise kart disindaki metinler icin. */
+.prose, .card > p { max-width: 68ch; }
+
+/* Ayar satiri: "etiket + girdi + kaydet" ucluleri. Daha once bunlar .toolbar +
+   <div class="spacer"> ile yaziliyordu; spacer kontrolleri kartin en sagina
+   firlatiyor, ait olduklari acikamadan kopariyordu. Burada kontroller birlikte
+   durur ve satir kendi cercevesiyle metinden ayrilir. */
+.settings-row {
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0.6rem 1.25rem;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 0.85rem 1rem; margin: 1rem 0;
+}
+.settings-row + .settings-row { margin-top: -0.4rem; }
+.inline-field { display: flex; flex-direction: column; gap: 0.3rem; }
+.inline-field > label { margin: 0; }
+.inline-field-controls { display: flex; align-items: center; gap: 0.5rem; }
+.inline-field-controls input { width: 6.5rem; }
+/* Kutu/anahtar satirlari girdi alanlariyla ayni taban cizgisinde degil, kendi
+   dikey ortalarinda hizalanmali. */
+.settings-row > .check, .settings-row > .switch-row { align-self: center; }
+
+/* Kartin en altindaki "aciklama + eylem" seridi. */
+.card-footer-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.6rem 1rem;
+  flex-wrap: wrap; margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--border);
+}
+.card-footer-row .hint-text { margin: 0; }
+.success-text { color: var(--accent-2); font-size: var(--fs-sm); margin-top: 0.4rem; }
 
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
 @media (max-width: 560px) { .field-grid { grid-template-columns: 1fr; } }
@@ -610,11 +725,11 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .switch input:checked + .track { background: rgba(34, 197, 94, 0.16); border-color: var(--accent-2); }
 .switch input:checked + .track .thumb { transform: translateX(18px); background: var(--accent-2); }
 .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
-.switch-row .switch-label { font-size: 0.85rem; color: var(--text-dim); min-width: 3.2em; }
+.switch-row .switch-label { font-size: var(--fs-sm); color: var(--text-dim); min-width: 3.2em; }
 
 .fuel-price-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem 0.6rem; padding: 0.55rem 0; border-bottom: 1px solid var(--border); }
 .fuel-price-row:last-of-type { border-bottom: none; }
-.fuel-price-row .fuel-price-label { flex: 1; min-width: 8em; font-size: 0.92rem; }
+.fuel-price-row .fuel-price-label { flex: 1; min-width: 8em; font-size: var(--fs-md); }
 .fuel-price-row input { width: 92px; flex: 0 0 auto; }
 .fuel-price-row .hint-text { margin-top: 0; flex-shrink: 0; }
 .fuel-price-row button { flex-shrink: 0; }
@@ -688,6 +803,7 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   font-family: "Plus Jakarta Sans", sans-serif; line-height: 1.25; color: var(--k-text);
 }
 .kiosk-card .hint-text { color: var(--k-dim); }
+.kiosk-card .check { color: var(--k-text); font-size: 1rem; }
 .kiosk-card h2 + .hint-text { margin: 0 0 1.25rem; }
 .kiosk-lang-switcher {
   position: absolute;

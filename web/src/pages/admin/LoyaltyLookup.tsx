@@ -110,7 +110,7 @@ export default function LoyaltyLookup() {
       </p>
 
       <div className="card" style={{ marginTop: "1.1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Plaka Sorgula</h3>
+        <h3>Plaka Sorgula</h3>
         <div className="toolbar">
           <input
             value={plateInput}
@@ -187,7 +187,7 @@ export default function LoyaltyLookup() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Son Hareketler (Tüm Plakalar)</h3>
+        <h3>Son Hareketler (Tüm Plakalar)</h3>
         <table>
           <thead>
             <tr>

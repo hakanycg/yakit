@@ -211,7 +211,7 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
   return (
     <Modal>
-      <h3 style={{ marginTop: 0 }}>Yeni Filo Hesabı</h3>
+      <h3>Yeni Filo Hesabı</h3>
 
       <label>Şirket Adı</label>
       <input value={companyName} onChange={(e) => setCompanyName(e.target.value)} autoFocus />
@@ -515,7 +515,7 @@ function AccountDetailDialog({
         </div>
       </div>
 
-      <h4 style={{ marginTop: "1.5rem" }}>İletişim / Düşük Bakiye Uyarısı</h4>
+      <h4>İletişim / Düşük Bakiye Uyarısı</h4>
       <div className="grid cols-2" style={{ alignItems: "start" }}>
         <div>
           <label>Yetkili E-posta</label>
@@ -538,7 +538,7 @@ function AccountDetailDialog({
         <button onClick={saveContact} disabled={busy}>İletişim Bilgilerini Kaydet</button>
       </div>
 
-      <h4 style={{ marginTop: "1.5rem" }}>Dönem Faturası</h4>
+      <h4>Dönem Faturası</h4>
       <p className="hint-text">
         Kurumsal müşteriye her dolum için ayrı fiş değil, biriken hareketler için şirketin kendi VKN'siyle{" "}
         <strong>tek e-Fatura</strong> kesilir. Kapsam tarihle değil, <em>henüz faturalanmamış hareketlerle</em>
@@ -622,7 +622,7 @@ function AccountDetailDialog({
         </div>
       )}
 
-      <h4 style={{ marginTop: "1.5rem" }}>Portal Erişimi</h4>
+      <h4>Portal Erişimi</h4>
       <p className="hint-text">
         Şirket yetkilisi <code>/filo</code> adresinden kendi bakiyesini, ekstresini ve araç bazında harcamalarını
         görebilir. Portal salt okunurdur: bakiye yükleme burada, istasyonda kalır.
@@ -683,7 +683,7 @@ function AccountDetailDialog({
         </table>
       </div>
 
-      <h4 style={{ marginTop: "1.5rem" }}>Hareket Geçmişi</h4>
+      <h4>Hareket Geçmişi</h4>
       <div className="table-scroll">
         <table>
           <thead>

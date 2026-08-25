@@ -106,7 +106,7 @@ export default function Reports() {
 
       <div className="grid cols-2" style={{ marginTop: "1rem" }}>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Yakıt Tipine Göre</h3>
+          <h3>Yakıt Tipine Göre</h3>
           <p className="hint-text" style={{ marginTop: 0 }}>
             Tahmini Kar: satılan litre × tankın güncel ortalama alış maliyeti kullanılarak hesaplanır (satış anındaki
             gerçek maliyet değil, yaklaşık bir değerdir). Bu yakıt tipi için hiç maliyet girilmemişse "-" gösterilir.
@@ -161,7 +161,7 @@ export default function Reports() {
         </div>
 
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Pompa Bazında Performans</h3>
+          <h3>Pompa Bazında Performans</h3>
           <table>
             <thead>
               <tr>

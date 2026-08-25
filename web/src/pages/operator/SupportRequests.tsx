@@ -52,7 +52,7 @@ export default function SupportRequests() {
       <div className="toolbar">
         <span className={`badge ${openCount > 0 ? "critical" : "resolved"}`}>{openCount} açık talep</span>
         <div className="spacer" />
-        <label style={{ margin: 0, display: "flex", alignItems: "center", gap: "0.4rem" }}>
+        <label className="check">
           <input type="checkbox" checked={showResolved} onChange={(e) => setShowResolved(e.target.checked)} />
           Kapatılmışları da göster
         </label>

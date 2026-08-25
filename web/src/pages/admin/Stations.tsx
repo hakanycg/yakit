@@ -485,8 +485,8 @@ function KioskTokenToggle({ station, onChanged }: { station: Station; onChanged:
 
   return (
     <div style={{ margin: "0.35rem 0" }}>
-      <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: 0 }}>
-        <input type="checkbox" style={{ width: "auto" }} checked={required} disabled={saving} onChange={toggle} />
+      <label className="check">
+        <input type="checkbox" checked={required} disabled={saving} onChange={toggle} />
         <span>Kiosk cihaz tokeni zorunlu</span>
         <span className={`badge ${required ? "resolved" : "warning"}`}>{required ? "Açık" : "Kapalı"}</span>
       </label>

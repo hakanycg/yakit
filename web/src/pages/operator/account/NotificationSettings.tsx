@@ -42,7 +42,7 @@ export default function NotificationSettings() {
   return (
     <div className="account-page">
       <div className="card">
-        <h2 style={{ marginTop: 0 }}>Bildirim Ayarları</h2>
+        <h2>Bildirim Ayarları</h2>
         <p className="hint-text">
           İstasyonunuzda kritik bir alarm oluştuğunda (örn. pompa arızası) buradaki tercihlerinize göre bilgilendirilirsiniz.
         </p>
@@ -51,12 +51,12 @@ export default function NotificationSettings() {
         <label>Telefon</label>
         <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="05xx xxx xx xx" />
 
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.75rem" }}>
-          <input type="checkbox" style={{ width: "auto" }} checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} />
+        <label className="check" style={{ marginTop: "0.9rem" }}>
+          <input type="checkbox" checked={notifyEmail} onChange={(e) => setNotifyEmail(e.target.checked)} />
           Kritik alarmlarda e-posta gönder
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <input type="checkbox" style={{ width: "auto" }} checked={notifySms} onChange={(e) => setNotifySms(e.target.checked)} />
+        <label className="check" style={{ marginTop: "0.5rem" }}>
+          <input type="checkbox" checked={notifySms} onChange={(e) => setNotifySms(e.target.checked)} />
           Kritik alarmlarda SMS gönder
         </label>
 

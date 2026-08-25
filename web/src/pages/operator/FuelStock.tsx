@@ -141,7 +141,7 @@ export default function FuelStock() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Teslimat Kabul Farkı — Tedarikçi Karnesi</h3>
+        <h3>Teslimat Kabul Farkı — Tedarikçi Karnesi</h3>
         <p className="hint-text" style={{ marginTop: 0 }}>
           İrsaliyedeki miktar ile tanka <strong>fiilen giren</strong> miktarın farkı. Tek bir teslimattaki küçük fark
           tolerans içindedir ve alarm üretmez; ama aynı tedarikçi <em>her seferinde</em> eksik getiriyorsa bu bir tolerans
@@ -189,7 +189,7 @@ export default function FuelStock() {
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
-        <h3 style={{ marginTop: 0 }}>Tedarikçi Özeti</h3>
+        <h3>Tedarikçi Özeti</h3>
         <p className="hint-text" style={{ marginTop: 0 }}>
           Tüm zamanlar. Ort. Maliyet, yalnızca birim maliyeti girilmiş teslimatlar üzerinden hesaplanır.
         </p>
@@ -380,7 +380,7 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
 
   return (
     <Modal>
-      <h3 style={{ marginTop: 0 }}>{FUEL_LABEL[tank.fuelType]} — Stok Ekle</h3>
+      <h3>{FUEL_LABEL[tank.fuelType]} — Stok Ekle</h3>
       <p className="hint-text" style={{ marginTop: 0 }}>
         Mevcut: {formatLiters(tank.currentLiters)} / {formatLiters(tank.capacityLiters)}
       </p>
@@ -504,7 +504,7 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
 
   return (
     <Modal width={460}>
-      <h3 style={{ marginTop: 0 }}>{FUEL_LABEL[tank.fuelType]} — Tank Ayarları</h3>
+      <h3>{FUEL_LABEL[tank.fuelType]} — Tank Ayarları</h3>
 
       <label>Tank Kapasitesi (L)</label>
       <input type="number" min={1} value={capacity} onChange={(e) => setCapacity(e.target.value)} />

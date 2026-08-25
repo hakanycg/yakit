@@ -171,7 +171,7 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <form className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }} onSubmit={submit}>
-        <h3 style={{ marginTop: 0 }}>Yeni Kullanıcı</h3>
+        <h3>Yeni Kullanıcı</h3>
         <label>Kullanıcı Adı</label>
         <input value={username} onChange={(e) => setUsername(e.target.value)} required />
         <label>Ad Soyad</label>

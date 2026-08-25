@@ -151,7 +151,7 @@ export default function FuelPrices() {
           (il/ilçe/bayi bazında; CAPTCHA korumalı olduğundan otomatik çekilemiyor, elle sorgulanır).
         </p>
 
-        <h4 style={{ marginTop: "1.25rem" }}>Zamanlanmış Fiyat Değişikliği</h4>
+        <h4>Zamanlanmış Fiyat Değişikliği</h4>
         <p className="hint-text">İleri bir tarih/saat belirleyin, o an geldiğinde fiyat otomatik devreye girer.</p>
         <div className="toolbar" style={{ flexWrap: "wrap", gap: "0.5rem" }}>
           <select value={scheduleFuelType} onChange={(e) => setScheduleFuelType(e.target.value)}>

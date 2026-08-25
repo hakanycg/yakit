@@ -165,7 +165,7 @@ function EmergencyStopDialog({ onClose }: { onClose: () => void }) {
       <div className="card" style={{ width: "min(460px, 92vw)" }}>
         {done === null ? (
           <>
-            <h3 style={{ marginTop: 0 }}>Tüm İstasyonu Acil Durdur</h3>
+            <h3>Tüm İstasyonu Acil Durdur</h3>
             <p className="error-text">
               Bu işlem istasyondaki TÜM pompaları (boşta olanlar dahil) anında devre dışı bırakır. Hiçbir yeni
               işlem başlatılamaz, aktif dolumlar durdurulur. Yalnızca yangın, dökülme veya benzeri gerçek bir acil
@@ -184,7 +184,7 @@ function EmergencyStopDialog({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <>
-            <h3 style={{ marginTop: 0 }}>İstasyon Durduruldu</h3>
+            <h3>İstasyon Durduruldu</h3>
             <p>
               Tüm pompalar devre dışı bırakıldı{done > 0 ? ` (${done} aktif işlem sonlandırıldı)` : ""}. Durum
               netleşince her pompayı tek tek "Reset" ile tekrar hizmete alabilirsiniz.
@@ -222,7 +222,7 @@ function FaultDialog({ pump, onClose }: { pump: Pump; onClose: () => void }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <div className="card" style={{ width: "min(420px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h3 style={{ marginTop: 0 }}>{pump.label} - Arıza Simülasyonu</h3>
+        <h3>{pump.label} - Arıza Simülasyonu</h3>
         <label>Arıza Kodu</label>
         <input value={faultCode} onChange={(e) => setFaultCode(e.target.value)} />
         <label>Arıza Mesajı</label>
@@ -280,7 +280,7 @@ function MaintenanceDialog({ pump, onClose }: { pump: Pump; onClose: () => void 
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
       <div className="card" style={{ width: "min(560px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>
-        <h3 style={{ marginTop: 0 }}>{pump.label} - Bakım Geçmişi</h3>
+        <h3>{pump.label} - Bakım Geçmişi</h3>
 
         <label>Tip</label>
         <select value={type} onChange={(e) => setType(e.target.value as MaintenanceLog["type"])}>

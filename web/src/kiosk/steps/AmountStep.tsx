@@ -129,7 +129,7 @@ export default function AmountStep({
       {showDiscounts && (
         <div className="kiosk-card" style={{ marginTop: "1rem", padding: "0.75rem" }}>
           {loyalty?.enabled && loyalty.points > 0 && (
-            <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <label className="check" style={{ marginBottom: "0.5rem" }}>
               <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />
               {t("amount.useLoyalty", { points: loyalty.points, value: formatCurrency(loyalty.valueTry, locale) })}
             </label>

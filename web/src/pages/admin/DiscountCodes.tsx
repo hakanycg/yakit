@@ -138,7 +138,7 @@ function CreateCodeDialog({ onClose, onCreated }: { onClose: () => void; onCreat
 
   return (
     <Modal>
-      <h3 style={{ marginTop: 0 }}>Yeni Kampanya Kodu</h3>
+      <h3>Yeni Kampanya Kodu</h3>
 
       <label>Kod</label>
       <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="örn: YAZ2026" autoFocus />

@@ -429,6 +429,66 @@ yükseltme saatini 6 saate çekmek, işletmeye bırakılabilecek bir tercih değ
   yükseltildi"* bilgisi ve zamanı görünür — operatörün *"haber verildi mi?"* sorusunun
   cevabı listede durmalıdır.
 
+## Arayüz düzeni: menü grupları ve tipografi
+
+### Menü: aynı işe ait sayfalar grup altında
+
+Bölümler düz listelerdi; bir istasyon yöneticisi tek sütunda 20'ye yakın link
+görüyordu ve aralarında hiçbir hiyerarşi yoktu — aranan sayfa her seferinde baştan
+taranarak bulunuyordu. Sayfalar artık "Ayarlar"da olduğu gibi açılır gruplar
+halinde (`AppLayout.tsx`):
+
+| Bölüm | İçerik |
+| --- | --- |
+| Platform | Konsolide Rapor, Kiosk Filosu · **Kuruluşlar** (Dağıtım Şirketleri, İstasyonlar) · **Sistem** (Audit Log, Demo Sıfırla) |
+| Günlük İşleyiş | Genel Bakış, Pompalar, İşlem Listesi, Alarm Merkezi, Raporlama · **Saha** (Harita, Vardiya, Destek) |
+| İstasyon Yönetimi | Gün Sonu Mutabakatı · **Akaryakıt** · **Müşteri** · **Yetki ve Uyum** · **Ayarlar** |
+
+**Alarm Merkezi bilerek grup dışında bırakıldı**: yangın/gaz alarmı bir tık arkasında
+durmamalı. Gruplama yalnızca görünüm içindir; hangi rolün neyi göreceği menüde,
+erişim izolasyonu ise sunucuda belirlenir (bkz. `middleware/tenantScope.ts`).
+
+Bulunduğunuz sayfayı içeren grup **açık başlar**. Menünün büyük kısmı artık gruplar
+halinde olduğundan hepsinin kapalı başlaması, her geçişte yerinizi kaybetmeniz ve
+kardeş sayfalara ulaşmak için grubu yeniden açmanız demek olurdu.
+
+### Tipografi: tek bir ölçek
+
+`h1`–`h4` için **hiçbir kural yoktu**: her başlık tarayıcı varsayılanını (h2 1.5em,
+h3 1.17em ve büyük üst marjlar) kullanıyordu. Bu yüzden 142 başlığın 59'u kendi
+inline `style`'ıyla aynı varsayılanla tek tek dövüşüyor, hiçbiri diğeriyle aynı
+görünmüyordu. Punto da 20 ayrı değer arasına dağılmıştı (0.68 / 0.7 / 0.72 / 0.75 /
+0.76 / 0.78 / 0.8 / 0.82 …) — birbirinden 1px farklı iki boyut düzensiz görünür ama
+sebebi anlaşılmaz.
+
+Artık `styles.css` içinde tek bir merdiven var ve sayfalar boyut değil **rol** seçer:
+
+| Değişken | Kullanım |
+| --- | --- |
+| `--fs-2xs` | rozet, tablo başlığı, bölüm etiketi |
+| `--fs-xs` | meta bilgi, alt not |
+| `--fs-sm` | yardım metni |
+| `--fs-md` | panel gövde metni (varsayılan) |
+| `--fs-lg` | form girdisi |
+| `--fs-xl` / `--fs-2xl` / `--fs-3xl` | h3 / h2 / h1 |
+| `--fs-num` | büyük sayı (istatistik kutusu) |
+
+Başlıkların **üst marjı yoktur** (kutusunun üstüne yaslanır, alt boşluk sabittir);
+bir başlıktan önce içerik varsa aralığı `* + h2/h3/h4` kuralı verir. Bu, 29 adet
+`style={{ marginTop: 0 }}` yamasını gereksiz kıldı ve hepsi kaldırıldı.
+
+Kiosk (dokunmatik, ayakta okunan) ve yazıcı çıktısı bu ölçeğin dışındadır — panel
+puntosu onlara küçük gelir.
+
+### Onay kutuları
+
+Onay/seçim kutuları genel `input` kuralının kurbanıydı: `width: 100%` ve `0.6rem`
+dolgu alıp satırı boydan boya kaplayan biçimsiz beyaz bir kutuya dönüşüyorlardı.
+Sayfalar bunu tek tek `style={{ width: "auto" }}` ile yamıyor, yamamayanlar bozuk
+görünüyordu. Artık `input[type="checkbox"]` bir kez doğru tanımlı ve kutu + metin
+için `.check` yardımcı sınıfı var. Aç/kapa **ayarları** ise ham onay kutusu değil
+`StatusToggle` anahtarını kullanır.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

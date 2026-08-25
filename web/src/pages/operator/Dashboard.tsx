@@ -243,11 +243,11 @@ export default function Dashboard() {
 
       <div className="grid cols-2" style={{ marginTop: "1rem" }}>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Son 30 Gün Ciro Trendi</h3>
+          <h3>Son 30 Gün Ciro Trendi</h3>
           {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yükleniyor...</p>}
         </div>
         <div className="card">
-          <h3 style={{ marginTop: 0 }}>Ödeme Yöntemi Dağılımı</h3>
+          <h3>Ödeme Yöntemi Dağılımı</h3>
           {summary ? <PaymentMethodDonut data={summary.byPaymentMethod} /> : <p className="hint-text">Yükleniyor...</p>}
         </div>
       </div>
@@ -274,7 +274,7 @@ export default function Dashboard() {
 
       {alarms.length > 0 && (
         <div className="card" style={{ marginTop: "1rem" }}>
-          <h3 style={{ marginTop: 0 }}>Aktif Alarmlar</h3>
+          <h3>Aktif Alarmlar</h3>
           <table>
             <thead>
               <tr><th>Önem</th><th>Mesaj</th><th>Zaman</th></tr>
