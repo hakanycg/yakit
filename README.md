@@ -329,6 +329,58 @@ Maliyet karşılaştırması yalnızca ortalama maliyet **biliniyorsa** yapılı
 girilmemiş teslimatlar ortalamayı etkilemez, yani 0 *"bedava aldık"* değil *"bilmiyoruz"*
 demektir.
 
+## KVKK: saklama süresi ve otomatik imha
+
+Silme/erişim talebi ekranı (Yönetim → KVKK Başvuruları) yalnızca **talep üzerine**
+çalışıyordu. Oysa kanun, kişisel verinin *"işlendikleri amaç için gerekli olan süreden"*
+uzun tutulmamasını da ister — kimse talep etmese bile. Bugün girilen bir plaka, hiçbir şey
+yapılmazsa on yıl sonra da veritabanında durur.
+
+### Gerilim: vergi saklamayı, KVKK silmeyi istiyor
+
+Vergi mevzuatı (VUK/TTK) mali kaydın saklanmasını **zorunlu** kılar; KVKK kimliğin
+silinmesini ister. İkisi çelişmez, çünkü istedikleri şey aynı şey değildir:
+
+> **Parayı tut, kimliği düşür.**
+
+Süresi dolan işlemin **tutarı, litresi, tarihi, yakıt tipi ve ödeme yöntemi olduğu gibi
+kalır**; yalnızca kişisel tanımlayıcılar (plaka, makbuz e-postası/telefonu) kaldırılır.
+Aynı yaklaşım talep üzerine silmede ve istasyon silmede de kullanılır.
+
+### Dokunulmayanlar
+
+| Veri | Neden korunur |
+| --- | --- |
+| Pencere içindeki işlemler | Henüz süresi dolmadı |
+| **Filo hesabına bağlı plakalar** | Aktif bir ticari sözleşmeye bağlıdır — işleme amacı devam ediyordur. Sözleşme bitip plaka hesaptan çıkarılınca bir sonraki pencerede doğal olarak kapsama girer |
+| Son dönemde hareketi olan sadakat hesapları | Müşteri hâlâ programın içinde |
+| Zaten anonimleştirilmiş kayıtlar | İşlem tekrar tekrar aynı satırları saymasın |
+
+**Atıl sadakat hesapları silinir** — puanı olsa bile. Kullanılmayan bir hesabın plakasını
+tutmak, amacı kalmamış kişisel veri saklamaktır; aksi halde *"puanı var"* gerekçesiyle veri
+sonsuza kadar tutulurdu.
+
+İşlemlerin plakası anonimleştirildiğinde **sadakat hesabı etkilenmez** (ayrı tablodadır ve
+kendi bakiyesini korur). Bu bilinçlidir: müşterinin puanı, iki yıl önceki bir dolumun
+plakasının saklanmasına bağlı değildir.
+
+### Ayarlar
+
+Varsayılan **kapalıdır**: kişisel veriyi geri dönülemez şekilde silen bir sürecin, istasyon
+kendi saklama politikasını belirlemeden kendiliğinden çalışmaya başlaması doğru olmaz.
+Varsayılan süre **24 ay**; KVKK bir sayı vermez, süreyi veri sorumlusu kendi *saklama ve
+imha politikasında* belirler. Alt sınır 6 aydır — yanlışlıkla girilen bir "1", geri
+dönülemez bir veri kaybı olurdu.
+
+Ekran, ayarı açmadan önce **kaç kaydın etkileneceğini gösterir**; geri dönülemez bir işlemi
+önce göstermeden çalıştırmak doğru olmaz. Günde bir kez otomatik çalışır, "Şimdi Uygula" ile
+elle de tetiklenebilir.
+
+Her imha **denetim izine yazılır**: KVKK uyumu *"yapıyoruz"* demek değil, yaptığını
+**gösterebilmektir** — imha işlemlerinin kayıt altına alınması zaten mevzuatın beklediği
+şeydir. Silinecek bir şey yoksa kayıt yazılmaz; her turda boş bir satır yazmak denetim izini
+kullanılamaz hale getirirdi.
+
 ## Kritik alarm yükseltme (cevapsız alarmın peşini bırakmama)
 
 Kritik bir alarm oluştuğunda **bir kez** bildirim gönderiliyor ve sistem susuyordu. Gece

@@ -1,6 +1,19 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
+import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
+
+interface RetentionSettings {
+  enabled: boolean;
+  retentionMonths: number;
+}
+
+interface RetentionPreview {
+  cutoff: string;
+  transactions: number;
+  loyaltyMovements: number;
+  dormantLoyaltyAccounts: number;
+}
 
 interface PersonalTransaction {
   id: number;
@@ -225,6 +238,141 @@ export default function KvkkRequests() {
             )}
           </>
         )}
+      </div>
+
+      <RetentionCard />
+    </div>
+  );
+}
+
+/**
+ * Saklama suresi karti.
+ *
+ * Silme/erisim talebi ekrani yalnizca TALEP UZERINE calisir; KVKK ise kisisel verinin
+ * gerekli sureden uzun tutulmamasini da ister - kimse talep etmese bile. Bu kart o
+ * otomatik imhayi yonetir.
+ */
+function RetentionCard() {
+  const stationId = useEffectiveStationId();
+  const [settings, setSettings] = useState<RetentionSettings | null>(null);
+  const [preview, setPreview] = useState<RetentionPreview | null>(null);
+  const [months, setMonths] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  function load() {
+    if (stationId === null) return;
+    api
+      .get<{ settings: RetentionSettings; preview: RetentionPreview }>("/api/kvkk/retention")
+      .then((res) => {
+        setSettings(res.settings);
+        setPreview(res.preview);
+        setMonths(String(res.settings.retentionMonths));
+      })
+      .catch(() => setSettings(null));
+  }
+  useEffect(load, [stationId]);
+
+  async function save(next: Partial<RetentionSettings>) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await api.patch<{ settings: RetentionSettings; preview: RetentionPreview }>("/api/kvkk/retention", next);
+      setSettings(res.settings);
+      setPreview(res.preview);
+      setMonths(String(res.settings.retentionMonths));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runNow() {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+    try {
+      const res = await api.post<{ result: { transactionsAnonymized: number; loyaltyMovementsAnonymized: number; dormantLoyaltyAccountsDeleted: number }; preview: RetentionPreview }>(
+        "/api/kvkk/retention/run"
+      );
+      setPreview(res.preview);
+      setMessage(
+        `${res.result.transactionsAnonymized} işlem anonimleştirildi, ` +
+          `${res.result.loyaltyMovementsAnonymized} sadakat hareketi temizlendi, ` +
+          `${res.result.dormantLoyaltyAccountsDeleted} atıl sadakat hesabı silindi.`
+      );
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Çalıştırılamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!settings) return null;
+
+  return (
+    <div className="card" style={{ marginTop: "1rem" }}>
+      <h3 style={{ marginTop: 0 }}>Saklama Süresi (Otomatik İmha)</h3>
+      <p className="hint-text" style={{ marginTop: 0 }}>
+        KVKK, kişisel verinin işlendiği amaç için gerekli olan süreden uzun tutulmamasını ister — kimse talep etmese
+        bile. Süresi dolan işlemlerin <strong>plaka, makbuz e-postası ve telefonu</strong> otomatik olarak kaldırılır;
+        <strong> tutar, litre ve tarih olduğu gibi kalır</strong>, çünkü mali kaydın saklanması (VUK/TTK) ayrı bir yasal
+        zorunluluktur. Kısacası: <em>parayı tut, kimliği düşür.</em>
+      </p>
+      <p className="hint-text">
+        Filo hesabına bağlı plakalara dokunulmaz — aktif bir ticari sözleşmeye bağlıdırlar, yani işleme amacı devam
+        ediyordur.
+      </p>
+
+      <div className="toolbar">
+        <label style={{ margin: 0 }}>
+          <input
+            type="checkbox"
+            checked={settings.enabled}
+            disabled={busy}
+            onChange={(e) => void save({ enabled: e.target.checked })}
+          />{" "}
+          Otomatik imha açık
+        </label>
+        <div className="spacer" />
+        <label htmlFor="ret-months" style={{ margin: 0 }}>
+          Saklama süresi (ay)
+        </label>
+        <input
+          id="ret-months"
+          type="number"
+          min={6}
+          max={240}
+          value={months}
+          onChange={(e) => setMonths(e.target.value)}
+          style={{ width: 100 }}
+        />
+        <button type="button" disabled={busy || months === String(settings.retentionMonths)} onClick={() => void save({ retentionMonths: Number(months) })}>
+          Kaydet
+        </button>
+      </div>
+
+      {preview && (
+        <p className={preview.transactions > 0 ? "error-text" : "hint-text"}>
+          Şu anda süresi dolmuş: <strong>{preview.transactions}</strong> işlem,{" "}
+          <strong>{preview.loyaltyMovements}</strong> sadakat hareketi,{" "}
+          <strong>{preview.dormantLoyaltyAccounts}</strong> atıl sadakat hesabı. Sınır tarihi:{" "}
+          {formatDateTime(preview.cutoff)}
+        </p>
+      )}
+
+      {error && <p className="error-text">{error}</p>}
+      {message && <p className="hint-text">{message}</p>}
+
+      <div className="toolbar" style={{ marginBottom: 0 }}>
+        <span className="hint-text">Otomatik imha günde bir kez çalışır.</span>
+        <div className="spacer" />
+        <button type="button" className="danger" disabled={busy || !settings.enabled} onClick={runNow}>
+          Şimdi Uygula
+        </button>
       </div>
     </div>
   );

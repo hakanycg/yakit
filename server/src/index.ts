@@ -12,6 +12,7 @@ import { verifyLatestBackup } from "./services/backupVerifyService.js";
 import { checkOfflineStations } from "./services/syncService.js";
 import { checkOfflineKiosks } from "./services/kioskFleetService.js";
 import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
+import { sweepDataRetention } from "./services/dataRetentionService.js";
 import { sweepTankGauges } from "./services/tankGaugeService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
@@ -66,6 +67,21 @@ const sessionCleanupInterval = setInterval(() => {
   purgeExpiredPortalSessions();
 }, 10 * 60 * 1000);
 sessionCleanupInterval.unref();
+
+// KVKK saklama suresi: penceresi dolmus kisisel veriyi anonimlestirir. Gunde bir kez
+// yeterlidir - saklama suresi aylarla olculur, birkac saatlik gecikme onemsizdir ve daha
+// sik calistirmak her turda tum islem tablosunu taramak demek olurdu.
+const retentionInterval = setInterval(
+  () => {
+    try {
+      sweepDataRetention();
+    } catch (err) {
+      logger.error({ err }, "KVKK saklama suresi taramasi basarisiz.");
+    }
+  },
+  24 * 60 * 60 * 1000
+);
+retentionInterval.unref();
 
 // Cevaplanmayan kritik alarmlari hatirlatir/yukseltir. Dakikada bir calisir: guvenlik
 // kaynakli alarmlarin (yangin/gaz) hatirlatma esigi 3 dakikadir ve daha seyrek bir tarama
