@@ -101,7 +101,13 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
   });
 });
 
-router.post("/logout", (req, res) => {
+// requireFleetPortalAuth + fleetPortalCsrfProtection burada asagidaki router.use'dan
+// once, rotaya ozel olarak veriliyor - /login gibi bu router.use'un disinda kalmasin
+// diye (staff tarafinda auth.ts'teki /logout ile ayni desen). Cift gonderim CSRF
+// kontrolu olmadan bir oturumu disaridan (baska bir siteden) zorla kapatmak
+// engellenemezdi; SameSite=Strict cerezler bunu buyuk olcude zaten onluyor olsa da
+// bu uc de artik ayni korumayi diger tum mutasyonlarla tutarli sekilde tasiyor.
+router.post("/logout", requireFleetPortalAuth, fleetPortalCsrfProtection, (req, res) => {
   if (req.fleetPortalToken) destroyPortalSession(req.fleetPortalToken);
   clearFleetPortalCookies(res);
   res.json({ ok: true });
