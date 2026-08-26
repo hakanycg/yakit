@@ -46,6 +46,7 @@ const FIELD_PAGES = [
 const FUEL_PAGES = [
   { to: "/operator/stok", label: "Yakıt Stoku" },
   { to: "/operator/sapma", label: "Yakıt Sapma" },
+  { to: "/operator/pompa-sayaclari", label: "Pompa Sayaçları" },
 ];
 
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */

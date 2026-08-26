@@ -30,6 +30,7 @@ const NotificationSettings = lazy(() => import("./pages/operator/account/Notific
 const Shift = lazy(() => import("./pages/operator/Shift"));
 const FuelStock = lazy(() => import("./pages/operator/FuelStock"));
 const FuelVariance = lazy(() => import("./pages/operator/FuelVariance"));
+const PumpTotalizers = lazy(() => import("./pages/operator/PumpTotalizers"));
 const Reconciliation = lazy(() => import("./pages/operator/Reconciliation"));
 const SupportRequests = lazy(() => import("./pages/operator/SupportRequests"));
 const DiscountCodes = lazy(() => import("./pages/admin/DiscountCodes"));
@@ -100,6 +101,7 @@ export default function App() {
               <Route path="/admin/ayarlar/istasyon-ajani" element={<StationAgentSettings />} />
               <Route path="/operator/stok" element={<FuelStock />} />
               <Route path="/operator/sapma" element={<FuelVariance />} />
+            <Route path="/operator/pompa-sayaclari" element={<PumpTotalizers />} />
               <Route path="/operator/mutabakat" element={<Reconciliation />} />
               {/* Ciro/kar raporlari istasyon sahibinindir (bkz. server/src/routes/reports.ts). */}
               <Route path="/operator/raporlar" element={<Reports />} />

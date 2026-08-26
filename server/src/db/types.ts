@@ -471,6 +471,26 @@ export interface FuelTankReadingRow {
   created_at: string;
 }
 
+export interface PumpTotalizerReadingRow {
+  id: number;
+  station_id: number;
+  pump_id: number;
+  fuel_type: FuelType;
+  totalizer_liters: number;
+  previous_reading_id: number | null;
+  previous_totalizer_liters: number | null;
+  dispensed_liters: number;
+  recorded_liters: number;
+  variance_liters: number;
+  variance_pct: number;
+  is_meter_reset: 0 | 1;
+  alarm_id: number | null;
+  note: string | null;
+  measured_at: string;
+  user_id: number | null;
+  created_at: string;
+}
+
 export type FuelStockMovementType = "delivery" | "sale" | "adjustment";
 
 export interface FuelStockMovementRow {

@@ -15,6 +15,15 @@ import {
   serializeCalibration,
 } from "../services/pumpCalibrationService.js";
 import { addMaintenanceLog, listMaintenanceLogs, serializeMaintenanceLog } from "../services/pumpMaintenanceService.js";
+import {
+  PumpTotalizerError,
+  getTotalizerSettings,
+  getTotalizerStatus,
+  listTotalizerReadings,
+  recordTotalizerReading,
+  serializeTotalizerReading,
+  updateTotalizerSettings,
+} from "../services/pumpTotalizerService.js";
 
 const router = Router();
 router.use(requireAuth, attachStationScope, requireStationSelected, csrfProtection);
@@ -121,6 +130,96 @@ router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBod
   });
   res.json({ pump: serializePump(getPump(pump.id)!) });
 });
+
+// --- Sayac (totalizator) mutabakati ----------------------------------------
+
+/**
+ * Sayac okumasi, KALIBRASYONDAN farkli bir kontroldur: kalibrasyon sayacin dogru
+ * olcup olcmedigini test eder, bu ise sayacin saydigi ile sistemin kaydettigini
+ * karsilastirir. Ikisi ayri uclarda, ayri ekranlarda.
+ */
+router.get("/totalizers", (req, res) => {
+  res.json({
+    pumps: getTotalizerStatus(req.stationId!),
+    readings: listTotalizerReadings(req.stationId!, {}).map(serializeTotalizerReading),
+    settings: getTotalizerSettings(req.stationId!),
+  });
+});
+
+const totalizerSchema = z.object({
+  fuelType: z.enum(["benzin", "motorin", "lpg"]),
+  totalizerLiters: z.number().min(0).max(100_000_000),
+  note: z.string().trim().max(300).optional(),
+  meterReset: z.boolean().optional(),
+});
+
+router.post("/:id/totalizers", validateBody(totalizerSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz pompa." });
+  try {
+    const body = req.body as z.infer<typeof totalizerSchema>;
+    const { reading, alarmRaised } = recordTotalizerReading({
+      stationId: req.stationId!,
+      pumpId: id,
+      fuelType: body.fuelType,
+      totalizerLiters: body.totalizerLiters,
+      note: body.note,
+      meterReset: body.meterReset,
+      actor: req.user!,
+    });
+    recordAudit({
+      user: req.user!,
+      action: "pump_totalizer_recorded",
+      entityType: "pump",
+      entityId: id,
+      details: {
+        fuelType: body.fuelType,
+        totalizerLiters: body.totalizerLiters,
+        dispensedLiters: reading.dispensed_liters,
+        recordedLiters: reading.recorded_liters,
+        varianceLiters: reading.variance_liters,
+        meterReset: !!body.meterReset,
+      },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ reading: serializeTotalizerReading(reading), alarmRaised });
+  } catch (err) {
+    if (err instanceof PumpTotalizerError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const totalizerSettingsSchema = z.object({
+  thresholdPct: z.number().min(0).max(100).optional(),
+  minLiters: z.number().min(0).max(10000).optional(),
+});
+
+router.patch(
+  "/totalizers/settings",
+  requireRole("super_admin", "tenant_admin", "admin"),
+  validateBody(totalizerSettingsSchema),
+  (req, res) => {
+    try {
+      const settings = updateTotalizerSettings(
+        req.stationId!,
+        req.body as z.infer<typeof totalizerSettingsSchema>,
+        req.user!
+      );
+      recordAudit({
+        user: req.user!,
+        action: "pump_totalizer_settings_updated",
+        details: settings,
+        ip: req.ip,
+        stationId: req.stationId,
+      });
+      res.json({ settings });
+    } catch (err) {
+      if (err instanceof PumpTotalizerError) return void res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  }
+);
 
 // --- Kalibrasyon (ayar) testi ve damga -------------------------------------
 

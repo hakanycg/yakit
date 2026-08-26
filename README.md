@@ -1310,6 +1310,43 @@ okunan gerçek litre girilir. Sistem:
    bildirimleri (e-posta/SMS) aynı kuyruktan gönderilir.
 4. Kayıt stoğunu ölçüme eşitler; fark, denetim izine `adjustment` hareketi olarak yazılır.
 
+### Kaybın kaynağı: tank mı, pompa mı? (sayaç mutabakatı)
+
+Tank ölçümü *"yakıt eksildi"* der ama **nerede** eksildiğini söylemez. Yakıt tanktan mı
+sızdı, yoksa pompadan kayıt dışı mı akıtıldı? Bunlar iki farklı sorundur ve iki farklı
+müdahale gerektirir.
+
+Her pompanın sıfırlanamayan bir toplam sayacı vardır. **Pompa Sayaçları** ekranından
+vardiya/gün sonunda okunan değer, iki okuma arasında sisteme kaydedilen satışla
+karşılaştırılır. Üçü birlikte bakıldığında kaynak belli olur:
+
+| Tank | Pompa sayacı | Sistem kaydı | Sonuç |
+| --- | --- | --- | --- |
+| −1000 L | 1000 L | 1000 L | temiz |
+| −1000 L | 1000 L | **800 L** | 200 L **kayıt dışı çekim** (manuel/bypass) |
+| −1000 L | **800 L** | 800 L | 200 L **tanktan gitti** (sızıntı) |
+
+Bu ayrımı daha önce hiçbir ekran yapamıyordu.
+
+**Kalibrasyondan farklıdır.** Kalibrasyon (Pompalar → kalibrasyon) sayacın *doğru ölçüp
+ölçmediğini* ayar kabıyla test eder. Sayaç mutabakatı ise sayacın *saydığı* ile sistemin
+*kaydettiğini* karşılaştırır — sayaç kusursuz çalışsa bile kayıt dışı bir çekim buradan
+görünür.
+
+**Bu kontrol hiçbir şeyi düzeltmez.** Tank ölçümü stoğu ölçüme eşitler, çünkü fiziksel
+ölçüm daha güvenilir bir gerçektir; sayaç ise bir envanter değil bir *sayaçtır*,
+düzeltilecek bir şey yoktur. Yalnızca raporlar ve alarm üretir.
+
+**Sayaç geri saymaz.** Önceki okumanın altına düşen bir değer ya sayaç değişimidir ya da
+yanlış giriştir; ikisi de sessizce kabul edilmez — kabul edilseydi negatif bir "dağıtım"
+hesaplanır ve mutabakat saçmalardı. Sayaç değiştiyse bu **beyan edilir**; o okuma yeni bir
+başlangıç noktası olur ve sapma üretmez (eski sayaçla yeni sayacın farkını "kayıp" saymak
+saçma olurdu).
+
+Fark iki yönlü okunur: **artı** = pompa kayıttan fazla dağıtmış (kayıt dışı çekim),
+**eksi** = sistem dağıtılmayan bir satış kaydetmiş (sayaç arızası ya da yakıt akmadan
+tamamlanmış işlem). Alarm mesajı hangisi olduğunu söyler ki personel doğru yere baksın.
+
 ### Sıcaklık: genleşme mi, kayıp mı?
 
 Yakıt ısınınca genleşir. Motorinin hacimsel genleşme katsayısı ~0,00083/°C: 20.000

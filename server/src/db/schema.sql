@@ -561,6 +561,52 @@ CREATE INDEX IF NOT EXISTS idx_refunds_station ON refunds(station_id, created_at
 -- damga zorunlulugu) ve her dolumda ya musteriden ya isletmeden calar. Dahasi, yakit
 -- sapma takibinde (bkz. fuel_tank_readings) aciklanamayan bir kayip olarak gorunup
 -- operatoru olmayan bir sizintiyi aramaya yollar - teslimat kabul farkiyla ayni desen.
+-- Pompa sayaci (totalizator) okumasi.
+--
+-- Stok kontrolunun TANK tarafi vardi (fiziksel olcum <-> kayit stogu, bkz.
+-- fuel_tank_readings); POMPA tarafi yoktu. Her pompanin sifirlanamayan bir toplam
+-- sayaci vardir; vardiya/gun sonunda okunup iki okuma arasindaki FARK, ayni pencerede
+-- sisteme kaydedilen satisla karsilastirilir.
+--
+-- Ucu birlikte bakildiginda kaybin KAYNAGI belli olur:
+--   tank 1000 dustu, pompa 1000 satti, sistem 1000 kaydetti -> temiz
+--   tank 1000 dustu, pompa 1000 satti, sistem  800 kaydetti -> 200 L kayit disi cekim
+--   tank 1000 dustu, pompa  800 satti, sistem  800 kaydetti -> 200 L tanktan gitti (sizinti)
+-- Bu ayrimi bugune kadar hicbir ekran yapamiyordu.
+--
+-- Kalibrasyondan (pump_calibrations) FARKLIDIR: o, sayacin DOGRU olcup olcmedigini
+-- test eder (ayar kabiyla, periyodik). Bu ise sayacin saydigi ile sistemin kaydettigini
+-- karsilastirir - sayac kusursuz calissa bile kayit disi bir cekim buradan gorunur.
+CREATE TABLE IF NOT EXISTS pump_totalizer_readings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  pump_id INTEGER NOT NULL REFERENCES pumps(id),
+  fuel_type TEXT NOT NULL,
+  -- Sayacin o anki MUTLAK degeri. Sayac geri saymaz; bu degerin onceki okumanin
+  -- altina dusmesi ya sayac degisimidir ya da yanlis giristir - ikisi de sessizce
+  -- kabul edilemez (bkz. recordTotalizerReading).
+  totalizer_liters REAL NOT NULL,
+  previous_reading_id INTEGER REFERENCES pump_totalizer_readings(id),
+  -- Onceki okumanin degeri KAYDIN ICINE donduruluyor: gecmis bir satirin ne ile
+  -- karsilastirildigi sonradan degisen bir sorguyla yeniden turetilmemeli.
+  previous_totalizer_liters REAL,
+  dispensed_liters REAL NOT NULL,      -- bu okuma - onceki okuma (pompanin dagittigi)
+  recorded_liters REAL NOT NULL,       -- ayni pencerede sisteme kaydedilen satis
+  -- dispensed - recorded. Arti: pompa kayittan FAZLA dagitmis (kayit disi cekim).
+  -- Eksi: sistem dagitilmayan bir satis kaydetmis (sayac arizasi ya da iade edilmemis islem).
+  variance_liters REAL NOT NULL,
+  variance_pct REAL NOT NULL,
+  -- Sayac degistiginde/sifirlandiginda: bu okuma bir BASLANGIC noktasidir, sapma
+  -- uretmez (eski sayacla yeni sayacin farkini "kayip" saymak sacma olurdu).
+  is_meter_reset INTEGER NOT NULL DEFAULT 0,
+  alarm_id INTEGER REFERENCES alarms(id),
+  note TEXT,
+  measured_at TEXT NOT NULL,
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pump_totalizer_readings ON pump_totalizer_readings(station_id, pump_id, fuel_type, measured_at);
+
 CREATE TABLE IF NOT EXISTS pump_calibrations (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),
