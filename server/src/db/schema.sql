@@ -29,6 +29,10 @@ CREATE TABLE IF NOT EXISTS stations (
   require_kiosk_token INTEGER NOT NULL DEFAULT 1,  -- 1: kiosk uclarinda cihaz tokeni zorunlu (bkz. middleware/kioskDevice.ts)
   name TEXT NOT NULL,
   address TEXT NOT NULL DEFAULT '',
+  -- Isletmenin kendi telefonu. Kiosk yardim ekraninda musteriye BU numara gosterilir:
+  -- yakit akmayan bir pompa acil servis vakasi degildir, 112'ye yonlendirmek hem
+  -- musteriyi yanlis yere gonderir hem de acil hatti gereksiz mesgul eder.
+  contact_phone TEXT,
   latitude REAL,
   longitude REAL,
   active INTEGER NOT NULL DEFAULT 1,
@@ -46,15 +50,19 @@ CREATE TABLE IF NOT EXISTS stations (
 -- olur (ör. "Pompa 1-2 Adasi" icin bir kiosk, "Pompa 3-4" icin baska bir kiosk).
 -- Bu tablo, uzak masaustu erisimi (AnyDesk vb.) icin her fiziksel kiosk'un kimligini
 -- serbest bir etiketle (hangi pompa/ada oldugunu personelin anlayacagi bir metin)
--- eslestirir - bkz. stations.ts. Etiket serbest metindir, pompalarla katı bir iliski
--- (foreign key) KURULMAZ; bu salt bir uzaktan-erisim not defteridir, canli islem
--- akisinin (kiosk web uygulamasinin) hangi pompalari gosterdigiyle ilgisi yoktur.
+-- eslestirir - bkz. stations.ts. Etiket serbest metindir.
+--
+-- pump_id ise etiketten farkli olarak CANLI akisi etkiler: kiosk tek bir pompanin
+-- basinda duruyorsa, o pompanin ekraninda musteriye "hangi pompadasiniz?" diye
+-- sormak anlamsizdir (musteri zaten o pompanin onunde duruyor) ve yanlis pompa
+-- secilmesine acik kapi birakir. Bagliysa kiosk pompa secme adimini atlar.
 CREATE TABLE IF NOT EXISTS station_kiosks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),
   label TEXT NOT NULL,                 -- ör. "Pompa 1-2 Adasi"
   anydesk_id TEXT,
   device_token TEXT,                   -- bu fiziksel kiosk'un kimligi; kiosk uclarinda x-kiosk-token-device basligiyla gonderilir
+  pump_id INTEGER REFERENCES pumps(id), -- bagliysa kiosk bu pompayi otomatik secer; NULL = musteri secer
   last_seen_at TEXT,                   -- token en son ne zaman kullanildi (kurulum dogrulamasi/teshis icin)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );

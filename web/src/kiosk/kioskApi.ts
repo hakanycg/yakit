@@ -6,6 +6,13 @@ export interface StationResponse {
   fuelPrices: FuelPrice[];
   pumps: Pump[];
   iyzicoEnabled: boolean;
+  /**
+   * Bu fiziksel kiosk tek bir pompanin basinda duruyorsa o pompanin kimligi
+   * (bkz. server/src/routes/kiosk.ts). Doluysa pompa secme adimi atlanir.
+   */
+  boundPumpId: number | null;
+  /** Isletmenin telefonu; yardim ekraninda musteriye gosterilir. */
+  contactPhone: string | null;
 }
 
 export const kioskApi = {
@@ -64,12 +71,6 @@ export const kioskApi = {
 
   getTransaction: (id: number, token: string) =>
     kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}`, token),
-
-  pay: (
-    id: number,
-    token: string,
-    card: { cardNumber: string; expiryMonth: number; expiryYear: number; cvv: string; holderName: string }
-  ) => kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}/pay`, token, { method: "POST", body: JSON.stringify(card) }),
 
   cancel: (id: number, token: string) =>
     kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}/cancel`, token, { method: "POST" }),

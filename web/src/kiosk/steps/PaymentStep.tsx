@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState } from "react";
 import { kioskApi, type FleetAccountSummary } from "../kioskApi";
 import { formatCurrency } from "../../shared/format";
 import { ApiError } from "../../shared/api";
@@ -75,24 +75,51 @@ export default function PaymentStep({
     );
   }
 
-  if (iyzicoEnabled) {
-    return (
-      <IyzicoPaymentPanel
-        transaction={transaction}
-        accessToken={accessToken}
-        estimatedPricePerLiter={estimatedPricePerLiter}
-        onCancel={onCancel}
-      />
-    );
+  // Kart odemesi yapilandirilmamissa islem BURADA durur. Onceden bu noktada bir
+  // simulasyon paneli devreye girip odemeyi "onaylanmis" sayiyordu; gercek bir
+  // istasyonda bu, parasi tahsil edilmeden yakit veren bir pompa demektir.
+  if (!iyzicoEnabled) {
+    return <PaymentUnavailablePanel transaction={transaction} accessToken={accessToken} onCancel={onCancel} />;
   }
+
   return (
-    <SimulatedCardPanel
+    <IyzicoPaymentPanel
       transaction={transaction}
       accessToken={accessToken}
       estimatedPricePerLiter={estimatedPricePerLiter}
-      onPaid={onPaid}
       onCancel={onCancel}
     />
+  );
+}
+
+function PaymentUnavailablePanel({
+  transaction,
+  accessToken,
+  onCancel,
+}: {
+  transaction: Transaction;
+  accessToken: string;
+  onCancel: () => void;
+}) {
+  const { t } = useKioskLang();
+  async function cancel() {
+    try {
+      await kioskApi.cancel(transaction.id, accessToken);
+    } finally {
+      onCancel();
+    }
+  }
+  return (
+    <div>
+      <h2>{t("payment.unavailableTitle")}</h2>
+      <p className="hint-text">{t("payment.unavailableBody")}</p>
+      <div className="kiosk-actions">
+        <span />
+        <button type="button" className="primary" onClick={cancel}>
+          {t("payment.cancel")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -253,116 +280,6 @@ function IyzicoPaymentPanel({
       )}
 
       <div id="iyzipay-checkout-form" className="responsive" ref={containerRef} style={{ marginTop: "1rem" }} />
-    </div>
-  );
-}
-
-function SimulatedCardPanel({
-  transaction,
-  accessToken,
-  estimatedPricePerLiter,
-  onPaid,
-  onCancel,
-}: {
-  transaction: Transaction;
-  accessToken: string;
-  estimatedPricePerLiter: number | null;
-  onPaid: (t: Transaction) => void;
-  onCancel: () => void;
-}) {
-  const { t, locale } = useKioskLang();
-  const priceChangeNote = usePriceChangeNote(estimatedPricePerLiter, transaction);
-  const [cardNumber, setCardNumber] = useState("");
-  const [holderName, setHolderName] = useState("");
-  const [expiryMonth, setExpiryMonth] = useState("12");
-  const [expiryYear, setExpiryYear] = useState(String(new Date().getFullYear() + 3));
-  const [cvv, setCvv] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
-
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-    setError(null);
-    try {
-      const res = await kioskApi.pay(transaction.id, accessToken, {
-        cardNumber,
-        holderName,
-        expiryMonth: Number(expiryMonth),
-        expiryYear: Number(expiryYear),
-        cvv,
-      });
-      if (res.transaction.status === "failed") {
-        setError(res.transaction.cancelledReason ?? t("error.paymentRejected"));
-      } else {
-        onPaid(res.transaction);
-      }
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : t("error.paymentFailed"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function cancel() {
-    try {
-      await kioskApi.cancel(transaction.id, accessToken);
-    } finally {
-      onCancel();
-    }
-  }
-
-  return (
-    <div>
-      <h2>{t("payment.simulatedTitle")}</h2>
-      <p className="big-total">{formatCurrency(transaction.chargeAmount, locale)}</p>
-      {transaction.discountAmount > 0 && (
-        <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>
-          {t("payment.discountApplied", {
-            discount: formatCurrency(transaction.discountAmount, locale),
-            total: formatCurrency(transaction.totalAmount, locale),
-          })}
-        </p>
-      )}
-      {priceChangeNote && <p className="hint-text" style={{ color: "var(--k-accent-2)" }}>{priceChangeNote}</p>}
-      <p className="hint-text">{t("payment.estimateNote")}</p>
-
-      <form onSubmit={submit}>
-        <label>{t("payment.cardHolderLabel")}</label>
-        <input value={holderName} onChange={(e) => setHolderName(e.target.value)} required />
-        <label>{t("payment.cardNumberLabel")}</label>
-        <input
-          value={cardNumber}
-          onChange={(e) => setCardNumber(e.target.value.replace(/[^\d ]/g, ""))}
-          placeholder="4111 1111 1111 1111"
-          maxLength={23}
-          required
-        />
-        <div className="grid cols-3">
-          <div>
-            <label>{t("payment.monthLabel")}</label>
-            <input value={expiryMonth} onChange={(e) => setExpiryMonth(e.target.value)} maxLength={2} required />
-          </div>
-          <div>
-            <label>{t("payment.yearLabel")}</label>
-            <input value={expiryYear} onChange={(e) => setExpiryYear(e.target.value)} maxLength={4} required />
-          </div>
-          <div>
-            <label>{t("payment.cvvLabel")}</label>
-            <input value={cvv} onChange={(e) => setCvv(e.target.value.replace(/\D/g, ""))} maxLength={4} required />
-          </div>
-        </div>
-
-        {error && <p className="error-text">{error}</p>}
-
-        <div className="kiosk-actions">
-          <button type="button" onClick={cancel} disabled={submitting}>{t("payment.cancel")}</button>
-          <button type="submit" className="primary" disabled={submitting}>
-            {submitting ? t("payment.processing") : t("payment.confirm")}
-          </button>
-        </div>
-      </form>
-      <p className="hint-text">{t("payment.simulationNote")}</p>
     </div>
   );
 }

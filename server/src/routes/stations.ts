@@ -21,6 +21,7 @@ function serializeStation(s: StationRow) {
     requireKioskToken: !!s.require_kiosk_token,
     name: s.name,
     address: s.address,
+    contactPhone: s.contact_phone,
     latitude: s.latitude,
     longitude: s.longitude,
     active: !!s.active,
@@ -37,9 +38,28 @@ function serializeKiosk(k: StationKioskRow) {
     // Cihaz tokeni yalnizca super_admin'in gordugu bu uctan doner; kiosk kurulumunda
     // adrese eklenir (bkz. web/src/kiosk/kioskDeviceToken.ts).
     deviceToken: k.device_token,
+    // Bagliysa kiosk pompa secme adimini atlar (bkz. routes/kiosk.ts -> boundPumpId).
+    pumpId: k.pump_id,
     lastSeenAt: k.last_seen_at,
     createdAt: k.created_at,
   };
+}
+
+/**
+ * Kiosk'a baglanacak pompanin AYNI istasyona ait oldugunu dogrular. Bu kontrol
+ * olmadan bir kiosk baska bir istasyonun pompasina baglanabilir ve o pompayi
+ * musteriye hic sormadan otomatik secerdi.
+ */
+function assertPumpBelongsToStation(pumpId: number | null, stationId: number, res: import("express").Response): boolean {
+  if (pumpId == null) return true;
+  const pump = db
+    .prepare<[number, number], { id: number }>("SELECT id FROM pumps WHERE id = ? AND station_id = ?")
+    .get(pumpId, stationId);
+  if (!pump) {
+    res.status(400).json({ error: "Secilen pompa bu istasyona ait degil." });
+    return false;
+  }
+  return true;
 }
 
 router.get("/current", requireStationSelected, (req, res) => {
@@ -87,6 +107,7 @@ const createSchema = z.object({
     .regex(/^[a-z0-9-]{2,40}$/, "Slug yalnizca kucuk harf, rakam ve tire icerebilir (orn: merkez-istasyon)."),
   name: z.string().min(2).max(120),
   address: z.string().max(300).optional().default(""),
+  contactPhone: z.string().trim().max(40).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
   pumpCount: z.number().int().min(1).max(16).optional().default(4),
@@ -118,8 +139,8 @@ router.post("/", requireRole("super_admin"), csrfProtection, validateBody(create
   const create = db.transaction(() => {
     const code = generateStationCode((c) => !!db.prepare("SELECT 1 FROM stations WHERE code = ?").get(c));
     const result = db
-      .prepare("INSERT INTO stations (slug, code, name, address, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?)")
-      .run(body.slug, code, body.name, body.address, body.latitude ?? null, body.longitude ?? null);
+      .prepare("INSERT INTO stations (slug, code, name, address, contact_phone, latitude, longitude) VALUES (?, ?, ?, ?, ?, ?, ?)")
+      .run(body.slug, code, body.name, body.address, body.contactPhone || null, body.latitude ?? null, body.longitude ?? null);
     const stationId = result.lastInsertRowid as number;
 
     const insertPrice = db.prepare(
@@ -163,6 +184,7 @@ const updateSchema = z.object({
   name: z.string().min(2).max(120).optional(),
   requireKioskToken: z.boolean().optional(),
   address: z.string().max(300).optional(),
+  contactPhone: z.string().trim().max(40).nullable().optional(),
   active: z.boolean().optional(),
   latitude: z.number().min(-90).max(90).nullable().optional(),
   longitude: z.number().min(-180).max(180).nullable().optional(),
@@ -179,6 +201,7 @@ router.patch("/:id", requireRole("super_admin", "tenant_admin"), csrfProtection,
   const values: unknown[] = [];
   if (body.name !== undefined) { fields.push("name = ?"); values.push(body.name); }
   if (body.address !== undefined) { fields.push("address = ?"); values.push(body.address); }
+  if (body.contactPhone !== undefined) { fields.push("contact_phone = ?"); values.push(body.contactPhone || null); }
   if (body.active !== undefined) { fields.push("active = ?"); values.push(body.active ? 1 : 0); }
   if (body.latitude !== undefined) { fields.push("latitude = ?"); values.push(body.latitude); }
   if (body.longitude !== undefined) { fields.push("longitude = ?"); values.push(body.longitude); }
@@ -276,6 +299,7 @@ router.get("/:stationId/kiosks", requireRole("super_admin", "tenant_admin"), (re
 const kioskSchema = z.object({
   label: z.string().trim().min(1).max(80),
   anydeskId: z.string().trim().max(60).nullable().optional(),
+  pumpId: z.number().int().positive().nullable().optional(),
 });
 
 router.post("/:stationId/kiosks", requireRole("super_admin", "tenant_admin"), csrfProtection, validateBody(kioskSchema), (req, res) => {
@@ -283,12 +307,13 @@ router.post("/:stationId/kiosks", requireRole("super_admin", "tenant_admin"), cs
   if (!requireStationAccess(req, res, stationId)) return;
   if (!getStationOr404(stationId, res)) return;
   const body = req.body as z.infer<typeof kioskSchema>;
+  if (!assertPumpBelongsToStation(body.pumpId ?? null, stationId, res)) return;
   // Her fiziksel kiosk kendi cihaz tokeniyle olusturulur; kiosk uygulamasi bunu
   // gonderdiginde istek bu istasyona sabitlenir (bkz. middleware/kioskDevice.ts).
   const deviceToken = randomBytes(32).toString("hex");
   const result = db
-    .prepare("INSERT INTO station_kiosks (station_id, label, anydesk_id, device_token) VALUES (?, ?, ?, ?)")
-    .run(stationId, body.label, body.anydeskId ?? null, deviceToken);
+    .prepare("INSERT INTO station_kiosks (station_id, label, anydesk_id, device_token, pump_id) VALUES (?, ?, ?, ?, ?)")
+    .run(stationId, body.label, body.anydeskId ?? null, deviceToken, body.pumpId ?? null);
   const kiosk = db.prepare<[number], StationKioskRow>("SELECT * FROM station_kiosks WHERE id = ?").get(result.lastInsertRowid as number)!;
   recordAudit({
     user: req.user!,
@@ -305,6 +330,7 @@ router.post("/:stationId/kiosks", requireRole("super_admin", "tenant_admin"), cs
 const kioskUpdateSchema = z.object({
   label: z.string().trim().min(1).max(80).optional(),
   anydeskId: z.string().trim().max(60).nullable().optional(),
+  pumpId: z.number().int().positive().nullable().optional(),
 });
 
 router.patch(
@@ -322,10 +348,12 @@ router.patch(
     if (!existing) return void res.status(404).json({ error: "Kiosk kaydi bulunamadi." });
 
     const body = req.body as z.infer<typeof kioskUpdateSchema>;
+    if (body.pumpId !== undefined && !assertPumpBelongsToStation(body.pumpId, stationId, res)) return;
     const fields: string[] = [];
     const values: unknown[] = [];
     if (body.label !== undefined) { fields.push("label = ?"); values.push(body.label); }
     if (body.anydeskId !== undefined) { fields.push("anydesk_id = ?"); values.push(body.anydeskId); }
+    if (body.pumpId !== undefined) { fields.push("pump_id = ?"); values.push(body.pumpId); }
 
     if (fields.length > 0) {
       values.push(kioskId);

@@ -16,6 +16,8 @@ export interface StationRow {
   require_kiosk_token: 0 | 1;
   name: string;
   address: string;
+  /** Isletme telefonu; kiosk yardim ekraninda musteriye gosterilen numara. */
+  contact_phone: string | null;
   latitude: number | null;
   longitude: number | null;
   active: 0 | 1;
@@ -29,6 +31,8 @@ export interface StationKioskRow {
   label: string;
   anydesk_id: string | null;
   device_token: string | null;
+  /** Bu fiziksel kiosk hangi pompanin basinda duruyor; NULL = musteri kendisi secer. */
+  pump_id: number | null;
   last_seen_at: string | null;
   created_at: string;
 }

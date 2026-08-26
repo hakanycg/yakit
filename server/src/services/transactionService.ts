@@ -3,7 +3,6 @@ import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, TransactionRow, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { getPump, listPumps, setPumpStatus } from "./pumpService.js";
-import { processVirtualPayment, type VirtualCardInput } from "./paymentService.js";
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
@@ -246,7 +245,7 @@ export interface PaymentOutcome {
 /**
  * Odeme sonucunu (simule sanal kart veya gercek iyzico dogrulamasi) islem kaydina
  * isler: basarisizsa pompayi serbest birakip alarm olusturur, basarili ise dolumu
- * baslatir. Hem `payTransaction` (simule kart) hem de iyzico callback handler'i
+ * baslatir. Hem iyzico callback handler'i hem de filo hesabi odemesi
  * bu tek fonksiyonu kullanir; boylece iki odeme yolu arasinda mantik tekrari olmaz.
  */
 export function finalizeTransactionPayment(id: number, result: PaymentOutcome): TransactionRow {
@@ -354,14 +353,6 @@ function reportAutomationSale(t: TransactionRow): void {
     pricePerLiter: t.price_per_liter,
     completedAt: t.completed_at ?? new Date().toISOString(),
   });
-}
-
-export function payTransaction(id: number, accessToken: string, card: VirtualCardInput): TransactionRow {
-  const t = getTransactionForKiosk(id, accessToken);
-  if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
-
-  const result = processVirtualPayment(card, chargeAmount(t));
-  return finalizeTransactionPayment(id, result);
 }
 
 /**

@@ -20,7 +20,8 @@ export const ALARM_SEVERITY_LABEL: Record<string, string> = { info: "Bilgi", war
 export const ALARM_STATUS_LABEL: Record<string, string> = { active: "Aktif", acknowledged: "Onaylandı", resolved: "Çözüldü" };
 export const FUEL_LABEL: Record<string, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
 export const PAYMENT_METHOD_LABEL: Record<string, string> = {
-  virtual_card: "Sanal Kart (Demo)",
+  // Artik uretilmiyor (simule odeme kaldirildi); gecmis kayitlar okunabilir kalsin diye durur.
+  virtual_card: "Sanal Kart (eski kayıt)",
   iyzico: "Kredi/Banka Kartı",
   fleet: "Filo Hesabı",
 };

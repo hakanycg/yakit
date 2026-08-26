@@ -16,7 +16,16 @@ import { useKioskLang } from "./i18n";
 const CATEGORIES = ["dispenser", "payment", "receipt", "other"] as const;
 type Category = (typeof CATEGORIES)[number];
 
-export default function HelpRequestLink({ pumpId, transactionId }: { pumpId?: number | null; transactionId?: number | null }) {
+export default function HelpRequestLink({
+  pumpId,
+  transactionId,
+  contactPhone,
+}: {
+  pumpId?: number | null;
+  transactionId?: number | null;
+  /** Istasyonun kendi numarasi. Tanimli degilse hicbir numara gosterilmez. */
+  contactPhone?: string | null;
+}) {
   const { t } = useKioskLang();
   const [open, setOpen] = useState(false);
   const [category, setCategory] = useState<Category>("dispenser");
@@ -84,7 +93,13 @@ export default function HelpRequestLink({ pumpId, transactionId }: { pumpId?: nu
             {sent ? (
               <>
                 <h3>{t("help.sentTitle")}</h3>
-                <p className="hint-text">{t("help.sentBody")}</p>
+                {/* Yakit akmayan bir pompa acil servis vakasi degildir: musteriyi 112'ye
+                    yonlendirmek onu yanlis yere gonderir ve acil hatti gereksiz mesgul
+                    eder. Isletmenin numarasi tanimliysa onu, tanimli degilse hicbir
+                    numara gostermeyiz - yanlis numara, numarasizliktan kotudur. */}
+                <p className="hint-text">
+                  {contactPhone ? t("help.sentBodyWithPhone", { phone: contactPhone }) : t("help.sentBody")}
+                </p>
                 <div className="kiosk-actions">
                   <span />
                   <button type="button" className="primary" onClick={reset}>

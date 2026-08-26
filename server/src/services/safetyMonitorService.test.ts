@@ -4,9 +4,12 @@ import type { AlarmRow } from "../db/types.js";
 import { createTestFuelPrice, createTestPump, createTestStation, setTankStock } from "../test/dbFixture.js";
 import { getSafetySensorDriver, noopSafetySensorDriver, setSafetySensorDriver } from "./safetySensorDriver.js";
 import { checkSafetySensors } from "./safetyMonitorService.js";
-import { createTransaction, payTransaction } from "./transactionService.js";
+import { createTransaction, finalizeTransactionPayment } from "./transactionService.js";
 
-const VALID_CARD = { cardNumber: "4242 4242 4242 4242", expiryMonth: 12, expiryYear: 2030, cvv: "123", holderName: "Test User" };
+/** Testlerde "odeme onaylandi" noktasina gecmek icin: gercek saglayici cagrisi yapilmaz. */
+function payOk(id: number) {
+  return finalizeTransactionPayment(id, { success: true, reference: "TEST-OK", message: "Odeme onaylandi." });
+}
 
 describe("checkSafetySensors", () => {
   afterEach(() => {
@@ -46,7 +49,7 @@ describe("checkSafetySensors", () => {
     setTankStock(station.id, "benzin", 500);
 
     const { transaction, accessToken } = createTransaction({ pumpId, plate: "34SAF001", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 5 });
-    payTransaction(transaction.id, accessToken, VALID_CARD);
+    payOk(transaction.id);
 
     setSafetySensorDriver({ checkAlarm: () => "Test: gaz sizintisi tespit edildi." });
     checkSafetySensors();

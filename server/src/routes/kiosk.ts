@@ -14,7 +14,6 @@ import {
   handleLatePaymentAfterCancellation,
   getTransactionForKiosk,
   markIyzicoPending,
-  payTransaction,
   payWithFleetAccount,
   serializeTransaction,
 } from "../services/transactionService.js";
@@ -140,6 +139,17 @@ router.get("/station/:slug", (req, res) => {
     })),
     pumps: listPumps(station.id).map(serializePump),
     iyzicoEnabled: isIyzicoReady(station.id).ready,
+    /**
+     * Bu fiziksel kiosk tek bir pompanin basinda duruyorsa o pompanin kimligi.
+     * Musteri zaten o pompanin onunde durdugu icin ona "hangi pompadasiniz?"
+     * diye sormak hem gereksiz bir adim hem de yanlis pompayi secip baska bir
+     * musterinin dolumunu baslatmasina acik kapi. Bagli kiosk yoksa (ör. ortak
+     * bir odeme noktasi) null doner ve secim adimi eskisi gibi gosterilir.
+     */
+    boundPumpId: req.kioskDevice?.pump_id ?? null,
+    // Istasyonun kendi iletisim numarasi: kiosk yardim ekraninda musteriye
+    // aranacak numara olarak gosterilir.
+    contactPhone: station.contact_phone ?? null,
   });
 });
 
@@ -287,29 +297,6 @@ router.get("/transactions/:id", (req, res) => {
   try {
     const t = getTransactionForKiosk(Number(req.params.id), token);
     res.json({ transaction: serializeTransaction(t) });
-  } catch (err) {
-    if (err instanceof TransactionError) {
-      res.status(err.status).json({ error: err.message });
-      return;
-    }
-    throw err;
-  }
-});
-
-const paySchema = z.object({
-  cardNumber: z.string().regex(/^[\d ]{12,23}$/, "Gecersiz kart numarasi."),
-  expiryMonth: z.number().int().min(1).max(12),
-  expiryYear: z.number().int().min(2024).max(2100),
-  cvv: z.string().regex(/^\d{3,4}$/, "Gecersiz CVV."),
-  holderName: z.string().min(2).max(64),
-});
-
-router.post("/transactions/:id/pay", validateBody(paySchema), (req, res) => {
-  const token = requireAccessToken(req, res);
-  if (!token) return;
-  try {
-    const updated = payTransaction(Number(req.params.id), token, req.body as z.infer<typeof paySchema>);
-    res.json({ transaction: serializeTransaction(updated) });
   } catch (err) {
     if (err instanceof TransactionError) {
       res.status(err.status).json({ error: err.message });

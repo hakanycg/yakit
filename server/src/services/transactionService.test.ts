@@ -11,16 +11,18 @@ import {
   createTransaction,
   emergencyStopStation,
   emergencyStopTransaction,
-  finalizeTransactionPayment,
   handleLatePaymentAfterCancellation,
   markIyzicoPending,
-  payTransaction,
+  finalizeTransactionPayment,
   payWithFleetAccount,
   reconcileStaleCreatedTransactions,
   reconcileStuckTransactions,
 } from "./transactionService.js";
 
-const VALID_CARD = { cardNumber: "4242 4242 4242 4242", expiryMonth: 12, expiryYear: 2030, cvv: "123", holderName: "Test User" };
+/** Testlerde "odeme onaylandi" noktasina gecmek icin: gercek saglayici cagrisi yapilmaz. */
+function payOk(id: number) {
+  return finalizeTransactionPayment(id, { success: true, reference: "TEST-OK", message: "Odeme onaylandi." });
+}
 
 function fakeTransaction(overrides: Partial<TransactionRow>): TransactionRow {
   return {
@@ -124,7 +126,7 @@ describe("finalizeTransactionPayment payment_status", () => {
   it("captures immediately for a full_tank payment via the virtual (simulated) card - no real hold/capture concept applies there", () => {
     const { pumpId } = setUpStationForTransactions();
     const { transaction, accessToken } = createTransaction({ pumpId, plate: "34FUL003", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
-    const updated = payTransaction(transaction.id, accessToken, VALID_CARD);
+    const updated = payOk(transaction.id);
     expect(updated.payment_status).toBe("captured");
     emergencyStopTransaction(transaction.id, staff, "test cleanup");
   });
@@ -166,7 +168,7 @@ describe("AutomationDriver entegrasyonu (IOS - gercek donanim/vendor karari bekl
       amountMode: "liters",
       requestedLiters: 5,
     });
-    payTransaction(transaction.id, accessToken, VALID_CARD);
+    payOk(transaction.id);
 
     expect(dispenseStarts).toEqual([transaction.id]);
     expect(completedReports).toHaveLength(0);
@@ -240,7 +242,7 @@ describe("cancelling a transaction with zero dispensed liters resets total_amoun
     const { pumpId } = setUpStationForTransactions();
     const staff = createTestUser(null, "admin");
     const { transaction, accessToken } = createTransaction({ pumpId, plate: "34CAN002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
-    payTransaction(transaction.id, accessToken, VALID_CARD);
+    payOk(transaction.id);
     // payTransaction -> startDispensing hemen (senkron) dispensed_liters=0 ile "dispensing"
     // durumuna gecirir; ilk tick henuz (500ms sonra) calismadigi icin burada hala 0'dir.
     const stopped = emergencyStopTransaction(transaction.id, staff, "Operator tarafindan durduruldu.");
@@ -260,7 +262,7 @@ describe("reconcileStuckTransactions", () => {
     const { pumpId } = setUpStationForTransactions();
     const staff = createTestUser(null, "admin");
     const { transaction, accessToken } = createTransaction({ pumpId, plate: "34REC001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
-    payTransaction(transaction.id, accessToken, VALID_CARD);
+    payOk(transaction.id);
     emergencyStopTransaction(transaction.id, staff, "test setup - stop the real timer");
     db.prepare("UPDATE transactions SET status = 'dispensing', dispensed_liters = 12.5, total_amount = 556.25 WHERE id = ?").run(transaction.id);
 
@@ -277,7 +279,7 @@ describe("reconcileStuckTransactions", () => {
     const { pumpId } = setUpStationForTransactions();
     const staff = createTestUser(null, "admin");
     const { transaction, accessToken } = createTransaction({ pumpId, plate: "34REC002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
-    payTransaction(transaction.id, accessToken, VALID_CARD);
+    payOk(transaction.id);
     emergencyStopTransaction(transaction.id, staff, "test setup - stop the real timer");
     db.prepare("UPDATE transactions SET status = 'authorized', dispensed_liters = 0 WHERE id = ?").run(transaction.id);
 
@@ -425,7 +427,7 @@ describe("emergencyStopStation", () => {
     const staff = createTestUser(null, "admin");
 
     const { transaction, accessToken } = createTransaction({ pumpId, plate: "34ACL001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
-    payTransaction(transaction.id, accessToken, VALID_CARD);
+    payOk(transaction.id);
 
     const result = emergencyStopStation(station.id, staff, "Yangin suphesi");
     expect(result.stoppedTransactions).toBe(1);

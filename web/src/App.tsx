@@ -34,7 +34,6 @@ import LoyaltySettings from "./pages/admin/settings/LoyaltySettings";
 import InvoiceSettings from "./pages/admin/settings/InvoiceSettings";
 import ReportEmailSettings from "./pages/admin/settings/ReportEmailSettings";
 import StationAgentSettings from "./pages/admin/settings/StationAgentSettings";
-import DemoReset from "./pages/admin/DemoReset";
 import Stations from "./pages/admin/Stations";
 import KioskFleet from "./pages/admin/KioskFleet";
 import Tenants from "./pages/admin/Tenants";
@@ -106,7 +105,6 @@ export default function App() {
             <Route path="/admin/dagitim-sirketleri" element={<Tenants />} />
             <Route path="/admin/konsolide-rapor" element={<Portfolio />} />
             <Route path="/admin/audit-log" element={<AuditLog />} />
-            <Route path="/admin/sifirla" element={<DemoReset />} />
           </Route>
         </Route>
       </Route>

@@ -5,7 +5,6 @@ import type { FuelPriceRow, FuelType } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
-import { resetDemoData } from "../services/demoResetService.js";
 import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
 import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
 import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
@@ -211,14 +210,6 @@ router.patch("/invoice", validateBody(invoiceConfigSchema), (req, res) => {
     stationId: req.stationId,
   });
   res.json({ config: serializeInvoiceConfig(getInvoiceConfig(req.stationId!)) });
-});
-
-const resetSchema = z.object({ confirm: z.literal(true) });
-
-router.post("/demo-reset", requireRole("super_admin"), validateBody(resetSchema), (req, res) => {
-  resetDemoData(req.stationId!);
-  recordAudit({ user: req.user!, action: "demo_data_reset", ip: req.ip, stationId: req.stationId });
-  res.status(204).end();
 });
 
 export { router as settingsRouter };

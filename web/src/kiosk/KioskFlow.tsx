@@ -353,8 +353,24 @@ function KioskFlowInner() {
     );
   }
 
+  /**
+   * Kiosk tek bir pompanin basinda duruyorsa (yonetim panelinden o pompaya baglanmissa)
+   * musteri zaten o pompanin onunde durur; ona "hangi pompadasiniz?" diye sormak hem
+   * gereksiz bir adim hem de yanlis pompayi secip baska bir musterinin dolumunu
+   * baslatmasina acik kapidir.
+   *
+   * Pompa arizali/mesgulse otomatik secim YAPILMAZ: bagli pompa kullanilamaz durumdayken
+   * musteriyi sessizce o pompaya kilitlemek onu cikissiz birakirdi. O durumda secim adimi
+   * eskisi gibi gosterilir ve musteri komsu pompayi secebilir.
+   */
+  const boundPump =
+    station.pumps.find((p) => p.id === station.boundPumpId && p.status === "idle") ?? null;
+
+  // Bagli pompada secim adimi hic gorunmedigi icin adim cubugundan da cikarilir -
+  // aksi halde musteri hic gormeyecegi bir adimin isaretini bekler.
+  const stepOrder = boundPump ? STEP_ORDER.filter((s) => s !== "pump") : STEP_ORDER;
   const stepIndex =
-    step === "welcome" ? -1 : STEP_ORDER.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
+    step === "welcome" ? -1 : stepOrder.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
 
   return (
     <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
@@ -369,7 +385,7 @@ function KioskFlowInner() {
         )}
         {step !== "welcome" && (
           <div className="kiosk-steps">
-            {STEP_ORDER.map((s, i) => (
+            {stepOrder.map((s, i) => (
               <div key={s} className={`step ${i <= stepIndex ? "done" : ""}`} />
             ))}
           </div>
@@ -389,7 +405,12 @@ function KioskFlowInner() {
             onNext={(p, source) => {
               setPlate(p);
               setPlateSource(source);
-              setStep("pump");
+              if (boundPump) {
+                setPump(boundPump);
+                setStep("fuel");
+              } else {
+                setStep("pump");
+              }
             }}
           />
         )}
@@ -405,7 +426,7 @@ function KioskFlowInner() {
             stationId={station.station.id}
             plate={plate}
             onNext={(f) => { setFuelType(f); setStep("amount"); }}
-            onBack={() => setStep("pump")}
+            onBack={() => setStep(boundPump ? "plate" : "pump")}
           />
         )}
 
@@ -449,7 +470,11 @@ function KioskFlowInner() {
           {/* Yardim her adimda erisilebilir olmali: musteri en cok odeme/dolum sirasinda
               takilir ve o an ekrandan cikip bir "yardim sayfasi" aramaz. Icinde bulundugu
               pompa ve islem, talebe otomatik iliskilendirilir. */}
-          <HelpRequestLink pumpId={pump?.id ?? null} transactionId={transaction?.id ?? null} />
+          <HelpRequestLink
+            pumpId={pump?.id ?? null}
+            transactionId={transaction?.id ?? null}
+            contactPhone={station.contactPhone}
+          />
           <PriceHistoryLink stationId={station.station.id} fuelPrices={station.fuelPrices} />
           <PrivacyNoticeLink stationName={station.station.name} stationAddress={station.station.address} />
         </div>

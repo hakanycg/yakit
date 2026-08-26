@@ -54,6 +54,10 @@ export function applyMigrations(): void {
 
   ensureColumn("station_kiosks", "device_token", "TEXT");
   ensureColumn("station_kiosks", "last_seen_at", "TEXT");
+  // Mevcut kurulumlarda NULL kalir: bagli pompasi olmayan kiosk eskisi gibi
+  // musteriye pompa sectirmeye devam eder, davranis degismez.
+  ensureColumn("station_kiosks", "pump_id", "INTEGER REFERENCES pumps(id)");
+  ensureColumn("stations", "contact_phone", "TEXT");
   // Sema henuz "source" kolonu olmadan olusmus kurulumlar: mevcut tum olcumler elle
   // girilmistir, varsayilan dogru degeri zaten verir.
   // Kiraci (dagitim sirketi) katmani. Roller yalnizca seed.ts'te olusturuluyor ve seed
