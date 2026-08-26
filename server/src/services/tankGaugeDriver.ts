@@ -28,6 +28,13 @@ export interface TankGaugeReading {
    * genlesme mi oldugunu ayirt etmekte insana yardimci olur.
    */
   temperatureCelsius?: number | null;
+  /**
+   * Tank dibindeki su seviyesi (mm), prob destekliyorsa. ATG problari bunu ayri bir
+   * samandirayla olcer. Birim HACIM DEGIL YUKSEKLIKTIR: tabandaki birkac milimetrelik
+   * bir katman, tank capina gore cok farkli hacimlere karsilik gelir ve is icin
+   * anlamli olan yukseklik (bkz. tankWaterService.ts).
+   */
+  waterLevelMm?: number | null;
   /** Prob su tarih/saatte okudu. Verilmezse okuma ani kullanilir. */
   measuredAt?: string;
 }

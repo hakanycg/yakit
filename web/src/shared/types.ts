@@ -235,6 +235,8 @@ export interface FuelTankReading {
   createdAt: string;
   source: "manual" | "auto";
   temperatureCelsius: number | null;
+  /** Tank dibindeki su seviyesi (mm). null = ölçülmedi (sıfır değil). */
+  waterLevelMm: number | null;
   /** Sıcaklık farkının açıkladığı litre. null = düzeltme YAPILAMADI (sıfır çıktı değil). */
   temperatureCorrectionLiters: number | null;
   /** Sıcaklık ayıklandıktan sonra kalan sapma; alarm kararı buna bakar. null = düzeltme yok. */

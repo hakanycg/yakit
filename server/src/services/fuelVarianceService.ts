@@ -3,6 +3,7 @@ import type { FuelTankReadingRow, FuelType, UserRow } from "../db/types.js";
 import { createAlarm } from "./alarmService.js";
 import { adjustStock, FuelStockError, getTank } from "./fuelStockService.js";
 import { getSetting, setSetting } from "./settingsStore.js";
+import { evaluateWaterLevel } from "./tankWaterService.js";
 
 /**
  * Yakit sapma (wetstock) takibi.
@@ -90,6 +91,7 @@ export function serializeReading(r: FuelTankReadingRow, username: string | null)
     temperatureCelsius: r.temperature_celsius,
     temperatureCorrectionLiters: r.temperature_correction_liters,
     adjustedVarianceLiters: r.adjusted_variance_liters,
+    waterLevelMm: r.water_level_mm,
     username,
   };
 }
@@ -198,11 +200,15 @@ export interface RecordReadingInput {
   actor: UserRow | null;
   source?: "manual" | "auto";
   temperatureCelsius?: number | null;
+  /** Tank dibindeki su seviyesi (mm); olculmediyse null. */
+  waterLevelMm?: number | null;
 }
 
 export interface RecordReadingResult {
   reading: FuelTankReadingRow;
   alarmRaised: boolean;
+  /** Su seviyesi esigi bu olcumle asildi mi (sapma alarmindan AYRI bir alarm). */
+  waterAlarmRaised: boolean;
 }
 
 /**
@@ -270,8 +276,8 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
         `INSERT INTO fuel_tank_readings
            (station_id, fuel_type, measured_liters, book_liters, variance_liters, throughput_liters,
             variance_pct, previous_reading_id, note, measured_at, user_id, source, temperature_celsius,
-            temperature_correction_liters, adjusted_variance_liters)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            temperature_correction_liters, adjusted_variance_liters, water_level_mm)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         stationId,
@@ -288,7 +294,8 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
         input.source ?? "manual",
         input.temperatureCelsius ?? null,
         temperatureCorrectionLiters,
-        adjustedVarianceLiters
+        adjustedVarianceLiters,
+        input.waterLevelMm ?? null
       );
     const id = result.lastInsertRowid as number;
 
@@ -333,10 +340,14 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
     db.prepare("UPDATE fuel_tank_readings SET alarm_id = ? WHERE id = ?").run(alarmId, readingId);
   }
 
+  // Su seviyesi SAPMADAN AYRI bir kontroldur: sapma "yakit nerede" sorusudur, su
+  // "yakitin icinde ne var". Ayni olcumden gelirler ama ayri alarm uretirler.
+  const waterAlarmRaised = evaluateWaterLevel(stationId, fuelType, input.waterLevelMm);
+
   const reading = db
     .prepare<[number], FuelTankReadingRow>("SELECT * FROM fuel_tank_readings WHERE id = ?")
     .get(readingId)!;
-  return { reading, alarmRaised: alarmId !== null };
+  return { reading, alarmRaised: alarmId !== null, waterAlarmRaised };
 }
 
 export function listReadings(

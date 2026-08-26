@@ -462,6 +462,8 @@ export interface FuelTankReadingRow {
   previous_reading_id: number | null;
   source: "manual" | "auto";
   temperature_celsius: number | null;
+  /** Tank dibindeki su seviyesi (mm). NULL = olculmedi (sifir DEGIL). */
+  water_level_mm: number | null;
   /** Sicaklik farkinin acikladigi litre. NULL = duzeltme yapilamadi (sifir cikti DEGIL). */
   temperature_correction_liters: number | null;
   /** Sicaklik ayiklandiktan sonra kalan sapma; alarm karari buna bakar. NULL = duzeltme yok. */

@@ -125,6 +125,7 @@ export function sweepTankGauges(now = Date.now()): GaugeSweepResult {
           actor: null,
           source: "auto",
           temperatureCelsius: reading.temperatureCelsius ?? null,
+          waterLevelMm: reading.waterLevelMm ?? null,
           note: "Seviye probu otomatik olcumu",
         });
         result.recorded++;

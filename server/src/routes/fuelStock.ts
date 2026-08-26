@@ -45,6 +45,7 @@ import {
   suggestions,
   updateSupplier,
 } from "../services/fuelOrderService.js";
+import { getWaterThresholdMm } from "../services/tankWaterService.js";
 import { createWaybill, WaybillError } from "../services/waybillService.js";
 import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, serializeWaybill } from "../services/waybillRecordService.js";
 
@@ -113,6 +114,7 @@ router.get("/readings", validateQuery(readingsQuerySchema), (req, res) => {
     readings: rows.map((r) => serializeReading(r, r.username)),
     summary: getVarianceSummary(req.stationId!),
     settings: getVarianceSettings(req.stationId!),
+    waterThresholdMm: getWaterThresholdMm(req.stationId!),
   });
 });
 
@@ -127,6 +129,7 @@ router.get("/readings/export.csv", validateQuery(readingsQuerySchema), (req, res
     "kayit_litre",
     "sapma_litre",
     "sicaklik_c",
+    "su_mm",
     "sicaklik_duzeltmesi_litre",
     "duzeltilmis_sapma_litre",
     "hareket_hacmi_litre",
@@ -150,6 +153,7 @@ router.get("/readings/export.csv", validateQuery(readingsQuerySchema), (req, res
         r.book_liters,
         r.variance_liters,
         r.temperature_celsius,
+        r.water_level_mm,
         r.temperature_correction_liters,
         r.adjusted_variance_liters,
         r.throughput_liters,
@@ -196,6 +200,10 @@ const readingSchema = z.object({
   measuredLiters: z.number().min(0).max(1000000),
   measuredAt: z.string().datetime().optional(),
   note: z.string().max(300).optional(),
+  /** Su bulucu macunla olculen tank dibi su seviyesi (mm); olculmediyse gonderilmez. */
+  waterLevelMm: z.number().min(0).max(1000).optional(),
+  /** Sicaklik olculduyse; sapma hesabinda genlesmeyi ayiklamak icin (bkz. fuelVarianceService). */
+  temperatureCelsius: z.number().min(-40).max(70).optional(),
 });
 
 router.post("/:fuelType/reading", csrfProtection, validateBody(readingSchema), (req, res) => {
@@ -203,13 +211,17 @@ router.post("/:fuelType/reading", csrfProtection, validateBody(readingSchema), (
   if (!fuelType.success) return void res.status(400).json({ error: "Gecersiz yakit tipi." });
 
   try {
-    const { measuredLiters, measuredAt, note } = req.body as z.infer<typeof readingSchema>;
-    const { reading, alarmRaised } = recordReading({
+    const { measuredLiters, measuredAt, note, waterLevelMm, temperatureCelsius } = req.body as z.infer<
+      typeof readingSchema
+    >;
+    const { reading, alarmRaised, waterAlarmRaised } = recordReading({
       stationId: req.stationId!,
       fuelType: fuelType.data,
       measuredLiters,
       measuredAt,
       note,
+      waterLevelMm,
+      temperatureCelsius,
       actor: req.user!,
     });
 
@@ -224,13 +236,16 @@ router.post("/:fuelType/reading", csrfProtection, validateBody(readingSchema), (
         bookLiters: reading.book_liters,
         varianceLiters: reading.variance_liters,
         variancePct: reading.variance_pct,
+        temperatureCelsius: reading.temperature_celsius,
+        waterLevelMm: reading.water_level_mm,
         alarmRaised,
+        waterAlarmRaised,
       },
       ip: req.ip,
       stationId: req.stationId,
     });
 
-    res.status(201).json({ reading: serializeReading(reading, req.user!.username), alarmRaised });
+    res.status(201).json({ reading: serializeReading(reading, req.user!.username), alarmRaised, waterAlarmRaised });
   } catch (err) {
     if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
     throw err;

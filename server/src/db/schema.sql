@@ -359,6 +359,11 @@ CREATE TABLE IF NOT EXISTS fuel_tank_readings (
   -- (bkz. tankGaugeDriver.ts). Panelde "kim olctu" sutunu bos gorunmesin diye ayrilir.
   source TEXT NOT NULL DEFAULT 'manual',
   temperature_celsius REAL,            -- prob destekliyorsa; genlesme mi kayip mi ayirmaya yardim eder
+  -- Tank dibindeki su seviyesi (mm). ATG problari bunu ayri bir samandira ile olcer;
+  -- personel de su bulucu macunla daldirma cubugunda olcebilir. Birkac mm yogusma
+  -- normaldir; birikince hem musterinin motoruna zarar verir hem hacim olcumunu bozar.
+  -- NULL = olculmedi (sifir DEGIL).
+  water_level_mm REAL,
   -- Sicaklik farkinin ACIKLADIGI litre (bkz. fuelVarianceService.thermalCorrection).
   -- NULL = duzeltme YAPILAMADI (sicaklik yok, ilk olcum ya da LPG). Bu ayrim onemli:
   -- "duzeltme sifir cikti" ile "duzeltme yapilamadi" ayni sey degildir ve panelde

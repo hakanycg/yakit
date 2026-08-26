@@ -1340,6 +1340,28 @@ okunan gerçek litre girilir. Sistem:
    bildirimleri (e-posta/SMS) aynı kuyruktan gönderilir.
 4. Kayıt stoğunu ölçüme eşitler; fark, denetim izine `adjustment` hareketi olarak yazılır.
 
+### Tank dibinde su
+
+Yakıt tanklarının dibinde zamanla su toplanır (yoğuşma, kötü conta, dolum sırasında
+yağmur). Az miktarı olağandır; birikince **iki ayrı zarar** verir:
+
+1. **Müşterinin aracına** — depoya giden su motora zarar verir. Bu işletme için doğrudan
+   bir sorumluluk meselesidir; alarm bu yüzden **kritik**.
+2. **Ölçüme** — su, yakıtın altında hacim kaplar. Seviye probu toplam yüksekliği görürse
+   tankta olduğundan çok yakıt varmış gibi hesaplanır ve sapma takibi sessizce yanıltılır.
+
+ATG probları su seviyesini ayrı bir şamandırayla ölçer; personel de su bulucu macunla
+daldırma çubuğunda ölçebilir. Ölçüm birimi **hacim değil yüksekliktir (mm)**: tabandaki
+birkaç milimetrelik bir katman, tank çapına göre çok farklı hacimlere karşılık gelir ve iş
+için anlamlı olan yükseklik.
+
+Eşik (varsayılan **25 mm**) aşılırsa yakıt tipi başına bir kez kritik alarm açılır; su
+çekildiğinde alarm çözülür ve yeniden birikirse tekrar uyarır. Eşik istasyon bazında
+değiştirilebilir — kendi bakım pratiğinizle teyit edin.
+
+**Ölçülmedi ile sıfır ayrıdır:** su ölçülmemişse (`NULL`) hiçbir şey yapılmaz. Ölçülmeyen
+bir tankı "suyu yok" saymak, gerçek bir birikmeyi sessizce geçiştirmek olurdu.
+
 ### Kaybın kaynağı: tank mı, pompa mı? (sayaç mutabakatı)
 
 Tank ölçümü *"yakıt eksildi"* der ama **nerede** eksildiğini söylemez. Yakıt tanktan mı

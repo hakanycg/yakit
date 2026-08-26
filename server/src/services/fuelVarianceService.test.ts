@@ -10,6 +10,7 @@ import {
   recordReading,
   updateVarianceSettings,
 } from "./fuelVarianceService.js";
+import { setWaterThresholdMm } from "./tankWaterService.js";
 
 let station: StationRow;
 let actor: UserRow;
@@ -446,5 +447,125 @@ describe("sicaklik kompanzasyonu", () => {
     // Ilk olcum duzeltilemez (onceki yok) ve sapmasi 0; ikincisinin duzeltilmisi de 0.
     // Ham toplansaydi 166 L'lik hayalet bir "fazla" birikirdi.
     expect(summary.totalVarianceLiters).toBe(0);
+  });
+});
+
+describe("tank dibi su", () => {
+  function waterAlarms(stationId: number): AlarmRow[] {
+    return db
+      .prepare<[number], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type LIKE 'tank_water_%' ORDER BY id")
+      .all(stationId);
+  }
+
+  it("esigi asan su seviyesi kritik alarm uretir", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    const { waterAlarmRaised } = recordReading({
+      stationId: s.id,
+      fuelType: "motorin",
+      measuredLiters: 5_000,
+      actor,
+      measuredAt: at(1),
+      waterLevelMm: 40,
+    });
+
+    expect(waterAlarmRaised).toBe(true);
+    const alarm = waterAlarms(s.id).at(-1)!;
+    expect(alarm.severity).toBe("critical");
+    expect(alarm.message).toContain("40 mm su");
+  });
+
+  it("esigin altindaki su normaldir, alarm uretmez", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    // Birkac milimetre yogusma olagandir.
+    const { waterAlarmRaised } = recordReading({
+      stationId: s.id,
+      fuelType: "motorin",
+      measuredLiters: 5_000,
+      actor,
+      measuredAt: at(1),
+      waterLevelMm: 3,
+    });
+    expect(waterAlarmRaised).toBe(false);
+    expect(waterAlarms(s.id)).toHaveLength(0);
+  });
+
+  it("ayni tank icin ust uste alarm uretmez", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    recordReading({ stationId: s.id, fuelType: "motorin", measuredLiters: 5_000, actor, measuredAt: at(1), waterLevelMm: 40 });
+    recordReading({ stationId: s.id, fuelType: "motorin", measuredLiters: 5_000, actor, measuredAt: at(2), waterLevelMm: 45 });
+    expect(waterAlarms(s.id)).toHaveLength(1);
+  });
+
+  it("su cekildikten sonra alarm cozulur ve tekrar birikirse yeniden uyarir", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    recordReading({ stationId: s.id, fuelType: "motorin", measuredLiters: 5_000, actor, measuredAt: at(1), waterLevelMm: 40 });
+    // Servis geldi, tank kurutuldu.
+    recordReading({ stationId: s.id, fuelType: "motorin", measuredLiters: 5_000, actor, measuredAt: at(2), waterLevelMm: 2 });
+    expect(waterAlarms(s.id).filter((a) => a.status !== "resolved")).toHaveLength(0);
+
+    // Yeniden birikirse tekrar uyarmali - aksi halde ikinci birikme sessiz gecerdi.
+    const { waterAlarmRaised } = recordReading({
+      stationId: s.id,
+      fuelType: "motorin",
+      measuredLiters: 5_000,
+      actor,
+      measuredAt: at(3),
+      waterLevelMm: 50,
+    });
+    expect(waterAlarmRaised).toBe(true);
+  });
+
+  it("su OLCULMEDIYSE hicbir sey yapilmaz - 'suyu yok' sayilmaz", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    const { reading, waterAlarmRaised } = recordReading({
+      stationId: s.id,
+      fuelType: "motorin",
+      measuredLiters: 5_000,
+      actor,
+      measuredAt: at(1),
+    });
+    expect(waterAlarmRaised).toBe(false);
+    // NULL, "sifir mm" degildir: olculmeyen bir tanki susuz saymak gercek bir
+    // birikmeyi sessizce gecistirmek olurdu.
+    expect(reading.water_level_mm).toBeNull();
+  });
+
+  it("her yakit tipinin kendi su alarmi vardir", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    setTankStock(s.id, "benzin", 5_000);
+    recordReading({ stationId: s.id, fuelType: "motorin", measuredLiters: 5_000, actor, measuredAt: at(1), waterLevelMm: 40 });
+    recordReading({ stationId: s.id, fuelType: "benzin", measuredLiters: 5_000, actor, measuredAt: at(2), waterLevelMm: 40 });
+
+    // Bir tankin suyu digerinin alarmini bastirmamali.
+    expect(waterAlarms(s.id)).toHaveLength(2);
+  });
+
+  it("istasyona ozel esik alarm kararini degistirir", () => {
+    const s = createTestStation();
+    setTankStock(s.id, "motorin", 5_000);
+    setWaterThresholdMm(s.id, 5, actor);
+
+    const { waterAlarmRaised } = recordReading({
+      stationId: s.id,
+      fuelType: "motorin",
+      measuredLiters: 5_000,
+      actor,
+      measuredAt: at(1),
+      waterLevelMm: 8,
+    });
+    // Varsayilan esikte (25 mm) alarm uretmeyen 8 mm, daraltilmis esikte uretir.
+    expect(waterAlarmRaised).toBe(true);
+  });
+
+  it("gecersiz esik reddedilir", () => {
+    const s = createTestStation();
+    expect(() => setWaterThresholdMm(s.id, -1, actor)).toThrow();
+    expect(() => setWaterThresholdMm(s.id, 5000, actor)).toThrow();
   });
 });

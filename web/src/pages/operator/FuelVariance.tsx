@@ -16,6 +16,8 @@ type ReadingsResponse = {
   readings: FuelTankReading[];
   summary: VarianceSummaryRow[];
   settings: VarianceSettings;
+  /** Tank dibi su uyari esigi (mm) - istasyon bazinda ayarlanabilir. */
+  waterThresholdMm: number;
 };
 
 /** Sapmanin okunusu: eksi litre kayip, arti litre fazladir. */
@@ -87,6 +89,7 @@ export default function FuelVariance() {
               <th>Kayıttaki stok</th>
               <th>Sapma</th>
               <th>Sıcaklık etkisi</th>
+              <th>Su (mm)</th>
               <th>Hareket hacmi</th>
               <th>Oran</th>
               <th>Ölçen</th>
@@ -125,6 +128,15 @@ export default function FuelVariance() {
                     </>
                   )}
                 </td>
+                <td>
+                  {r.waterLevelMm === null ? (
+                    <span className="hint-text">ölçülmedi</span>
+                  ) : (
+                    <span className={`badge ${r.waterLevelMm >= (data?.waterThresholdMm ?? 25) ? "critical" : "resolved"}`}>
+                      {r.waterLevelMm} mm
+                    </span>
+                  )}
+                </td>
                 <td>{formatLiters(r.throughputLiters)}</td>
                 <td>%{r.variancePct}</td>
                 <td>
@@ -142,7 +154,7 @@ export default function FuelVariance() {
             ))}
             {data !== null && data.readings.length === 0 && (
               <tr>
-                <td colSpan={10} className="hint-text">
+                <td colSpan={11} className="hint-text">
                   Henüz ölçüm girilmemiş. İlk ölçüm bir referans noktası oluşturur; sapma oranı ikinci ölçümden
                   itibaren anlamlı olur.
                 </td>
@@ -212,7 +224,9 @@ function NewReadingCard({ tanks, onSaved }: { tanks: FuelTank[]; onSaved: () => 
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ variance: number; alarmRaised: boolean } | null>(null);
+  const [result, setResult] = useState<{ variance: number; alarmRaised: boolean; waterAlarmRaised: boolean } | null>(null);
+  const [waterMm, setWaterMm] = useState("");
+  const [temperature, setTemperature] = useState("");
 
   const tank = tanks.find((t) => t.fuelType === fuelType);
   const measuredNum = Number(measured);
@@ -227,13 +241,24 @@ function NewReadingCard({ tanks, onSaved }: { tanks: FuelTank[]; onSaved: () => 
     setError(null);
     setResult(null);
     try {
-      const res = await api.post<{ reading: FuelTankReading; alarmRaised: boolean }>(
+      const res = await api.post<{ reading: FuelTankReading; alarmRaised: boolean; waterAlarmRaised: boolean }>(
         `/api/fuel-stock/${fuelType}/reading`,
-        { measuredLiters: measuredNum, note: note.trim() || undefined }
+        {
+          measuredLiters: measuredNum,
+          note: note.trim() || undefined,
+          waterLevelMm: waterMm === "" ? undefined : Number(waterMm),
+          temperatureCelsius: temperature === "" ? undefined : Number(temperature),
+        }
       );
-      setResult({ variance: res.reading.varianceLiters, alarmRaised: res.alarmRaised });
+      setResult({
+        variance: res.reading.adjustedVarianceLiters ?? res.reading.varianceLiters,
+        alarmRaised: res.alarmRaised,
+        waterAlarmRaised: res.waterAlarmRaised,
+      });
       setMeasured("");
       setNote("");
+      setWaterMm("");
+      setTemperature("");
       onSaved();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Ölçüm kaydedilemedi.");
@@ -281,6 +306,23 @@ function NewReadingCard({ tanks, onSaved }: { tanks: FuelTank[]; onSaved: () => 
         </p>
       )}
 
+      {/* Sicaklik ve su AYRI iki kontroldur: sicaklik sapmadan genlesmeyi ayiklar
+          (bkz. fuelVarianceService.thermalCorrection), su ise yakitin icinde ne
+          oldugunu soyler ve kendi alarmini uretir. Ikisi de opsiyoneldir - girilmezse
+          o kontrol o olcum icin yapilmaz, "sorun yok" sayilmaz. */}
+      <div className="grid cols-2" style={{ alignItems: "start" }}>
+        <div>
+          <label htmlFor="var-temp">Sıcaklık (°C, opsiyonel)</label>
+          <input id="var-temp" type="number" min={-40} max={70} step={0.1} value={temperature} onChange={(e) => setTemperature(e.target.value)} />
+          <p className="hint-text">Girilirse genleşmenin açıkladığı litre sapmadan düşülür.</p>
+        </div>
+        <div>
+          <label htmlFor="var-water">Tank dibi su (mm, opsiyonel)</label>
+          <input id="var-water" type="number" min={0} max={1000} step={1} value={waterMm} onChange={(e) => setWaterMm(e.target.value)} />
+          <p className="hint-text">Su bulucu macunla ölçülür. Eşik aşılırsa kritik alarm üretilir.</p>
+        </div>
+      </div>
+
       <label htmlFor="var-note">Not (opsiyonel)</label>
       <input
         id="var-note"
@@ -292,11 +334,12 @@ function NewReadingCard({ tanks, onSaved }: { tanks: FuelTank[]; onSaved: () => 
 
       {error && <p className="error-text">{error}</p>}
       {result && (
-        <p className={result.alarmRaised ? "error-text" : "hint-text"}>
+        <p className={result.alarmRaised || result.waterAlarmRaised ? "error-text" : "hint-text"}>
           Ölçüm kaydedildi. Sapma: {formatVariance(result.variance)}.
           {result.alarmRaised
             ? " Eşik aşıldığı için kritik alarm oluşturuldu — Alarm Merkezi'nden takip edin."
             : " Eşiğin altında, alarm oluşturulmadı."}
+          {result.waterAlarmRaised && " Ayrıca tank dibindeki su eşiği aşıldı: su alarmı oluşturuldu."}
         </p>
       )}
 
