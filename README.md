@@ -497,6 +497,107 @@ görünüyordu. Artık `input[type="checkbox"]` bir kez doğru tanımlı ve kutu
 için `.check` yardımcı sınıfı var. Aç/kapa **ayarları** ise ham onay kutusu değil
 `StatusToggle` anahtarını kullanır.
 
+
+## Kiosk'un bağlı olduğu pompa (pompa seçme adımının atlanması)
+
+Bir istasyonda genelde tek değil, **pompa/ada başına ayrı bir fiziksel kiosk** bulunur. Kiosk
+tek bir pompanın başında duruyorsa müşteriye *"hangi pompadasınız?"* diye sormak hem gereksiz
+bir adım hem de yanlış pompayı seçip **başka bir müşterinin dolumunu başlatmasına** açık kapıdır.
+
+Yönetim panelinde İstasyonlar → (istasyon) → **Kiosk Bilgisayarları** altında her kiosk kaydına
+bir **bağlı pompa** seçilebilir (`station_kiosks.pump_id`). Bağlıysa:
+
+- Kiosk açılış ucu (`GET /api/kiosk/station/:code`) `boundPumpId` döner,
+- müşteri plakayı girer girmez o pompa otomatik seçilir ve doğrudan yakıt tipi adımına geçilir,
+- adım çubuğundan da pompa adımı çıkarılır (görülmeyecek bir adımın işareti beklenmez).
+
+Bağlı pompa **arızalı veya meşgulse otomatik seçim yapılmaz**: müşteriyi kullanılamaz bir
+pompaya sessizce kilitlemek onu çıkışsız bırakırdı. O durumda seçim adımı eskisi gibi gösterilir
+ve müşteri komşu pompayı seçebilir. Bağlı pompası olmayan kiosk (ör. ortak bir ödeme noktası)
+eskisi gibi çalışır.
+
+Pompanın **aynı istasyona ait olduğu** sunucuda doğrulanır — aksi halde bir kiosk başka bir
+istasyonun pompasını müşteriye hiç sormadan seçebilirdi.
+
+## Otomatik e-Fatura
+
+Fatura yalnızca panelde "E-Fatura Oluştur" düğmesine basıldığında kesiliyordu. Personelsiz bir
+istasyonda o düğmeye basacak kimse yok: fatura, birinin gün içinde işlem listesini açıp tek tek
+tıklamasına kalıyordu — yani pratikte hiç kesilmiyordu. Fatura kesmek yasal bir yükümlülük, bir
+panel eylemi değil.
+
+Artık satış tamamlanır tamamlanmaz (normal bitiş ve acil durdurma yollarının ikisinde de)
+`invoiceAutoService.ts` arka planda e-Arşiv faturayı keser. Kurallar:
+
+- Entegrasyon kurulmamış istasyonda sessizce geçilir (hata değil, "bu istasyon e-belge kullanmıyor").
+- Hiçbir şey tahsil edilmemiş işlem (0 litre ile kapanan) için fatura kesilmez.
+- Aynı işlem için daha önce başarılı fatura kesildiyse tekrar kesilmez.
+- **Hiçbir koşulda hata fırlatmaz:** sağlayıcıya ulaşılamaması biten bir satışın akışını bozmamalı —
+  müşteri yakıtını almış, pompa serbest kalmış olmalı.
+- Başarısız kesim `failed` olarak kaydedilir; paneldeki düğme artık bir "oluştur" değil
+  **yeniden deneme** yoludur ve metni de bunu söyler.
+- Otomatik kesimde `created_by` NULL kalır: o anda ekranın başında kimse yok, uydurma bir
+  kullanıcı yazmak denetim izini yanlışlaştırırdı.
+
+**E-İrsaliye otomatik değildir ve bilinçli olarak öyle bırakılmıştır.** İrsaliye bir *satışın*
+değil bir *mal hareketinin* belgesidir; yakıt teslimatı zaten panele elle girilir ve belgenin ne
+zaman kesileceği (kabul farkı ölçüldükten önce mi sonra mı) mevzuata bağlı bir karardır. Düğme
+bu yüzden teslimat kaydının yanında durur.
+
+## Rapor merkezi
+
+Raporlar sisteme dağılmıştı: ciro Raporlama'da, tedarikçi özeti stok sayfasında, sapma başka
+sayfada, gün sonu bir başkasında. *"Geçen ay ne oldu?"* sorusunu cevaplamak için dört ayrı sayfa
+gezmek gerekiyordu. Hepsi tek sayfada, **tek bir tarih aralığı** altında toplandı:
+
+| Sekme | İçerik |
+| --- | --- |
+| Satış | Ciro/indirim/litre özeti, yakıt tipine göre kâr, pompa performansı, günlük ciro, yoğun saatler, ödeme yöntemi |
+| İade | İade tutarı/adedi, iadenin gittiği yer (ödeme yöntemi), iade kayıtları |
+| Gün Sonu | Kapatılmış günler, beklenen/sayılan/fark, CSV |
+| Yakıt ve Tedarik | Tedarikçi özeti, teslimat kabul farkı, yakıt sapması |
+
+Sekme değiştirince aralık korunur — aynı dönemin farklı yüzlerine bakmak için filtreyi baştan
+kurmak gerekmez. Bitiş günü aralığa **dahildir** (gün sonuna kadar uzatılır); aksi halde o günün
+tüm satışları rapordan düşerdi. Pompa süzgeci JOIN koşulundadır: WHERE'e konsaydı o aralıkta
+satış yapmamış pompalar listeden tamamen düşüp "0 satış" bilgisi kaybolurdu.
+
+Ciro/kâr raporları **operatöre kapalıdır** (bkz. Roller).
+
+## Roller: ciro işletmenin, destek talebi sahanın
+
+- **Operatör** pompaları, işlem listesini, alarmları, istasyon haritasını, vardiyayı ve
+  **destek taleplerini** görür. Müşteri pompada takıldığında ona ilk ulaşan kişi odur.
+- **Ciro/kâr raporları** (Raporlama sayfası, Genel Bakış'taki ciro kartları) istasyon
+  sahibinindir. Bu ayrım sunucuda uygulanır (`routes/reports.ts`); panelde kartların gizlenmesi
+  tek başına yeterli olmazdı.
+- **Dağıtım şirketi yöneticisi** (`tenant_admin`) personelle **aynı adresten** (`/giris`) girer;
+  panelde yalnızca kendi şirketine atanmış istasyonları, konsolide raporu ve kiosk filosunu görür.
+  Hesabı platform yöneticisi, Kullanıcılar → Yeni Kullanıcı ekranından "Dağıtım Şirketi
+  Yöneticisi" rolünü seçip şirketi işaretleyerek açar.
+- **Filo müşterisi** panele hiç girmez; kendi portalı `/filo` adresindedir (bkz. ilgili bölüm).
+
+## Denetim kaydı: kim, nereden
+
+Kullanıcı adı NULL kalabiliyordu: personel oturumu olmayan her işlem (filo portalı müşterisi,
+zamanlanmış iş, başarısız giriş denemesi) logda kimliksiz görünüyordu — denetim günlüğünün tek
+işi buydu. Artık her kaydın bir **aktörü** var:
+
+| `actor_type` | Anlamı | `username` alanı |
+| --- | --- | --- |
+| `staff` | Panelden giriş yapmış personel | kullanıcı adı |
+| `fleet_portal` | Filo portalı müşterisi | portal e-postası |
+| `system` | Zamanlanmış iş (fiyat, KVKK imha, otomatik faturalama) | işin adı |
+| `anonymous` | Henüz kimliği doğrulanmamış (başarısız giriş) | denenen kullanıcı adı |
+
+Ayrıca:
+
+- **Rol kaydın içine yazılır**: bir kullanıcının rolü sonradan değiştiğinde geçmiş kayıtların
+  "o an hangi yetkiyle yapıldığı" bilgisi değişmemeli.
+- **IP ve tarayıcı imzası** artık isteğin başında bir kez yakalanıp `AsyncLocalStorage` ile
+  taşınır (`middleware/requestContext.ts`). 100'den fazla `recordAudit` çağrısı bunları elle
+  taşımak zorundaydı; unutulan yerde kayıt "IP yok" olarak düşüyordu.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;
@@ -650,10 +751,12 @@ belge gövdesi gönderir — bu da simülasyon değildir.
    plaka formatını (il kodu 01–81 + harf/rakam düzeni) doğrulayan ve bir güven skoru üreten
    gerçekçi bir kural motoruyla çalışır. Kiosk arayüzünde bu açıkça belirtilir; kullanıcı
    isterse plakayı elle de girebilir.
-2. **Sanal ödeme (yalnızca iyzico yapılandırılmamış istasyonlarda kullanılan yedek yol):**
-   `paymentService.ts` Luhn algoritmasıyla kart numarası doğrulaması, son kullanma tarihi ve
-   CVV kontrolü yapan gerçek kurallı bir sanal POS simülasyonudur. Test için `...0002` ile
-   biten kart numaraları bilinçli olarak reddedilir (red senaryosunu test etmek için).
+
+**Kaldırılan simülasyon: sanal ödeme.** iyzico yapılandırılmamış istasyonlarda kiosk daha
+önce sahte bir kart formu gösterip ödemeyi "onaylanmış" sayıyordu. Gerçek bir istasyonda bu,
+parası tahsil edilmeden yakıt veren bir pompa demektir; bu yol tamamen kaldırıldı. Kart
+ödemesi yapılandırılmamışsa kiosk açık bir *"Kart ödemesi şu an alınamıyor"* ekranı gösterir
+ve işlem orada durur. Aynı gerekçeyle demo veri sıfırlama aracı da kaldırıldı.
 
 Bunların dışındaki **her şey gerçek ve uçtan uca çalışır**: pompa durum makinesi, işlem
 yaşam döngüsü (oluşturuldu → ödendi → yetkilendirildi → dolum → tamamlandı), gerçek zamanlı
@@ -743,7 +846,16 @@ bırakır; içinde bulunduğu **pompa ve işlem talebe otomatik iliştirilir**.
 Talep **kritik alarma** çevrilir. Bu bilinçli: mevcut kritik alarm bildirim zinciri
 (e-posta/SMS, dayanıklı yazma kuyruğu üzerinden) hiçbir ek iş yapılmadan devreye girer.
 Panelde **Destek Talepleri** sayfasından takip edilir; talep kapatıldığında bağlı alarm
-da otomatik çözülür — ikisi ayrı kalırsa alarm merkezi kirli birikirdi.
+da otomatik çözülür — ikisi ayrı kalırsa alarm merkezi kirli birikirdi. Sayfa **operatöre de
+açıktır** (sahada çalışan kişi odur). Kapatılmış talepler de görülebildiği için liste yüzlerce
+satıra ulaşabilir: liste tek satırdır, detay ve kapatma formu satıra tıklanınca açılan
+penceredir (İstasyonlar sayfasındaki desen).
+
+Talep gönderildikten sonra ekranda müşteriye **istasyonun kendi telefonu** gösterilir
+(`stations.contact_phone`, İstasyonlar sayfasından girilir). Önceden burada *"acil bir durum
+varsa 112'yi arayın"* yazıyordu: yakıt akmayan bir pompa acil servis vakası değildir, müşteriyi
+oraya yönlendirmek hem onu yanlış yere gönderir hem de acil hattı gereksiz meşgul eder. İşletme
+numarası tanımlı değilse **hiçbir numara gösterilmez** — yanlış numara, numarasızlıktan kötüdür.
 
 ### İki koruma
 
