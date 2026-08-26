@@ -72,7 +72,7 @@ Bugün Railway üzerinde çalışıyor. Kendi veri merkezine geçiş kararı ver
 - **Uplink sağlığı ve genel sistem durumu izleme** — dışarıdan uptime kontrolü mevcut
   (GitHub Actions), DC'ye geçince `HEALTH_CHECK_URL` güncellenecek.
 
-## 4. Regülasyon: teyit bekleyen dört konu
+## 4. Regülasyon: teyit bekleyen konular
 
 Hiçbiri tahminle kapatılmamalı; ilgili kurumdan/danışmandan yazılı teyit gerekiyor.
 
@@ -86,7 +86,13 @@ Hiçbiri tahminle kapatılmamalı; ilgili kurumdan/danışmandan yazılı teyit 
 - **Filo iade faturası.** Kesilmiş bir e-Faturanın düzeltilmesi (iade faturası) usulü
   netleşmeden otomatik yapılmamalı.
 - **Log arşivleri için zaman damgası (TÜBİTAK KamuSM).** Denetim izinin sonradan
-  değiştirilmediğini kanıtlamak gerekiyorsa.
+  değiştirilmediğini kanıtlamak gerekiyorsa. **İmzalanacak şey artık hazır:** arşivleme
+  her dosya için `content_sha256` (şifresiz içeriğin özeti) ve `file_sha256` (diskteki
+  dosyanın özeti) üretip `archive_files` tablosuna yazıyor; damga bu özetleri imzalayacak.
+- **Denetim kaydı saklama süresi.** Arşivleme varsayılanı 24 ay (taban 12 ay) — bu bir
+  **işletme varsayılanı, hukuki bir sayı değil**. KVKK bir süre vermez, süreyi veri
+  sorumlusu kendi saklama ve imha politikasında belirler. Avukatla netleşince
+  `ARCHIVE_AUDIT_LOG_MONTHS` ile değiştirilmeli.
 
 ## 5. Saha işi: gerçek istasyon kurulunca
 

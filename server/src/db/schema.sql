@@ -888,6 +888,37 @@ CREATE TABLE IF NOT EXISTS write_queue (
 );
 CREATE INDEX IF NOT EXISTS idx_write_queue_pending ON write_queue(processed_at, id);
 
+-- Arsivlenmis satir gruplarinin kaydi (bkz. services/archiveService.ts).
+--
+-- Denetim kaydi, tank olcumleri ve ajan olaylari sinirsiz buyur; bir sure sonra canli
+-- veritabanindan CIKARILMALARI gerekir. Ama bunlar "silinebilir" veri degil: denetim
+-- kaydi adli/mali bir kanittir, tank olcumu bir kacak sorusturmasinin dayanagidir.
+-- Bu yuzden satirlar silinmez, ARSIVLENIR: sifreli bir NDJSON.gz dosyasina yazilir,
+-- dosya geri okunup dogrulanir ve ANCAK ONDAN SONRA canli tablodan dusulur.
+--
+-- Bu tablo, hangi araligin hangi dosyada oldugunun dizinidir. Dosya silinirse veri
+-- geri gelmez - yedeklerin aksine bu dosyalar ROTASYONA TABI DEGILDIR, tek kopyadir.
+--
+-- content_sha256: sifrelenmemis NDJSON iceriginin ozeti - anahtar degisse/dosya yeniden
+--   sifrelense bile ayni kalir, "icerik bu mu" sorusunun cevabidir.
+-- file_sha256: diskteki sifreli dosyanin ozeti - "dosyaya dokunulmus mu" sorusunun.
+-- Gorev #110'daki KamuSM zaman damgasi bu ozetleri imzalayacak.
+CREATE TABLE IF NOT EXISTS archive_files (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  table_name TEXT NOT NULL,
+  file_name TEXT NOT NULL UNIQUE,
+  row_count INTEGER NOT NULL,
+  first_row_at TEXT NOT NULL,          -- arsivlenen en eski satirin zaman damgasi
+  last_row_at TEXT NOT NULL,           -- en yenisininki
+  min_row_id INTEGER NOT NULL,
+  max_row_id INTEGER NOT NULL,
+  content_sha256 TEXT NOT NULL,
+  file_sha256 TEXT NOT NULL,
+  byte_size INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_archive_files_table ON archive_files(table_name, created_at);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

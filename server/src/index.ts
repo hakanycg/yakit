@@ -20,6 +20,7 @@ import { sweepTankGauges } from "./services/tankGaugeService.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
+import { runArchive } from "./services/archiveService.js";
 import { encryptLegacyPlaintextSecrets } from "./utils/secretsCrypto.js";
 import { processWriteQueue, pruneWriteQueue } from "./services/writeQueueService.js";
 import "./services/alarmService.js"; // write-queue handler'ini (critical_alarm_notification) kaydeder
@@ -192,6 +193,24 @@ const systemErrorPruneInterval = setInterval(() => {
   }
 }, 24 * 60 * 60 * 1000);
 systemErrorPruneInterval.unref();
+
+// Arsivleme: esikten eski denetim kaydi/olcum satirlarini sifreli dosyalara tasir ve
+// canli tablodan duser (bkz. services/archiveService.ts). ARCHIVE_DIR ayarlanmamissa
+// hicbir sey yapmaz - ozellikle de silmez.
+//
+// Baslangicta HEMEN calistirilmiyor: sunucunun ilk aciliş saniyeleri, uzun surebilecek
+// bir toplu silme icin en kotu an. Ilk tarama araligin sonunda gelir.
+const archiveInterval = setInterval(() => {
+  try {
+    const result = runArchive();
+    if (result.totalRows > 0) {
+      logger.info({ tables: result.tables, totalRows: result.totalRows }, "Arsivleme taramasi tamamlandi.");
+    }
+  } catch (err) {
+    logger.error({ err }, "Arsivleme taramasi basarisiz.");
+  }
+}, env.ARCHIVE_INTERVAL_HOURS * 60 * 60 * 1000);
+archiveInterval.unref();
 
 // Vadesi gecmis filo alacaklari: her hesap icin bir kez kritik alarm acar ve sirket
 // yetkilisine hatirlatma gonderir. Gunde bir kez yeterli - gecikme gun bazinda olculur

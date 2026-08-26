@@ -907,6 +907,62 @@ Ayrıca:
   "süzgeç kullanılmadı" idi. Artık yeni kayıtlara hiç yazılmıyor, eski kayıtlarda da ekranda
   gizleniyor — detay ham JSON yerine okunur "anahtar değer" çiftleri olarak gösteriliyor.
 
+## Arşivleme: denetim kaydı ve ölçüm tabloları sınırsız büyümesin
+
+`audit_log`, `fuel_tank_readings` ve `station_sync_events` hiç temizlenmiyordu. Bin
+istasyonluk bir kurulumda tank ölçümü tek başına saatte 3.000 satır — yılda ~26 milyon.
+Denetim kaydı her giriş, her fiyat değişikliği, her CSV dışa aktarımı için bir satır.
+Bu büyüme "bir gün yavaşlar" değil, **bir gün disk dolar** demektir.
+
+**Neden silmiyoruz.** Bunlar tam olarak silinmemesi gereken tablolar: denetim kaydı adli/mali
+bir kanıttır ("o fiyatı kim değiştirdi"), tank ölçümü bir kaçak soruşturmasının dayanağıdır.
+Eski diye atılan bir satır geri getirilemez. Bu yüzden satırlar **silinmez, taşınır**:
+şifreli bir `NDJSON.gz` dosyasına yazılır, dosya **diskten geri okunup doğrulanır** ve ancak
+ondan sonra canlı tablodan düşülür.
+
+**Değişmez kural:** hiçbir satır, doğrulanmış bir arşiv dosyasında olduğu ispatlanmadan
+silinmez. Sıra bilerek böyle — `yaz → fsync → geri oku → karşılaştır → sil`. Süreç ortada
+ölürse en kötü ihtimalle fazladan bir arşiv dosyası kalır (içindeki satırlar hâlâ canlı) ve
+bir sonraki tarama aynı satırları yeniden arşivler. **Hata yönü her zaman "fazla veri",
+asla "eksik veri".**
+
+| Tablo | Varsayılan | Taban | Neden |
+| --- | --- | --- | --- |
+| `audit_log` | 24 ay | 12 ay | "Geçen yıl bu işlemi kim yapmıştı" sorusu cevaplanabilsin |
+| `fuel_tank_readings` | 12 ay | 6 ay | Sapma hesabı yalnızca **bir önceki** ölçüme bakar; eskisi sadece yıllık grafik için |
+| `station_sync_events` | 3 ay | 1 ay | Ajan telemetrisi; teşhis penceresi günlerdir |
+
+- **`ARCHIVE_DIR` ayarlanmamışsa hiçbir şey yapılmaz — özellikle de silinmez.** Arşivlemenin
+  kapalı olması "sil gitsin" demek değildir; yer yoksa satırlar yerinde kalır.
+- **Yedeklerden farkı:** yedekler rotasyona tabidir (eskisi silinir), çünkü her yedek
+  veritabanının tamamıdır. **Arşiv dosyaları rotasyona tabi DEĞİLDİR** — her biri artık başka
+  hiçbir yerde olmayan satırların tek kopyasıdır. Dizin kalıcı ve yedeklenen bir depolamada
+  olmalıdır.
+- **Şifreli.** `audit_log` IP adresi, kullanıcı adı ve işlem detayı taşır; dosya sunucudan
+  çıkıp başka bir depolamaya gideceği için diskte düz durmaz (yedeklerle aynı AES-256-GCM).
+- **Tabanın altındaki ayar reddedilmez, tabana çekilir.** Yanlışlıkla girilen bir `1`, iki
+  yıllık denetim kaydını geri dönülemez şekilde diskten çıkarırdı; sunucunun bir yapılandırma
+  hatası yüzünden hiç açılmaması da bundan iyi değil.
+- **Okunamayan arşiv, arşiv değildir:** `npm run read-archive` dosyaları listeler ve içeriği
+  NDJSON olarak geri verir. Kayıtlı SHA-256 özetleriyle karşılaştırır; dosyaya dokunulmuşsa
+  sessizce boş dönmek yerine **hata verir**.
+- Durum: `GET /api/system-health/archives` (yalnızca platform yöneticisi). Buradaki asıl soru
+  "kaç dosya var" değil, **`pending` sayılarının büyüyüp büyümediği** — büyüyorsa tarama
+  üretilen veriye yetişmiyor demektir.
+- İki ayrı özet tutulur: `content_sha256` (şifresiz içerik — anahtar değişse de aynı kalır) ve
+  `file_sha256` (diskteki dosya — "dokunulmuş mu"). Görev #110'daki KamuSM zaman damgası
+  bunları imzalayacak.
+
+**`transactions` bilerek arşivlenmiyor.** Üç gerekçe: (1) işlem kaydı ticari bir kayıttır ve
+TTK 82 on yıl saklamayı ister — doğru eşik ~10 yıl, yani bugün yazılacak kod on yıl boyunca
+hiç çalışmaz; çalışmayan bir kod yolunu mali kayıtların üzerine doğrultmak, test edilmemiş
+makineyi kasaya bağlamaktır. (2) `transactions`'a altı tablo yabancı anahtarla bakıyor
+(`refunds`, `invoices`, `fleet_movements`, `loyalty_movements`, `support_requests`,
+`fuel_stock_movements`); bir işlemi taşımak bağlı satırları da aynı grupta taşımayı gerektirir,
+aksi halde yetim mali kayıt kalır. (3) Bugünkü basınç orada değil — büyüme sırası saatlik üretim
+yapan ölçüm ve denetim tablolarıdır, müşteri başına bir satır üreten işlem tablosu değil.
+Kapasite ölçümü (görev #154) bunun ne zaman gerektiğini sayıyla söyleyecek.
+
 ## Güvenlik
 
 - **Parola saklama:** PBKDF2-SHA512, kullanıcıya özel rastgele tuz, 210.000 iterasyon;

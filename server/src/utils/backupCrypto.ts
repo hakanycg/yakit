@@ -24,24 +24,38 @@ function getKey(): Buffer {
   return cachedKey;
 }
 
-/** Dosya formati: [iv (12 byte)][authTag (16 byte)][ciphertext]. */
-export function encryptFile(srcPath: string, destPath: string): void {
-  const plain = readFileSync(srcPath);
+/**
+ * Format: [iv (12 byte)][authTag (16 byte)][ciphertext].
+ *
+ * Bellek uzerinde calisan bu ikili, dosya yardimcilarinin altinda durur ve ayrica arsiv
+ * dosyalari (bkz. services/archiveService.ts) tarafindan dogrudan kullanilir - arsiv,
+ * icerigi zaten bellekte uretir, once duz-metin bir gecici dosyaya yazmasi hem gereksiz
+ * hem de kisisel veriyi diske sifresiz dusurmek olurdu.
+ */
+export function encryptBuffer(plain: Buffer): Buffer {
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", getKey(), iv);
   const ciphertext = Buffer.concat([cipher.update(plain), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  writeFileSync(destPath, Buffer.concat([iv, authTag, ciphertext]));
+  return Buffer.concat([iv, authTag, ciphertext]);
 }
 
-/** encryptFile ile sifrelenmis bir yedegi cozer - felaket kurtarma/restore sirasinda kullanilir (bkz. scripts/decryptBackup.ts). */
-export function decryptFile(srcPath: string, destPath: string): void {
-  const data = readFileSync(srcPath);
+/** encryptBuffer'in tersi. Kurcalanmis/yanlis anahtarla acilan veri, GCM auth tag'i
+ * yuzunden sessizce bozuk donmez - dogrudan hata firlatir. */
+export function decryptBuffer(data: Buffer): Buffer {
   const iv = data.subarray(0, 12);
   const authTag = data.subarray(12, 28);
   const ciphertext = data.subarray(28);
   const decipher = createDecipheriv("aes-256-gcm", getKey(), iv);
   decipher.setAuthTag(authTag);
-  const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  writeFileSync(destPath, plain);
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+}
+
+export function encryptFile(srcPath: string, destPath: string): void {
+  writeFileSync(destPath, encryptBuffer(readFileSync(srcPath)));
+}
+
+/** encryptFile ile sifrelenmis bir yedegi cozer - felaket kurtarma/restore sirasinda kullanilir (bkz. scripts/decryptBackup.ts). */
+export function decryptFile(srcPath: string, destPath: string): void {
+  writeFileSync(destPath, decryptBuffer(readFileSync(srcPath)));
 }

@@ -4,6 +4,10 @@ import { z } from "zod";
 /** Bos string'i (".env" dosyasinda bos birakilan opsiyonel degiskenler) undefined'a cevirir. */
 const optionalString = () => z.preprocess((v) => (v === "" ? undefined : v), z.string().optional());
 const optionalUrl = () => z.preprocess((v) => (v === "" ? undefined : v), z.string().url().optional());
+/** Arsiv saklama sureleri: bos birakilabilir, verilirse pozitif tam sayi ay olmalidir.
+ * Alt sinir burada DEGIL archiveService.ts'te (tablo basina farkli) uygulanir. */
+const optionalMonths = () =>
+  z.preprocess((v) => (v === "" || v === undefined ? undefined : Number(v)), z.number().int().positive().optional());
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(4000),
@@ -45,6 +49,21 @@ const envSchema = z.object({
   BACKUP_DIR: optionalString(),
   BACKUP_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
   BACKUP_RETENTION_COUNT: z.coerce.number().int().positive().default(14),
+
+  // Arsivleme (bkz. services/archiveService.ts) - bos birakilirsa (varsayilan) devre disi
+  // kalir ve HICBIR SATIR SILINMEZ. Ayarlanirsa, esikten eski denetim kaydi/olcum satirlari
+  // bu dizine sifreli NDJSON.gz olarak tasinir.
+  //
+  // DIKKAT: buradaki dosyalar yedeklerin aksine ROTASYONA TABI DEGILDIR - her biri artik
+  // canli veritabaninda olmayan satirlarin TEK kopyasidir. Dizin kalici ve yedeklenen bir
+  // depolamada olmalidir.
+  ARCHIVE_DIR: optionalString(),
+  ARCHIVE_INTERVAL_HOURS: z.coerce.number().int().positive().default(24),
+  // Tablo basina saklama suresi (ay). Bos birakilirsa archiveService.ts'teki varsayilanlar
+  // kullanilir; tabanin altindaki degerler reddedilmez, tabana cekilir.
+  ARCHIVE_AUDIT_LOG_MONTHS: optionalMonths(),
+  ARCHIVE_TANK_READING_MONTHS: optionalMonths(),
+  ARCHIVE_SYNC_EVENT_MONTHS: optionalMonths(),
 
   // iyzico/Uyumsoft API anahtarlarini veritabaninda sifrelemek icin kullanilan anahtar
   // (bkz. utils/secretsCrypto.ts). Opsiyoneldir - bos birakilirsa SESSION_SECRET'tan

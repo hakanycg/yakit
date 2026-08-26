@@ -11,6 +11,7 @@
     "lint": "eslint src --ext .ts",
     "seed": "tsx src/scripts/seed.ts",
     "decrypt-backup": "tsx src/scripts/decryptBackup.ts",
+    "read-archive": "tsx src/scripts/readArchive.ts",
     "test": "vitest run"
   },
   "dependencies": {
