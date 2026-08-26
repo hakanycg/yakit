@@ -100,7 +100,7 @@ describe("finalizeTransactionPayment payment_status", () => {
 
   it("holds (does not capture) a full_tank + iyzico payment - the real amount is unknown until dispensing finishes", () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction } = createTransaction({ pumpId, plate: "34FUL001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34FUL001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
     markIyzicoPending(transaction.id, accessToken, "iyzico-token-1");
     const updated = finalizeTransactionPayment(transaction.id, { success: true, reference: "iyzico-payment-1", message: "ok" });
     expect(updated.payment_status).toBe("authorized");
@@ -109,7 +109,7 @@ describe("finalizeTransactionPayment payment_status", () => {
 
   it("captures immediately for a liters-mode iyzico payment - the amount is already exact", () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction } = createTransaction({
+    const { transaction, accessToken } = createTransaction({
       pumpId,
       plate: "34FUL002",
       plateSource: "manual",
@@ -160,7 +160,7 @@ describe("AutomationDriver entegrasyonu (IOS - gercek donanim/vendor karari bekl
     setDispenserDriver(instantDriver);
 
     vi.useFakeTimers();
-    const { transaction } = createTransaction({
+    const { transaction, accessToken } = createTransaction({
       pumpId,
       plate: "34AUT001",
       plateSource: "manual",
@@ -184,7 +184,7 @@ describe("AutomationDriver entegrasyonu (IOS - gercek donanim/vendor karari bekl
 describe("handleLatePaymentAfterCancellation (iyzico basarili sonucu, biz zaman asimiyla iptal ettikten SONRA gelirse)", () => {
   it("full_tank (on-provizyon) icin otomatik iptali dener ve KRITIK bir alarm birakir", () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction } = createTransaction({ pumpId, plate: "34LATE01", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34LATE01", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
     cancelPendingTransaction(transaction.id, accessToken, "test - zaman asimi simulasyonu");
     const cancelled = db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(transaction.id)!;
     expect(cancelled.status).toBe("cancelled");
@@ -203,7 +203,7 @@ describe("handleLatePaymentAfterCancellation (iyzico basarili sonucu, biz zaman 
 
   it("dogrudan tahsilat modunda (full_tank disi) iyzico'ya hic istek atmadan dogrudan KRITIK alarm birakir", async () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction } = createTransaction({
+    const { transaction, accessToken } = createTransaction({
       pumpId,
       plate: "34LATE02",
       plateSource: "manual",
@@ -228,7 +228,7 @@ describe("handleLatePaymentAfterCancellation (iyzico basarili sonucu, biz zaman 
 describe("cancelling a transaction with zero dispensed liters resets total_amount to 0", () => {
   it("cancelPendingTransaction (customer backs out before paying)", () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction } = createTransaction({ pumpId, plate: "34CAN001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34CAN001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
     // full_tank tahmini tutar, henuz odeme/dolum olmadan zaten sifirdan buyuk olmali (yoksa test anlamsiz).
     expect(transaction.total_amount).toBeGreaterThan(0);
 
@@ -318,7 +318,7 @@ describe("reconcileStaleCreatedTransactions", () => {
 
   it("leaves a recently-created transaction untouched", () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction } = createTransaction({ pumpId, plate: "34STA002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34STA002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
 
     reconcileStaleCreatedTransactions(10 * 60 * 1000);
 
@@ -338,7 +338,7 @@ describe("payWithFleetAccount", () => {
     addFleetPlate(station.station_id, fleet.id, "34FLT001");
     topUpFleetAccount(station.station_id, fleet.id, 1000, undefined, staff);
 
-    const { transaction } = createTransaction({
+    const { transaction, accessToken } = createTransaction({
       pumpId,
       plate: "34FLT001",
       plateSource: "manual",
@@ -360,7 +360,7 @@ describe("payWithFleetAccount", () => {
     addFleetPlate(station.station_id, fleet.id, "34FLT002");
     topUpFleetAccount(station.station_id, fleet.id, 10000, undefined, staff);
 
-    const { transaction } = createTransaction({ pumpId, plate: "34FLT002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34FLT002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
     expect(() => payWithFleetAccount(transaction.id, accessToken, fleet.id)).toThrow();
   });
 
@@ -372,7 +372,7 @@ describe("payWithFleetAccount", () => {
     addFleetPlate(station.station_id, fleet.id, "34FLT003");
     topUpFleetAccount(station.station_id, fleet.id, 1000, undefined, staff);
 
-    const { transaction } = createTransaction({
+    const { transaction, accessToken } = createTransaction({
       pumpId,
       plate: "34FLT003",
       plateSource: "manual",
