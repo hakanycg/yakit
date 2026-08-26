@@ -243,10 +243,11 @@ sızdıran bir sorgu aracı olurdu. Personel girişindeki savunmalar da aynen ge
 yükü (kullanıcı bulunamasa da bir PBKDF2 doğrulaması yapılır) ve 5 başarısız denemede 15
 dakika kilit.
 
-### Portal salt okunurdur
+### Portal para hareketi yapmaz
 
-Yetkili **kendi şifresi dışında hiçbir şey yazamaz**. Bakiye yükleme parayla ilgilidir ve
-istasyonda kalır; portaldaki düşük bakiye uyarısı da kullanıcıyı istasyona yönlendirir.
+Yetkilinin yazabildiği iki şey vardır: **kendi şifresi** ve bir **bakiye yükleme talebi**.
+Talep bir mesajdır; parayı hareket ettiren tek yer istasyondaki onaydır (yukarıya bakınız).
+Bunun dışında portal salt okunurdur.
 
 ### Bir şirket, birden fazla istasyon
 
@@ -570,6 +571,38 @@ istasyonun pompasını müşteriye hiç sormadan seçebilirdi.
 > (`/kiosk/KOD?device=<token>`, panelde "Kurulum adresi" düğmesi) bir kez açılmış olması gerekir.
 > Panel bunu hem alanın altında yazar hem de pompası bağlı ama hiç bağlanmamış kiosk kaydına
 > *"kurulum adresi uygulanmadı"* rozeti koyar.
+
+## Kiosk gündüz/gece teması: sabit saat değil, istasyonun kendi alacakaranlığı
+
+Kiosk ekranı günlerce hiç yenilenmeden aynı sekmede açık kalır, bu yüzden görünüm
+sayfa açılırken bir kez hesaplanıp sabit kalamaz — hava karardığında ekran kendiliğinden
+koyu moda dönmelidir. Geçiş **dakikada bir** kontrol edilir (saniyede bir kontrol,
+saniye hassasiyeti gerektirmeyen kozmetik bir geçiş için boşuna render'dır).
+
+Geçiş anı önce sabit saatlerdi (07:00–19:00) ve Türkiye için yanlıştı: aralıkta hava
+17:30'da kararmışken ekran bembeyaz, haziranda 19:00'da güpegündüzken koyuydu. Artık
+eşik **istasyonun kendi enlem/boylamından** hesaplanır (`web/src/kiosk/sunTimes.ts`) —
+bu bilgi kiosk'a zaten geliyor, kurulumda ek bir alan doldurulmaz ve mevsim
+kendiliğinden takip edilir. Antalya ile Erzurum artık aynı anda kararmaz:
+
+| | Gündüz teması başlar | Gündüz teması biter |
+| --- | --- | --- |
+| İstanbul, 21 Haziran | 04:59 | 21:14 |
+| İstanbul, 21 Aralık | 07:55 | 18:11 |
+| Erzurum, 21 Aralık | 07:03 | 17:24 |
+| Antalya, 21 Aralık | 07:38 | 18:14 |
+
+Eşik güneş diski değil **sivil alacakaranlıktır** (güneş merkezi ufkun 6° altında):
+ekranın takip etmesi gereken şey güneşin doğuşu değil *hava aydınlık mı* olduğudur.
+Bu eşik sabah gün doğumundan ~30 dk önce başlar, akşam gün batımından ~30 dk sonra
+biter — yani ekran gözle görülen aydınlıkla birlikte döner.
+
+İstasyonun koordinatı girilmemişse ya da kutup bölgesi gibi gün doğumunun tanımsız
+olduğu bir yerdeyse hesap `null` döner ve eski 07:00–19:00 yedeğine düşülür; ekran
+hiçbir koşulda hesaplanamayan bir değerle karanlıkta kalmaz.
+
+Yönetim paneli bunun **aksine** otomatik değildir (`shared/useThemePreference.ts`):
+orada bir kullanıcı vardır, tercih ona aittir ve tarayıcıda saklanır.
 
 ## Makbuz (e-posta / SMS / PDF)
 

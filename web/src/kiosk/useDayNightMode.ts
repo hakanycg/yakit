@@ -1,33 +1,54 @@
 import { useEffect, useState } from "react";
+import { isDaylight } from "./sunTimes";
 
-const DAY_START_HOUR = 7;
-const DAY_END_HOUR = 19;
+/**
+ * Konum bilinmiyorken kullanilan yedek saatler. Istasyonun enlem/boylami girilmemisse
+ * ya da kutup bolgesi gibi gun dogumu tanimsiz bir yerdeyse buraya dusulur.
+ */
+const FALLBACK_DAY_START_HOUR = 7;
+const FALLBACK_DAY_END_HOUR = 19;
 
-function currentMode(): "day" | "night" {
+export interface StationCoords {
+  latitude: number | null;
+  longitude: number | null;
+}
+
+function currentMode(coords: StationCoords | null): "day" | "night" {
+  if (coords && coords.latitude !== null && coords.longitude !== null) {
+    const daylight = isDaylight(Date.now(), coords.latitude, coords.longitude);
+    if (daylight !== null) return daylight ? "day" : "night";
+  }
   const hour = new Date().getHours();
-  return hour >= DAY_START_HOUR && hour < DAY_END_HOUR ? "day" : "night";
+  return hour >= FALLBACK_DAY_START_HOUR && hour < FALLBACK_DAY_END_HOUR ? "day" : "night";
 }
 
 /**
- * Kiosk ekranı genelde günlerce hiç yenilenmeden aynı sekmede açık kalır (bkz.
- * KioskFlow.tsx), bu yüzden gündüz/gece görünümü sayfa yüklenirken bir kere
- * hesaplanıp sabit kalamaz - saat DAY_END_HOUR'u geçtiği an ekran otomatik
- * karanlık moda dönmeli. Dakikada bir kontrol, saniyede bir kontrolden
- * gereksiz yeniden render'ı önler; bu geçiş saniyesi hassasiyeti gerektirmeyen
- * kozmetik bir değişimdir.
+ * Kiosk ekrani genelde gunlerce hic yenilenmeden ayni sekmede acik kalir (bkz.
+ * KioskFlow.tsx), bu yuzden gunduz/gece gorunumu sayfa yuklenirken bir kere
+ * hesaplanip sabit kalamaz - hava karardigi an ekran otomatik koyu moda donmeli.
+ * Dakikada bir kontrol, saniyede bir kontrolden gereksiz yeniden render'i onler;
+ * bu gecis saniye hassasiyeti gerektirmeyen kozmetik bir degisimdir.
+ *
+ * Gecis ani sabit bir saat DEGIL, istasyonun kendi konumundaki alacakaranliktir
+ * (bkz. sunTimes.ts): Antalya ile Erzurum ayni anda kararmaz ve mevsim kendiliginden
+ * takip edilir - kurulumda girilecek ya da mevsimlik guncellenecek bir ayar yok.
  */
-export function useDayNightMode(): "day" | "night" {
-  const [mode, setMode] = useState<"day" | "night">(currentMode);
+export function useDayNightMode(coords: StationCoords | null): "day" | "night" {
+  const latitude = coords?.latitude ?? null;
+  const longitude = coords?.longitude ?? null;
+  const [mode, setMode] = useState<"day" | "night">(() => currentMode(coords));
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMode((prev) => {
-        const next = currentMode();
-        return next === prev ? prev : next;
-      });
-    }, 60_000);
+    // Konum istasyon yuklenince geldigi icin ilk deger saat tabanli yedekle
+    // hesaplanmis olabilir; koordinat elde edilir edilmez yeniden degerlendir.
+    const evaluate = () => {
+      const next = currentMode({ latitude, longitude });
+      setMode((prev) => (next === prev ? prev : next));
+    };
+    evaluate();
+    const interval = setInterval(evaluate, 60_000);
     return () => clearInterval(interval);
-  }, []);
+  }, [latitude, longitude]);
 
   return mode;
 }

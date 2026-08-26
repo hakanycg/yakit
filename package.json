@@ -19,7 +19,7 @@
     "start": "npm run start --workspace server",
     "lint": "npm run lint --workspace server && npm run lint --workspace web && npm run lint --workspace agent",
     "typecheck": "npm run typecheck --workspace server && npm run typecheck --workspace web && npm run typecheck --workspace agent",
-    "test": "npm run test --workspace server && npm run test --workspace agent",
+    "test": "npm run test --workspace server && npm run test --workspace web && npm run test --workspace agent",
     "seed": "npm run seed --workspace server"
   },
   "engines": {

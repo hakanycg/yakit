@@ -62,7 +62,10 @@ function KioskFlowInner() {
   const [targetLiters, setTargetLiters] = useState(0);
   const [estimatedPricePerLiter, setEstimatedPricePerLiter] = useState<number | null>(null);
   const online = useConnectivity();
-  const dayNightMode = useDayNightMode();
+  // Gunduz/gece gecisi sabit saatle degil istasyonun kendi konumundaki alacakaranlikla
+  // olur (bkz. useDayNightMode.ts). Istasyon yuklenene kadar konum bilinmedigi icin
+  // hook o ana kadar saat tabanli yedege duser.
+  const dayNightMode = useDayNightMode(station?.station ?? null);
 
   const loadStation = useCallback(() => {
     if (!slug) return;
