@@ -39,6 +39,14 @@ export interface Pump {
   faultCode: string | null;
   faultMessage: string | null;
   currentTransactionId: number | null;
+  /** Pompada su an akan dolumun ozeti; pompa bostaysa null. */
+  activeSale: {
+    transactionId: number;
+    plate: string;
+    fuelType: FuelType;
+    liters: number;
+    amount: number;
+  } | null;
   updatedAt: string;
 }
 

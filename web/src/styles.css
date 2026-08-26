@@ -581,6 +581,20 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 }
 .pump-status-pill { padding: 0.1rem 0.5rem; border-radius: 999px; font-size: var(--fs-2xs); font-weight: 600; white-space: nowrap; }
 
+/* Devam eden dolumun plakasi ve tutari - isaretcinin uzerinde, fare beklemeden okunur.
+   Isaretcinin genisligini asmasin diye plaka gerekirse kisaltilir; tam hali ipucu
+   kutusunda zaten duruyor. */
+.pump-sale { display: flex; flex-direction: column; align-items: center; gap: 0.05rem; max-width: 100%; }
+.pump-sale-plate {
+  font-size: var(--fs-2xs); font-weight: 700; letter-spacing: 0.02em;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pump-sale-amount { font-size: var(--fs-2xs); font-variant-numeric: tabular-nums; color: var(--text-dim); }
+.tooltip-sale {
+  margin: 0.35rem 0; padding: 0.35rem 0.5rem; border-radius: 6px;
+  background: var(--panel-2); font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+}
+
 .pump-marker.idle { border-color: #2f4256; }
 .pump-marker.idle .pump-status-pill { background: #1f2d3a; color: #8fb8d9; }
 .pump-marker.dispensing { border-color: var(--accent-2); box-shadow: 0 0 16px rgba(34,197,94,0.45); }

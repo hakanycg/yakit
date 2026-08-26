@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api } from "./api";
 import { useTopicSubscription } from "./useWebSocket";
 import { useEffectiveStationId } from "./useEffectiveStation";
-import type { Alarm, Pump } from "./types";
+import type { Alarm, Pump, Transaction } from "./types";
 
 export function usePumps() {
   const stationId = useEffectiveStationId();
@@ -19,6 +19,34 @@ export function usePumps() {
   }, [stationId]);
 
   useTopicSubscription(stationId !== null ? `pumps:${stationId}` : null, (payload) => setPumps(payload as Pump[]));
+
+  /**
+   * Pompa yayini yalnizca DURUM degistiginde tetiklenir (bkz. pumpService.broadcastPumps);
+   * dolum surerken akan litre/tutar oradan gelmez. Islem yayinini da dinleyip pompanin
+   * uzerindeki canli satisi guncelliyoruz - aksi halde harita, dolum boyunca ilk
+   * andaki (sifir) tutari gosterip kalirdi.
+   */
+  useTopicSubscription(stationId !== null ? `transactions:${stationId}` : null, (payload) => {
+    const t = payload as Transaction;
+    setPumps((prev) =>
+      prev.map((p) => {
+        if (p.currentTransactionId !== t.id) return p;
+        const closed = t.status === "completed" || t.status === "cancelled" || t.status === "failed";
+        return {
+          ...p,
+          activeSale: closed
+            ? null
+            : {
+                transactionId: t.id,
+                plate: t.plate,
+                fuelType: t.fuelType,
+                liters: t.dispensedLiters,
+                amount: t.chargeAmount,
+              },
+        };
+      })
+    );
+  });
 
   return { pumps, loading, setPumps };
 }

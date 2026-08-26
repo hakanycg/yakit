@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { usePumps } from "../../shared/hooks";
-import { PUMP_STATUS_LABEL, FUEL_LABEL, formatDateTime } from "../../shared/format";
+import { PUMP_STATUS_LABEL, FUEL_LABEL, formatCurrency, formatDateTime } from "../../shared/format";
 import type { Pump, PumpStatus } from "../../shared/types";
 
 const LEGEND: { status: PumpStatus; hint: string }[] = [
@@ -96,10 +96,27 @@ function PumpMarker({ pump }: { pump: Pump }) {
       <span className="pump-icon"><PumpIcon /></span>
       <span className="pump-number">{pump.number}</span>
       <span className="pump-status-pill">{PUMP_STATUS_LABEL[pump.status]}</span>
+      {/* Plaka ve tutar isaretcinin uzerinde durur: operatorun "3 numarada kim var,
+          ne kadar aldi" sorusu icin fareyi bekletmesi ya da islem listesine gitmesi
+          gerekmesin - haritaya bakmasi yeter. */}
+      {pump.activeSale && (
+        <span className="pump-sale">
+          <span className="pump-sale-plate">{pump.activeSale.plate}</span>
+          <span className="pump-sale-amount">{formatCurrency(pump.activeSale.amount)}</span>
+        </span>
+      )}
 
       <div className="pump-tooltip">
         <strong>{pump.label}</strong>
         <div className="hint-text">{PUMP_STATUS_LABEL[pump.status]}</div>
+        {pump.activeSale && (
+          <div className="tooltip-sale">
+            <div><strong>{pump.activeSale.plate}</strong> · {FUEL_LABEL[pump.activeSale.fuelType]}</div>
+            <div>
+              {pump.activeSale.liters.toFixed(2)} L · {formatCurrency(pump.activeSale.amount)}
+            </div>
+          </div>
+        )}
         <div className="tooltip-fuels">
           {pump.fuelTypes.map((f) => (
             <span className="fuel-chip" key={f}>{FUEL_LABEL[f]}</span>

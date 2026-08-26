@@ -23,7 +23,47 @@ export function serializePump(p: PumpRow) {
     faultCode: p.fault_code,
     faultMessage: p.fault_message,
     currentTransactionId: p.current_transaction_id,
+    // Istasyon haritasinda "3 numarali pompada kim var, ne kadar aldi" sorusunun cevabi.
+    // Islem kimligi tek basina bunu soylemiyordu; operator her defasinda islem listesine
+    // gidip aramak zorunda kaliyordu.
+    activeSale: activeSaleFor(p.current_transaction_id),
     updatedAt: p.updated_at,
+  };
+}
+
+interface ActiveSaleRow {
+  plate: string;
+  fuel_type: string;
+  dispensed_liters: number;
+  total_amount: number;
+  discount_amount: number;
+  status: string;
+}
+
+/** Pompada su an akan dolumun ozeti; pompa bostaysa (veya islem kapandiysa) null. */
+function activeSaleFor(transactionId: number | null): {
+  transactionId: number;
+  plate: string;
+  fuelType: string;
+  liters: number;
+  amount: number;
+} | null {
+  if (!transactionId) return null;
+  const t = db
+    .prepare<[number], ActiveSaleRow>(
+      `SELECT plate, fuel_type, dispensed_liters, total_amount, discount_amount, status
+         FROM transactions WHERE id = ?`
+    )
+    .get(transactionId);
+  if (!t) return null;
+  return {
+    transactionId,
+    plate: t.plate,
+    fuelType: t.fuel_type,
+    liters: t.dispensed_liters,
+    // Musteriden tahsil edilen net tutar (indirim dusulmus) - haritada gorunen rakam,
+    // musterinin odedigiyle ayni olmali.
+    amount: Math.max(0, t.total_amount - t.discount_amount),
   };
 }
 
