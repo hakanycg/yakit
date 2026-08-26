@@ -116,7 +116,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetPayButton": "Filo Hesabı ile Öde",
     "payment.fleetUseCardInstead": "Kart ile Öde",
     "payment.processing": "Ödeme işleniyor...",
-    "error.paymentRejected": "Ödeme reddedildi.",
     "error.paymentFailed": "Ödeme sırasında hata oluştu.",
 
     "dispense.authorizing": "Pompa Yetkilendiriliyor...",
@@ -315,7 +314,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetPayButton": "Pay with Fleet Account",
     "payment.fleetUseCardInstead": "Pay with Card Instead",
     "payment.processing": "Processing payment...",
-    "error.paymentRejected": "Payment declined.",
     "error.paymentFailed": "An error occurred during payment.",
 
     "dispense.authorizing": "Authorizing Pump...",
@@ -514,7 +512,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetPayButton": "Оплатить корпоративным счетом",
     "payment.fleetUseCardInstead": "Оплатить картой",
     "payment.processing": "Обработка оплаты...",
-    "error.paymentRejected": "Оплата отклонена.",
     "error.paymentFailed": "Произошла ошибка при оплате.",
 
     "dispense.authorizing": "Авторизация колонки...",
@@ -713,7 +710,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetPayButton": "Mit Flottenkonto zahlen",
     "payment.fleetUseCardInstead": "Stattdessen mit Karte zahlen",
     "payment.processing": "Zahlung wird verarbeitet...",
-    "error.paymentRejected": "Zahlung abgelehnt.",
     "error.paymentFailed": "Bei der Zahlung ist ein Fehler aufgetreten.",
 
     "dispense.authorizing": "Zapfsäule wird autorisiert...",
@@ -912,7 +908,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetPayButton": "الدفع عبر حساب الأسطول",
     "payment.fleetUseCardInstead": "الدفع بالبطاقة بدلاً من ذلك",
     "payment.processing": "جارٍ معالجة الدفع...",
-    "error.paymentRejected": "تم رفض عملية الدفع.",
     "error.paymentFailed": "حدث خطأ أثناء الدفع.",
 
     "dispense.authorizing": "جارٍ تفويض المضخة...",
