@@ -51,6 +51,9 @@ export function applyMigrations(): void {
   ensureColumn("fleet_accounts", "contact_email", "TEXT");
   ensureColumn("fleet_accounts", "contact_phone", "TEXT");
   ensureColumn("fleet_accounts", "low_balance_threshold", "REAL");
+  ensureColumn("fleet_accounts", "payment_term_days", "INTEGER");
+  ensureColumn("fleet_accounts", "overdue_block_days", "INTEGER");
+  ensureColumn("fleet_invoices", "due_date", "TEXT");
 
   ensureColumn("station_kiosks", "device_token", "TEXT");
   ensureColumn("station_kiosks", "last_seen_at", "TEXT");

@@ -115,6 +115,8 @@ export interface FleetInvoice {
   taxAmount: number;
   payableAmount: number;
   lines: FleetInvoiceLine[];
+  /** Odeme vadesi. NULL = hesapta vade tanimli degil. */
+  dueDate: string | null;
   createdAt: string;
 }
 

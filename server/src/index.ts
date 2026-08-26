@@ -7,6 +7,7 @@ import { purgeExpiredSessions } from "./services/sessionService.js";
 import { purgeExpiredPortalSessions } from "./services/fleetPortalService.js";
 import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
+import { sweepOverdueReceivables } from "./services/fleetReceivableService.js";
 import { runBackup } from "./services/backupService.js";
 import { verifyLatestBackup } from "./services/backupVerifyService.js";
 import { checkOfflineStations } from "./services/syncService.js";
@@ -166,6 +167,19 @@ writeQueuePruneInterval.unref();
 applyDuePriceChanges();
 const scheduledPriceInterval = setInterval(applyDuePriceChanges, 60 * 1000);
 scheduledPriceInterval.unref();
+
+// Vadesi gecmis filo alacaklari: her hesap icin bir kez kritik alarm acar ve sirket
+// yetkilisine hatirlatma gonderir. Gunde bir kez yeterli - gecikme gun bazinda olculur
+// ve daha sik calistirmak ayni gun icinde hicbir yeni bilgi uretmez.
+sweepOverdueReceivables();
+const receivableInterval = setInterval(() => {
+  try {
+    sweepOverdueReceivables();
+  } catch (err) {
+    logger.error({ err }, "Filo alacak taramasi basarisiz.");
+  }
+}, 24 * 60 * 60 * 1000);
+receivableInterval.unref();
 
 // Haftalik/aylik ozet raporu e-postalari: saatlik kontrol yeterli hassasiyette
 // (donem siniri gun bazinda, saniye hassasiyeti gerekmiyor). Hata durumunda

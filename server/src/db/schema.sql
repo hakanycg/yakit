@@ -538,6 +538,16 @@ CREATE TABLE IF NOT EXISTS fleet_accounts (
   contact_email TEXT,                  -- dusuk bakiye uyarisinin gonderilecegi sirket yetkilisi e-postasi
   contact_phone TEXT,                  -- dusuk bakiye uyarisinin gonderilecegi sirket yetkilisi telefonu (SMS)
   low_balance_threshold REAL,          -- yalnizca prepaid: bakiye bunun altina dusunce uyari gonderilir (NULL = kapali)
+  -- Yalnizca postpaid: faturanin kesildigi tarihten itibaren vade (gun). NULL = alacak
+  -- takibi KAPALI. Varsayilan bilincli olarak NULL: mevcut hesaplara bir vade atamak,
+  -- aylar once kesilmis faturalari bir anda "vadesi gecmis" ilan edip musterilere
+  -- toplu hatirlatma gonderirdi.
+  payment_term_days INTEGER,
+  -- Vadesi bu kadar gun gecmis faturasi olan hesapta yeni yakit alimi reddedilir.
+  -- NULL = kapali (varsayilan). Kapali olmasi bilinclidir: gece 2'de sofor, bir
+  -- faturanin bir gun gecikmesi yuzunden yolda kalmamalidir - bu ticari bir karardir,
+  -- hesap bazinda ve tolerans suresiyle birlikte acilir.
+  overdue_block_days INTEGER,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   created_by INTEGER REFERENCES users(id)
 );
@@ -649,6 +659,12 @@ CREATE TABLE IF NOT EXISTS fleet_invoices (
   payable_amount REAL NOT NULL,
   -- Fatura satirlarinin (plaka/yakit bazinda kirilim) o anki goruntusu.
   lines_json TEXT NOT NULL,
+  -- Vade tarihi fatura kesildigi ANDA dondurulur (hesabin o gunku payment_term_days
+  -- degerinden). Sonradan vade suresi degistirilirse kesilmis faturalarin vadesi
+  -- geriye donuk kaymaz - ayni gerekce: yukaridaki tutarlar.
+  -- NULL = hesapta vade tanimli degildi; bu fatura hicbir zaman "vadesi gecmis"
+  -- sayilmaz.
+  due_date TEXT,
   created_by INTEGER REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );

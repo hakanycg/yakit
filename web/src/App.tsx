@@ -24,6 +24,7 @@ import Reconciliation from "./pages/operator/Reconciliation";
 import SupportRequests from "./pages/operator/SupportRequests";
 import DiscountCodes from "./pages/admin/DiscountCodes";
 import FleetAccounts from "./pages/admin/FleetAccounts";
+import FleetReceivables from "./pages/admin/FleetReceivables";
 import LoyaltyLookup from "./pages/admin/LoyaltyLookup";
 import KvkkRequests from "./pages/admin/KvkkRequests";
 import Users from "./pages/admin/Users";
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="/operator/raporlar" element={<Reports />} />
             <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
             <Route path="/admin/filo-hesaplari" element={<FleetAccounts />} />
+            <Route path="/admin/filo-alacaklari" element={<FleetReceivables />} />
             <Route path="/admin/sadakat-puanlari" element={<LoyaltyLookup />} />
             <Route path="/admin/kvkk" element={<KvkkRequests />} />
           </Route>

@@ -424,6 +424,7 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
                       <tr>
                         <th>Fatura tarihi</th>
                         <th>Dönem</th>
+                        <th>Vade</th>
                         <th>Litre</th>
                         <th>KDV hariç</th>
                         <th>KDV</th>
@@ -437,6 +438,18 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
                           <td>{formatDateTime(i.createdAt)}</td>
                           <td className="hint-text">
                             {i.periodStart.slice(0, 10)} — {i.periodEnd.slice(0, 10)}
+                          </td>
+                          <td>
+                            {i.dueDate ? (
+                              <>
+                                {i.dueDate.slice(0, 10)}
+                                {/* Vadesi gecmis fatura musteriye de gorunur olmali: istasyondan
+                                    hatirlatma gelmeden once kendisi gorup odeyebilsin. */}
+                                {Date.parse(i.dueDate) < Date.now() && <div className="badge warning">vadesi geçti</div>}
+                              </>
+                            ) : (
+                              <span className="hint-text">—</span>
+                            )}
                           </td>
                           <td>{formatLiters(i.totalLiters)}</td>
                           <td className="hint-text">{formatCurrency(i.taxExclusiveAmount)}</td>

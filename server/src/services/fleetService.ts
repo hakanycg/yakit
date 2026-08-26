@@ -1,6 +1,7 @@
 import { db } from "../db/index.js";
 import type { FleetAccountRow, FleetMovementRow, FleetPlateRow, UserRow } from "../db/types.js";
 import { createAlarm, broadcastAlarms } from "./alarmService.js";
+import { blockingOverdue } from "./fleetReceivableService.js";
 import { sendEmail, sendSms } from "./notificationService.js";
 import { logger } from "../utils/logger.js";
 
@@ -51,13 +52,16 @@ export interface CreateFleetAccountInput {
   contactEmail?: string;
   contactPhone?: string;
   lowBalanceThreshold?: number;
+  paymentTermDays?: number;
+  overdueBlockDays?: number;
 }
 
 export function createAccount(stationId: number, input: CreateFleetAccountInput, actor: UserRow): FleetAccountRow {
   const result = db
     .prepare(
-      `INSERT INTO fleet_accounts (station_id, company_name, vkn, billing_type, credit_limit, contact_email, contact_phone, low_balance_threshold, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO fleet_accounts (station_id, company_name, vkn, billing_type, credit_limit, contact_email, contact_phone,
+                                   low_balance_threshold, payment_term_days, overdue_block_days, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       stationId,
@@ -68,6 +72,8 @@ export function createAccount(stationId: number, input: CreateFleetAccountInput,
       input.contactEmail?.trim() || null,
       input.contactPhone?.trim() || null,
       input.lowBalanceThreshold ?? null,
+      input.paymentTermDays ?? null,
+      input.overdueBlockDays ?? null,
       actor.id
     );
   return getAccountById(stationId, result.lastInsertRowid as number);
@@ -77,9 +83,11 @@ export interface UpdateFleetContactInput {
   contactEmail?: string | null;
   contactPhone?: string | null;
   lowBalanceThreshold?: number | null;
+  paymentTermDays?: number | null;
+  overdueBlockDays?: number | null;
 }
 
-/** Dusuk bakiye uyarisi icin iletisim bilgilerini/esigini gunceller. */
+/** Uyari/alacak takibi ayarlari: iletisim bilgileri, dusuk bakiye esigi, vade ve gecikme toleransi. */
 export function updateContact(stationId: number, id: number, input: UpdateFleetContactInput): FleetAccountRow {
   getAccountById(stationId, id);
   const fields: string[] = [];
@@ -87,6 +95,8 @@ export function updateContact(stationId: number, id: number, input: UpdateFleetC
   if ("contactEmail" in input) { fields.push("contact_email = ?"); values.push(input.contactEmail?.trim() || null); }
   if ("contactPhone" in input) { fields.push("contact_phone = ?"); values.push(input.contactPhone?.trim() || null); }
   if ("lowBalanceThreshold" in input) { fields.push("low_balance_threshold = ?"); values.push(input.lowBalanceThreshold ?? null); }
+  if ("paymentTermDays" in input) { fields.push("payment_term_days = ?"); values.push(input.paymentTermDays ?? null); }
+  if ("overdueBlockDays" in input) { fields.push("overdue_block_days = ?"); values.push(input.overdueBlockDays ?? null); }
   if (fields.length > 0) {
     values.push(id);
     db.prepare(`UPDATE fleet_accounts SET ${fields.join(", ")} WHERE id = ?`).run(...values);
@@ -204,6 +214,19 @@ export function chargeAccount(stationId: number, accountId: number, amount: numb
   const account = getAccountById(stationId, accountId);
   if (!account.active) throw new FleetError("Filo hesabi aktif degil.", 409);
 
+  // Vadesi gecmis alacak nedeniyle dondurulmus hesap. Bu kontrol VARSAYILAN OLARAK
+  // KAPALIDIR (overdue_block_days NULL) ve hesap bazinda acilir - acildiginda gece 2'de
+  // bir soforu yolda birakabilecek tek mekanizma budur, isletmenin bilincli karari olmali.
+  // Hata mesaji tutari ve gun sayisini soyler: pompada "hesabiniz kapali" diye reddedilen
+  // sofor, sirketini arayip ne olduğunu anlatabilmeli.
+  const blocking = blockingOverdue(account);
+  if (blocking) {
+    throw new FleetError(
+      `Filo hesabinda vadesi ${blocking.days} gun gecmis ${blocking.amount.toFixed(2)} TL odenmemis fatura var; yakit alimi durduruldu.`,
+      409
+    );
+  }
+
   if (account.billing_type === "prepaid") {
     if (account.balance < amount) throw new FleetError("Filo hesabinda yetersiz bakiye.", 409);
   } else if (account.credit_limit !== null && account.balance + amount > account.credit_limit) {
@@ -283,6 +306,8 @@ export function serializeAccountAdmin(a: FleetAccountRow) {
     contactEmail: a.contact_email,
     contactPhone: a.contact_phone,
     lowBalanceThreshold: a.low_balance_threshold,
+    paymentTermDays: a.payment_term_days,
+    overdueBlockDays: a.overdue_block_days,
   };
 }
 

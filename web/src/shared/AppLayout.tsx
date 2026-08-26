@@ -52,6 +52,7 @@ const FUEL_PAGES = [
 const CUSTOMER_PAGES = [
   { to: "/admin/kampanyalar", label: "Kampanyalar" },
   { to: "/admin/filo-hesaplari", label: "Filo Hesapları" },
+  { to: "/admin/filo-alacaklari", label: "Filo Alacakları" },
   { to: "/admin/sadakat-puanlari", label: "Sadakat Puanları" },
 ];
 

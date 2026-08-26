@@ -192,6 +192,10 @@ export interface FleetAccountRow {
   contact_email: string | null;
   contact_phone: string | null;
   low_balance_threshold: number | null;
+  /** postpaid: fatura tarihinden itibaren vade (gun). NULL = alacak takibi kapali. */
+  payment_term_days: number | null;
+  /** Vadesi bu kadar gun gecmis faturasi olan hesapta yakit alimi reddedilir. NULL = kapali. */
+  overdue_block_days: number | null;
   created_at: string;
   created_by: number | null;
 }
@@ -232,6 +236,8 @@ export interface FleetInvoiceRow {
   tax_amount: number;
   payable_amount: number;
   lines_json: string;
+  /** Fatura kesildigi anda dondurulan vade tarihi. NULL = hesapta vade tanimli degildi. */
+  due_date: string | null;
   created_by: number | null;
   created_at: string;
 }

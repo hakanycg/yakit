@@ -339,6 +339,68 @@ olan bir belge ikinci kez kesilebilirdi. Zaten gönderilmiş bir fatura tekrar g
   edilmelidir** — özellikle kurumsal e-Fatura için `DeliveryType` ve
   `AccountingCustomerParty` alanlarının Uyumsoft'un güncel sözleşmesine uyduğu.
 
+## Filo alacak takibi (vadesi geçen borç)
+
+Faturalı (sonradan ödeme) hesapta sistem "ne kadar borcu var" biliyordu, **"ne kadar
+süredir ödemedi"** bilmiyordu. Ön ödemeli hesapta bakiye bitince pompa zaten durur;
+faturalı hesapta ise borç sessizce büyür — akaryakıtta en büyük nakit riski budur.
+
+### Defter türetilir, ayrı bir tabloda tutulmaz
+
+Portalın ekstresiyle aynı felsefe: alacak durumu üç mevcut kaynaktan hesaplanır —
+kesilen faturalar (`fleet_invoices.payable_amount`), tahsilatlar (`type='topup'`
+hareketleri) ve henüz faturalanmamış hareketler (`fleet_invoice_id IS NULL`). Ayrı bir
+"açık bakiye" kolonu tutulsaydı, gerçekle arasında sessizce fark oluşabilirdi.
+
+Ödemeler **en eski faturadan başlayarak** kapatılır (FIFO). Borcundan fazla ödeme
+kaybolmaz, alacaklı bakiye olarak görünür.
+
+**İade bir ödeme değildir.** Dönem faturası kesilirken iadeler zaten ilgili plakanın
+satırından düşülüyor (`fleetInvoiceService.buildLines`); iadeyi bir de tahsilat saymak
+aynı parayı iki kez düşmek olurdu. Faturalanmamış bir iade, bir sonraki faturada
+netlenecek bir alacaktır ve "faturalanmamış" kaleminde eksi olarak görünür.
+
+### Vadesi geçmiş sayılmanın üç koşulu
+
+Bir fatura ancak şu üçü birden sağlanırsa geciktirilmiş sayılır: **müşteriye fiilen
+iletilmiş** (`status='sent'`), **vade tarihi tanımlı** ve o tarih **geçmiş**.
+
+İletilememiş bir faturanın peşine düşmek yanlıştır — müşteri o faturayı hiç görmedi
+(e-fatura gönderimi başarısız olabilir, yeniden gönderim yolu mevcut). Bu faturalar
+açık alacak olarak görünür ama asla "gecikmiş" sayılmaz ve hatırlatma tetiklemez.
+
+Vade, faturanın kesildiği **anda** hesabın vade gününden hesaplanıp fatura üzerinde
+dondurulur. Vade süresi sonradan değiştirilirse kesilmiş faturaların vadesi geriye
+dönük kaymaz — tutarların dondurulmasıyla aynı gerekçe.
+
+`payment_term_days` varsayılanı bilinçli olarak **NULL**'dur: mevcut hesaplara toplu
+bir vade atamak, aylar önce kesilmiş faturaları bir anda "vadesi geçmiş" ilan edip
+müşterilere toplu hatırlatma gönderirdi. Vade tanımsız hesaplar yaşlandırma sayfasında
+ayrıca uyarı olarak listelenir, sessizce görünmez olmazlar.
+
+### Hatırlatma: alarm zaten "gönderildi mi" kaydıdır
+
+Günlük tarama her gecikmiş hesap için **bir kez** kritik alarm açar ve şirket
+yetkilisine e-posta/SMS gönderir. Tekrar göndermemenin yolu ayrı bir "gönderildi"
+kolonu değil, açık alarmın kendisidir (düşük bakiye uyarısıyla aynı desen): borç
+kapanınca alarm çözülür, hesap yeniden gecikmeye düşerse yeni bir alarm üretilir.
+
+İşletmeye giden alarm ile müşteriye giden hatırlatma **ayrı metinlerdir**: müşteriye
+"alacak" değil "vadesi geçen fatura" denir ve ne yapması gerektiği yazılır.
+
+### Yakıt alımını durdurma varsayılan olarak KAPALIDIR
+
+`overdue_block_days` doluysa, vadesi o kadar günü geçmiş faturası olan hesabın araçları
+pompadan yakıt alamaz. Bu ayar varsayılan olarak kapalıdır ve kapalı olması bilinçlidir:
+sistemdeki **tek** mekanizma budur ki gece 2'de bir şoförü yolda bırakabilir. Açılması
+hesap bazında, bir tolerans süresiyle birlikte ve işletmenin bilinçli kararıyla olur.
+
+Reddedilirken müşteriye gösterilen hata tutarı ve gün sayısını söyler — pompada
+reddedilen şoför, şirketini arayıp ne olduğunu anlatabilmelidir.
+
+Müşteri kendi vadesini portalde de görür (`/filo` → Faturalarım): vadesi geçen fatura
+orada da işaretlenir, böylece istasyondan hatırlatma gelmeden önce kendisi görebilir.
+
 ## Fiyat değişikliği güvenlik kontrolü (fat-finger koruması)
 
 Fiyat güncellemesinin tek kontrolü *"pozitif ve 1000'den küçük"* idi. **54,20 yerine 5,42**

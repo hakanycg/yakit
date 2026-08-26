@@ -282,6 +282,10 @@ async function sendToProvider(
  * kalir; personel ayni faturayi yeniden gonderir (retryFleetInvoice). Baglanti geri
  * alinsaydi, saglayiciya gercekte ulasmis olan bir belge ikinci kez kesilebilirdi.
  */
+function addDays(from: Date, days: number): Date {
+  return new Date(from.getTime() + days * 86_400_000);
+}
+
 export async function createPeriodInvoice(stationId: number, accountId: number, actor: UserRow): Promise<FleetInvoiceRow> {
   const account = getAccountById(stationId, accountId);
 
@@ -304,12 +308,18 @@ export async function createPeriodInvoice(stationId: number, accountId: number, 
 
     const periodStart = draft.periodStart!;
     const periodEnd = draft.periodEnd!;
+    // Vade, faturanin kesildigi ANDA hesaplanip donduruluyor: hesabin vade suresi
+    // sonradan degistirilirse kesilmis faturalarin vadesi geriye donuk kaymamali
+    // (ayni gerekce: tutarlarin dondurulmasi). Hesapta vade tanimli degilse NULL
+    // kalir ve bu fatura hicbir zaman "vadesi gecmis" sayilmaz.
+    const dueDate = account.payment_term_days === null ? null : addDays(new Date(), account.payment_term_days).toISOString();
+
     const result = db
       .prepare(
         `INSERT INTO fleet_invoices
            (station_id, fleet_account_id, status, period_start, period_end,
-            total_liters, tax_exclusive_amount, tax_amount, payable_amount, lines_json, created_by)
-         VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`
+            total_liters, tax_exclusive_amount, tax_amount, payable_amount, lines_json, due_date, created_by)
+         VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         stationId,
@@ -321,6 +331,7 @@ export async function createPeriodInvoice(stationId: number, accountId: number, 
         draft.taxAmount,
         draft.payableAmount,
         JSON.stringify(draft.lines),
+        dueDate,
         actor.id
       );
     const id = result.lastInsertRowid as number;
@@ -407,6 +418,7 @@ export function serializeFleetInvoice(i: FleetInvoiceRow) {
     taxAmount: i.tax_amount,
     payableAmount: i.payable_amount,
     lines: JSON.parse(i.lines_json) as FleetInvoiceLine[],
+    dueDate: i.due_date,
     createdAt: i.created_at,
   };
 }

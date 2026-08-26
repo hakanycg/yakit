@@ -8,6 +8,7 @@ import {
   FleetError,
   addPlate,
   createAccount,
+  getAccountById,
   listAccounts,
   listMovements,
   listPlates,
@@ -36,6 +37,7 @@ import {
   serializeFleetInvoice,
 } from "../services/fleetInvoiceService.js";
 
+import { accountReceivable, stationAging } from "../services/fleetReceivableService.js";
 import {
   TopupRequestError,
   approveRequest,
@@ -74,6 +76,8 @@ const createSchema = z.object({
   contactEmail: z.string().trim().email("Gecerli bir e-posta girin.").max(200).optional(),
   contactPhone: z.string().trim().max(20).optional(),
   lowBalanceThreshold: z.number().positive().max(10000000).optional(),
+  paymentTermDays: z.number().int().min(1).max(365).optional(),
+  overdueBlockDays: z.number().int().min(1).max(365).optional(),
 });
 
 router.post("/", csrfProtection, validateBody(createSchema), (req, res) => {
@@ -95,6 +99,8 @@ const contactSchema = z.object({
   contactEmail: z.string().trim().email("Gecerli bir e-posta girin.").max(200).nullable().optional(),
   contactPhone: z.string().trim().max(20).nullable().optional(),
   lowBalanceThreshold: z.number().positive().max(10000000).nullable().optional(),
+  paymentTermDays: z.number().int().min(1).max(365).nullable().optional(),
+  overdueBlockDays: z.number().int().min(1).max(365).nullable().optional(),
 });
 
 router.patch("/:id/contact", csrfProtection, validateBody(contactSchema), (req, res) => {
@@ -180,6 +186,27 @@ router.delete("/:id/plates/:plateId", csrfProtection, (req, res) => {
  * personelin FIILEN TAHSIL ETTIGI tutardir - musterinin beyani bir niyet bildirimidir,
  * kasaya giren para eksik havale ya da farkli bir tutar olabilir.
  */
+/**
+ * Alacak yaslandirma tablosu.
+ *
+ * Sadece faturali (postpaid) hesaplar: on odemeli hesapta bakiye bitince pompa zaten
+ * durur, dolayisiyla "tahsil edilememis alacak" diye bir kavram olusmaz.
+ */
+router.get("/aging", (req, res) => {
+  res.json({ accounts: stationAging(req.stationId!) });
+});
+
+router.get("/:id/receivable", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    res.json({ receivable: accountReceivable(getAccountById(req.stationId!, id)) });
+  } catch (err) {
+    if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
 router.get("/topup-requests", (req, res) => {
   res.json({ requests: listPendingForStation(req.stationId!).map(serializeTopupRequest) });
 });

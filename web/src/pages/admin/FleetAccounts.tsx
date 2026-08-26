@@ -21,6 +21,8 @@ interface FleetAccount {
   contactEmail: string | null;
   contactPhone: string | null;
   lowBalanceThreshold: number | null;
+  paymentTermDays: number | null;
+  overdueBlockDays: number | null;
   createdAt: string;
   plates: FleetPlate[];
 }
@@ -458,6 +460,8 @@ function AccountDetailDialog({
   const [contactEmail, setContactEmail] = useState(account?.contactEmail ?? "");
   const [contactPhone, setContactPhone] = useState(account?.contactPhone ?? "");
   const [lowBalanceThreshold, setLowBalanceThreshold] = useState(account?.lowBalanceThreshold?.toString() ?? "");
+  const [paymentTermDays, setPaymentTermDays] = useState(account?.paymentTermDays?.toString() ?? "");
+  const [overdueBlockDays, setOverdueBlockDays] = useState(account?.overdueBlockDays?.toString() ?? "");
   const [contactSaved, setContactSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -617,6 +621,8 @@ function AccountDetailDialog({
         contactEmail: contactEmail.trim() || null,
         contactPhone: contactPhone.trim() || null,
         lowBalanceThreshold: lowBalanceThreshold ? Number(lowBalanceThreshold) : null,
+        paymentTermDays: paymentTermDays ? Number(paymentTermDays) : null,
+        overdueBlockDays: overdueBlockDays ? Number(overdueBlockDays) : null,
       });
       setContactSaved(true);
       onChanged();
@@ -702,7 +708,7 @@ function AccountDetailDialog({
         </div>
       </div>
 
-      <h4>İletişim / Düşük Bakiye Uyarısı</h4>
+      <h4>İletişim / Uyarı Ayarları</h4>
       <div className="grid cols-2" style={{ alignItems: "start" }}>
         <div>
           <label>Yetkili E-posta</label>
@@ -718,6 +724,29 @@ function AccountDetailDialog({
           <label>Düşük Bakiye Eşiği (TL, boş = uyarı kapalı)</label>
           <input type="number" min={0} step={0.01} value={lowBalanceThreshold} onChange={(e) => setLowBalanceThreshold(e.target.value)} />
         </>
+      )}
+      {/* Alacak takibi yalnizca faturali hesapta anlamli: on odemeli hesapta bakiye
+          bitince pompa zaten durur, tahsil edilememis alacak olusmaz. */}
+      {account.billingType === "postpaid" && (
+        <div className="grid cols-2" style={{ alignItems: "start" }}>
+          <div>
+            <label>Vade (gün, boş = alacak takibi kapalı)</label>
+            <input type="number" min={1} max={365} value={paymentTermDays} onChange={(e) => setPaymentTermDays(e.target.value)} placeholder="ör. 30" />
+            <p className="hint-text">
+              Fatura kesildiği tarihten itibaren sayılır ve fatura üzerinde dondurulur; sonradan değiştirmek kesilmiş
+              faturaların vadesini geriye dönük kaydırmaz.
+            </p>
+          </div>
+          <div>
+            <label>Gecikmede Yakıt Alımını Durdur (gün, boş = kapalı)</label>
+            <input type="number" min={1} max={365} value={overdueBlockDays} onChange={(e) => setOverdueBlockDays(e.target.value)} placeholder="ör. 30" />
+            <p className="hint-text" style={{ color: overdueBlockDays ? "#fbbf24" : undefined }}>
+              {overdueBlockDays
+                ? `Vadesi ${overdueBlockDays} günü geçen faturası olduğunda bu şirketin araçları pompadan yakıt ALAMAZ.`
+                : "Kapalıyken gecikme sadece raporlanır, yakıt alımı engellenmez."}
+            </p>
+          </div>
+        </div>
       )}
       <div className="toolbar" style={{ marginTop: "0.75rem" }}>
         {contactSaved && <span className="hint-text">Kaydedildi.</span>}
