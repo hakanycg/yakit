@@ -88,6 +88,8 @@ export function serializeReading(r: FuelTankReadingRow, username: string | null)
     createdAt: r.created_at,
     source: r.source,
     temperatureCelsius: r.temperature_celsius,
+    temperatureCorrectionLiters: r.temperature_correction_liters,
+    adjustedVarianceLiters: r.adjusted_variance_liters,
     username,
   };
 }
@@ -121,6 +123,69 @@ function calculateThroughput(stationId: number, fuelType: FuelType, since: strin
         )
         .get(stationId, fuelType, until);
   return round2(row?.total ?? 0);
+}
+
+/**
+ * Yakitin hacimsel genlesme katsayilari (1/derece C).
+ *
+ * Bunlar isletme ayari degil FIZIKSEL SABITTIR; bu yuzden ayarlar ekranina degil
+ * koda yaziliyor. Degerler sektorde kullanilan yaklasik ortalamalardir - hassas
+ * (ASTM D1250 / yogunluk tabanli) hesap bu is icin gereginden fazladir: burada
+ * amac sizintiyi genlesmeden AYIRMAK, litreyi noterlik hassasiyetinde bulmak degil.
+ *
+ * LPG BILEREK DISARIDA: basincli tankta depolanir, seviye olcumu ve genlesme
+ * rejimi tamamen farklidir; buradaki dogrusal duzeltmeyi LPG'ye uygulamak
+ * duzeltmeden daha buyuk bir hata uretirdi.
+ */
+const EXPANSION_PER_CELSIUS: Partial<Record<FuelType, number>> = {
+  benzin: 0.0012,
+  motorin: 0.00083,
+};
+
+/**
+ * Sicaklik probunun makul kabul edildigi aralik. Disina cikan bir deger sensor
+ * arizasidir; onunla duzeltme yapmak sapmayi duzeltmek yerine bozardi.
+ */
+const MIN_PLAUSIBLE_CELSIUS = -40;
+const MAX_PLAUSIBLE_CELSIUS = 70;
+
+function plausibleTemperature(value: number | null | undefined): number | null {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return value >= MIN_PLAUSIBLE_CELSIUS && value <= MAX_PLAUSIBLE_CELSIUS ? value : null;
+}
+
+/**
+ * Iki olcum arasindaki sicaklik farkinin acikladigi litre.
+ *
+ * NEDEN MUTLAK BIR REFERANSA (15 derece / V15) DEGIL, ONCEKI OLCUME GORE?
+ *
+ * recordReading her olcumden sonra tank seviyesini olcume ESITLIYOR; yani kayit
+ * stogunun baslangic noktasi bir onceki olcumun kendisidir. Dolayisiyla iki olcum
+ * arasinda birikmis sicaklik etkisi, o iki olcumun sicakligi arasindaki farktir.
+ * Mutlak bir V15 donusumu ancak arada gecen HER satis ve teslimat da kendi
+ * sicakligina gore duzeltilirse anlamli olurdu - o veri yok (pompa satislari
+ * sicaklik tasimiyor) ve yarim uygulanmis bir V15, hic uygulanmamis olandan daha
+ * yaniltici olurdu.
+ *
+ * Isaret: sicaklik ARTARSA yakit genlesir, tankta daha cok litre GORUNUR. Bu
+ * "fazla" gercek bir kazanc degildir; ham sapmadan dusulmesi gerekir.
+ *
+ * null doner: sicaklik yok/gecersiz, onceki olcum yok ya da yakit LPG.
+ */
+export function thermalCorrection(params: {
+  fuelType: FuelType;
+  bookLiters: number;
+  currentCelsius: number | null | undefined;
+  previousCelsius: number | null | undefined;
+}): number | null {
+  const beta = EXPANSION_PER_CELSIUS[params.fuelType];
+  if (beta === undefined) return null;
+
+  const current = plausibleTemperature(params.currentCelsius);
+  const previous = plausibleTemperature(params.previousCelsius);
+  if (current === null || previous === null) return null;
+
+  return round2(params.bookLiters * beta * (current - previous));
 }
 
 export interface RecordReadingInput {
@@ -171,14 +236,30 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
 
   const bookLiters = tank.current_liters;
   const varianceLiters = round2(measuredLiters - bookLiters);
+
+  // Sicaklik farkinin acikladigi kismi ayikla: 20.000 L'lik bir motorin tankinda
+  // 10 derecelik gun ici fark ~166 L'lik gorunur bir kayip/fazla uretir - bu, cogu
+  // gercek sizintidan buyuktur. Duzeltme yapilamiyorsa (sicaklik yok, ilk olcum,
+  // LPG) karar ham sapmaya birakilir; sessizce "duzeltilmis" sayilmaz.
+  const temperatureCorrectionLiters = thermalCorrection({
+    fuelType,
+    bookLiters,
+    currentCelsius: input.temperatureCelsius,
+    previousCelsius: previous?.temperature_celsius,
+  });
+  const adjustedVarianceLiters =
+    temperatureCorrectionLiters === null ? null : round2(varianceLiters - temperatureCorrectionLiters);
+  /** Alarm ve oran, sicaklik ayiklandiktan SONRAKI sapmaya bakar. */
+  const decisiveVariance = adjustedVarianceLiters ?? varianceLiters;
+
   const throughputLiters = calculateThroughput(stationId, fuelType, previous?.measured_at ?? null, measuredAt);
   // Hic hareket yoksa oran tanimsizdir; sifira bolmek yerine 0 yazilir ve karar
   // mutlak litre esigine birakilir.
-  const variancePct = throughputLiters > 0 ? round2((Math.abs(varianceLiters) / throughputLiters) * 100) : 0;
+  const variancePct = throughputLiters > 0 ? round2((Math.abs(decisiveVariance) / throughputLiters) * 100) : 0;
 
   const settings = getVarianceSettings(stationId);
   const exceedsThreshold =
-    Math.abs(varianceLiters) >= settings.minLiters && variancePct >= settings.thresholdPct;
+    Math.abs(decisiveVariance) >= settings.minLiters && variancePct >= settings.thresholdPct;
 
   // Olcum kaydi ile tank duzeltmesi tek islemde yapilir: biri yazilip digeri
   // yazilamazsa ya raporlanan sapma tanka islenmemis olur ya da tank duzeltilip
@@ -188,8 +269,9 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
       .prepare(
         `INSERT INTO fuel_tank_readings
            (station_id, fuel_type, measured_liters, book_liters, variance_liters, throughput_liters,
-            variance_pct, previous_reading_id, note, measured_at, user_id, source, temperature_celsius)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            variance_pct, previous_reading_id, note, measured_at, user_id, source, temperature_celsius,
+            temperature_correction_liters, adjusted_variance_liters)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         stationId,
@@ -204,7 +286,9 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
         measuredAt,
         actor?.id ?? null,
         input.source ?? "manual",
-        input.temperatureCelsius ?? null
+        input.temperatureCelsius ?? null,
+        temperatureCorrectionLiters,
+        adjustedVarianceLiters
       );
     const id = result.lastInsertRowid as number;
 
@@ -225,15 +309,25 @@ export function recordReading(input: RecordReadingInput): RecordReadingResult {
 
   let alarmId: number | null = null;
   if (exceedsThreshold) {
-    const direction = varianceLiters < 0 ? "KAYIP" : "FAZLA";
+    const direction = decisiveVariance < 0 ? "KAYIP" : "FAZLA";
+    // Sicaklik duzeltmesi uygulandiysa alarm bunu SOYLER: personel "165 L kayip"
+    // yerine "sicakligin acikladigi 140 L dusuldu, kalan 25 L" gorurse neyi
+    // arayacagini bilir. Uygulanamadiysa da bunu bilmeli - eksik bilgiyle
+    // arastirmaya cikmasin.
+    const thermalNote =
+      temperatureCorrectionLiters === null
+        ? " Sicaklik duzeltmesi uygulanamadi (olcumde sicaklik yok)."
+        : temperatureCorrectionLiters !== 0
+          ? ` Sicaklik farkinin acikladigi ${Math.abs(temperatureCorrectionLiters)} L dusuldu (ham fark ${Math.abs(varianceLiters)} L).`
+          : "";
     const alarm = createAlarm({
       stationId,
       type: "fuel_variance_exceeded",
       severity: "critical",
       message:
-        `${fuelType.toUpperCase()} tankinda ${Math.abs(varianceLiters)} L ${direction} ` +
-        `(hareket hacminin %${variancePct}'i). Kayit: ${round2(bookLiters)} L, olcum: ${measuredLiters} L. ` +
-        `Sizinti, pompa sayac ayari veya kayit disi cekim acisindan kontrol edin.`,
+        `${fuelType.toUpperCase()} tankinda ${Math.abs(decisiveVariance)} L ${direction} ` +
+        `(hareket hacminin %${variancePct}'i). Kayit: ${round2(bookLiters)} L, olcum: ${measuredLiters} L.` +
+        `${thermalNote} Sizinti, pompa sayac ayari veya kayit disi cekim acisindan kontrol edin.`,
     });
     alarmId = alarm.id;
     db.prepare("UPDATE fuel_tank_readings SET alarm_id = ? WHERE id = ?").run(alarmId, readingId);
@@ -280,10 +374,15 @@ export interface VarianceSummaryRow {
 }
 
 /**
- * Yakit tipi bazinda toplam sapma. Tek tek olcumlerdeki artı/eksi salinimlar
- * (olcum hassasiyeti, sicaklik) uzun vadede birbirini goturur; SUREKLI ayni
- * yonde biriken bir toplam ise gercek bir kayip demektir. Rapor bu yuzden
- * tek olcume degil, kumulatif farka bakar.
+ * Yakit tipi bazinda toplam sapma. Tek tek olcumlerdeki arti/eksi salinimlar
+ * (olcum hassasiyeti) uzun vadede birbirini goturur; SUREKLI ayni yonde biriken
+ * bir toplam ise gercek bir kayip demektir. Rapor bu yuzden tek olcume degil,
+ * kumulatif farka bakar.
+ *
+ * Toplam, sicaklik duzeltmesi YAPILABILMISSE duzeltilmis sapmayi kullanir. Eskiden
+ * sicaklik gurultusunun "uzun vadede birbirini goturmesi" bekleniyordu; artik
+ * cikarilabildigi olcumlerde cikariliyor, boylece gercek ve tek yonlu bir kayip
+ * gurultunun icinde beklemeden gorunur hale geliyor.
  */
 export function getVarianceSummary(stationId: number): VarianceSummaryRow[] {
   return db
@@ -291,10 +390,10 @@ export function getVarianceSummary(stationId: number): VarianceSummaryRow[] {
       `SELECT
          fuel_type AS fuelType,
          COUNT(*) AS readingCount,
-         ROUND(SUM(variance_liters), 2) AS totalVarianceLiters,
+         ROUND(SUM(COALESCE(adjusted_variance_liters, variance_liters)), 2) AS totalVarianceLiters,
          ROUND(SUM(throughput_liters), 2) AS totalThroughputLiters,
          CASE WHEN SUM(throughput_liters) > 0
-              THEN ROUND(SUM(variance_liters) * 100.0 / SUM(throughput_liters), 3)
+              THEN ROUND(SUM(COALESCE(adjusted_variance_liters, variance_liters)) * 100.0 / SUM(throughput_liters), 3)
               ELSE 0 END AS netVariancePct,
          MAX(measured_at) AS lastMeasuredAt,
          NULL AS lastVarianceLiters
@@ -306,10 +405,12 @@ export function getVarianceSummary(stationId: number): VarianceSummaryRow[] {
     .all(stationId)
     .map((row) => {
       const last = db
-        .prepare<[number, string], { variance_liters: number }>(
-          "SELECT variance_liters FROM fuel_tank_readings WHERE station_id = ? AND fuel_type = ? ORDER BY measured_at DESC, id DESC LIMIT 1"
+        .prepare<[number, string], { variance: number }>(
+          `SELECT COALESCE(adjusted_variance_liters, variance_liters) AS variance
+             FROM fuel_tank_readings WHERE station_id = ? AND fuel_type = ?
+            ORDER BY measured_at DESC, id DESC LIMIT 1`
         )
         .get(stationId, row.fuelType);
-      return { ...row, lastVarianceLiters: last?.variance_liters ?? null };
+      return { ...row, lastVarianceLiters: last?.variance ?? null };
     });
 }

@@ -86,6 +86,7 @@ export default function FuelVariance() {
               <th>Fiziksel ölçüm</th>
               <th>Kayıttaki stok</th>
               <th>Sapma</th>
+              <th>Sıcaklık etkisi</th>
               <th>Hareket hacmi</th>
               <th>Oran</th>
               <th>Ölçen</th>
@@ -100,9 +101,29 @@ export default function FuelVariance() {
                 <td>{formatLiters(r.measuredLiters)}</td>
                 <td>{formatLiters(r.bookLiters)}</td>
                 <td>
-                  <span className={`badge ${varianceTone(r.varianceLiters, r.alarmId !== null)}`}>
-                    {formatVariance(r.varianceLiters)}
+                  {/* Gosterilen sapma, sicaklik ayiklandiktan SONRAKI sapmadir - alarm
+                      karari da buna bakar. Duzeltme yapilamadiysa ham fark gosterilir
+                      ve yan sutunda bunun neden duzeltilmedigi yazar. */}
+                  <span
+                    className={`badge ${varianceTone(r.adjustedVarianceLiters ?? r.varianceLiters, r.alarmId !== null)}`}
+                  >
+                    {formatVariance(r.adjustedVarianceLiters ?? r.varianceLiters)}
                   </span>
+                  {r.adjustedVarianceLiters !== null && r.adjustedVarianceLiters !== r.varianceLiters && (
+                    <div className="hint-text">ham: {formatVariance(r.varianceLiters)}</div>
+                  )}
+                </td>
+                <td>
+                  {r.temperatureCorrectionLiters === null ? (
+                    /* "Duzeltme sifir cikti" ile "duzeltme yapilamadi" ayni sey degil:
+                       duzeltilmemis bir sapma duzeltilmis sanilmamali. */
+                    <span className="hint-text">düzeltilmedi</span>
+                  ) : (
+                    <>
+                      {formatVariance(r.temperatureCorrectionLiters)}
+                      {r.temperatureCelsius !== null && <div className="hint-text">{r.temperatureCelsius} °C</div>}
+                    </>
+                  )}
                 </td>
                 <td>{formatLiters(r.throughputLiters)}</td>
                 <td>%{r.variancePct}</td>
@@ -121,7 +142,7 @@ export default function FuelVariance() {
             ))}
             {data !== null && data.readings.length === 0 && (
               <tr>
-                <td colSpan={9} className="hint-text">
+                <td colSpan={10} className="hint-text">
                   Henüz ölçüm girilmemiş. İlk ölçüm bir referans noktası oluşturur; sapma oranı ikinci ölçümden
                   itibaren anlamlı olur.
                 </td>

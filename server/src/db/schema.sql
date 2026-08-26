@@ -354,6 +354,14 @@ CREATE TABLE IF NOT EXISTS fuel_tank_readings (
   -- (bkz. tankGaugeDriver.ts). Panelde "kim olctu" sutunu bos gorunmesin diye ayrilir.
   source TEXT NOT NULL DEFAULT 'manual',
   temperature_celsius REAL,            -- prob destekliyorsa; genlesme mi kayip mi ayirmaya yardim eder
+  -- Sicaklik farkinin ACIKLADIGI litre (bkz. fuelVarianceService.thermalCorrection).
+  -- NULL = duzeltme YAPILAMADI (sicaklik yok, ilk olcum ya da LPG). Bu ayrim onemli:
+  -- "duzeltme sifir cikti" ile "duzeltme yapilamadi" ayni sey degildir ve panelde
+  -- ayri gosterilir - aksi halde duzeltilmemis bir sapma duzeltilmis sanilirdi.
+  temperature_correction_liters REAL,
+  -- Sicaklik etkisi ayiklandiktan sonra kalan sapma. Alarm karari BUNA bakar.
+  -- NULL ise duzeltme yapilamamistir ve karar ham variance_liters'e birakilir.
+  adjusted_variance_liters REAL,
   alarm_id INTEGER REFERENCES alarms(id),
   note TEXT,
   measured_at TEXT NOT NULL,

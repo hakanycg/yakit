@@ -1310,6 +1310,46 @@ okunan gerçek litre girilir. Sistem:
    bildirimleri (e-posta/SMS) aynı kuyruktan gönderilir.
 4. Kayıt stoğunu ölçüme eşitler; fark, denetim izine `adjustment` hareketi olarak yazılır.
 
+### Sıcaklık: genleşme mi, kayıp mı?
+
+Yakıt ısınınca genleşir. Motorinin hacimsel genleşme katsayısı ~0,00083/°C: 20.000
+litrelik bir tankta **10 °C'lik gün içi fark ≈ 166 litre** görünürde kayıp ya da fazla
+demektir — çoğu gerçek sızıntıdan büyük bir rakam. Sıcaklık ayıklanmazsa sistem sıcak bir
+öğleden sonra **hayalet alarm** verir, soğuk bir gecede ise **gerçek sızıntıyı gizler**.
+
+`temperature_celsius` alanı zaten toplanıyordu (seviye probu gönderiyor) ama hesaba hiç
+katılmıyordu; artık katılıyor:
+
+```
+sıcaklık etkisi   = kayıt stoğu × β × (bu ölçüm °C − önceki ölçüm °C)
+düzeltilmiş sapma = ham sapma − sıcaklık etkisi
+```
+
+Alarm kararı ve oran **düzeltilmiş** sapmaya bakar; kümülatif özet de öyle.
+
+**Neden mutlak bir referansa (15 °C / V15) değil, önceki ölçüme göre?** Çünkü her ölçümden
+sonra tank seviyesi ölçüme *eşitleniyor* — yani kayıt stoğunun başlangıç noktası bir
+önceki ölçümün kendisi. İki ölçüm arasında birikmiş sıcaklık etkisi de o iki ölçümün
+sıcaklık farkıdır. Mutlak bir V15 dönüşümü ancak aradan geçen **her satış ve teslimat da**
+kendi sıcaklığına göre düzeltilirse anlamlı olurdu; o veri yok (pompa satışları sıcaklık
+taşımıyor) ve yarım uygulanmış bir V15, hiç uygulanmamış olandan daha yanıltıcı olurdu.
+
+**Düzeltme yapılamayan durumlar** — ölçümde ya da bir önceki ölçümde sıcaklık yok, ilk
+ölçüm, veya yakıt LPG. Bu durumda karar ham sapmaya bırakılır ve panelde *"düzeltilmedi"*
+yazar. `NULL` ile `0` bilinçli olarak ayrı: **"düzeltme sıfır çıktı" ile "düzeltme
+yapılamadı" aynı şey değildir** — aksi halde düzeltilmemiş bir sapma düzeltilmiş sanılırdı.
+
+**LPG bilerek dışarıda:** basınçlı tankta depolanır, seviye ölçümü ve genleşme rejimi
+tamamen farklıdır; buradaki doğrusal düzeltmeyi LPG'ye uygulamak düzeltmeden büyük bir
+hata üretirdi. Sensör arızası ölçüsünde saçma bir sıcaklık (−40 °C…+70 °C dışı) da
+düzeltmeye girmez.
+
+**Tank seviyesi ham ölçüme eşitlenir**, düzeltilmiş değere değil: tankta şu anda fiilen o
+kadar litre var ve kayıt stoğu, pompadan satılan litrelerle aynı birimde kalmalı.
+
+Alarm mesajı ikisini birden söyler — *"200 L KAYIP … sıcaklık farkının açıkladığı 166 L
+düşüldü (ham fark 366 L)"* — çünkü personel neyi arayacağını bilmelidir.
+
 ### Teslimat kabul farkı (eksik gelen tanker)
 
 Yakıt sapma takibi tankı izler; ama kayıp çoğu zaman tank<em>a</em> girmeden önce olur.
