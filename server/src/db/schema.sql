@@ -147,6 +147,11 @@ CREATE TABLE IF NOT EXISTS transactions (
   pump_id INTEGER NOT NULL REFERENCES pumps(id),
   plate TEXT NOT NULL,
   plate_source TEXT NOT NULL DEFAULT 'manual', -- manual | lpr
+  -- Aracin kilometre sayaci. YALNIZCA filo odemesinde ve OPSIYONEL olarak sorulur:
+  -- perakende musteriye sormak akisi bir soru uzatir ve karsiliginda hicbir sey
+  -- kazandirmaz. Iki dolum arasindaki km ve litre, arac basina tuketim (L/100km)
+  -- verir - surucu kaynakli yakit kacagi pratikte boyle yakalanir.
+  odometer_km INTEGER,
   fuel_type TEXT NOT NULL,
   amount_mode TEXT NOT NULL,           -- amount | liters | full_tank
   requested_amount REAL,               -- TL cinsinden istenen tutar

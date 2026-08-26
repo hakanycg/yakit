@@ -314,12 +314,18 @@ router.get("/fleet-account", (req, res) => {
   res.json({ account: account ? serializeFleetAccount(account) : null });
 });
 
-router.post("/transactions/:id/pay-fleet", validateBody(z.object({ fleetAccountId: z.number().int().positive() })), (req, res) => {
+const payFleetSchema = z.object({
+  fleetAccountId: z.number().int().positive(),
+  /** Arac km sayaci - opsiyonel; girilmezse tuketim analizi o dolumu atlar. */
+  odometerKm: z.number().int().min(0).max(10_000_000).optional(),
+});
+
+router.post("/transactions/:id/pay-fleet", validateBody(payFleetSchema), (req, res) => {
   const token = requireAccessToken(req, res);
   if (!token) return;
   try {
-    const { fleetAccountId } = req.body as { fleetAccountId: number };
-    const updated = payWithFleetAccount(Number(req.params.id), token, fleetAccountId);
+    const { fleetAccountId, odometerKm } = req.body as z.infer<typeof payFleetSchema>;
+    const updated = payWithFleetAccount(Number(req.params.id), token, fleetAccountId, odometerKm);
     res.json({ transaction: serializeTransaction(updated) });
   } catch (err) {
     if (err instanceof TransactionError) {

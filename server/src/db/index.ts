@@ -56,6 +56,7 @@ export function applyMigrations(): void {
   ensureColumn("fleet_invoices", "due_date", "TEXT");
   ensureColumn("fuel_tank_readings", "temperature_correction_liters", "REAL");
   ensureColumn("fuel_tank_readings", "adjusted_variance_liters", "REAL");
+  ensureColumn("transactions", "odometer_km", "INTEGER");
 
   // Odeme hic sonuclanmadan iptal edilen eski islemler payment_status='processing'
   // olarak kalmisti ve gun sonu mutabakatindaki "Askida Kalan Islemler" listesinde

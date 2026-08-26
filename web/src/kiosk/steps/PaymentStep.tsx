@@ -5,6 +5,7 @@ import { ApiError } from "../../shared/api";
 import { stashPendingKioskTransaction } from "../resumeStorage";
 import type { Transaction } from "../../shared/types";
 import { useKioskLang } from "../i18n";
+import { KioskInput } from "../KioskKeyboard";
 
 /** Musterinin tutar secimi ekraninda gordugu fiyat ile islemin sunucuda kilitlendigi
  * gercek fiyat farkliysa (nadiren, tam o sirada fiyat degistiyse), odeme ekraninda
@@ -144,12 +145,17 @@ function FleetChoicePanel({
   const priceChangeNote = usePriceChangeNote(estimatedPricePerLiter, transaction);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [odometer, setOdometer] = useState("");
 
   async function payWithFleet() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await kioskApi.payFleet(transaction.id, accessToken, account.id);
+      // Km OPSIYONEL: girilmediyse odeme normal ilerler, yalnizca o dolum tuketim
+      // analizinin disinda kalir. Zorunlu olsaydi sofor uydurma bir sayi girer ve
+      // butun ortalamayi bozardi.
+      const km = odometer.trim() === "" ? undefined : Number(odometer);
+      const res = await kioskApi.payFleet(transaction.id, accessToken, account.id, km);
       onPaid(res.transaction);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("error.paymentFailed"));
@@ -178,6 +184,23 @@ function FleetChoicePanel({
         {account.availableAmount !== null && (
           <div className="toolbar"><span>{t("payment.fleetAvailable")}</span><div className="spacer" /><strong>{formatCurrency(account.availableAmount, locale)}</strong></div>
         )}
+      </div>
+
+      {/* Kilometre yalnizca FILO odemesinde sorulur: perakende musteriye sormak akisi
+          bir soru uzatir ve karsiliginda hicbir sey kazandirmaz. Iki ardisik dolum
+          arasindaki km ve litre, arac basina tuketim (L/100km) verir. */}
+      <div className="kiosk-card" style={{ textAlign: "left", maxWidth: 380, margin: "0 auto 1.5rem" }}>
+        <label htmlFor="fleet-odometer">{t("payment.odometerLabel")}</label>
+        <KioskInput
+          layout="numeric"
+          id="fleet-odometer"
+          value={odometer}
+          onChange={setOdometer}
+          placeholder={t("payment.odometerPlaceholder")}
+          maxLength={8}
+          ltr
+        />
+        <p className="hint-text" style={{ marginBottom: 0 }}>{t("payment.odometerHint")}</p>
       </div>
 
       {error && <p className="error-text">{error}</p>}

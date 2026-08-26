@@ -31,6 +31,7 @@ function fakeTransaction(overrides: Partial<TransactionRow>): TransactionRow {
     pump_id: 1,
     plate: "34TEST01",
     plate_source: "manual",
+    odometer_km: null,
     fuel_type: "benzin",
     amount_mode: "amount",
     requested_amount: 500,

@@ -194,6 +194,36 @@ Erişim istasyondan verilir: **Filo Hesapları → hesap detayı → Portal Eri�
 saklanmaz ve denetim izine de yazılmaz (audit log'u okuyabilen herkes o hesaba girebilir
 hale gelirdi). Yetkili ilk girişinde kendi şifresini belirlemek zorundadır.
 
+### Araç tüketimi: ne kadar aldı değil, ne kadar yaktı
+
+Filo sahibi *"hangi araç ne kadar aldı"* görüyordu; *"ne kadar yaktı"* göremiyordu. İkisi
+aynı şey değildir ve fark, tam olarak sürücü kaynaklı yakıt kaçağının saklı olduğu
+yerdir: filo ortalamasının belirgin üstünde yakan bir araçta ya gerçek bir arıza vardır ya
+da yakıt başka bir yere gidiyordur.
+
+Kiosk'ta **filo ödemesinde** (yalnızca orada) opsiyonel bir kilometre alanı sorulur.
+Perakende müşteriye sormak akışı bir soru uzatır ve karşılığında hiçbir şey kazandırmaz.
+Alan **zorunlu değildir**: zorunlu olsaydı şoför uydurma bir sayı girer ve bütün
+ortalamayı bozardı.
+
+```
+L/100km = (ikinci dolumun litresi / (ikinci km − birinci km)) × 100
+```
+
+**Ortalama, ölçümlerin ortalaması değil toplam litre / toplam km'dir.** 20 km'lik bir
+aralıkta ölçülen tüketim, 800 km'lik bir aralıkta ölçülenle aynı ağırlığı taşımamalı;
+kısa aralıklarda depo doluluk farkı oranı savurur.
+
+**Hatalı girişler elenir — ama sessizce değil.** Doğrulama ham km'ye değil **sonuca**
+yapılır: bir hane eksik yazılması (123456 yerine 12345) km'de makul görünebilir ama
+tüketimi imkânsız bir sayıya çevirir. 1 L/100km altı ve 200 L/100km üstü çiftler ile
+kilometresi geriye giden okumalar hesaba girmez, ve kaç ölçümün kullanılamadığı portalde
+*"N ölçüm kullanılamadı (hatalı km)"* olarak **yazar** — ortalamaya ne kadar
+güvenileceğini kullanıcı bilmelidir.
+
+Rapor en çok yakan araç başta olacak şekilde sıralanır ve filo ortalamasının %25 üzerine
+çıkanlar işaretlenir.
+
 ### Bakiye yükleme talebi — portal para hareketi yapmaz
 
 Bakiyesi biten şoför gece 2'de istasyonu telefonla aramak zorunda kalmasın diye portale

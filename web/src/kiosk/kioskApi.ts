@@ -92,10 +92,10 @@ export const kioskApi = {
   getFleetAccount: (stationId: number, plate: string) =>
     api.get<{ account: FleetAccountSummary | null }>(`/api/kiosk/fleet-account?stationId=${stationId}&plate=${encodeURIComponent(plate)}`),
 
-  payFleet: (id: number, token: string, fleetAccountId: number) =>
+  payFleet: (id: number, token: string, fleetAccountId: number, odometerKm?: number) =>
     kioskRequest<{ transaction: Transaction }>(`/api/kiosk/transactions/${id}/pay-fleet`, token, {
       method: "POST",
-      body: JSON.stringify({ fleetAccountId }),
+      body: JSON.stringify({ fleetAccountId, odometerKm }),
     }),
 
   getPriceHistory: (stationId: number, fuelType: FuelType, days = 30) =>

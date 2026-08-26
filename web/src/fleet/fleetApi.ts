@@ -148,3 +148,29 @@ export interface TopupRequest {
   handledNote: string | null;
   createdAt: string;
 }
+
+/**
+ * Arac basina yakit tuketimi.
+ *
+ * litersPer100Km null olabilir: o araca hic km girilmemis ya da girilen degerler
+ * kullanilabilir bir cift olusturmamis demektir. skippedPairs bunun kac kez oldugunu
+ * soyler - ortalamaya ne kadar guvenilecegini gosterir.
+ */
+export interface PlateConsumption {
+  plate: string;
+  sampleCount: number;
+  totalDistanceKm: number;
+  totalLiters: number;
+  litersPer100Km: number | null;
+  lastOdometerKm: number | null;
+  lastFillAt: string | null;
+  skippedPairs: number;
+}
+
+export interface ConsumptionReport {
+  from: string;
+  to: string;
+  plates: PlateConsumption[];
+  fleetAverage: number | null;
+  outlierThresholdPct: number;
+}

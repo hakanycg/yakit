@@ -141,6 +141,8 @@ export interface TransactionRow {
   pump_id: number;
   plate: string;
   plate_source: "manual" | "lpr";
+  /** Aracin km sayaci; yalnizca filo odemesinde ve opsiyonel olarak toplanir. */
+  odometer_km: number | null;
   fuel_type: FuelType;
   amount_mode: "amount" | "liters" | "full_tank";
   requested_amount: number | null;

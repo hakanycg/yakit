@@ -362,7 +362,12 @@ function reportAutomationSale(t: TransactionRow): void {
  * bitmeden bilinemedigi icin (bkz. iyzico on-provizyon yorumu) bu odeme yontemi
  * yalnizca tutari BASTAN KESIN bilinen modlarda (amount/liters) sunulur.
  */
-export function payWithFleetAccount(id: number, accessToken: string, fleetAccountId: number): TransactionRow {
+export function payWithFleetAccount(
+  id: number,
+  accessToken: string,
+  fleetAccountId: number,
+  odometerKm?: number
+): TransactionRow {
   const t = getTransactionForKiosk(id, accessToken);
   if (t.status !== "created") throw new TransactionError("Bu islem icin odeme alinamaz.", 409);
   if (t.amount_mode === "full_tank") throw new TransactionError("Filo hesabi ile odeme, 'Depoyu Doldur' modunda kullanilamaz.", 409);
@@ -376,7 +381,10 @@ export function payWithFleetAccount(id: number, accessToken: string, fleetAccoun
     if (err instanceof FleetError) throw new TransactionError(err.message, err.status);
     throw err;
   }
-  touch(id, { payment_method: "fleet" });
+  // Km OPSIYONELDIR: musteri girmezse islem normal ilerler. Girildiyse islemin
+  // uzerine yazilir ve iki ardisik dolum arasindan arac basina tuketim cikar
+  // (bkz. fleetConsumptionService.ts).
+  touch(id, { payment_method: "fleet", ...(odometerKm !== undefined ? { odometer_km: odometerKm } : {}) });
   return finalizeTransactionPayment(id, { success: true, reference: `FLEET-${fleetAccountId}`, message: "Filo hesabindan tahsil edildi." });
 }
 

@@ -31,6 +31,7 @@ import {
   listRequestsForAccount,
   serializeRequest,
 } from "../services/fleetTopupRequestService.js";
+import { getConsumptionReport } from "../services/fleetConsumptionService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 
 /**
@@ -258,6 +259,18 @@ router.delete("/accounts/:id/topup-requests/:requestId", (req, res) => {
     if (err instanceof TopupRequestError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }
+});
+
+/**
+ * Arac basina yakit tuketimi (L/100km).
+ *
+ * "Hangi arac ne kadar aldi" ekstrede zaten var; buradaki soru "ne kadar YAKTI".
+ * Fark, surucu kaynakli yakit kacaginin sakli oldugu yerdir.
+ */
+router.get("/accounts/:id/consumption", validateQuery(rangeSchema), (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const { from, to } = resolveRange(query<typeof rangeSchema>(req));
+  res.json({ from, to, ...getConsumptionReport(accountId, from, to) });
 });
 
 router.get("/accounts/:id/plate-breakdown", validateQuery(rangeSchema), (req, res) => {

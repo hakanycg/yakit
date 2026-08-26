@@ -11,6 +11,7 @@ import {
   type PortalUser,
   type Statement,
   type TopupRequest,
+  type ConsumptionReport,
 } from "./fleetApi";
 
 /**
@@ -181,6 +182,7 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
   const [plates, setPlates] = useState<PlateSummary[]>([]);
   const [invoices, setInvoices] = useState<FleetInvoice[]>([]);
   const [topupRequests, setTopupRequests] = useState<TopupRequest[]>([]);
+  const [consumption, setConsumption] = useState<ConsumptionReport | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const account = accounts.find((a) => a.accountId === accountId) ?? null;
@@ -214,6 +216,16 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
       .get<{ plates: PlateSummary[] }>(`/api/fleet-portal/accounts/${accountId}/plate-breakdown?from=${from}&to=${to}`)
       .then((r) => setPlates(r.plates))
       .catch(() => setPlates([]));
+  }, [accountId, from, to]);
+
+  // Tuketim, "ne kadar aldi" degil "ne kadar YAKTI" sorusunun cevabi; plaka
+  // ozetiyle ayni araligi kullanir ama ayri bir hesaptir (km gerektirir).
+  useEffect(() => {
+    if (accountId === null) return;
+    fleetApi
+      .get<ConsumptionReport>(`/api/fleet-portal/accounts/${accountId}/consumption?from=${from}&to=${to}`)
+      .then(setConsumption)
+      .catch(() => setConsumption(null));
   }, [accountId, from, to]);
 
   // Yukleme talepleri de tarih araligindan bagimsiz: "talebim ne oldu?" sorusu
@@ -380,6 +392,8 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
 
             {error && <p className="error-text">{error}</p>}
 
+            <ConsumptionSection report={consumption} />
+
             <h3>Araç Bazında Harcama</h3>
             <div className="card">
               <table>
@@ -541,6 +555,97 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
  * Faturali (sonradan odeme) hesapta ayni akis "borc odeme bildirimi" olarak
  * calisir: topUp() faturali hesapta bakiyeyi (borcu) azaltir.
  */
+/**
+ * Arac basina yakit tuketimi.
+ *
+ * "Hangi arac ne kadar aldi" asagidaki tabloda zaten var; buradaki soru "ne kadar
+ * YAKTI". Filo ortalamasinin belirgin ustunde yakan bir aracta ya gercek bir ariza
+ * vardir ya da yakit baska bir yere gidiyordur - surucu kaynakli kacak pratikte
+ * boyle yakalanir.
+ */
+function ConsumptionSection({ report }: { report: ConsumptionReport | null }) {
+  if (!report) return null;
+
+  const measured = report.plates.filter((p) => p.litersPer100Km !== null);
+  if (measured.length === 0) {
+    return (
+      <>
+        <h3>Araç Tüketimi</h3>
+        <div className="card">
+          <p className="hint-text" style={{ margin: 0 }}>
+            Tüketim hesabı için dolum sırasında kilometre girilmesi gerekir. Şoförleriniz kiosk'ta ödeme ekranındaki
+            "Kilometre" alanını doldurduğunda, iki dolum arasındaki mesafe ve litreden araç başına L/100km burada
+            görünür.
+          </p>
+        </div>
+      </>
+    );
+  }
+
+  const average = report.fleetAverage;
+  const isOutlier = (value: number) =>
+    average !== null && value > average * (1 + report.outlierThresholdPct / 100);
+
+  return (
+    <>
+      <h3>Araç Tüketimi</h3>
+      <div className="card">
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          İki ardışık dolum arasındaki mesafeden hesaplanır.
+          {average !== null && (
+            <>
+              {" "}Filo ortalaması <strong>{average} L/100km</strong>; bunun %{report.outlierThresholdPct} üzerine
+              çıkan araçlar işaretlenir.
+            </>
+          )}
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Plaka</th>
+              <th>Tüketim</th>
+              <th>Ölçülen mesafe</th>
+              <th>Yakılan</th>
+              <th>Son km</th>
+            </tr>
+          </thead>
+          <tbody>
+            {report.plates.map((p) => (
+              <tr key={p.plate}>
+                <td>
+                  <strong>{p.plate}</strong>
+                  {/* Kac olcumun kullanilamadigi gorunur olmali: ortalamaya ne kadar
+                      guvenilecegini bu belirler. */}
+                  {p.skippedPairs > 0 && (
+                    <div className="hint-text">{p.skippedPairs} ölçüm kullanılamadı (hatalı km)</div>
+                  )}
+                </td>
+                <td>
+                  {p.litersPer100Km === null ? (
+                    <span className="hint-text">km girilmemiş</span>
+                  ) : (
+                    <>
+                      <span className={`badge ${isOutlier(p.litersPer100Km) ? "critical" : "resolved"}`}>
+                        {p.litersPer100Km} L/100km
+                      </span>
+                      <div className="hint-text">{p.sampleCount} ölçüm</div>
+                    </>
+                  )}
+                </td>
+                <td className="hint-text">{p.totalDistanceKm > 0 ? `${p.totalDistanceKm.toLocaleString("tr-TR")} km` : "—"}</td>
+                <td className="hint-text">{p.totalLiters > 0 ? formatLiters(p.totalLiters) : "—"}</td>
+                <td className="hint-text">
+                  {p.lastOdometerKm === null ? "—" : `${p.lastOdometerKm.toLocaleString("tr-TR")} km`}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
 function TopupRequestPanel({
   account,
   requests,
