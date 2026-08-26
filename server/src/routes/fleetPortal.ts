@@ -33,6 +33,7 @@ import {
 } from "../services/fleetTopupRequestService.js";
 import { getConsumptionReport } from "../services/fleetConsumptionService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
+import { csvEscape } from "../utils/csv.js";
 
 /**
  * Filo musteri portali - istasyon personeline DEGIL, filo musterisine acik uclar.
@@ -291,15 +292,11 @@ router.get("/accounts/:id/statement.csv", validateQuery(rangeSchema), (req, res)
     refund: "Iade",
     adjustment: "Duzeltme",
   };
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const lines = ["tarih,tur,plaka,yakit,litre,birim_fiyat,tutar,bakiye_sonrasi,not"];
   for (const r of statement.rows) {
     lines.push(
       [r.createdAt, typeLabel[r.type] ?? r.type, r.plate, r.fuelType, r.liters, r.pricePerLiter, r.amount, r.balanceAfter, r.note]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }

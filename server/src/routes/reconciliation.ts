@@ -10,6 +10,7 @@ import {
   getDaySummary,
   listReconciliations,
 } from "../services/reconciliationService.js";
+import { csvEscape } from "../utils/csv.js";
 
 /**
  * Gun sonu kasa/odeme mutabakati. Para hareketiyle ilgili oldugundan yakit stogu gibi
@@ -37,15 +38,11 @@ router.get("/", validateQuery(historyQuerySchema), (req, res) => {
 router.get("/export.csv", (req, res) => {
   const rows = listReconciliations(req.stationId!, 365);
   const header = ["is_gunu", "beklenen_tutar", "gerceklesen_tutar", "fark", "askida_islem", "not", "kapatan", "kapatma_zamani"];
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const lines = [header.join(",")];
   for (const r of rows) {
     lines.push(
       [r.businessDate, r.expectedTotal, r.declaredTotal, r.difference, r.pendingCount, r.note, r.closedBy, r.closedAt]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }

@@ -5,6 +5,7 @@ import { validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { getPortfolioReport } from "../services/portfolioService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
+import { csvEscape } from "../utils/csv.js";
 
 /**
  * Konsolide (cok istasyonlu) rapor.
@@ -62,10 +63,6 @@ router.get("/export.csv", validateQuery(querySchema), (req, res) => {
     "sapma_litre",
     "son_senkron",
   ];
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const lines = [header.join(",")];
   for (const s of report.stations) {
     lines.push(
@@ -83,7 +80,7 @@ router.get("/export.csv", validateQuery(querySchema), (req, res) => {
         s.varianceLiters,
         s.lastSyncedAt,
       ]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }

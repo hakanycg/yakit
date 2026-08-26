@@ -18,7 +18,6 @@ import { createTotpChallenge, deleteTotpChallenge, peekTotpChallenge, registerFa
 import { validateBody } from "../middleware/validate.js";
 import { loginRateLimit, passwordResetRateLimit } from "../middleware/rateLimit.js";
 import { clearSessionCookies, csrfProtection, requireAuth, setSessionCookies } from "../middleware/auth.js";
-import { env } from "../config.js";
 
 const router = Router();
 
@@ -147,8 +146,11 @@ const forgotPasswordSchema = z.object({ identifier: z.string().min(1).max(120) }
 
 router.post("/forgot-password", passwordResetRateLimit, validateBody(forgotPasswordSchema), async (req, res) => {
   const { identifier } = req.body as z.infer<typeof forgotPasswordSchema>;
-  const baseUrl = env.PUBLIC_API_BASE_URL ?? `${req.protocol}://${req.get("host")}`;
-  await requestPasswordReset(identifier, baseUrl, req.ip);
+  // Sifirlama baginin adresi artik BURADAN verilmiyor - servis onu yapilandirmadan
+  // (WEB_ORIGIN) kendisi okuyor. Onceden burada `req.get("host")` yedegi vardi ve
+  // adres istegi yapanin gonderdigi Host basligindan uretilebiliyordu; bkz.
+  // passwordResetService.ts icindeki aciklama.
+  await requestPasswordReset(identifier, req.ip);
   // Hesap bulunsa da bulunmasa da HER ZAMAN ayni jenerik yanit - kullanici adi/e-posta
   // varligini sizdirmamak icin (bkz. passwordResetService.ts).
   res.json({ message: "Bu bilgilerle eslesen bir hesap varsa, sifre sifirlama talimatlari gonderildi." });

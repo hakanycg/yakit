@@ -918,6 +918,21 @@ Ayrıca:
 - **Çerezler:** `httpOnly`, `SameSite=Strict`, üretimde `Secure` (env ile zorunlu kılınabilir).
 - **CSRF koruması:** Çift-gönderim (double-submit) deseni; durum değiştiren her istek
   `X-CSRF-Token` başlığını, oturumla eşleşen token ile birlikte göndermek zorundadır.
+  Karşılaştırma hem personel hem filo portalı tarafında sabit zamanlıdır (`safeCompare`).
+- **Parola sıfırlama bağının adresi istekten alınmaz:** Sıfırlama e-postası/SMS'indeki
+  bağlantı yalnızca yapılandırmadaki `WEB_ORIGIN` üzerinden kurulur. Bu, klasik bir
+  "Host header injection" saldırısını kapatır: aksi halde saldırgan, kurbanın kullanıcı
+  adıyla `POST /api/auth/forgot-password` çağırıp `Host: saldirgan.example` gönderebilir
+  ve kurbanın kutusuna **geçerli sıfırlama token'ını taşıyan ama saldırganın sitesine
+  giden** bir bağlantı düşürebilirdi — tıklandığı anda hesap devralınırdı. Servis
+  (`passwordResetService.ts`) adresi kendisi okur; dışarıdan verilebilen bir parametre
+  bilerek **yoktur**, böylece ileride başka bir çağıran aynı hatayı tekrarlayamaz.
+- **CSV dışa aktarımlarında formül enjeksiyonu koruması:** Raporlardaki alanların bir
+  kısmını dışarıdan gelen kişiler yazar (filo müşterisinin bakiye yükleme notu, kioskta
+  girilen plaka, başka bir kiracı yöneticisinin girdiği istasyon adı/kiosk etiketi).
+  Excel/LibreOffice `=`, `+`, `-`, `@` ile başlayan bir hücreyi **formül** sayar; tek
+  ortak `csvEscape` (`server/src/utils/csv.ts`) bu değerlerin başına metin işareti
+  koyarak formüle dönüşmelerini engeller — sayıları (negatif tutarlar dahil) bozmadan.
 - **RBAC + çoklu istasyon (multi-tenant) izolasyonu:** `super_admin` / `admin` / `operator` /
   `viewer` rolleri. `super_admin` dışındaki her kullanıcı tam olarak bir istasyona bağlıdır
   (`users.station_id`) ve sunucu tarafında bu istasyonun dışına asla çıkamaz — pompalar,

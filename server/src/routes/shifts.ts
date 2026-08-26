@@ -5,6 +5,7 @@ import type { ShiftRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
+import { csvEscape } from "../utils/csv.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
@@ -105,11 +106,6 @@ function computeStaffSummary(stationId: number, from: string | null, to: string 
     .get(...unassignedParams)!;
 
   return { rows, unassigned };
-}
-
-function csvEscape(v: unknown): string {
-  const s = v === null || v === undefined ? "" : String(v);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 function sendCsv(res: import("express").Response, filenamePrefix: string, header: string[], rows: unknown[][]): void {

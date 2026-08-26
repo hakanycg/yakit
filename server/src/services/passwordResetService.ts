@@ -6,6 +6,7 @@ import { sendEmail, sendSms } from "./notificationService.js";
 import { destroyAllSessionsForUser } from "./sessionService.js";
 import { recordAudit } from "./auditService.js";
 import { logger } from "../utils/logger.js";
+import { env } from "../config.js";
 
 const RESET_TOKEN_TTL_MS = 30 * 60 * 1000; // 30 dakika
 
@@ -30,7 +31,7 @@ function hashResetToken(token: string): string {
  * (route) kullaniciya her durumda ayni jenerik mesaji gostermelidir; aksi halde kullanici adi/
  * e-posta varligi sizdirilmis olur.
  */
-export async function requestPasswordReset(identifier: string, requestBaseUrl: string, ip: string | undefined): Promise<void> {
+export async function requestPasswordReset(identifier: string, ip: string | undefined): Promise<void> {
   const trimmed = identifier.trim();
   if (!trimmed) return;
 
@@ -49,7 +50,18 @@ export async function requestPasswordReset(identifier: string, requestBaseUrl: s
 
   db.prepare("UPDATE users SET reset_token_hash = ?, reset_token_expires_at = ? WHERE id = ?").run(tokenHash, expiresAt, user.id);
 
-  const resetLink = `${requestBaseUrl}/sifre-sifirla?token=${token}`;
+  // Adres YAPILANDIRMADAN gelir, istekten DEGIL.
+  //
+  // Onceden bagin adresi cagirandan parametre olarak aliniyordu ve route orayi
+  // `req.get("host")` ile dolduruyordu - yani istegi yapan kisi, kurbanin e-postasina
+  // dusecek bagin alan adini kendi secebiliyordu. Kimlik dogrulamasi gerektirmeyen bir
+  // uctan hesap devralma demekti: saldirgan kurbanin kullanici adiyla
+  // `Host: saldirgan.example` gonderir, kurban gelen bagi tiklar ve GECERLI sifirlama
+  // tokeni saldirganin sunucusuna gider.
+  //
+  // Parametreyi guvenli bir degerle doldurmak yerine PARAMETREYI KALDIRDIK: boylece
+  // ileride baska bir cagiran ayni hatayi tekrar yapamaz.
+  const resetLink = `${env.WEB_ORIGIN}/sifre-sifirla?token=${token}`;
   const minutes = RESET_TOKEN_TTL_MS / 60000;
 
   let delivered = false;

@@ -3,6 +3,7 @@ import { parse as parseCookie, serialize as serializeCookie } from "cookie";
 import { env } from "../config.js";
 import type { FleetPortalUserRow } from "../db/types.js";
 import { resolvePortalSession } from "../services/fleetPortalService.js";
+import { safeCompare } from "../utils/safeCompare.js";
 
 /**
  * Filo musteri portalinin kimlik dogrulamasi - personel oturumundan TAMAMEN ayridir.
@@ -91,7 +92,8 @@ export function fleetPortalCsrfProtection(req: Request, res: Response, next: Nex
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
 
   const header = req.header("x-csrf-token");
-  if (!req.fleetPortalCsrf || !header || header !== req.fleetPortalCsrf) {
+  // Sabit zamanli karsilastirma - personel tarafindaki csrfProtection ile ayni.
+  if (!req.fleetPortalCsrf || !header || !safeCompare(req.fleetPortalCsrf, header)) {
     res.status(403).json({ error: "Gecersiz veya eksik CSRF tokeni." });
     return;
   }

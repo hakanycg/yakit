@@ -9,6 +9,7 @@ import {
   serializeKioskFleetRow,
   summarizeKioskFleet,
 } from "../services/kioskFleetService.js";
+import { csvEscape } from "../utils/csv.js";
 
 /**
  * Kiosk filosu - istasyonlar arasi saglik gorunumu.
@@ -54,15 +55,11 @@ router.get("/export.csv", (req, res) => {
     never_seen: "Hic baglanmadi",
   };
   const header = ["kiosk_id", "etiket", "istasyon", "istasyon_kodu", "durum", "cevrimdisi_dakika", "anydesk_id", "son_baglanti"];
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const lines = [header.join(",")];
   for (const k of rows) {
     lines.push(
       [k.id, k.label, k.stationName, k.stationCode, statusLabel[k.status], k.offlineMinutes, k.anydeskId, k.lastSeenAt]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }

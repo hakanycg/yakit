@@ -5,6 +5,7 @@ import { createTestStation, createTestUser } from "../test/dbFixture.js";
 import { createSession, listSessionsForUser, resolveSession } from "./sessionService.js";
 import { verifyPassword } from "../utils/password.js";
 import { PasswordResetError, requestPasswordReset, resetPasswordWithToken } from "./passwordResetService.js";
+import { env } from "../config.js";
 
 const sendEmail = vi.hoisted(() => vi.fn(async (_to: string, _subject: string, _text: string, _html?: string) => ({ sent: true })));
 const sendSms = vi.hoisted(() => vi.fn(async (_to: string, _text: string) => ({ sent: true })));
@@ -39,7 +40,7 @@ beforeEach(() => {
 
 describe("sifirlama talebi", () => {
   it("ham token veritabaninda saklanmaz, yalnizca hash'i durur", async () => {
-    await requestPasswordReset(user.email!, "https://ornek.com", "1.2.3.4");
+    await requestPasswordReset(user.email!, "1.2.3.4");
     const token = sentToken();
     expect(reload().reset_token_hash).not.toBe(token);
     expect(reload().reset_token_hash).toBeTruthy();
@@ -48,21 +49,45 @@ describe("sifirlama talebi", () => {
   it("olmayan kullanici icin sessizce hicbir sey yapmaz", async () => {
     // Hata dondurmek, hangi e-postalarin sistemde kayitli oldugunu sizdiran bir
     // sorgu araci olurdu.
-    await expect(requestPasswordReset("yok@ornek.com", "https://ornek.com", undefined)).resolves.toBeUndefined();
+    await expect(requestPasswordReset("yok@ornek.com", undefined)).resolves.toBeUndefined();
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
   it("pasif kullaniciya sifirlama bagi gonderilmez", async () => {
     db.prepare("UPDATE users SET active = 0 WHERE id = ?").run(user.id);
-    await requestPasswordReset(user.email!, "https://ornek.com", undefined);
+    await requestPasswordReset(user.email!, undefined);
     expect(sendEmail).not.toHaveBeenCalled();
     expect(reload().reset_token_hash).toBeNull();
   });
 
+  it("bagin adresi yapilandirmadan gelir - istekten enjekte edilemez", async () => {
+    // GERILEME TESTI. Onceden bagin adresi cagirandan parametre olarak aliniyordu ve
+    // route orayi `req.get("host")` ile dolduruyordu: saldirgan, kurbanin kullanici
+    // adiyla `Host: saldirgan.example` gonderip kurbanin e-postasina GECERLI tokeni
+    // tasiyan ama kendi sunucusuna giden bir bag dusurebiliyordu - kimlik dogrulamasi
+    // gerektirmeyen bir uctan hesap devralma.
+    //
+    // Parametre tamamen kaldirildi; bu test hem e-postadaki hem SMS'teki bagin
+    // WEB_ORIGIN ile basladigini dogruluyor.
+    db.prepare("UPDATE users SET phone = ? WHERE id = ?").run("+90 555 111 22 33", user.id);
+    user = reload();
+
+    await requestPasswordReset(user.email!, undefined);
+
+    const emailText = sendEmail.mock.calls.at(-1)![2];
+    const emailHtml = sendEmail.mock.calls.at(-1)![3]!;
+    const smsText = sendSms.mock.calls.at(-1)![1];
+
+    for (const body of [emailText, emailHtml, smsText]) {
+      const link = /https?:\/\/[^\s"<]+\/sifre-sifirla\?token=[A-Za-z0-9_-]+/.exec(body)![0];
+      expect(link.startsWith(`${env.WEB_ORIGIN}/sifre-sifirla?token=`)).toBe(true);
+    }
+  });
+
   it("yeni talep oncekini gecersiz kilar", async () => {
-    await requestPasswordReset(user.email!, "https://ornek.com", undefined);
+    await requestPasswordReset(user.email!, undefined);
     const first = sentToken();
-    await requestPasswordReset(user.email!, "https://ornek.com", undefined);
+    await requestPasswordReset(user.email!, undefined);
 
     expect(() => resetPasswordWithToken(first, "YeniSifre123!", undefined)).toThrow(PasswordResetError);
   });
@@ -70,7 +95,7 @@ describe("sifirlama talebi", () => {
 
 describe("sifre degistirme", () => {
   async function freshToken(): Promise<string> {
-    await requestPasswordReset(user.email!, "https://ornek.com", undefined);
+    await requestPasswordReset(user.email!, undefined);
     return sentToken();
   }
 

@@ -4,6 +4,7 @@ import { resolveSession } from "../services/sessionService.js";
 import type { RoleName, RoleRow, UserRow } from "../db/types.js";
 import { db } from "../db/index.js";
 import { env } from "../config.js";
+import { safeCompare } from "../utils/safeCompare.js";
 
 export const SESSION_COOKIE = "yakit_sid";
 export const CSRF_COOKIE = "yakit_csrf";
@@ -186,7 +187,9 @@ export function csrfProtection(req: Request, res: Response, next: NextFunction):
   if (!req.user) return next(); // requireAuth zaten 401 dondurecek
 
   const headerToken = req.header("x-csrf-token");
-  if (!headerToken || !req.csrfToken || headerToken !== req.csrfToken) {
+  // Karsilastirma sabit zamanli: bu dosyadaki diger sir karsilastirmalari (ve kiosk
+  // cihaz tokeni) zaten safeCompare kullaniyordu, CSRF tokeni tek istisnaydi.
+  if (!headerToken || !req.csrfToken || !safeCompare(req.csrfToken, headerToken)) {
     res.status(403).json({ error: "Gecersiz CSRF token." });
     return;
   }

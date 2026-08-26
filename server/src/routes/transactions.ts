@@ -14,6 +14,7 @@ import {
 } from "../services/refundService.js";
 import { createInvoice, InvoiceError } from "../services/invoiceService.js";
 import { getInvoiceForTransaction, recordInvoiceFailure, recordInvoiceSuccess, serializeInvoice } from "../services/invoiceRecordService.js";
+import { csvEscape } from "../utils/csv.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
@@ -62,10 +63,6 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
     "created_at",
     "completed_at",
   ];
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const lines = [header.join(",")];
   for (const t of rows) {
     lines.push(
@@ -89,7 +86,7 @@ router.get("/export.csv", validateQuery(listSchema), (req, res) => {
         t.created_at,
         t.completed_at,
       ]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }

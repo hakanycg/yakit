@@ -48,6 +48,7 @@ import {
 import { getWaterThresholdMm } from "../services/tankWaterService.js";
 import { createWaybill, WaybillError } from "../services/waybillService.js";
 import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, serializeWaybill } from "../services/waybillRecordService.js";
+import { csvEscape } from "../utils/csv.js";
 
 const router = Router();
 // Yakit stogu yalnizca istasyon yoneticisine (admin) ve platform yoneticisine (super_admin,
@@ -76,16 +77,12 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
   const rows = listMovements(req.stationId!, { ...q, limit: q.limit ?? 1000 });
 
   const header = ["id", "yakit_tipi", "tip", "litre", "bakiye", "tedarikci", "irsaliye_no", "not", "kullanici", "tarih"];
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const typeLabel: Record<string, string> = { delivery: "Teslimat", sale: "Satis", adjustment: "Duzeltme" };
   const lines = [header.join(",")];
   for (const m of rows) {
     lines.push(
       [m.id, m.fuel_type, typeLabel[m.type] ?? m.type, m.liters, m.balance_after, m.supplier, m.delivery_ref, m.note, m.username, m.created_at]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }
@@ -139,10 +136,6 @@ router.get("/readings/export.csv", validateQuery(readingsQuerySchema), (req, res
     "kullanici",
     "olcum_tarihi",
   ];
-  const escape = (v: unknown) => {
-    const s = v === null || v === undefined ? "" : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const lines = [header.join(",")];
   for (const r of rows) {
     lines.push(
@@ -163,7 +156,7 @@ router.get("/readings/export.csv", validateQuery(readingsQuerySchema), (req, res
         r.username,
         r.measured_at,
       ]
-        .map(escape)
+        .map(csvEscape)
         .join(",")
     );
   }
