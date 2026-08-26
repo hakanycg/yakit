@@ -5,6 +5,7 @@ import { broadcast } from "../ws/hub.js";
 import { getPump, listPumps, setPumpStatus } from "./pumpService.js";
 import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
+import { issueInvoiceAutomatically } from "./invoiceAutoService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
 import { getDispenserDriver } from "./dispenserDriver.js";
 import { getAutomationDriver } from "./automationDriver.js";
@@ -502,6 +503,7 @@ function startDispensing(id: number): void {
     broadcastTransaction(completed);
     recordSaleMovement(completed.station_id, completed.fuel_type, completed.dispensed_liters, completed.id);
     reportAutomationSale(completed);
+    issueInvoiceAutomatically(completed);
     void settleIyzicoPreAuthIfNeeded(completed);
   }, DISPENSE_TICK_MS);
 
@@ -551,6 +553,7 @@ export function emergencyStopTransaction(id: number, byUser: UserRow | null, rea
     // burada sadece o ana kadar dagitilan miktar icin ozet hareket kaydediliyor.
     recordSaleMovement(updated.station_id, updated.fuel_type, updated.dispensed_liters, updated.id);
     reportAutomationSale(updated);
+    issueInvoiceAutomatically(updated);
   }
   void settleIyzicoPreAuthIfNeeded(updated);
   refundFleetChargeIfNeeded(t, wasDispensing);

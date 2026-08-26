@@ -158,12 +158,27 @@ function InvoiceCell({ transactionId }: { transactionId: number }) {
     return <span className="badge completed" title={invoice.providerInvoiceId ?? undefined}>Kesildi</span>;
   }
 
+  /**
+   * Fatura artik satis biter bitmez kendiliginden kesiliyor (bkz.
+   * server/src/services/invoiceAutoService.ts). Buradaki dugme bu yuzden bir
+   * "olustur" eylemi degil, otomatik kesim saglayici tarafinda basarisiz
+   * oldugunda kullanilan YENIDEN DENEME yolu. Metin de bunu soylemeli - aksi
+   * halde personel her satista buna basmasi gerektigini saniyor.
+   */
+  const failed = invoice?.status === "failed";
   return (
     <div>
-      <button onClick={create} disabled={busy}>{busy ? "..." : "E-Fatura Oluştur"}</button>
-      {error && <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{error}</div>}
-      {!error && invoice?.status === "failed" && (
-        <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{invoice.errorMessage}</div>
+      <button onClick={create} disabled={busy}>
+        {busy ? "..." : failed ? "Yeniden Dene" : "Şimdi Kes"}
+      </button>
+      {!failed && !error && (
+        <div className="hint-text" style={{ fontSize: "var(--fs-2xs)", maxWidth: 220 }}>
+          Satış bitince otomatik kesilir.
+        </div>
+      )}
+      {error && <div className="error-text" style={{ fontSize: "var(--fs-2xs)", maxWidth: 220 }}>{error}</div>}
+      {!error && failed && (
+        <div className="error-text" style={{ fontSize: "var(--fs-2xs)", maxWidth: 220 }}>{invoice.errorMessage}</div>
       )}
     </div>
   );
