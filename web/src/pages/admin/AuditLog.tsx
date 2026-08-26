@@ -36,20 +36,42 @@ function shortUserAgent(ua: string): string {
  * degerler artik hic gosterilmiyor - eski kayitlarda da (sunucu tarafi duzeltmesi
  * yalnizca yeni kayitlari etkiler).
  */
-function AuditDetails({ details }: { details: unknown }) {
-  if (details === null || details === undefined) return <span className="hint-text">-</span>;
-  if (typeof details !== "object" || Array.isArray(details)) {
-    return <code style={{ fontSize: "var(--fs-2xs)" }}>{JSON.stringify(details)}</code>;
+/**
+ * Bos degerleri HER DERINLIKTE atar.
+ *
+ * Ust seviyeyi suzmek yetmiyordu: detay bir dizi ya da ic ice bir nesne oldugunda
+ * JSON.stringify icerideki null'lari yine metne cevirip ekrana basiyordu. Temizlik
+ * basim noktasinda degil, veri agacinin tamaminda yapilmali - aksi halde her yeni
+ * recordAudit cagiran yer bu tuzagi yeniden acabilir.
+ */
+function stripEmpty(value: unknown): unknown {
+  if (value === null || value === undefined || value === "") return undefined;
+  if (Array.isArray(value)) {
+    const items = value.map(stripEmpty).filter((v) => v !== undefined);
+    return items.length > 0 ? items : undefined;
   }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => [k, stripEmpty(v)] as const)
+      .filter(([, v]) => v !== undefined);
+    return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+  }
+  return value;
+}
 
-  const entries = Object.entries(details as Record<string, unknown>).filter(
-    ([, v]) => v !== null && v !== undefined && v !== ""
-  );
-  if (entries.length === 0) return <span className="hint-text">-</span>;
+function AuditDetails({ details }: { details: unknown }) {
+  const cleaned = stripEmpty(details);
+  if (cleaned === undefined) return <span className="hint-text">-</span>;
+  if (typeof cleaned !== "object") {
+    return <code style={{ fontSize: "var(--fs-2xs)" }}>{String(cleaned)}</code>;
+  }
+  if (Array.isArray(cleaned)) {
+    return <code style={{ fontSize: "var(--fs-2xs)" }}>{JSON.stringify(cleaned)}</code>;
+  }
 
   return (
     <span className="audit-detail-list">
-      {entries.map(([k, v]) => (
+      {Object.entries(cleaned as Record<string, unknown>).map(([k, v]) => (
         <span className="audit-detail-item" key={k}>
           <span className="audit-detail-key">{k}</span>
           <span className="audit-detail-value">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
