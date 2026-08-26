@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { kioskApi } from "../kioskApi";
 import { useKioskLang } from "../i18n";
+import { KioskInput } from "../KioskKeyboard";
 
 const SAMPLE_PLATES = ["06 ABC 123", "34 XY 4567", "35 CDE 89", "16 FGH 12", "42 KL 456"];
 
@@ -43,13 +44,16 @@ export default function PlateStep({ onNext }: { onNext: (plate: string, source: 
       <p className="hint-text">{t("plate.subtitle")}</p>
 
       <label>{t("plate.label")}</label>
-      <input
+      {/* Sistem klavyesi degil kiosk klavyesi acilir - bkz. KioskKeyboard.tsx.
+          Plakalar arayuz dili ne olursa olsun her zaman soldan saga yazilir (harf+rakam
+          karisimi, RTL bir sayfada - ör. Arapca'da - ters sirada gorunmesin diye). */}
+      <KioskInput
+        layout="plate"
         value={plate}
-        onChange={(e) => setPlate(e.target.value.toUpperCase())}
+        onChange={(next) => setPlate(next.toUpperCase())}
         placeholder={t("plate.placeholder")}
-        // Plakalar arayuz dili ne olursa olsun her zaman soldan saga yazilir (harf+rakam
-        // karisimi, RTL bir sayfada - ör. Arapca'da - ters sirada gorunmesin diye).
-        dir="ltr"
+        maxLength={12}
+        ltr
         style={{ fontSize: "1.3rem", textAlign: "center", letterSpacing: "0.1em" }}
       />
       {error && <p className="error-text">{error}</p>}

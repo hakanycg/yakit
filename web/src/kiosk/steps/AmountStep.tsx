@@ -4,6 +4,7 @@ import { formatCurrency } from "../../shared/format";
 import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
 import { useKioskLang } from "../i18n";
+import { KioskInput } from "../KioskKeyboard";
 
 export type AmountSelection =
   | { mode: "amount"; amount: number; discountCode?: string; redeemPoints?: number }
@@ -110,14 +111,33 @@ export default function AmountStep({
             ))}
           </div>
           <label>{t("amount.customAmountLabel")}</label>
-          <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value ? Number(e.target.value) : "")} />
+          {/* Sistem klavyesi acilmaz; kiosk klavyesi kullanilir (bkz. KioskKeyboard.tsx). */}
+          <KioskInput
+            layout="numeric"
+            value={amount === "" ? "" : String(amount)}
+            onChange={(next) => setAmount(next === "" ? "" : Number(next))}
+            maxLength={6}
+            ltr
+          />
         </>
       )}
 
       {mode === "liters" && (
         <>
           <label>{t("amount.litersLabel")}</label>
-          <input type="number" min={0.1} step={0.1} value={liters} onChange={(e) => setLiters(e.target.value ? Number(e.target.value) : "")} />
+          {/* Litre ondalikli girilebilmeli; tus takimi virgul tusunu de gosterir. Deger
+              Number()'a verilmeden once virgul noktaya cevrilir - Turkce klavyede
+              ondalik ayirici virguldur, JavaScript ise noktayi bekler. */}
+          <KioskInput
+            layout="decimal"
+            value={liters === "" ? "" : String(liters).replace(".", ",")}
+            onChange={(next) => {
+              const normalized = next.replace(",", ".");
+              setLiters(normalized === "" || normalized === "." ? "" : Number(normalized));
+            }}
+            maxLength={6}
+            ltr
+          />
           {liters !== "" && <p className="hint-text">{t("amount.estimatedTotal", { amount: formatCurrency(Number(liters) * price.pricePerLiter, locale) })}</p>}
         </>
       )}
@@ -137,15 +157,17 @@ export default function AmountStep({
 
           <label>{t("amount.discountCodeLabel")}</label>
           <div className="toolbar" style={{ margin: 0 }}>
-            <input
+            <KioskInput
+              layout="code"
               value={codeInput}
-              onChange={(e) => {
-                setCodeInput(e.target.value);
+              onChange={(next) => {
+                setCodeInput(next.toUpperCase());
                 setAppliedCode(null);
                 setCodeError(null);
               }}
               placeholder={t("amount.discountCodePlaceholder")}
-              style={{ textTransform: "uppercase" }}
+              maxLength={24}
+              ltr
             />
             <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={applyCode}>
               {codeChecking ? t("amount.checkingCode") : t("amount.applyCode")}

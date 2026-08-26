@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { kioskApi } from "./kioskApi";
 import { useKioskLang } from "./i18n";
+import { KioskInput } from "./KioskKeyboard";
 
 /**
  * Musteri destek cagrisi.
@@ -131,21 +132,26 @@ export default function HelpRequestLink({
                 </div>
 
                 <label htmlFor="help-message">{t("help.messageLabel")}</label>
-                <input
+                {/* Serbest metin: tus takimi musterinin dilinin alfabesini gosterir
+                    (bkz. MESSAGE_ALPHABET). Plaka/kod aksine bu bir kimlik degil,
+                    musterinin kendi cumlesidir. */}
+                <KioskInput
+                  layout="message"
                   id="help-message"
                   value={message}
-                  onChange={(e) => setMessage(e.target.value)}
+                  onChange={setMessage}
                   placeholder={t("help.messagePlaceholder")}
                   maxLength={500}
                 />
 
                 <label htmlFor="help-phone">{t("help.phoneLabel")}</label>
-                <input
+                <KioskInput
+                  layout="numeric"
                   id="help-phone"
-                  type="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={setPhone}
                   maxLength={30}
+                  ltr
                 />
 
                 {failed && <p className="error-text">{t("help.failed")}</p>}

@@ -19,8 +19,6 @@ import HelpRequestLink from "./HelpRequest";
 import PriceHistoryLink from "./PriceHistory";
 import VoiceGuidanceToggle from "./VoiceGuidanceToggle";
 import { playClickSound, speak } from "./voiceGuidance";
-import { useAttractMode } from "./useAttractMode";
-import AttractMode from "./AttractMode";
 import { useIdleReset } from "./useIdleReset";
 import { useConnectivity } from "./useConnectivity";
 import { useDayNightMode } from "./useDayNightMode";
@@ -266,7 +264,6 @@ function KioskFlowInner() {
   const idleEnabled =
     (step === "plate" && plate.length > 0) || step === "pump" || step === "fuel" || step === "amount" || step === "receipt";
   const idle = useIdleReset(idleEnabled, reset, 60_000, 20_000);
-  const attracting = useAttractMode(step === "welcome", 20_000);
 
   // Erisilebilirlik: sesli yonlendirme acikken her adim degisiminde (ve dil degisiminde)
   // o ekranin basligi sesli olarak okunur - musteri (voiceGuidance.ts icinde no-op oldugu
@@ -496,7 +493,6 @@ function KioskFlowInner() {
         </div>
       )}
 
-      {attracting && <AttractMode stationId={station.station.id} stationName={station.station.name} fuelPrices={station.fuelPrices} />}
     </div>
   );
 }

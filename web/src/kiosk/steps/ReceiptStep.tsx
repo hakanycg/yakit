@@ -4,6 +4,7 @@ import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
 import type { Transaction } from "../../shared/types";
 import { useKioskLang } from "../i18n";
+import { KioskInput } from "../KioskKeyboard";
 import { tryPrintFiscalReceiptViaAgent, tryPrintViaAgent, type ReceiptLine } from "../localAgentPrint";
 
 export default function ReceiptStep({
@@ -178,10 +179,27 @@ function ReceiptSender({ transactionId, accessToken }: { transactionId: number; 
   return (
     <div className="kiosk-card" style={{ textAlign: "left", maxWidth: 380, margin: "0 auto 1rem" }}>
       <h4>{t("receipt.sendReceiptTitle")}</h4>
+      {/* Makbuz alanlari da kiosk klavyesini kullanir: OS klavyesinin acilabildigi TEK
+          bir alan birakmak, kapatilmak istenen kacis yolunu acik birakmak olurdu.
+          E-posta kucuk harfle saklanir; tus takimi buyuk harf uretir. */}
       <label>{t("receipt.emailLabel")}</label>
-      <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("receipt.emailPlaceholder")} />
+      <KioskInput
+        layout="email"
+        value={email}
+        onChange={(next) => setEmail(next.toLowerCase())}
+        placeholder={t("receipt.emailPlaceholder")}
+        maxLength={160}
+        ltr
+      />
       <label>{t("receipt.phoneLabel")}</label>
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder={t("receipt.phonePlaceholder")} />
+      <KioskInput
+        layout="numeric"
+        value={phone}
+        onChange={setPhone}
+        placeholder={t("receipt.phonePlaceholder")}
+        maxLength={20}
+        ltr
+      />
       {error && <p className="error-text">{error}</p>}
       {message && <p className="hint-text" style={{ color: "#4ade80" }}>{message}</p>}
       <button style={{ marginTop: "0.75rem" }} disabled={sending || (!email.trim() && !phone.trim())} onClick={submit}>

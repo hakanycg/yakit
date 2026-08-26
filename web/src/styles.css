@@ -985,6 +985,45 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   border-color: var(--k-accent);
   background: var(--k-opt-sel-bg);
 }
+/* Kiosk ekran klavyesi (bkz. kiosk/KioskKeyboard.tsx).
+   Kiosk'ta isletim sisteminin klavyesi hic acilmaz - bu bir guvenlik onlemi; girisler
+   readOnly'dir ve deger yalnizca buradaki tuslarla degisir.
+
+   Tuslar dokunmatik icin buyuk (min 52px): eldivenli bir elin ya da yagli bir parmagin
+   yanlis tusa basmasi, plakayi yanlis girmek demektir. Satirlar wrap ETMEZ; sigmayan
+   alfabe (ör. Rusca 33 harf) satir basina dusen tus sayisiyla bolunur - satir ortasinda
+   kirilan bir tus takimi okunmaz hale gelirdi. */
+.kiosk-input-wrap { display: block; }
+.kiosk-keyboard {
+  margin-top: 0.75rem;
+  display: flex; flex-direction: column; gap: 0.45rem;
+  padding: 0.7rem;
+  background: var(--k-opt-bg);
+  border: 1px solid var(--k-card-border);
+  border-radius: 16px;
+}
+.kb-row { display: flex; gap: 0.45rem; justify-content: center; }
+.kb-key {
+  flex: 1 1 0; min-width: 0; min-height: 52px;
+  padding: 0.6rem 0.2rem;
+  font-size: 1.15rem; font-weight: 600;
+  font-family: "Plus Jakarta Sans", sans-serif;
+  background: var(--k-card);
+  border: 1px solid var(--k-card-border);
+  color: var(--k-text);
+  border-radius: 12px;
+  transition: transform 0.1s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.kb-key:active { transform: scale(0.94); border-color: var(--k-accent); background: var(--k-opt-sel-bg); }
+/* Sozcuk yazan tuslar (Boşluk/Temizle/Tamam) rakam tuslarindan genis olmali: metin
+   sigmayinca kirpilir ve tus ne ise yaradigi anlasilmaz hale gelir. */
+.kb-key-wide { flex: 2 1 0; font-size: 0.95rem; }
+.kb-hint { margin: 0.5rem 0 0; text-align: center; }
+@media (max-width: 480px) {
+  .kb-key { min-height: 46px; font-size: 1rem; padding: 0.5rem 0.15rem; }
+  .kb-key-wide { font-size: 0.85rem; }
+}
+
 .kiosk-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 1.75rem; gap: 0.75rem; }
 .kiosk-actions > button:not(.primary) {
   background: var(--k-opt-bg);

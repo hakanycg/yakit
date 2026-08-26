@@ -682,6 +682,52 @@ istasyonun pompasını müşteriye hiç sormadan seçebilirdi.
 > Panel bunu hem alanın altında yazar hem de pompası bağlı ama hiç bağlanmamış kiosk kaydına
 > *"kurulum adresi uygulanmadı"* rozeti koyar.
 
+## Kiosk klavyesi: işletim sisteminin klavyesi hiç açılmaz
+
+Kiosk'ta plaka, tutar, litre, kampanya kodu, e-posta, telefon ve destek mesajı —
+**hepsi** uygulamanın kendi ekran klavyesiyle girilir. Bu bir görsel tercih değil,
+güvenlik önlemidir: işletim sisteminin klavyesi kiosk kabuğundan kaçış için
+kullanılabilir (Win tuşu, Ctrl+Alt+Del, tarayıcı kısayolları, dosya diyalogları).
+Müşteriye gereken tuşlar zaten avuç içi kadar bir küme.
+
+Bu yüzden kiosk girişleri `readOnly`'dir. `readOnly` yalnızca mobil/OS klavyesini
+bastırmakla kalmaz, **takılı bir fiziksel klavyeden yazmayı da engeller** — personelsiz
+istasyonda kiosk'a klavye takan biri tam olarak engellenmek istenen şeydir. Değer
+sadece ekrandaki tuşlarla değişir.
+
+Alana dokunulunca klavye alanın hemen **altında**, sayfa akışının içinde açılır; üstte
+yüzen bir panel müşterinin ne yazdığını gördüğü alanı kapatırdı. Başka bir yere
+dokunulunca kapanır, böylece ekranda aynı anda iki klavye durmaz.
+
+### Hangi alan hangi tuş takımını alır
+
+| Alan | Takım | Neden |
+| --- | --- | --- |
+| Plaka | Rakam + Latin harf + boşluk | Plaka bir **kimliktir** |
+| Tutar | Rakam | — |
+| Litre | Rakam + virgül | Ondalık girilebilmeli |
+| Kampanya kodu | Rakam + Latin harf | Kod bir kimliktir |
+| E-posta | Rakam + Latin harf + `@ . _ -` | — |
+| Destek mesajı | **Müşterinin dilinin alfabesi** | Müşterinin kendi cümlesi |
+
+Ayrım şu: plaka, kod ve e-posta **kimliktir** ve her dilde Latin harflerle yazılır —
+Arapça arayüzde Arap harfli bir plaka tuş takımı vermek, plakanın yanlış yazılmasına yol
+açardı. Destek mesajı ise müşterinin kendi cümlesidir; Rusça yazan müşteriye Latin tuş
+takımı vermek o alanı kullanılamaz hale getirirdi. Bu yüzden yalnızca serbest metin
+takımı dile göre değişir (TR/EN/RU/DE/AR alfabeleri tanımlı).
+
+Aynı gerekçe **yön** için de geçerli: rakam/plaka/kod takımı her zaman soldan sağa dizilir
+(Arapça arayüzde de plaka soldan sağa girilir; tuş sırasını aynalamak "1 2 3"ü "3 2 1"
+yapar), serbest metin takımı ise dilin kendi yönünü izler.
+
+## Bekleme (dikkat çekme) ekranı kaldırıldı
+
+Karşılama ekranında 20 saniye etkileşim olmayınca tam ekran bir "dikkat çekme"
+bindirmesi (fiyatlar/kampanyalar) açılıyordu ve dokununca kapanıyordu. Kaldırıldı:
+kiosk'a gelen müşteri o ekranda **neye tıklayacağını bilmeyebilir** — dil seçimi ve
+"Devam Et" düğmesinin bulunduğu karşılama paneli artık doğrudan ekranda duruyor.
+Fiyatlar zaten yakıt seçme adımında ve fiyat geçmişi bağlantısında görünüyor.
+
 ## Kiosk gündüz/gece teması: sabit saat değil, istasyonun kendi alacakaranlığı
 
 Kiosk ekranı günlerce hiç yenilenmeden aynı sekmede açık kalır, bu yüzden görünüm

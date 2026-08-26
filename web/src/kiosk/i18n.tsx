@@ -54,6 +54,13 @@ const DICTS: Record<KioskLang, Dict> = {
     "welcome.title": "Hoşgeldiniz",
     "welcome.chooseLanguage": "Devam etmek için lütfen dilinizi seçin",
 
+    "keyboard.label": "Ekran klavyesi",
+    "keyboard.backspace": "Sil",
+    "keyboard.clear": "Temizle",
+    "keyboard.space": "Boşluk",
+    "keyboard.done": "Tamam",
+    "keyboard.hint": "Güvenlik için bu ekranda yalnızca kiosk klavyesi kullanılır.",
+
     "plate.title": "Hoşgeldiniz",
     "plate.subtitle": "Başlamak için araç plakanızı girin veya otomatik plaka tanıma (LPR) ile taratın.",
     "plate.label": "Plaka",
@@ -164,10 +171,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "Uzun süredir bir işlem yapılmadı. {seconds} saniye içinde işlem sıfırlanacak.",
     "idle.continue": "Devam Ediyorum",
 
-    "attract.campaignTitle": "Kampanya Kodu",
-    "attract.percentOff": "%{value} indirim",
-    "attract.fixedOff": "{value} indirim",
-    "attract.tapToStart": "Başlamak için ekrana dokunun",
     "offline.banner": "Bağlantı sorunu - fiyatlar/işlemler güncel olmayabilir.",
     "offline.welcomeBlocked": "Sistem şu anda bağlantı kuramıyor. Lütfen birkaç dakika içinde tekrar deneyin veya istasyon görevlisine bildirin.",
 
@@ -251,6 +254,13 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "welcome.title": "Welcome",
     "welcome.chooseLanguage": "Please select your language to continue",
+
+    "keyboard.label": "On-screen keyboard",
+    "keyboard.backspace": "Delete",
+    "keyboard.clear": "Clear",
+    "keyboard.space": "Space",
+    "keyboard.done": "Done",
+    "keyboard.hint": "For security, only the kiosk keyboard can be used on this screen.",
 
     "plate.title": "Welcome",
     "plate.subtitle": "Enter your license plate to begin, or scan it with automatic plate recognition (LPR).",
@@ -362,10 +372,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "No activity has been detected for a while. This transaction will be reset in {seconds} seconds.",
     "idle.continue": "I'm Still Here",
 
-    "attract.campaignTitle": "Promo Code",
-    "attract.percentOff": "{value}% off",
-    "attract.fixedOff": "{value} off",
-    "attract.tapToStart": "Tap the screen to start",
     "offline.banner": "Connection issue - prices/transactions may be outdated.",
     "offline.welcomeBlocked": "The system cannot connect right now. Please try again in a few minutes or notify station staff.",
 
@@ -449,6 +455,13 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "welcome.title": "Добро пожаловать",
     "welcome.chooseLanguage": "Пожалуйста, выберите язык, чтобы продолжить",
+
+    "keyboard.label": "Экранная клавиатура",
+    "keyboard.backspace": "Удалить",
+    "keyboard.clear": "Очистить",
+    "keyboard.space": "Пробел",
+    "keyboard.done": "Готово",
+    "keyboard.hint": "В целях безопасности на этом экране используется только клавиатура киоска.",
 
     "plate.title": "Добро пожаловать",
     "plate.subtitle": "Введите номер автомобиля вручную или отсканируйте его с помощью автоматического распознавания номеров (LPR).",
@@ -560,10 +573,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "Долгое время не было активности. Транзакция будет сброшена через {seconds} сек.",
     "idle.continue": "Я всё ещё здесь",
 
-    "attract.campaignTitle": "Промокод",
-    "attract.percentOff": "скидка {value}%",
-    "attract.fixedOff": "скидка {value}",
-    "attract.tapToStart": "Коснитесь экрана, чтобы начать",
     "offline.banner": "Проблема с подключением - цены/операции могут быть устаревшими.",
     "offline.welcomeBlocked": "Система сейчас не может подключиться. Попробуйте снова через несколько минут или сообщите персоналу станции.",
 
@@ -647,6 +656,13 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "welcome.title": "Willkommen",
     "welcome.chooseLanguage": "Bitte wählen Sie Ihre Sprache, um fortzufahren",
+
+    "keyboard.label": "Bildschirmtastatur",
+    "keyboard.backspace": "Löschen",
+    "keyboard.clear": "Leeren",
+    "keyboard.space": "Leerzeichen",
+    "keyboard.done": "Fertig",
+    "keyboard.hint": "Aus Sicherheitsgründen ist auf diesem Bildschirm nur die Kiosk-Tastatur nutzbar.",
 
     "plate.title": "Willkommen",
     "plate.subtitle": "Geben Sie Ihr Kennzeichen ein, um zu beginnen, oder scannen Sie es mit der automatischen Kennzeichenerkennung (LPR).",
@@ -758,10 +774,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "Seit einiger Zeit wurde keine Aktivität festgestellt. Diese Transaktion wird in {seconds} Sekunden zurückgesetzt.",
     "idle.continue": "Ich bin noch da",
 
-    "attract.campaignTitle": "Aktionscode",
-    "attract.percentOff": "{value}% Rabatt",
-    "attract.fixedOff": "{value} Rabatt",
-    "attract.tapToStart": "Berühren Sie den Bildschirm, um zu beginnen",
     "offline.banner": "Verbindungsproblem - Preise/Transaktionen könnten veraltet sein.",
     "offline.welcomeBlocked": "Das System kann sich gerade nicht verbinden. Bitte versuchen Sie es in ein paar Minuten erneut oder informieren Sie das Stationspersonal.",
 
@@ -845,6 +857,13 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "welcome.title": "مرحبًا بكم",
     "welcome.chooseLanguage": "الرجاء اختيار لغتك للمتابعة",
+
+    "keyboard.label": "لوحة المفاتيح على الشاشة",
+    "keyboard.backspace": "حذف",
+    "keyboard.clear": "مسح",
+    "keyboard.space": "مسافة",
+    "keyboard.done": "تم",
+    "keyboard.hint": "لأسباب أمنية، تُستخدم لوحة مفاتيح الكشك فقط في هذه الشاشة.",
 
     "plate.title": "مرحبًا بكم",
     "plate.subtitle": "أدخل لوحة السيارة يدويًا للبدء، أو امسحها ضوئيًا باستخدام التعرف التلقائي على اللوحات (LPR).",
@@ -956,10 +975,6 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "لم يتم رصد أي نشاط منذ فترة. سيتم إعادة ضبط العملية خلال {seconds} ثانية.",
     "idle.continue": "ما زلت هنا",
 
-    "attract.campaignTitle": "رمز العرض",
-    "attract.percentOff": "خصم {value}%",
-    "attract.fixedOff": "خصم {value}",
-    "attract.tapToStart": "المس الشاشة للبدء",
     "offline.banner": "مشكلة في الاتصال - قد تكون الأسعار/المعاملات غير محدثة.",
     "offline.welcomeBlocked": "لا يمكن للنظام الاتصال حاليًا. يرجى المحاولة مرة أخرى خلال بضع دقائق أو إبلاغ موظفي المحطة.",
 
