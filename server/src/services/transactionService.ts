@@ -612,13 +612,38 @@ function refundFleetChargeIfNeeded(t: TransactionRow, wasDispensing: boolean): v
   }
 }
 
+/**
+ * Odeme hic sonuclanmadan iptal edilen islemin odeme durumunu da kapatir.
+ *
+ * Kiosk, iyzico formunu acar acmaz payment_status'u "processing" yapar. Musteri kart
+ * numarasini hic girmeden vazgecerse islem "cancelled" oluyordu ama payment_status
+ * "processing" olarak kaliyordu - ve gun sonu mutabakatinda "Askida Kalan Islemler"
+ * listesi bu satiri "parasi bloke edilmis ama isi bitmemis" diye gosteriyordu. Oysa
+ * ortada hic para yok.
+ *
+ * Yalnizca "pending"/"processing" sifirlanir: "authorized"/"captured"/"refunded" ise
+ * para GERCEKTEN hareket etmis demektir ve o satirin mutabakatta gorunmesi gerekir.
+ */
+function clearedPaymentStatus(t: TransactionRow): { payment_status?: "cancelled" } {
+  // touch() alanlari Object.keys ile geziyor: degeri undefined olan bir anahtar da
+  // UPDATE'e girer ve kolonu NULL yapar. Bu yuzden "degistirme" durumu, anahtari
+  // hic eklememekle ifade ediliyor.
+  const noMoneyMoved = t.payment_status === "pending" || t.payment_status === "processing";
+  return noMoneyMoved ? { payment_status: "cancelled" } : {};
+}
+
 export function cancelPendingTransaction(id: number, accessToken: string, reason: string): TransactionRow {
   const t = getTransactionForKiosk(id, accessToken);
   if (t.status !== "created") throw new TransactionError("Bu islem artik iptal edilemez.", 409);
   refundReservations(t);
   // Odeme hic alinmamisti (status "created") - dagitilan miktar da sifir, dolayisiyla tutar da
   // sifir olmalidir (bkz. emergencyStopTransaction'daki ayni duzeltme).
-  const updated = touch(id, { status: "cancelled", cancelled_reason: reason, total_amount: 0 });
+  const updated = touch(id, {
+    status: "cancelled",
+    cancelled_reason: reason,
+    total_amount: 0,
+    ...clearedPaymentStatus(t),
+  });
   setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
   broadcastTransaction(updated);
   return updated;
@@ -734,6 +759,7 @@ export function reconcileStaleCreatedTransactions(maxAgeMs = 3 * 60 * 1000): voi
       status: "cancelled",
       cancelled_reason: "Odeme suresi doldu (musteri islemi tamamlamadi).",
       total_amount: 0,
+      ...clearedPaymentStatus(t),
     });
     setPumpStatus(t.pump_id, "idle", { currentTransactionId: null });
     broadcastTransaction(updated);

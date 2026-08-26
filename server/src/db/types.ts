@@ -109,7 +109,31 @@ export type TransactionStatus =
   | "cancelled"
   | "failed";
 
-export type PaymentStatus = "pending" | "authorized" | "captured" | "failed" | "refunded";
+/**
+ * Odemenin durumu.
+ *
+ * "processing" ve "voided" kod tarafindan yaziliyordu ama bu birlesime hic eklenmemisti
+ * (touch() gevsek bir Partial aldigi icin TypeScript yakalamamisti) - yani tip, gercekte
+ * veritabaninda duran degerleri anlatmiyordu.
+ *
+ * pending    : odeme hic baslamadi
+ * processing : iyzico formu acildi, sonuc henuz bilinmiyor
+ * authorized : on-provizyon alindi (full_tank), tahsilat henuz yapilmadi
+ * captured   : tahsil edildi
+ * voided     : alinan on-provizyon serbest birakildi
+ * failed     : tahsilat denendi ve basarisiz oldu
+ * refunded   : tahsil edilen tutarin tamami iade edildi
+ * cancelled  : odeme hic sonuclanmadan islem iptal edildi - ortada para YOK
+ */
+export type PaymentStatus =
+  | "pending"
+  | "processing"
+  | "authorized"
+  | "captured"
+  | "voided"
+  | "failed"
+  | "refunded"
+  | "cancelled";
 
 export interface TransactionRow {
   id: number;
@@ -178,6 +202,37 @@ export interface DiscountCodeRow {
   active: number;
   created_at: string;
   created_by: number | null;
+}
+
+export interface FuelSupplierRow {
+  id: number;
+  station_id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  active: number;
+  created_at: string;
+  created_by: number | null;
+}
+
+export interface FuelOrderRow {
+  id: number;
+  station_id: number;
+  fuel_type: string;
+  supplier_id: number | null;
+  supplier_name: string;
+  ordered_liters: number;
+  unit_cost: number | null;
+  expected_at: string | null;
+  status: "draft" | "sent" | "received" | "cancelled";
+  note: string | null;
+  delivery_movement_id: number | null;
+  received_liters: number | null;
+  sent_at: string | null;
+  received_at: string | null;
+  cancelled_at: string | null;
+  created_by: number | null;
+  created_at: string;
 }
 
 export interface FleetAccountRow {

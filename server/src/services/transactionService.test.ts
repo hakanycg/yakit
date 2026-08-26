@@ -462,3 +462,66 @@ describe("emergencyStopStation", () => {
     expect(pump.status).toBe("fault");
   });
 });
+
+describe("iptal edilen islemin odeme durumu", () => {
+  function readTransaction(id: number): TransactionRow {
+    return db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(id)!;
+  }
+
+  it("kart girilmeden iptal edilen islem 'askida' gorunmez", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "06VY894",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "amount",
+      requestedAmount: 500,
+    });
+
+    // Kiosk iyzico formunu acar acmaz payment_status 'processing' olur.
+    markIyzicoPending(transaction.id, accessToken, "iyzico-cancel-1");
+    const cancelled = cancelPendingTransaction(transaction.id, accessToken, "Musteri vazgecti");
+
+    expect(cancelled.status).toBe("cancelled");
+    // Kritik olan bu: 'processing' kalsaydi mutabakattaki "Askida Kalan Islemler"
+    // listesi bunu "parasi bloke edilmis" diye gosterirdi. Ortada hic para yok.
+    expect(cancelled.payment_status).toBe("cancelled");
+    expect(cancelled.total_amount).toBe(0);
+  });
+
+  it("zaman asimiyla iptal edilen islemde de odeme durumu kapatilir", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34XYZ01",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "amount",
+      requestedAmount: 300,
+    });
+    markIyzicoPending(transaction.id, accessToken, "iyzico-cancel-2");
+
+    reconcileStaleCreatedTransactions(-1); // her seyi bayat say
+    const after = readTransaction(transaction.id);
+    expect(after.status).toBe("cancelled");
+    expect(after.payment_status).toBe("cancelled");
+  });
+
+  it("parasi GERCEKTEN bloke edilmis islemde odeme durumu KORUNUR", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "35ABC12",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "amount",
+      requestedAmount: 300,
+    });
+    db.prepare("UPDATE transactions SET payment_status = 'authorized' WHERE id = ?").run(transaction.id);
+
+    const cancelled = cancelPendingTransaction(transaction.id, accessToken, "Personel iptali");
+    // Bloke edilmis para mutabakatta gorunmeye DEVAM etmeli.
+    expect(cancelled.payment_status).toBe("authorized");
+  });
+});

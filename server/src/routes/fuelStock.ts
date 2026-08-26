@@ -31,6 +31,20 @@ import {
   getSupplierDeliveryVariance,
   updateDeliveryVarianceSettings,
 } from "../services/deliveryVarianceService.js";
+import {
+  FuelOrderError,
+  cancelOrder,
+  createOrder,
+  createSupplier,
+  listOrders,
+  listSuppliers,
+  receiveOrder,
+  sendOrder,
+  serializeOrder,
+  serializeSupplier,
+  suggestions,
+  updateSupplier,
+} from "../services/fuelOrderService.js";
 import { createWaybill, WaybillError } from "../services/waybillService.js";
 import { getWaybillForMovement, recordWaybillFailure, recordWaybillSuccess, serializeWaybill } from "../services/waybillRecordService.js";
 
@@ -322,6 +336,184 @@ const supplierVarianceQuerySchema = z.object({
 router.get("/delivery-variance/suppliers", validateQuery(supplierVarianceQuerySchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof supplierVarianceQuerySchema> }).validatedQuery;
   res.json({ suppliers: getSupplierDeliveryVariance(req.stationId!, q.from, q.to) });
+});
+
+// --- Tedarikciler ve siparisler ---------------------------------------------
+
+router.get("/suppliers", (req, res) => {
+  res.json({ suppliers: listSuppliers(req.stationId!).map(serializeSupplier) });
+});
+
+const supplierSchema = z.object({
+  name: z.string().trim().min(2, "Tedarikci adi en az 2 karakter olmalidir.").max(120),
+  email: z.string().trim().email("Gecerli bir e-posta girin.").max(200).optional(),
+  phone: z.string().trim().max(20).optional(),
+});
+
+router.post("/suppliers", csrfProtection, validateBody(supplierSchema), (req, res) => {
+  try {
+    const supplier = createSupplier(req.stationId!, req.body as z.infer<typeof supplierSchema>, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_supplier_created",
+      entityType: "fuel_supplier",
+      entityId: supplier.id,
+      details: { name: supplier.name },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ supplier: serializeSupplier(supplier) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const supplierUpdateSchema = z.object({
+  email: z.string().trim().email("Gecerli bir e-posta girin.").max(200).nullable().optional(),
+  phone: z.string().trim().max(20).nullable().optional(),
+  active: z.boolean().optional(),
+});
+
+router.patch("/suppliers/:id", csrfProtection, validateBody(supplierUpdateSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz tedarikci." });
+  try {
+    const supplier = updateSupplier(req.stationId!, id, req.body as z.infer<typeof supplierUpdateSchema>);
+    res.json({ supplier: serializeSupplier(supplier) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+/** Siparis ONERISI - siparisin kendisi degil. Siparis vermek para taahhut etmektir. */
+router.get("/orders/suggestions", (req, res) => {
+  res.json({ suggestions: suggestions(req.stationId!) });
+});
+
+router.get("/orders", (req, res) => {
+  res.json({ orders: listOrders(req.stationId!).map(serializeOrder) });
+});
+
+const orderSchema = z.object({
+  fuelType: fuelTypeEnum,
+  supplierId: z.number().int().positive(),
+  liters: z.number().positive().max(100000),
+  unitCost: z.number().positive().max(1000).optional(),
+  expectedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.").optional(),
+  note: z.string().trim().max(300).optional(),
+});
+
+router.post("/orders", csrfProtection, validateBody(orderSchema), (req, res) => {
+  try {
+    const body = req.body as z.infer<typeof orderSchema>;
+    const order = createOrder(req.stationId!, body, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_order_created",
+      entityType: "fuel_order",
+      entityId: order.id,
+      details: { fuelType: order.fuel_type, liters: order.ordered_liters, supplier: order.supplier_name },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.status(201).json({ order: serializeOrder(order) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.post("/orders/:id/send", csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz siparis." });
+  try {
+    const order = sendOrder(req.stationId!, id, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_order_sent",
+      entityType: "fuel_order",
+      entityId: id,
+      details: { supplier: order.supplier_name, liters: order.ordered_liters },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ order: serializeOrder(order) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.post("/orders/:id/cancel", csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz siparis." });
+  try {
+    const order = cancelOrder(req.stationId!, id);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_order_cancelled",
+      entityType: "fuel_order",
+      entityId: id,
+      details: { supplier: order.supplier_name, liters: order.ordered_liters },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ order: serializeOrder(order) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const receiveSchema = z.object({
+  liters: z.number().positive().max(100000),
+  deliveryRef: z.string().trim().max(60).optional(),
+  note: z.string().max(300).optional(),
+  unitCost: z.number().positive().max(1000).optional(),
+  force: z.boolean().optional(),
+  measuredBefore: z.number().min(0).max(1000000).optional(),
+  measuredAfter: z.number().min(0).max(1000000).optional(),
+});
+
+/**
+ * Siparisin teslim alinmasi. Mevcut teslimat yolunu (addStock) oldugu gibi kullanir:
+ * kabul farki, irsaliye tekrari kontrolu ve maliyet ortalamasi degismeden calisir.
+ */
+router.post("/orders/:id/receive", csrfProtection, validateBody(receiveSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz siparis." });
+  try {
+    const body = req.body as z.infer<typeof receiveSchema>;
+    const { order, overflow, variance } = receiveOrder(req.stationId!, id, body, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_order_received",
+      entityType: "fuel_order",
+      entityId: id,
+      details: {
+        orderedLiters: order.ordered_liters,
+        declaredLiters: body.liters,
+        acceptedLiters: variance.acceptedLiters,
+        varianceLiters: variance.varianceLiters,
+        supplier: order.supplier_name,
+      },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ order: serializeOrder(order), overflow, variance });
+  } catch (err) {
+    if (err instanceof DuplicateDeliveryRefError) {
+      return void res.status(err.status).json({
+        error: err.message,
+        details: { duplicate: true, movementId: err.movementId, existingCreatedAt: err.existingCreatedAt },
+      });
+    }
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    if (err instanceof FuelStockError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 const adjustSchema = z.object({

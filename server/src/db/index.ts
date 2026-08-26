@@ -55,6 +55,15 @@ export function applyMigrations(): void {
   ensureColumn("fleet_accounts", "overdue_block_days", "INTEGER");
   ensureColumn("fleet_invoices", "due_date", "TEXT");
 
+  // Odeme hic sonuclanmadan iptal edilen eski islemler payment_status='processing'
+  // olarak kalmisti ve gun sonu mutabakatindaki "Askida Kalan Islemler" listesinde
+  // "parasi bloke edilmis" gibi gorunuyorlardi (bkz. transactionService.clearedPaymentStatus).
+  // Yalnizca tutari SIFIR olan satirlar duzeltiliyor: ortada gercekten para varsa
+  // o satirin mutabakatta gorunmeye devam etmesi gerekir.
+  db.prepare(
+    "UPDATE transactions SET payment_status = 'cancelled' WHERE status = 'cancelled' AND payment_status = 'processing' AND total_amount = 0"
+  ).run();
+
   ensureColumn("station_kiosks", "device_token", "TEXT");
   ensureColumn("station_kiosks", "last_seen_at", "TEXT");
   // Mevcut kurulumlarda NULL kalir: bagli pompasi olmayan kiosk eskisi gibi

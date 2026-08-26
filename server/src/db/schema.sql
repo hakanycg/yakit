@@ -155,7 +155,7 @@ CREATE TABLE IF NOT EXISTS transactions (
   dispensed_liters REAL NOT NULL DEFAULT 0,
   total_amount REAL NOT NULL DEFAULT 0,
   payment_method TEXT NOT NULL DEFAULT 'virtual_card',
-  payment_status TEXT NOT NULL DEFAULT 'pending', -- pending | authorized | captured | failed | refunded
+  payment_status TEXT NOT NULL DEFAULT 'pending', -- pending | processing | authorized | captured | voided | failed | refunded | cancelled (bkz. db/types.ts)
   payment_reference TEXT,
   status TEXT NOT NULL DEFAULT 'created', -- created | paid | authorized | dispensing | completed | cancelled | failed
   kiosk_access_token TEXT NOT NULL,    -- kiosk terminalinin bu islemi sorgulamasi icin gereken tek kullanimlik token
@@ -253,6 +253,59 @@ CREATE TABLE IF NOT EXISTS fuel_tanks (
   PRIMARY KEY (station_id, fuel_type)
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_tanks_station ON fuel_tanks(station_id);
+
+-- Tedarikci kayitli iletisim bilgisi.
+--
+-- Teslimat kaydindaki supplier alani SERBEST METIN olarak kaliyor ve bu tabloya
+-- BAGLANMIYOR: mevcut teslimat gecmisi ve tedarikci karnesi (getSupplierSummary,
+-- delivery-variance/suppliers) o metin uzerinden calisiyor, veri gocu gerektiren
+-- her degisiklik gecmis raporlari bozma riski tasir. Bu tablonun tek isi siparisin
+-- KIME gonderilecegini bilmek.
+CREATE TABLE IF NOT EXISTS fuel_suppliers (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by INTEGER REFERENCES users(id),
+  UNIQUE(station_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_fuel_suppliers_station ON fuel_suppliers(station_id, active);
+
+-- Yakit siparisi.
+--
+-- Dusuk stok alarmi calisiyordu ama sonrasinda kimse ne siparis verildigini, ne zaman
+-- beklendigini bilmiyordu - biri dagiticiyi telefonla ariyordu. Siparis, alarm ile
+-- teslimat kaydi arasindaki eksik halkadir.
+--
+-- Siparis OTOMATIK OLUSTURULMAZ, yalnizca onerilir (bkz. fuelOrderService.suggestions):
+-- siparis vermek para taahhut etmektir, sistemin kendi basina alacagi bir karar degil.
+CREATE TABLE IF NOT EXISTS fuel_orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fuel_type TEXT NOT NULL,
+  supplier_id INTEGER REFERENCES fuel_suppliers(id),
+  -- Tedarikci adi siparis aninda DONDURULUR: tedarikci kaydi sonradan yeniden
+  -- adlandirilirsa gecmis siparisler degismemeli (ayni gerekce: fatura tutarlari).
+  supplier_name TEXT NOT NULL,
+  ordered_liters REAL NOT NULL,
+  unit_cost REAL,                      -- anlasilan birim fiyat (TL/L), opsiyonel
+  expected_at TEXT,                    -- beklenen teslim tarihi
+  status TEXT NOT NULL DEFAULT 'draft', -- draft | sent | received | cancelled
+  note TEXT,
+  -- Teslim alinca olusan stok hareketi. Siparis-teslimat eslesmesi buradan kurulur;
+  -- bir siparis yalnizca BIR kez teslim alinabilir (bkz. receiveOrder).
+  delivery_movement_id INTEGER REFERENCES fuel_stock_movements(id),
+  received_liters REAL,                -- tanka fiilen giren miktar (teslim aninda dondurulur)
+  sent_at TEXT,
+  received_at TEXT,
+  cancelled_at TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fuel_orders_station ON fuel_orders(station_id, status);
 
 CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

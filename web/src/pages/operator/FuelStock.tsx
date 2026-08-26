@@ -23,6 +23,9 @@ export default function FuelStock() {
   const [movementFilter, setMovementFilter] = useState("");
   const [suppliers, setSuppliers] = useState<SupplierSummaryRow[]>([]);
   const [deliveryVariance, setDeliveryVariance] = useState<SupplierDeliveryVarianceRow[]>([]);
+  const [orderSuggestions, setOrderSuggestions] = useState<OrderSuggestion[]>([]);
+  const [orders, setOrders] = useState<FuelOrder[]>([]);
+  const [orderSuppliers, setOrderSuppliers] = useState<OrderSupplier[]>([]);
 
   function loadTanks() {
     if (stationId === null) return;
@@ -42,13 +45,22 @@ export default function FuelStock() {
       .catch(() => setDeliveryVariance([]));
   }
 
+  function loadOrders() {
+    if (stationId === null) return;
+    api.get<{ suggestions: OrderSuggestion[] }>("/api/fuel-stock/orders/suggestions").then((r) => setOrderSuggestions(r.suggestions));
+    api.get<{ orders: FuelOrder[] }>("/api/fuel-stock/orders").then((r) => setOrders(r.orders));
+    api.get<{ suppliers: OrderSupplier[] }>("/api/fuel-stock/suppliers").then((r) => setOrderSuppliers(r.suppliers));
+  }
+
   useEffect(loadTanks, [stationId]);
   useEffect(loadMovements, [stationId, movementFilter]);
   useEffect(loadSuppliers, [stationId]);
+  useEffect(loadOrders, [stationId]);
   useTopicSubscription(stationId !== null ? `fuel-stock:${stationId}` : null, () => {
     loadTanks();
     loadMovements();
     loadSuppliers();
+    loadOrders();
   });
 
   const csvHref = appendStationParam(`/api/fuel-stock/movements/export.csv${movementFilter ? `?fuelType=${movementFilter}` : ""}`);
@@ -70,6 +82,18 @@ export default function FuelStock() {
         ))}
         {tanks.length === 0 && <p className="hint-text">Yükleniyor...</p>}
       </div>
+
+      <FuelOrdersSection
+        suggestions={orderSuggestions}
+        orders={orders}
+        suppliers={orderSuppliers}
+        onChanged={() => {
+          loadOrders();
+          loadTanks();
+          loadMovements();
+          loadSuppliers();
+        }}
+      />
 
       <div className="card" style={{ marginTop: "1rem" }}>
         <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
@@ -670,6 +694,560 @@ function WaybillCell({ movementId }: { movementId: number }) {
       {!error && waybill?.status === "failed" && (
         <div className="error-text" style={{ fontSize: "0.75rem", maxWidth: 220 }}>{waybill.errorMessage}</div>
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+/**
+ * Yakit siparisi: dusuk stok alarmi ile teslimat kaydi arasindaki eksik halka.
+ *
+ * Sistem siparisi OTOMATIK OLUSTURMAZ, yalnizca onerir - siparis vermek para taahhut
+ * etmektir. Onerideki belirleyici sayi kalan litre degil "kac gun yeter"dir: 3.000
+ * litre, gunde 500 litre satan istasyonda bir hafta, gunde 3.000 litre satanda yarim
+ * gundur.
+ */
+interface OrderSuggestion {
+  fuelType: string;
+  currentLiters: number;
+  capacityLiters: number;
+  lowStockThresholdLiters: number;
+  dailyAverageLiters: number;
+  daysOfCover: number | null;
+  suggestedLiters: number;
+  urgent: boolean;
+  openOrderLiters: number;
+}
+
+interface OrderSupplier {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  active: boolean;
+}
+
+interface FuelOrder {
+  id: number;
+  fuelType: string;
+  supplierId: number | null;
+  supplierName: string;
+  orderedLiters: number;
+  receivedLiters: number | null;
+  unitCost: number | null;
+  expectedAt: string | null;
+  status: "draft" | "sent" | "received" | "cancelled";
+  note: string | null;
+  deliveryMovementId: number | null;
+  sentAt: string | null;
+  receivedAt: string | null;
+  createdAt: string;
+}
+
+const ORDER_STATUS_LABEL: Record<FuelOrder["status"], string> = {
+  draft: "Taslak",
+  sent: "Gönderildi",
+  received: "Teslim alındı",
+  cancelled: "İptal",
+};
+
+const ORDER_STATUS_BADGE: Record<FuelOrder["status"], string> = {
+  draft: "warning",
+  sent: "info",
+  received: "resolved",
+  cancelled: "critical",
+};
+
+function FuelOrdersSection({
+  suggestions,
+  orders,
+  suppliers,
+  onChanged,
+}: {
+  suggestions: OrderSuggestion[];
+  orders: FuelOrder[];
+  suppliers: OrderSupplier[];
+  onChanged: () => void;
+}) {
+  const [creating, setCreating] = useState<OrderSuggestion | null>(null);
+  const [receiving, setReceiving] = useState<FuelOrder | null>(null);
+  const [showSuppliers, setShowSuppliers] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openOrders = orders.filter((o) => o.status === "draft" || o.status === "sent");
+  const history = orders.filter((o) => o.status === "received" || o.status === "cancelled").slice(0, 10);
+
+  async function act(order: FuelOrder, action: "send" | "cancel") {
+    setError(null);
+    try {
+      await api.post(`/api/fuel-stock/orders/${order.id}/${action}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "İşlem tamamlanamadı.");
+    }
+  }
+
+  return (
+    <div className="card" style={{ marginTop: "1rem" }}>
+      <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
+        <h3 style={{ margin: 0 }}>Sipariş</h3>
+        <div className="spacer" />
+        <button onClick={() => setShowSuppliers(true)}>Tedarikçiler</button>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Yakıt</th>
+            <th className="numeric">Mevcut</th>
+            <th className="numeric">Günlük ortalama</th>
+            <th>Kaç gün yeter</th>
+            <th className="numeric">Yolda</th>
+            <th className="numeric">Önerilen</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {suggestions.map((s) => (
+            <tr key={s.fuelType}>
+              <td>
+                <strong>{FUEL_LABEL[s.fuelType] ?? s.fuelType}</strong>
+              </td>
+              <td className="numeric">{formatLiters(s.currentLiters)}</td>
+              <td className="numeric hint-text">{s.dailyAverageLiters > 0 ? formatLiters(s.dailyAverageLiters) : "—"}</td>
+              <td>
+                {/* Kalan litre tek basina bir sey soylemez; karar bu sutunda verilir. */}
+                {s.daysOfCover === null ? (
+                  <span className="hint-text">tüketim yok</span>
+                ) : (
+                  <span className={`badge ${s.urgent ? "critical" : "resolved"}`}>{s.daysOfCover} gün</span>
+                )}
+              </td>
+              <td className="numeric hint-text">{s.openOrderLiters > 0 ? formatLiters(s.openOrderLiters) : "—"}</td>
+              <td className="numeric">{s.suggestedLiters > 0 ? formatLiters(s.suggestedLiters) : "—"}</td>
+              <td>
+                <button className="btn-sm" onClick={() => setCreating(s)} disabled={suppliers.length === 0}>
+                  Sipariş Ver
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {suppliers.length === 0 && (
+        <p className="hint-text">Sipariş verebilmek için önce en az bir tedarikçi tanımlayın.</p>
+      )}
+      {error && <p className="error-text">{error}</p>}
+
+      {openOrders.length > 0 && (
+        <>
+          <h4>Açık Siparişler</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Yakıt</th>
+                <th>Tedarikçi</th>
+                <th className="numeric">Miktar</th>
+                <th>Beklenen</th>
+                <th>Durum</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {openOrders.map((o) => (
+                <tr key={o.id}>
+                  <td>#{o.id}</td>
+                  <td>{FUEL_LABEL[o.fuelType] ?? o.fuelType}</td>
+                  <td>{o.supplierName}</td>
+                  <td className="numeric">{formatLiters(o.orderedLiters)}</td>
+                  <td className="hint-text">{o.expectedAt ?? "—"}</td>
+                  <td>
+                    <span className={`badge ${ORDER_STATUS_BADGE[o.status]}`}>{ORDER_STATUS_LABEL[o.status]}</span>
+                  </td>
+                  <td>
+                    <div className="toolbar" style={{ margin: 0, gap: "0.4rem" }}>
+                      {o.status === "draft" && (
+                        <button className="btn-sm" onClick={() => act(o, "send")}>
+                          Gönder
+                        </button>
+                      )}
+                      <button className="primary btn-sm" onClick={() => setReceiving(o)}>
+                        Teslim Al
+                      </button>
+                      <button className="ghost btn-sm" onClick={() => act(o, "cancel")}>
+                        İptal
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {history.length > 0 && (
+        <>
+          <h4>Geçmiş</h4>
+          <table>
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Yakıt</th>
+                <th>Tedarikçi</th>
+                <th className="numeric">Sipariş</th>
+                <th className="numeric">Teslim alınan</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((o) => (
+                <tr key={o.id}>
+                  <td>#{o.id}</td>
+                  <td>{FUEL_LABEL[o.fuelType] ?? o.fuelType}</td>
+                  <td>{o.supplierName}</td>
+                  <td className="numeric">{formatLiters(o.orderedLiters)}</td>
+                  <td className="numeric">
+                    {o.receivedLiters === null ? (
+                      <span className="hint-text">—</span>
+                    ) : (
+                      /* Siparis edilenden farkli geldiyse gorunur olmali: eksik gelen
+                         tanker, sizintidan sonra en yaygin kayip kaynagidir. */
+                      <strong style={o.receivedLiters < o.orderedLiters ? { color: "#f87171" } : undefined}>
+                        {formatLiters(o.receivedLiters)}
+                      </strong>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`badge ${ORDER_STATUS_BADGE[o.status]}`}>{ORDER_STATUS_LABEL[o.status]}</span>
+                    <div className="hint-text">{formatDateTime(o.receivedAt ?? o.createdAt)}</div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {creating && (
+        <CreateOrderDialog
+          suggestion={creating}
+          suppliers={suppliers.filter((s) => s.active)}
+          onClose={() => setCreating(null)}
+          onCreated={() => {
+            setCreating(null);
+            onChanged();
+          }}
+        />
+      )}
+
+      {receiving && (
+        <ReceiveOrderDialog
+          order={receiving}
+          onClose={() => setReceiving(null)}
+          onReceived={() => {
+            setReceiving(null);
+            onChanged();
+          }}
+        />
+      )}
+
+      {showSuppliers && (
+        <SuppliersDialog suppliers={suppliers} onClose={() => setShowSuppliers(false)} onChanged={onChanged} />
+      )}
+    </div>
+  );
+}
+
+function CreateOrderDialog({
+  suggestion,
+  suppliers,
+  onClose,
+  onCreated,
+}: {
+  suggestion: OrderSuggestion;
+  suppliers: OrderSupplier[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [supplierId, setSupplierId] = useState(suppliers[0]?.id ?? 0);
+  const [liters, setLiters] = useState(suggestion.suggestedLiters > 0 ? String(suggestion.suggestedLiters) : "");
+  const [unitCost, setUnitCost] = useState("");
+  const [expectedAt, setExpectedAt] = useState("");
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post("/api/fuel-stock/orders", {
+        fuelType: suggestion.fuelType,
+        supplierId,
+        liters: Number(liters),
+        unitCost: unitCost ? Number(unitCost) : undefined,
+        expectedAt: expectedAt || undefined,
+        note: note.trim() || undefined,
+      });
+      onCreated();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Sipariş oluşturulamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h3>{FUEL_LABEL[suggestion.fuelType] ?? suggestion.fuelType} Siparişi</h3>
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          Mevcut {formatLiters(suggestion.currentLiters)} / {formatLiters(suggestion.capacityLiters)} kapasite
+          {suggestion.daysOfCover !== null && ` · bu hızla ${suggestion.daysOfCover} gün yeter`}
+        </p>
+
+        <label>Tedarikçi</label>
+        <select value={supplierId} onChange={(e) => setSupplierId(Number(e.target.value))}>
+          {suppliers.map((s) => (
+            <option key={s.id} value={s.id}>
+              {s.name}
+              {s.email ? "" : " (e-posta yok)"}
+            </option>
+          ))}
+        </select>
+
+        <label>Miktar (L)</label>
+        <input type="number" min={1} step={1} value={liters} onChange={(e) => setLiters(e.target.value)} autoFocus />
+
+        <label>Anlaşılan Birim Fiyat (TL/L, opsiyonel)</label>
+        <input type="number" min={0} step={0.0001} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+
+        <label>Beklenen Teslim Tarihi (opsiyonel)</label>
+        <input type="date" value={expectedAt} onChange={(e) => setExpectedAt(e.target.value)} />
+
+        <label>Not (opsiyonel)</label>
+        <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div className="modal-actions">
+          <button className="ghost" onClick={onClose} disabled={busy}>
+            Vazgeç
+          </button>
+          <div className="spacer" />
+          <button className="primary" onClick={submit} disabled={busy || !liters || !supplierId}>
+            {busy ? "Kaydediliyor..." : "Siparişi Oluştur"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Teslim alma, mevcut teslimat yolunu kullanir: irsaliyede yazan miktar ile tanka
+ * fiilen giren miktar AYRI sorulur ve kabul farki oradan hesaplanir.
+ */
+function ReceiveOrderDialog({ order, onClose, onReceived }: { order: FuelOrder; onClose: () => void; onReceived: () => void }) {
+  const [liters, setLiters] = useState(String(order.orderedLiters));
+  const [deliveryRef, setDeliveryRef] = useState("");
+  const [measuredBefore, setMeasuredBefore] = useState("");
+  const [measuredAfter, setMeasuredAfter] = useState("");
+  const [unitCost, setUnitCost] = useState(order.unitCost?.toString() ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(force = false) {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/api/fuel-stock/orders/${order.id}/receive`, {
+        liters: Number(liters),
+        deliveryRef: deliveryRef.trim() || undefined,
+        unitCost: unitCost ? Number(unitCost) : undefined,
+        measuredBefore: measuredBefore ? Number(measuredBefore) : undefined,
+        measuredAfter: measuredAfter ? Number(measuredAfter) : undefined,
+        force,
+      });
+      onReceived();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Teslimat kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <h3>#{order.id} Teslim Al</h3>
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          {order.supplierName} · {formatLiters(order.orderedLiters)} sipariş edilmişti.
+        </p>
+
+        <label>İrsaliyede Yazan Miktar (L)</label>
+        <input type="number" min={1} step={0.01} value={liters} onChange={(e) => setLiters(e.target.value)} autoFocus />
+
+        <label>İrsaliye No</label>
+        <input value={deliveryRef} onChange={(e) => setDeliveryRef(e.target.value)} maxLength={60} />
+
+        <label>Birim Maliyet (TL/L, opsiyonel)</label>
+        <input type="number" min={0} step={0.0001} value={unitCost} onChange={(e) => setUnitCost(e.target.value)} />
+
+        {/* Ikisi de girilirse tanka fiilen ne girdigi olculur ve eksik gelen tanker
+            teslimat aninda yakalanir; girilmezse irsaliye rakami esas alinir. */}
+        <div className="grid cols-2" style={{ alignItems: "start" }}>
+          <div>
+            <label>Teslimat Öncesi Tank (L)</label>
+            <input type="number" min={0} step={0.01} value={measuredBefore} onChange={(e) => setMeasuredBefore(e.target.value)} />
+          </div>
+          <div>
+            <label>Teslimat Sonrası Tank (L)</label>
+            <input type="number" min={0} step={0.01} value={measuredAfter} onChange={(e) => setMeasuredAfter(e.target.value)} />
+          </div>
+        </div>
+        <p className="hint-text">
+          İkisini de girerseniz eksik gelen yakıt teslimat anında yakalanır. Boş bırakılırsa irsaliyedeki miktar esas alınır.
+        </p>
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div className="modal-actions">
+          <button className="ghost" onClick={onClose} disabled={busy}>
+            Vazgeç
+          </button>
+          <div className="spacer" />
+          {error?.includes("irsaliye") && (
+            <button onClick={() => submit(true)} disabled={busy}>
+              Yine de Kaydet
+            </button>
+          )}
+          <button className="primary" onClick={() => submit()} disabled={busy || !liters}>
+            {busy ? "Kaydediliyor..." : "Teslimatı Kaydet"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SuppliersDialog({
+  suppliers,
+  onClose,
+  onChanged,
+}: {
+  suppliers: OrderSupplier[];
+  onClose: () => void;
+  onChanged: () => void;
+}) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function create() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post("/api/fuel-stock/suppliers", {
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+      });
+      setName("");
+      setEmail("");
+      setPhone("");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Tedarikçi eklenemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggle(s: OrderSupplier) {
+    await api.patch(`/api/fuel-stock/suppliers/${s.id}`, { active: !s.active }).catch(() => {});
+    onChanged();
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card modal-lg" onClick={(e) => e.stopPropagation()}>
+        <h3>Tedarikçiler</h3>
+        {/* Teslimat kaydindaki tedarikci alani serbest metin olarak kaliyor; bu liste
+            yalnizca siparisin KIME gonderilecegini bilmek icin. */}
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          Sipariş e-postası buradaki adrese gider. E-postası olmayan tedarikçiye sipariş yine kaydedilir, sadece
+          e-posta gönderilmez.
+        </p>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Ad</th>
+              <th>E-posta</th>
+              <th>Telefon</th>
+              <th>Durum</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {suppliers.map((s) => (
+              <tr key={s.id}>
+                <td>{s.name}</td>
+                <td className="hint-text">{s.email ?? "—"}</td>
+                <td className="hint-text">{s.phone ?? "—"}</td>
+                <td>
+                  <span className={`badge ${s.active ? "resolved" : "critical"}`}>{s.active ? "Aktif" : "Pasif"}</span>
+                </td>
+                <td>
+                  <button className="ghost btn-sm" onClick={() => toggle(s)}>
+                    {s.active ? "Pasife Al" : "Aktif Et"}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {suppliers.length === 0 && (
+              <tr>
+                <td colSpan={5} className="hint-text">
+                  Henüz tedarikçi tanımlanmamış.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+
+        <h4>Yeni Tedarikçi</h4>
+        <div className="grid cols-2" style={{ alignItems: "start" }}>
+          <div>
+            <label>Ad</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} />
+          </div>
+          <div>
+            <label>E-posta</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="siparis@tedarikci.com" />
+          </div>
+        </div>
+        <label>Telefon</label>
+        <input value={phone} onChange={(e) => setPhone(e.target.value)} maxLength={20} />
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div className="modal-actions">
+          <button className="ghost" onClick={onClose}>
+            Kapat
+          </button>
+          <div className="spacer" />
+          <button className="primary" onClick={create} disabled={busy || name.trim().length < 2}>
+            Ekle
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

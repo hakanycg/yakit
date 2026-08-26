@@ -339,6 +339,54 @@ olan bir belge ikinci kez kesilebilirdi. Zaten gönderilmiş bir fatura tekrar g
   edilmelidir** — özellikle kurumsal e-Fatura için `DeliveryType` ve
   `AccountingCustomerParty` alanlarının Uyumsoft'un güncel sözleşmesine uyduğu.
 
+## Yakıt siparişi (düşük stok → tedarikçi → teslimat)
+
+Düşük stok alarmı çalıyordu, sonra biri dağıtıcıyı telefonla arıyordu: ne sipariş
+verildiği, ne zaman beklendiği hiçbir yerde durmuyordu; tanker geldiğinde de teslimatın
+hangi siparişe karşılık geldiği bilinmiyordu. Sipariş, alarm ile teslimat kaydı
+arasındaki eksik halkadır.
+
+### Sipariş otomatik oluşmaz, önerilir
+
+Sipariş vermek para taahhüt etmektir; sistemin kendi başına alacağı bir karar değildir.
+Sistem yalnızca **önerir**, personel tek tıkla siparişe çevirir — filo bakiye yükleme
+talebiyle aynı felsefe: sistem hazırlar, insan taahhüt eder.
+
+Öneride belirleyici sayı kalan litre değil **"kaç gün yeter"**dir: 3.000 litre, günde
+500 litre satan istasyonda bir hafta, günde 3.000 litre satanda yarım gündür. Günlük
+ortalama son 14 günün satış hareketlerinden gelir — daha kısası tek bir yoğun günün
+etkisiyle savrulur, daha uzunu mevsimsel değişimi geç yakalar.
+
+Önerilen miktar tankı **dolduracak** miktardır (eksiği kapatan değil): tanker zaten yola
+çıktığında yarım getirmesinin bir maliyet avantajı yok. **Yolda olan sipariş düşülür**,
+aksi halde aynı eksik için ikinci kez sipariş önerilirdi.
+
+Bir tank iki koşuldan biriyle "acil" işaretlenir: düşük stok eşiğinin altına düşmüş ya da
+3 günden az kalmış. İkincisi olmasaydı, eşiğin hemen üstünde duran ama hızla tükenen bir
+tank fark edilmezdi.
+
+### Teslim alma mevcut yolu kullanır
+
+Sipariş teslim alınırken `addStock()` olduğu gibi çağrılır: teslimat kabul farkı, irsaliye
+tekrarı kontrolü, ortalama maliyet ve düşük stok alarmının çözülmesi hiç değişmeden
+çalışır. Bu akışın eklediği tek şey, oluşan stok hareketini siparişle eşleştirmesidir.
+
+Bir sipariş yalnızca **bir kez** teslim alınabilir; aksi halde aynı tanker iki kez stoğa
+girerdi. Teslim alınmış sipariş iptal edilemez — yakıt tanka girdi, kaydı silmek stoğu
+gerçekle çelişkiye düşürürdü. Reddedilen bir teslimat (ör. aynı irsaliye numarası)
+siparişi kapatmaz: personel düzeltip yeniden dener.
+
+### Tedarikçi kaydı teslimat geçmişine dokunmaz
+
+Teslimat kaydındaki `supplier` alanı **serbest metin olarak kalıyor** ve yeni
+`fuel_suppliers` tablosuna bağlanmıyor: mevcut teslimat geçmişi ve tedarikçi karnesi o
+metin üzerinden çalışıyor, veri göçü gerektiren her değişiklik geçmiş raporları bozma
+riski taşır. Yeni tablonun tek işi siparişin **kime** gönderileceğini bilmek.
+
+Sipariş e-postası gönderilemese de (tedarikçinin e-postası kayıtlı değil, SMTP
+yapılandırılmamış) sipariş kaydedilir ve panelde görünür: sipariş telefonla verilmiş
+olabilir — sistemin görevi kaydı tutmak, tek gönderim kanalı olmak değil.
+
 ## Filo alacak takibi (vadesi geçen borç)
 
 Faturalı (sonradan ödeme) hesapta sistem "ne kadar borcu var" biliyordu, **"ne kadar

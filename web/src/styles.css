@@ -1048,6 +1048,16 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .login-shell { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--bg); }
 .login-card { width: min(380px, 100%); background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 2rem; }
 
+/* Form alanlarindan hemen sonra gelen gonder dugmesi, son alana yapisik duruyordu
+   (ör. Yakit Sapma > Olcumu Kaydet). Araligi bilesen degil KALIP verir - sayfa ritmi
+   kurallariyla ayni mantik (bkz. .card + .card): aksi halde her form ayri ayri
+   style={{ marginTop }} ile yamanmak zorunda kalirdi.
+
+   Yalnizca form'un DOGRUDAN cocugu olan dugmeler hedefleniyor: .toolbar ve
+   .modal-actions icindeki dugmeler kendi hizalamalarini kendileri kuruyor. */
+form > button { margin-top: 1rem; }
+form > .toolbar > button, form > .modal-actions > button { margin-top: 0; }
+
 /* Filo musteri portali (/filo) - yonetim panelinin sidebar'li kabugunu KULLANMAZ:
    buraya giren kisi personel degildir, gezinecek bir menusu yoktur. Ayni renk
    degiskenlerini kullanir, boylece gun/gece temasi burada da calisir. */
