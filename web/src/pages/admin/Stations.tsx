@@ -507,6 +507,15 @@ function PumpBindingField({
         Kiosk tek bir pompanın başında duruyorsa onu seçin: müşteriye pompa sorulmaz, yanlış pompa
         seçilmesi de mümkün olmaz.
       </p>
+      {/* Bagli pompa CIHAZ basinadir: sunucu hangi kiosk oldugunu ancak cihaz tokeninden
+          anlar. Kiosk sade adresle (/kiosk/KOD) acilirsa bu ayar sessizce etkisiz kalir ve
+          "Pompa Secin" ekrani cikmaya devam eder - bunu burada soylemezsek yonetici ayari
+          yapip calismadigini sanir. */}
+      <p className="hint-text">
+        <strong>Not:</strong> bu ayarın çalışması için kiosk, bu kaydın <em>kurulum adresiyle</em>
+        (aşağıdaki "Kurulum adresi" düğmesi) açılmış olmalıdır. Sade <code>/kiosk/KOD</code> adresiyle
+        açılan bir ekranda sunucu hangi kiosk olduğunu bilemez ve pompa seçme adımı çıkmaya devam eder.
+      </p>
     </>
   );
 }
@@ -587,6 +596,9 @@ function KioskRow({
       <div className="kiosk-item-meta">
         <span>
           Pompa: {kiosk.pumpId ? (pumps.find((p) => p.id === kiosk.pumpId)?.label ?? `#${kiosk.pumpId}`) : "Müşteri seçer"}
+          {kiosk.pumpId && !kiosk.lastSeenAt && (
+            <span className="badge warning" style={{ marginLeft: "0.4rem" }}>kurulum adresi uygulanmadı</span>
+          )}
         </span>
         <span>AnyDesk: {kiosk.anydeskId ? <code>{kiosk.anydeskId}</code> : "—"}</span>
         <span>Son bağlantı: {kiosk.lastSeenAt ? formatDateTime(kiosk.lastSeenAt) : "—"}</span>

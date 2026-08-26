@@ -125,32 +125,41 @@ export default function FleetAccounts() {
       </p>
       {error && <p className="error-text">{error}</p>}
 
-      <table>
-        <thead>
-          <tr>
-            <th>Şirket</th><th>VKN</th><th>Ödeme Tipi</th><th className="numeric">Bakiye/Borç</th>
-            <th className="numeric">Kullanılabilir</th><th>Plakalar</th><th>Durum</th><th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {accounts.map((a) => (
-            <tr key={a.id}>
-              <td><strong>{a.companyName}</strong></td>
-              <td>{a.vkn ?? "-"}</td>
-              <td>{a.billingType === "prepaid" ? "Ön Ödemeli" : "Sonradan Fatura"}</td>
-              <td className="numeric">{formatCurrency(a.balance)}</td>
-              <td className="numeric">{a.availableAmount !== null ? formatCurrency(a.availableAmount) : "Sınırsız"}</td>
-              <td>{a.plates.length}</td>
-              <td><span className={`badge ${a.active ? "resolved" : "critical"}`}>{a.active ? "Aktif" : "Pasif"}</span></td>
-              <td className="toolbar">
-                <button onClick={() => setDetailId(a.id)}>Detay</button>
-                <button onClick={() => toggleActive(a)}>{a.active ? "Pasife Al" : "Aktif Et"}</button>
-              </td>
-            </tr>
-          ))}
-          {accounts.length === 0 && <tr><td colSpan={8} className="hint-text">Henüz filo hesabı yok.</td></tr>}
-        </tbody>
-      </table>
+      {/* Sekiz sutunlu tablo telefonda yatay kaydirma gerektiriyor ve eylem dugmeleri
+          ekranin disinda kaliyordu. Istasyonlar/Destek Talepleri ile ayni desen: liste
+          tek satir, detayin tamami satira tiklaninca acilan pencerede. */}
+      <div className="station-list">
+        {accounts.map((a) => (
+          <div className="fleet-row" key={a.id}>
+            <button type="button" className="station-row fleet-row-main" onClick={() => setDetailId(a.id)}>
+              <span className="station-row-main">
+                <span className="station-row-name">{a.companyName}</span>
+                <span className="station-row-sub">
+                  <span className="station-row-address">
+                    {a.billingType === "prepaid" ? "Ön ödemeli" : "Sonradan fatura"}
+                  </span>
+                  {a.vkn && <span className="station-row-address">VKN {a.vkn}</span>}
+                  <span className="station-row-address">{a.plates.length} araç</span>
+                </span>
+              </span>
+              <span className="station-row-badges">
+                <span className={`badge ${a.active ? "resolved" : "critical"}`}>{a.active ? "Aktif" : "Pasif"}</span>
+              </span>
+              <span className="fleet-row-amounts">
+                <span className="fleet-row-balance">{formatCurrency(a.balance)}</span>
+                <span className="hint-text">
+                  {a.availableAmount !== null ? `Kullanılabilir ${formatCurrency(a.availableAmount)}` : "Limitsiz"}
+                </span>
+              </span>
+              <span className="station-row-chevron">›</span>
+            </button>
+            <button type="button" className="ghost btn-sm fleet-row-action" onClick={() => toggleActive(a)}>
+              {a.active ? "Pasife Al" : "Aktif Et"}
+            </button>
+          </div>
+        ))}
+        {accounts.length === 0 && <p className="hint-text">Henüz filo hesabı yok.</p>}
+      </div>
 
       {showCreate && (
         <CreateAccountDialog
@@ -169,10 +178,15 @@ export default function FleetAccounts() {
   );
 }
 
-function Modal({ children, wide }: { children: React.ReactNode; wide?: boolean }) {
+/**
+ * Ortak acilir pencere. Genislik SINIFLA verilir (styles.css): telefonda pencerenin
+ * tam ekrana yakin acilmasi, kenar boslugunun kucultulmesi gibi kurallar tek yerde
+ * duruyor - inline genislikle bunlar media query'ye giremiyordu.
+ */
+function Modal({ children, size = "sm" }: { children: React.ReactNode; size?: "sm" | "lg" | "xl" }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 10 }}>
-      <div className="card" style={{ width: wide ? "min(720px, 94vw)" : "min(480px, 92vw)", maxHeight: "90vh", overflowY: "auto" }}>{children}</div>
+    <div className="modal-overlay">
+      <div className={`modal-card${size === "sm" ? "" : ` modal-${size}`}`}>{children}</div>
     </div>
   );
 }
@@ -210,7 +224,7 @@ function CreateAccountDialog({ onClose, onCreated }: { onClose: () => void; onCr
   }
 
   return (
-    <Modal>
+    <Modal size="lg">
       <h3>Yeni Filo Hesabı</h3>
 
       <label>Şirket Adı</label>
@@ -472,7 +486,7 @@ function AccountDetailDialog({
   if (!account) return null;
 
   return (
-    <Modal wide>
+    <Modal size="xl">
       <div className="toolbar">
         <h3 style={{ margin: 0 }}>{account.companyName}</h3>
         <div className="spacer" />
@@ -491,16 +505,28 @@ function AccountDetailDialog({
             <input value={newPlate} onChange={(e) => setNewPlate(e.target.value.toUpperCase())} placeholder="34 ABC 123" />
             <button onClick={addPlate} disabled={busy}>Ekle</button>
           </div>
-          <ul style={{ listStyle: "none", padding: 0, marginTop: "0.75rem" }}>
+          {/* Her plaka bir SATIR degil, kendi genisligi kadar bir rozet: 10 arac
+              satir duzeninde pencereyi tasiriyordu, rozet duzeninde iki satira siginir. */}
+          <ul className="plate-chips">
             {account.plates.map((p) => (
-              <li key={p.id} className="toolbar" style={{ padding: "0.35rem 0" }}>
+              <li key={p.id} className="plate-chip">
                 <span dir="ltr">{p.plate}</span>
-                <div className="spacer" />
-                <button onClick={() => removePlate(p.id)} disabled={busy}>Kaldır</button>
+                <button
+                  type="button"
+                  onClick={() => removePlate(p.id)}
+                  disabled={busy}
+                  aria-label={`${p.plate} plakasını kaldır`}
+                  title="Kaldır"
+                >
+                  ×
+                </button>
               </li>
             ))}
-            {account.plates.length === 0 && <li className="hint-text">Henüz plaka eklenmedi.</li>}
           </ul>
+          {account.plates.length === 0 && <p className="hint-text">Henüz plaka eklenmedi.</p>}
+          {account.plates.length > 0 && (
+            <p className="hint-text">{account.plates.length} araç · plakayı kaldırmak için ×</p>
+          )}
         </div>
 
         <div>

@@ -158,6 +158,21 @@ Sidebar'daki istasyon listesini sunucu belirler: `/api/stations`, `tenant_admin`
 yalnızca kendi kiracısının istasyonlarını döner. Menüde neyin göründüğü kolaylık
 içindir; izolasyon her zaman sunucuda zorlanır.
 
+## Filo hesapları ekranı
+
+Hesap listesi sekiz sütunlu bir tabloydu; telefonda yatay kaydırma gerektiriyor ve eylem
+düğmeleri ekranın dışında kalıyordu. Artık İstasyonlar/Destek Talepleri ile aynı desende:
+**liste tek satır**, detayın tamamı satıra tıklanınca açılan pencerede.
+
+Detay penceresinde **plakalar rozet olarak** dizilir. Satır düzeninde 10 araçlık bir filo 10 satır
++ 10 kocaman "Kaldır" düğmesi demekti: pencere ekrandan taşıyor, yanındaki bakiye formu boş boşluk
+olarak kalıyordu. Rozet düzeninde aynı 10 plaka iki satıra sığar. Pencere de genişletildi
+(`modal-xl`, 1040px): içinde plakalar, bakiye, iletişim, dönem faturası, portal erişimi ve hareket
+geçmişi olan bir ekran 720px'te dar iki sütuna sıkışıyordu.
+
+Telefonda pencere neredeyse tam ekran açılır, iç dolgu bir kademe azalır, tutarlar şirket adının
+altına iner ve "Pasife Al" tam genişlikte alta geçer.
+
 ## Filo müşteri self-servis portalı (`/filo`)
 
 Bir filo müşterisi — 30 kamyonu olan bir nakliye şirketi — bugüne kadar kendi hesabını
@@ -519,6 +534,13 @@ eskisi gibi çalışır.
 
 Pompanın **aynı istasyona ait olduğu** sunucuda doğrulanır — aksi halde bir kiosk başka bir
 istasyonun pompasını müşteriye hiç sormadan seçebilirdi.
+
+> **Ayar cihaz başınadır.** Sunucu hangi kiosk olduğunu ancak **cihaz tokeninden** anlar. Kiosk
+> sade `/kiosk/KOD` adresiyle açılırsa `boundPumpId` null döner ve pompa seçme adımı çıkmaya
+> devam eder — ayar yapılmış olsa bile. Kiosk'un, o kaydın **kurulum adresiyle**
+> (`/kiosk/KOD?device=<token>`, panelde "Kurulum adresi" düğmesi) bir kez açılmış olması gerekir.
+> Panel bunu hem alanın altında yazar hem de pompası bağlı ama hiç bağlanmamış kiosk kaydına
+> *"kurulum adresi uygulanmadı"* rozeti koyar.
 
 ## Otomatik e-Fatura
 
