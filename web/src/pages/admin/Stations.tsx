@@ -3,7 +3,7 @@ import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
 import { useCurrentStationId } from "../../shared/useCurrentStation";
 import { useEscapeKey } from "../../shared/useEscapeKey";
-import type { Station, StationKiosk } from "../../shared/types";
+import type { Pump, Station, StationKiosk } from "../../shared/types";
 
 function syncBadge(s: Station): { label: string; className: string } | null {
   if (!s.agentConfigured) return { label: "Ajan kurulmadı", className: "info" };
@@ -180,6 +180,8 @@ function StationDetailDialog({
           <dl className="detail-list">
             <dt>Adres</dt>
             <dd>{s.address || <span className="hint-text">Girilmemiş</span>}</dd>
+            <dt>İşletme telefonu</dt>
+            <dd><ContactPhoneField station={s} onChanged={onChanged} /></dd>
             <dt>İstasyon kodu</dt>
             <dd><code>{s.code ?? "-"}</code></dd>
             <dt>Kiosk adresi</dt>
@@ -250,6 +252,7 @@ function StationDetailDialog({
  */
 function StationKiosksSection({ stationId, stationCode }: { stationId: number; stationCode: string }) {
   const [kiosks, setKiosks] = useState<StationKiosk[]>([]);
+  const [pumps, setPumps] = useState<Pump[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
 
@@ -260,6 +263,10 @@ function StationKiosksSection({ stationId, stationCode }: { stationId: number; s
     });
   }
   useEffect(load, [stationId]);
+  // Kiosk'a pompa baglayabilmek icin bu istasyonun pompa listesi gerekiyor.
+  useEffect(() => {
+    api.get<{ pumps: Pump[] }>(`/api/pumps?stationId=${stationId}`).then((res) => setPumps(res.pumps)).catch(() => setPumps([]));
+  }, [stationId]);
 
   async function deleteKiosk(k: StationKiosk) {
     if (!confirm(`"${k.label}" kiosk kaydını silmek istediğinize emin misiniz?`)) return;
@@ -277,7 +284,15 @@ function StationKiosksSection({ stationId, stationCode }: { stationId: number; s
       </div>
 
       {kiosks.map((k) => (
-        <KioskRow key={k.id} kiosk={k} stationId={stationId} stationCode={stationCode} onChanged={load} onDelete={() => deleteKiosk(k)} />
+        <KioskRow
+          key={k.id}
+          kiosk={k}
+          pumps={pumps}
+          stationId={stationId}
+          stationCode={stationCode}
+          onChanged={load}
+          onDelete={() => deleteKiosk(k)}
+        />
       ))}
       {loaded && kiosks.length === 0 && (
         <p className="hint-text" style={{ margin: 0 }}>
@@ -288,6 +303,7 @@ function StationKiosksSection({ stationId, stationCode }: { stationId: number; s
       {showAdd && (
         <AddKioskDialog
           stationId={stationId}
+          pumps={pumps}
           onClose={() => setShowAdd(false)}
           onCreated={() => {
             setShowAdd(false);
@@ -300,9 +316,20 @@ function StationKiosksSection({ stationId, stationCode }: { stationId: number; s
 }
 
 /** "+ Kiosk Ekle" akisi - kart icinde satir aci lmak yerine odakli bir acilir pencerede. */
-function AddKioskDialog({ stationId, onClose, onCreated }: { stationId: number; onClose: () => void; onCreated: () => void }) {
+function AddKioskDialog({
+  stationId,
+  pumps,
+  onClose,
+  onCreated,
+}: {
+  stationId: number;
+  pumps: Pump[];
+  onClose: () => void;
+  onCreated: () => void;
+}) {
   const [label, setLabel] = useState("");
   const [anydeskId, setAnydeskId] = useState("");
+  const [pumpId, setPumpId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -313,7 +340,11 @@ function AddKioskDialog({ stationId, onClose, onCreated }: { stationId: number; 
     setSaving(true);
     setError(null);
     try {
-      await api.post(`/api/stations/${stationId}/kiosks`, { label, anydeskId: anydeskId.trim() || null });
+      await api.post(`/api/stations/${stationId}/kiosks`, {
+        label,
+        anydeskId: anydeskId.trim() || null,
+        pumpId: pumpId ? Number(pumpId) : null,
+      });
       onCreated();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Kiosk eklenemedi.");
@@ -351,6 +382,8 @@ function AddKioskDialog({ stationId, onClose, onCreated }: { stationId: number; 
         />
         <p className="hint-text">Uzaktan destek için; sonradan da girilebilir.</p>
 
+        <PumpBindingField id="kiosk-pump" pumps={pumps} value={pumpId} onChange={setPumpId} />
+
         {error && <p className="error-text">{error}</p>}
 
         <div className="modal-actions">
@@ -360,6 +393,67 @@ function AddKioskDialog({ stationId, onClose, onCreated }: { stationId: number; 
         </div>
       </form>
     </div>
+  );
+}
+
+/**
+ * Isletme telefonu - yerinde duzenlenir. Kiosk yardim ekraninda musteriye gosterilen
+ * numara budur; bos birakilirsa hicbir numara gosterilmez (yanlis numara,
+ * numarasizliktan kotudur).
+ */
+function ContactPhoneField({ station, onChanged }: { station: Station; onChanged: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(station.contactPhone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/api/stations/${station.id}`, { contactPhone: value.trim() || null });
+      setEditing(false);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Telefon kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!editing) {
+    return (
+      <span className="with-action">
+        {station.contactPhone ? <code>{station.contactPhone}</code> : <span className="hint-text">Girilmemiş</span>}
+        <button className="ghost btn-sm" onClick={() => setEditing(true)}>Düzenle</button>
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <span className="with-action">
+        <input
+          type="tel"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="ör. 0312 555 00 00"
+          maxLength={40}
+          autoFocus
+        />
+        <button className="primary btn-sm" onClick={save} disabled={saving}>{saving ? "..." : "Kaydet"}</button>
+        <button
+          className="ghost btn-sm"
+          onClick={() => {
+            setEditing(false);
+            setValue(station.contactPhone ?? "");
+          }}
+        >
+          Vazgeç
+        </button>
+      </span>
+      {error && <p className="error-text">{error}</p>}
+    </>
   );
 }
 
@@ -382,14 +476,51 @@ function CopyButton({ value, label, disabled }: { value: string; label: string; 
   );
 }
 
+/**
+ * Kiosk'un basinda durdugu pompa. Secilirse musteriye "hangi pompadasiniz?" diye
+ * sorulmaz - zaten o pompanin onunde duruyor. Ortak bir odeme noktasindaki kiosk
+ * icin bos birakilir.
+ */
+function PumpBindingField({
+  id,
+  pumps,
+  value,
+  onChange,
+}: {
+  id: string;
+  pumps: Pump[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <>
+      <label htmlFor={id}>Bağlı pompa (opsiyonel)</label>
+      <select id={id} value={value} onChange={(e) => onChange(e.target.value)}>
+        <option value="">Bağlı değil - müşteri pompayı kendisi seçer</option>
+        {pumps.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.label}
+          </option>
+        ))}
+      </select>
+      <p className="hint-text">
+        Kiosk tek bir pompanın başında duruyorsa onu seçin: müşteriye pompa sorulmaz, yanlış pompa
+        seçilmesi de mümkün olmaz.
+      </p>
+    </>
+  );
+}
+
 function KioskRow({
   kiosk,
+  pumps,
   stationId,
   stationCode,
   onChanged,
   onDelete,
 }: {
   kiosk: StationKiosk;
+  pumps: Pump[];
   stationId: number;
   stationCode: string;
   onChanged: () => void;
@@ -398,6 +529,7 @@ function KioskRow({
   const [editing, setEditing] = useState(false);
   const [label, setLabel] = useState(kiosk.label);
   const [anydeskId, setAnydeskId] = useState(kiosk.anydeskId ?? "");
+  const [pumpId, setPumpId] = useState(kiosk.pumpId ? String(kiosk.pumpId) : "");
   const [saving, setSaving] = useState(false);
 
   /** Kiosk PC'sinde BIR KEZ acilacak adres; token'i saklayip URL'den temizler. */
@@ -406,7 +538,11 @@ function KioskRow({
   async function save() {
     setSaving(true);
     try {
-      await api.patch(`/api/stations/${stationId}/kiosks/${kiosk.id}`, { label, anydeskId: anydeskId.trim() || null });
+      await api.patch(`/api/stations/${stationId}/kiosks/${kiosk.id}`, {
+        label,
+        anydeskId: anydeskId.trim() || null,
+        pumpId: pumpId ? Number(pumpId) : null,
+      });
       setEditing(false);
       onChanged();
     } finally {
@@ -421,6 +557,7 @@ function KioskRow({
         <input id={`k-label-${kiosk.id}`} value={label} onChange={(e) => setLabel(e.target.value)} />
         <label htmlFor={`k-anydesk-${kiosk.id}`}>AnyDesk ID</label>
         <input id={`k-anydesk-${kiosk.id}`} value={anydeskId} onChange={(e) => setAnydeskId(e.target.value)} placeholder="ör. 123 456 789" />
+        <PumpBindingField id={`k-pump-${kiosk.id}`} pumps={pumps} value={pumpId} onChange={setPumpId} />
         <div className="kiosk-item-actions" style={{ marginTop: "0.6rem" }}>
           <button className="primary btn-sm" onClick={save} disabled={saving}>{saving ? "Kaydediliyor..." : "Kaydet"}</button>
           <button
@@ -429,6 +566,7 @@ function KioskRow({
               setEditing(false);
               setLabel(kiosk.label);
               setAnydeskId(kiosk.anydeskId ?? "");
+              setPumpId(kiosk.pumpId ? String(kiosk.pumpId) : "");
             }}
           >
             Vazgeç
@@ -447,6 +585,9 @@ function KioskRow({
         </span>
       </div>
       <div className="kiosk-item-meta">
+        <span>
+          Pompa: {kiosk.pumpId ? (pumps.find((p) => p.id === kiosk.pumpId)?.label ?? `#${kiosk.pumpId}`) : "Müşteri seçer"}
+        </span>
         <span>AnyDesk: {kiosk.anydeskId ? <code>{kiosk.anydeskId}</code> : "—"}</span>
         <span>Son bağlantı: {kiosk.lastSeenAt ? formatDateTime(kiosk.lastSeenAt) : "—"}</span>
       </div>
@@ -505,6 +646,7 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
   const [address, setAddress] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
   const [pumpCount, setPumpCount] = useState(4);
   const [ownerUsername, setOwnerUsername] = useState("");
   const [ownerDisplayName, setOwnerDisplayName] = useState("");
@@ -522,7 +664,13 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
     setSubmitting(true);
     setError(null);
     try {
-      const res = await api.post<{ station: Station }>("/api/stations", { name, slug, address, pumpCount });
+      const res = await api.post<{ station: Station }>("/api/stations", {
+        name,
+        slug,
+        address,
+        contactPhone: contactPhone.trim() || undefined,
+        pumpCount,
+      });
 
       if (ownerUsername) {
         await api.post("/api/users", {
@@ -562,6 +710,10 @@ function CreateStationDialog({ onClose, onCreated }: { onClose: () => void; onCr
 
         <label>Adres</label>
         <input value={address} onChange={(e) => setAddress(e.target.value)} />
+
+        <label>İşletme Telefonu</label>
+        <input type="tel" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} placeholder="ör. 0312 555 00 00" />
+        <p className="hint-text">Kiosk yardım ekranında müşteriye gösterilir. Boş bırakılırsa numara gösterilmez.</p>
 
         <label>Pompa Sayısı</label>
         <input type="number" min={1} max={16} value={pumpCount} onChange={(e) => setPumpCount(Number(e.target.value))} />

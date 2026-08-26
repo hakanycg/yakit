@@ -318,6 +318,8 @@ export interface Station {
   requireKioskToken?: boolean;
   name: string;
   address: string;
+  /** Isletme telefonu; kiosk yardim ekraninda musteriye gosterilir. */
+  contactPhone?: string | null;
   latitude: number | null;
   longitude: number | null;
   active?: boolean;
@@ -338,6 +340,8 @@ export interface StationKiosk {
   anydeskId: string | null;
   /** Bu fiziksel kiosk'un cihaz tokeni - kurulum adresine ?device=... olarak eklenir. */
   deviceToken: string | null;
+  /** Doluysa kiosk bu pompayi otomatik secer, musteriye pompa sorulmaz. */
+  pumpId: number | null;
   lastSeenAt: string | null;
   createdAt: string;
 }
