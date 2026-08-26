@@ -3,7 +3,13 @@ import { db } from "../db/index.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 
 const router = Router();
-router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
+/**
+ * Ciro/kar raporlari isletmenin bilgisidir, sahada calisan kisinin degil: operator
+ * pompalari, dolumu, alarmlari ve destek taleplerini gorur - kazanc rakamlarini gormez.
+ * Bu ayrim burada, sunucuda uygulanir; panelde kartlarin gizlenmesi yalnizca gorsel
+ * bir sadelestirmedir.
+ */
+router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "viewer"), attachStationScope, requireStationSelected);
 
 router.get("/summary", (req, res) => {
   const stationId = req.stationId!;

@@ -226,12 +226,14 @@ export default function AppLayout() {
           {/* Alarm Merkezi bilerek grup icine alinmadi: yangin/gaz alarmi bir tik
               arkasinda durmamali. */}
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
-          <NavLink to="/operator/raporlar">Raporlama</NavLink>
           <SidebarSubmenu label="Saha" pages={FIELD_PAGES} onNavigate={closeMenu} />
 
           {isStationAdmin && (
             <>
               <p className="section-label">İstasyon Yönetimi</p>
+              {/* Ciro/kar raporlari operatorde degil, isletmede: sunucu da bu ayrimi
+                  uyguluyor (bkz. server/src/routes/reports.ts). */}
+              <NavLink to="/operator/raporlar">Raporlama</NavLink>
               <NavLink to="/operator/mutabakat">Gün Sonu Mutabakatı</NavLink>
               <SidebarSubmenu label="Akaryakıt" pages={FUEL_PAGES} onNavigate={closeMenu} />
               <SidebarSubmenu label="Müşteri" pages={CUSTOMER_PAGES} onNavigate={closeMenu} />

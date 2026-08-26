@@ -59,8 +59,10 @@ export default function App() {
           <Route path="/operator/islemler" element={<Transactions />} />
           <Route path="/operator/alarmlar" element={<Alarms />} />
           <Route path="/operator/harita" element={<StationMap />} />
-          <Route path="/operator/raporlar" element={<Reports />} />
           <Route path="/operator/vardiya" element={<Shift />} />
+          {/* Destek talepleri sahada calisan kisinin isi: musteri pompada takildiginda
+              ona ilk ulasan operatordur. */}
+          <Route path="/operator/destek" element={<SupportRequests />} />
 
           {/* Hesap sayfalari - sidebar'in en altindaki hesap kartinin acilir menusunden ulasilir. */}
           <Route path="/operator/hesabim" element={<Navigate to="/operator/hesabim/sifre" replace />} />
@@ -85,7 +87,8 @@ export default function App() {
             <Route path="/operator/stok" element={<FuelStock />} />
             <Route path="/operator/sapma" element={<FuelVariance />} />
             <Route path="/operator/mutabakat" element={<Reconciliation />} />
-            <Route path="/operator/destek" element={<SupportRequests />} />
+            {/* Ciro/kar raporlari istasyon sahibinindir (bkz. server/src/routes/reports.ts). */}
+            <Route path="/operator/raporlar" element={<Reports />} />
             <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
             <Route path="/admin/filo-hesaplari" element={<FleetAccounts />} />
             <Route path="/admin/sadakat-puanlari" element={<LoyaltyLookup />} />

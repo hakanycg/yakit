@@ -187,11 +187,18 @@ export default function Dashboard() {
   const stationId = useEffectiveStationId();
   const [summary, setSummary] = useState<Summary | null>(null);
   const canSeeSyncStatus = user?.role === "admin" || user?.role === "super_admin";
+  /**
+   * Ciro isletmenin bilgisidir, sahada calisan kisinin degil: operator pompalari,
+   * dolumu ve alarmlari gorur; kazanc rakamlarini gormez. Ayni ayrim sunucuda da
+   * uygulanir (routes/reports.ts), yani bu yalnizca ekrani sadelestiren bir kontrol
+   * degil - operatorun rapor ucuna erisimi zaten yok.
+   */
+  const canSeeRevenue = user?.role !== "operator";
 
   useEffect(() => {
-    if (stationId === null) return;
+    if (stationId === null || !canSeeRevenue) return;
     api.get<Summary>("/api/reports/summary").then(setSummary);
-  }, [stationId]);
+  }, [stationId, canSeeRevenue]);
 
   const dispensing = pumps.filter((p) => p.status === "dispensing").length;
   const faulty = pumps.filter((p) => p.status === "fault").length;
@@ -203,25 +210,31 @@ export default function Dashboard() {
       <div className="dash-welcome">
         <p className="eyebrow">Genel Bakış</p>
         <h2>{getGreeting(today.getHours())}, {user?.displayName ?? ""} 👋</h2>
-        <p className="hint-text">{todayLabel} · İşletmenizin güncel durumu: ciro, dolum ve alarm özeti.</p>
+        <p className="hint-text">
+          {todayLabel} · {canSeeRevenue ? "İşletmenizin güncel durumu: ciro, dolum ve alarm özeti." : "İstasyonun güncel durumu: pompa, dolum ve alarm özeti."}
+        </p>
       </div>
       <div className="grid stats-grid">
-        <div className="card stat dash-stat">
-          <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}><WalletIcon /></div>
-          <div className="stat-body">
-            <span className="label">Toplam Ciro</span>
-            <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
-            <span className="stat-caption">İstasyonun tüm zamanlar tahsilatı</span>
-          </div>
-        </div>
-        <div className="card stat dash-stat">
-          <div className="stat-icon" style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80" }}><CheckCircleIcon /></div>
-          <div className="stat-body">
-            <span className="label">Tamamlanan İşlem</span>
-            <span className="value">{summary?.totals.completedCount ?? "..."}</span>
-            <span className="stat-caption">Başarıyla tamamlanan toplam satış</span>
-          </div>
-        </div>
+        {canSeeRevenue && (
+          <>
+            <div className="card stat dash-stat">
+              <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}><WalletIcon /></div>
+              <div className="stat-body">
+                <span className="label">Toplam Ciro</span>
+                <span className="value">{summary ? formatCurrency(summary.totals.totalRevenue) : "..."}</span>
+                <span className="stat-caption">İstasyonun tüm zamanlar tahsilatı</span>
+              </div>
+            </div>
+            <div className="card stat dash-stat">
+              <div className="stat-icon" style={{ background: "rgba(34,197,94,0.15)", color: "#4ade80" }}><CheckCircleIcon /></div>
+              <div className="stat-body">
+                <span className="label">Tamamlanan İşlem</span>
+                <span className="value">{summary?.totals.completedCount ?? "..."}</span>
+                <span className="stat-caption">Başarıyla tamamlanan toplam satış</span>
+              </div>
+            </div>
+          </>
+        )}
         <div className="card stat dash-stat">
           <div className="stat-icon" style={{ background: "rgba(58,160,255,0.15)", color: "var(--accent)" }}><FuelIcon /></div>
           <div className="stat-body">
@@ -241,16 +254,18 @@ export default function Dashboard() {
         {canSeeSyncStatus && <SyncStatusCard />}
       </div>
 
-      <div className="grid cols-2" style={{ marginTop: "1rem" }}>
-        <div className="card">
-          <h3>Son 30 Gün Ciro Trendi</h3>
-          {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yükleniyor...</p>}
+      {canSeeRevenue && (
+        <div className="grid cols-2" style={{ marginTop: "1rem" }}>
+          <div className="card">
+            <h3>Son 30 Gün Ciro Trendi</h3>
+            {summary ? <RevenueTrendChart data={summary.byDay} /> : <p className="hint-text">Yükleniyor...</p>}
+          </div>
+          <div className="card">
+            <h3>Ödeme Yöntemi Dağılımı</h3>
+            {summary ? <PaymentMethodDonut data={summary.byPaymentMethod} /> : <p className="hint-text">Yükleniyor...</p>}
+          </div>
         </div>
-        <div className="card">
-          <h3>Ödeme Yöntemi Dağılımı</h3>
-          {summary ? <PaymentMethodDonut data={summary.byPaymentMethod} /> : <p className="hint-text">Yükleniyor...</p>}
-        </div>
-      </div>
+      )}
 
       <div className="card" style={{ marginTop: "1rem" }}>
         <div className="toolbar">
