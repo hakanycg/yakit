@@ -1064,6 +1064,25 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
   .fleet-portal-main { padding: 1rem; }
 }
 
+/* Bakiye yukleme talebi formu. Tutar dar, not genis, dugme kendi genisliginde:
+   telefonda tek sutuna dusup dugme tam genislige yayilir - kucuk ekranda satir
+   sonuna sikismis bir dugme, formun en onemli parcasini en zor tiklanan sey
+   yapardi. */
+.topup-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.75rem; }
+.topup-fields > div { display: flex; flex-direction: column; gap: 0.25rem; }
+.topup-fields label { margin: 0; }
+.topup-fields input { margin: 0; width: 160px; }
+.topup-fields .topup-note { flex: 1; min-width: 220px; }
+.topup-fields .topup-note input { width: 100%; }
+.topup-pending { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem; }
+@media (max-width: 600px) {
+  .topup-fields { flex-direction: column; align-items: stretch; }
+  .topup-fields > div, .topup-fields input { width: 100%; }
+  .topup-fields button { width: 100%; }
+  .topup-pending .spacer { display: none; }
+  .topup-pending button { width: 100%; }
+}
+
 /* Kiosk fis yazdirma: normalde ekranda (koyu tema, genis kart) gorunen makbuz, yazdirma
    sirasinda dar bir termal fis genisligine (80mm) donusur; sayfadaki geri kalan her sey
    (dil secici, adim cubugu, e-posta/SMS formu, butonlar) yazdirmada gizlenir. */

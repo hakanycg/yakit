@@ -186,12 +186,41 @@ istasyondaydı.
 - Kalan bakiye (veya faturalı hesapta ödenmemiş borç) ve harcanabilir tutar
 - Seçilen tarih aralığında **araç bazında** dolum sayısı, litre ve tutar
 - Hesap ekstresi (yakıt alımı / bakiye yükleme / iade / düzeltme) ve **CSV indirme**
+- **Bakiye yükleme talebi** (aşağıya bakınız)
 - Kendi şifresini değiştirme
 
 Erişim istasyondan verilir: **Filo Hesapları → hesap detayı → Portal Erişimi**. Sistem bir
 **geçici şifre** üretir; bu şifre yalnızca o ekranda **bir kez** gösterilir, hiçbir yerde
 saklanmaz ve denetim izine de yazılmaz (audit log'u okuyabilen herkes o hesaba girebilir
 hale gelirdi). Yetkili ilk girişinde kendi şifresini belirlemek zorundadır.
+
+### Bakiye yükleme talebi — portal para hareketi yapmaz
+
+Bakiyesi biten şoför gece 2'de istasyonu telefonla aramak zorunda kalmasın diye portale
+bir **yükleme talebi** formu konuldu. Talep bir **mesajdır, para taşımaz**: müşteri tutarı
+yazar, istasyondaki nöbetçi personele e-posta/SMS gider, personel parayı fiilen tahsil
+ettiğinde panelden (**Filo Hesapları → Bekleyen Bakiye Yükleme Talepleri**) onaylar ve
+bakiye ancak o an artar — hep aynı `topUp()` yolundan, yani muhasebe, ekstre ve denetim
+izi hiç değişmez.
+
+Onaydaki tutar **talep edilen değil, tahsil edilen** tutardır. Müşteri 5.000 TL yazıp
+4.800 TL havale etmiş olabilir; onay ekranı talep edilen tutarla dolu gelir ama kilitli
+değildir. Aksi halde hiç gelmemiş para bakiyeye yazılırdı.
+
+Bir hesapta aynı anda yalnızca **bir açık talep** olabilir (üst üste talep nöbetçi
+personele bildirim yağdırır ve hangisinin geçerli olduğunu belirsizleştirir); müşteri
+yanlış tutar yazdıysa kendi talebini geri çekip yenisini açar. Onaylanmış bir talep
+ikinci kez onaylanamaz — aksi halde bakiye iki kez artardı.
+
+Faturalı (sonradan ödeme) hesapta aynı akış **ödeme bildirimi** olarak çalışır: `topUp()`
+faturalı hesapta bakiyeyi (borcu) azaltır.
+
+**Portale neden kartla anlık yükleme konulmadı?** Bu teknik değil ticari bir karar.
+Filo yakıt alımı bugün ödeme sağlayıcısına hiç uğramıyor (`fleetService.chargeAccount`
+sadece bakiyeden düşer), yani filo cirosunda **%0 komisyon** var. Yüklemeyi karta
+bağlamak komisyonu hacmin %0'ından %100'üne taşırdı (~%1,5–2). Ayrıca yükleme bir
+avans/depozitodur: otomatik e-faturayı tetiklememesi, ciroya sayılmaması ve gün sonu
+mutabakatında kendi satırını alması gerekir — bunlar çözülmeden kart yolu açılmamalıdır.
 
 ### Kimlik neden personel oturumundan ayrı?
 

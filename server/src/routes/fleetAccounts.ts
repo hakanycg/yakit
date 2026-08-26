@@ -36,6 +36,14 @@ import {
   serializeFleetInvoice,
 } from "../services/fleetInvoiceService.js";
 
+import {
+  TopupRequestError,
+  approveRequest,
+  listPendingForStation,
+  rejectRequest,
+  serializeRequest as serializeTopupRequest,
+} from "../services/fleetTopupRequestService.js";
+
 const router = Router();
 // Filo hesaplari yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
 // (super_admin) acik; operator/viewer goremez/duzenleyemez - kampanya kodlariyla ayni yetki seviyesi.
@@ -160,6 +168,68 @@ router.delete("/:id/plates/:plateId", csrfProtection, (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+/**
+ * Musterinin portalden actigi bakiye yukleme talepleri.
+ *
+ * Talep para tasimaz (bkz. fleetTopupRequestService.ts): bakiye ancak burada
+ * onaylandiginda ve mevcut topUp() yoluyla artar. Onaydaki tutar talep edilen degil,
+ * personelin FIILEN TAHSIL ETTIGI tutardir - musterinin beyani bir niyet bildirimidir,
+ * kasaya giren para eksik havale ya da farkli bir tutar olabilir.
+ */
+router.get("/topup-requests", (req, res) => {
+  res.json({ requests: listPendingForStation(req.stationId!).map(serializeTopupRequest) });
+});
+
+const approveSchema = z.object({
+  amount: z.number().positive().max(10000000),
+  note: z.string().trim().max(300).optional(),
+});
+
+router.post("/topup-requests/:id/approve", csrfProtection, validateBody(approveSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return void res.status(400).json({ error: "Gecersiz talep." });
+  const body = req.body as z.infer<typeof approveSchema>;
+  try {
+    const { request, account } = approveRequest(id, req.stationId!, req.user!, body);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_topup_request_approved",
+      entityType: "fleet_account",
+      entityId: account.id,
+      details: { requestId: id, requestedAmount: request.requested_amount, approvedAmount: body.amount },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ request: serializeTopupRequest(request), account: serializeAccountAdmin(account) });
+  } catch (err) {
+    if (err instanceof TopupRequestError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const rejectSchema = z.object({ note: z.string().trim().max(300).optional() });
+
+router.post("/topup-requests/:id/reject", csrfProtection, validateBody(rejectSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) return void res.status(400).json({ error: "Gecersiz talep." });
+  try {
+    const request = rejectRequest(id, req.stationId!, req.user!, (req.body as z.infer<typeof rejectSchema>).note);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_topup_request_rejected",
+      entityType: "fleet_account",
+      entityId: request.fleet_account_id,
+      details: { requestId: id, requestedAmount: request.requested_amount },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ request: serializeTopupRequest(request) });
+  } catch (err) {
+    if (err instanceof TopupRequestError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }
 });

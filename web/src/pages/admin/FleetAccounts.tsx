@@ -82,6 +82,23 @@ interface FleetInvoiceDraft {
   payableAmount: number;
 }
 
+/**
+ * Musterinin portalden actigi bakiye yukleme talebi.
+ *
+ * Talep para tasimaz; bakiye ancak burada onaylandiginda artar ve artan tutar
+ * personelin FIILEN TAHSIL ETTIGI tutardir - musterinin yazdigi rakam bir niyet
+ * beyanidir, kasaya giren para farkli olabilir.
+ */
+interface TopupRequest {
+  id: number;
+  fleetAccountId: number;
+  companyName: string;
+  portalUserEmail: string;
+  requestedAmount: number;
+  note: string | null;
+  createdAt: string;
+}
+
 const MOVEMENT_LABEL: Record<FleetMovement["type"], string> = {
   topup: "Bakiye Yükleme / Ödeme",
   charge: "Tahsilat",
@@ -92,13 +109,19 @@ const MOVEMENT_LABEL: Record<FleetMovement["type"], string> = {
 export default function FleetAccounts() {
   const stationId = useEffectiveStationId();
   const [accounts, setAccounts] = useState<FleetAccount[]>([]);
+  const [requests, setRequests] = useState<TopupRequest[]>([]);
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
+  const [handling, setHandling] = useState<TopupRequest | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function load() {
     if (stationId === null) return;
     api.get<{ accounts: FleetAccount[] }>("/api/fleet-accounts").then((res) => setAccounts(res.accounts));
+    api
+      .get<{ requests: TopupRequest[] }>("/api/fleet-accounts/topup-requests")
+      .then((res) => setRequests(res.requests))
+      .catch(() => setRequests([]));
   }
   useEffect(load, [stationId]);
 
@@ -124,6 +147,43 @@ export default function FleetAccounts() {
         bağlıyoruz. Kiosk'ta bu plakalardan biriyle işlem yapan müşteri, kart yerine doğrudan şirket hesabından ödeyebilir.
       </p>
       {error && <p className="error-text">{error}</p>}
+
+      {/* Bekleyen talepler listenin USTUNDE: bu sayfadaki tek "birinin bekledigi" is
+          bu; hesap listesinin arasina karissa gozden kacardi. */}
+      {requests.length > 0 && (
+        <>
+          <h3>Bekleyen Bakiye Yükleme Talepleri</h3>
+          <div className="card">
+            <p className="hint-text" style={{ marginTop: 0 }}>
+              Müşteri portalden bildirdi. Parayı fiilen tahsil ettiğinizde onaylayın — bakiyeye yazılacak tutarı onay
+              ekranında siz belirlersiniz.
+            </p>
+            <div className="station-list">
+              {requests.map((r) => (
+                <div className="fleet-row" key={r.id}>
+                  <div className="station-row fleet-row-main" style={{ cursor: "default" }}>
+                    <span className="station-row-main">
+                      <span className="station-row-name">{r.companyName}</span>
+                      <span className="station-row-sub">
+                        <span className="station-row-address">{r.portalUserEmail}</span>
+                        <span className="station-row-address">{formatDateTime(r.createdAt)}</span>
+                        {r.note && <span className="station-row-address">{r.note}</span>}
+                      </span>
+                    </span>
+                    <span className="fleet-row-amounts">
+                      <span className="fleet-row-balance">{formatCurrency(r.requestedAmount)}</span>
+                      <span className="hint-text">talep edilen</span>
+                    </span>
+                  </div>
+                  <button type="button" className="primary btn-sm fleet-row-action" onClick={() => setHandling(r)}>
+                    İncele
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Sekiz sutunlu tablo telefonda yatay kaydirma gerektiriyor ve eylem dugmeleri
           ekranin disinda kaliyordu. Istasyonlar/Destek Talepleri ile ayni desen: liste
@@ -171,6 +231,17 @@ export default function FleetAccounts() {
         />
       )}
 
+      {handling && (
+        <TopupRequestDialog
+          request={handling}
+          onClose={() => setHandling(null)}
+          onDone={() => {
+            setHandling(null);
+            load();
+          }}
+        />
+      )}
+
       {detailId !== null && (
         <AccountDetailDialog accountId={detailId} account={accounts.find((a) => a.id === detailId) ?? null} onClose={() => setDetailId(null)} onChanged={load} />
       )}
@@ -188,6 +259,96 @@ function Modal({ children, size = "sm" }: { children: React.ReactNode; size?: "s
     <div className="modal-overlay">
       <div className={`modal-card${size === "sm" ? "" : ` modal-${size}`}`}>{children}</div>
     </div>
+  );
+}
+
+/**
+ * Bekleyen yukleme talebinin sonuclandirilmasi.
+ *
+ * Tutar alani talep edilen tutarla DOLU GELIR ama kilitli degildir: musteri 5.000 TL
+ * yazip 4.800 TL havale etmis olabilir. Bakiyeye yazilan, burada onaylanan tutardir.
+ */
+function TopupRequestDialog({
+  request,
+  onClose,
+  onDone,
+}: {
+  request: TopupRequest;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [amount, setAmount] = useState(String(request.requestedAmount));
+  const [note, setNote] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  async function run(kind: "approve" | "reject") {
+    setError(null);
+    const value = Number(amount);
+    if (kind === "approve" && (!Number.isFinite(value) || value <= 0)) {
+      setError("Tahsil edilen tutarı girin.");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      await api.post(
+        `/api/fleet-accounts/topup-requests/${request.id}/${kind}`,
+        kind === "approve"
+          ? { amount: Math.round(value * 100) / 100, note: note.trim() || undefined }
+          : { note: note.trim() || undefined }
+      );
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "İşlem tamamlanamadı.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal>
+      <h3>Bakiye Yükleme Talebi</h3>
+      <dl className="detail-list">
+        <dt>Şirket</dt>
+        <dd>{request.companyName}</dd>
+        <dt>Talep eden</dt>
+        <dd>{request.portalUserEmail}</dd>
+        <dt>Talep tarihi</dt>
+        <dd>{formatDateTime(request.createdAt)}</dd>
+        <dt>Talep edilen</dt>
+        <dd>
+          <strong>{formatCurrency(request.requestedAmount)}</strong>
+        </dd>
+        {request.note && (
+          <>
+            <dt>Müşteri notu</dt>
+            <dd>{request.note}</dd>
+          </>
+        )}
+      </dl>
+
+      <label>Tahsil Edilen Tutar (TL)</label>
+      <input type="number" min={0} step={0.01} value={amount} onChange={(e) => setAmount(e.target.value)} autoFocus />
+      <p className="hint-text">Bakiyeye bu tutar yüklenir. Gelen para farklıysa gerçekte tahsil ettiğiniz tutarı yazın.</p>
+
+      <label>Not (opsiyonel)</label>
+      <input value={note} onChange={(e) => setNote(e.target.value)} placeholder="ör. Havale dekontu kontrol edildi" maxLength={300} />
+
+      {error && <p className="error-text">{error}</p>}
+
+      <div className="modal-actions">
+        <button className="ghost" onClick={onClose} disabled={submitting}>
+          Vazgeç
+        </button>
+        <div className="spacer" />
+        <button className="ghost" onClick={() => run("reject")} disabled={submitting}>
+          Reddet
+        </button>
+        <button className="primary" onClick={() => run("approve")} disabled={submitting}>
+          {submitting ? "İşleniyor..." : "Onayla ve Yükle"}
+        </button>
+      </div>
+    </Modal>
   );
 }
 

@@ -44,6 +44,7 @@ export const fleetApi = {
   get: <T>(path: string) => request<T>(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
+  del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
 export interface PortalAccount {
@@ -123,4 +124,25 @@ export interface PlateSummary {
   liters: number;
   amount: number;
   lastFillAt: string | null;
+}
+
+/**
+ * Bakiye yukleme TALEBI - yuklemenin kendisi degil.
+ *
+ * requestedAmount musterinin niyeti, approvedAmount personelin fiilen tahsil ettigi
+ * tutardir; ikisi ayni olmak zorunda degildir (eksik havale, farkli tutar). Bakiye
+ * yalnizca onay aninda ve approvedAmount kadar artar.
+ */
+export interface TopupRequest {
+  id: number;
+  fleetAccountId: number;
+  companyName?: string;
+  portalUserEmail?: string;
+  requestedAmount: number;
+  approvedAmount: number | null;
+  note: string | null;
+  status: "pending" | "approved" | "rejected";
+  handledAt: string | null;
+  handledNote: string | null;
+  createdAt: string;
 }

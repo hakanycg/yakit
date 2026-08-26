@@ -23,6 +23,14 @@ import {
 import { listPlates, serializePlate } from "../services/fleetService.js";
 import { listInvoicesForAccount, serializeFleetInvoice } from "../services/fleetInvoiceService.js";
 import { recordAudit } from "../services/auditService.js";
+import {
+  TopupRequestError,
+  accountForVerifiedAccess,
+  cancelOwnRequest,
+  createRequest,
+  listRequestsForAccount,
+  serializeRequest,
+} from "../services/fleetTopupRequestService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 
 /**
@@ -32,8 +40,9 @@ import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.j
  * (bkz. middleware/fleetPortalAuth.ts). Erisim kapsami tek bir yerde belirlenir -
  * assertAccountAccess - ve hesap kimligi alan HER uc oradan gecer.
  *
- * Portal SALT OKUNURDUR (kendi sifresi haric): bakiye yukleme parayla ilgilidir ve
- * istasyonda kalir.
+ * Portal PARA HAREKETI YAPMAZ. Musteri bakiye yukleme TALEBI acabilir (bir mesaj),
+ * ama bakiyeyi yalnizca istasyon personeli, parayi fiilen tahsil ettikten sonra
+ * panelden onaylayarak artirir - bkz. services/fleetTopupRequestService.ts.
  */
 const router = Router();
 
@@ -191,6 +200,64 @@ router.get("/accounts/:id/invoices", (req, res) => {
     // Saglayici hata mesaji musteriyi ilgilendirmez (ve ic ayrinti sizdirabilir).
     .map(({ errorMessage: _errorMessage, ...rest }) => rest);
   res.json({ invoices });
+});
+
+/**
+ * Bakiye yukleme TALEBI.
+ *
+ * Portal salt okunur olmaya devam ediyor: bu uc para tasimaz, bakiyeye dokunmaz.
+ * Yaptigi tek sey nobetci personele "su hesap su kadar yukleme istiyor" demek -
+ * boylece bakiyesi biten sofor gece 2'de istasyonu telefonla aramak zorunda kalmaz.
+ * Bakiye ancak personel panelden onaylayinca artar.
+ */
+const topupRequestSchema = z.object({
+  amount: z.number().positive().max(10000000),
+  note: z.string().trim().max(300).optional(),
+});
+
+router.post("/accounts/:id/topup-requests", validateBody(topupRequestSchema), (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const body = req.body as z.infer<typeof topupRequestSchema>;
+  try {
+    // Erisim accountIdFrom -> assertAccountAccess ile zaten dogrulandi.
+    const account = accountForVerifiedAccess(accountId);
+    const request = createRequest(account, req.fleetPortalUser!, body.amount, body.note);
+    recordAudit({
+      user: null,
+      actorType: "fleet_portal",
+      actorLabel: req.fleetPortalUser!.email,
+      action: "fleet_topup_requested",
+      entityType: "fleet_account",
+      entityId: accountId,
+      details: { requestId: request.id, amount: body.amount },
+      ip: req.ip,
+      stationId: account.station_id,
+    });
+    res.status(201).json({ request: serializeRequest(request) });
+  } catch (err) {
+    if (err instanceof TopupRequestError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.get("/accounts/:id/topup-requests", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  res.json({ requests: listRequestsForAccount(accountId).map(serializeRequest) });
+});
+
+router.delete("/accounts/:id/topup-requests/:requestId", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const requestId = Number(req.params.requestId);
+  if (!Number.isInteger(requestId) || requestId <= 0) {
+    return void res.status(400).json({ error: "Gecersiz talep." });
+  }
+  try {
+    cancelOwnRequest(requestId, accountId);
+    res.status(204).end();
+  } catch (err) {
+    if (err instanceof TopupRequestError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 router.get("/accounts/:id/plate-breakdown", validateQuery(rangeSchema), (req, res) => {

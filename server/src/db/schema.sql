@@ -464,6 +464,34 @@ CREATE TABLE IF NOT EXISTS refunds (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_refunds_transaction ON refunds(transaction_id);
+
+-- Filo musterisinin portalden actigi BAKIYE YUKLEME TALEBI.
+--
+-- Talep PARA TASIMAZ; bir mesajdir. Bakiye ancak personel talebi onaylayinca ve
+-- mevcut topUp() yoluyla artar - yani para akisi, muhasebe ve komisyon yapisi
+-- degismez. Cozdugu sey su: bakiyesi biten sofor gece 2'de istasyonu telefonla
+-- aramak zorunda kalmasin, talep dogrudan nobetci personele dussun.
+--
+-- Onaydaki tutar TALEP EDILEN degil, personelin FIILEN TAHSIL ETTIGI tutardir:
+-- musterinin beyani bir niyet bildirimi, kasaya giren para ise baska bir sey
+-- olabilir (eksik havale, farkli kur). Bu yuzden approved_amount ayri tutulur.
+CREATE TABLE IF NOT EXISTS fleet_topup_requests (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id),
+  portal_user_id INTEGER NOT NULL REFERENCES fleet_portal_users(id),
+  requested_amount REAL NOT NULL,
+  note TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected
+  approved_amount REAL,                    -- personelin fiilen tahsil ettigi tutar
+  handled_by INTEGER REFERENCES users(id),
+  handled_at TEXT,
+  handled_note TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_topup_requests_account ON fleet_topup_requests(fleet_account_id, status);
+CREATE INDEX IF NOT EXISTS idx_fleet_topup_requests_station ON fleet_topup_requests(station_id, status);
+
 CREATE INDEX IF NOT EXISTS idx_refunds_station ON refunds(station_id, created_at);
 
 -- Pompa kalibrasyon (ayar) testi ve damga takibi.

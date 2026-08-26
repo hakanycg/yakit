@@ -3,7 +3,15 @@ import { ApiError } from "../shared/api";
 import { formatCurrency, formatDateTime, formatLiters } from "../shared/format";
 import { useThemePreference } from "../shared/useThemePreference";
 import { AlertIcon, CheckCircleIcon, FuelIcon, MoonIcon, SunIcon, WalletIcon } from "../shared/icons";
-import { fleetApi, type FleetInvoice, type PlateSummary, type PortalAccount, type PortalUser, type Statement } from "./fleetApi";
+import {
+  fleetApi,
+  type FleetInvoice,
+  type PlateSummary,
+  type PortalAccount,
+  type PortalUser,
+  type Statement,
+  type TopupRequest,
+} from "./fleetApi";
 
 /**
  * Filo musteri self-servis portali (/filo).
@@ -172,6 +180,7 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
   const [statement, setStatement] = useState<Statement | null>(null);
   const [plates, setPlates] = useState<PlateSummary[]>([]);
   const [invoices, setInvoices] = useState<FleetInvoice[]>([]);
+  const [topupRequests, setTopupRequests] = useState<TopupRequest[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const account = accounts.find((a) => a.accountId === accountId) ?? null;
@@ -206,6 +215,18 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
       .then((r) => setPlates(r.plates))
       .catch(() => setPlates([]));
   }, [accountId, from, to]);
+
+  // Yukleme talepleri de tarih araligindan bagimsiz: "talebim ne oldu?" sorusu
+  // secilen donemle degil hesabin su anki durumuyla ilgili.
+  const loadTopupRequests = useCallback(() => {
+    if (accountId === null) return;
+    fleetApi
+      .get<{ requests: TopupRequest[] }>(`/api/fleet-portal/accounts/${accountId}/topup-requests`)
+      .then((r) => setTopupRequests(r.requests))
+      .catch(() => setTopupRequests([]));
+  }, [accountId]);
+
+  useEffect(loadTopupRequests, [loadTopupRequests]);
 
   const t = statement?.totals;
   const lowBalance =
@@ -276,8 +297,8 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
               <div className="card" style={{ borderColor: "#f87171" }}>
                 <strong style={{ color: "#f87171" }}>Bakiyeniz düşük.</strong>{" "}
                 <span className="hint-text">
-                  Kalan bakiye {formatCurrency(account.balance)}. Yükleme için yakıt aldığınız istasyonla iletişime geçin —
-                  bakiye yüklemesi istasyon tarafından yapılır.
+                  Kalan bakiye {formatCurrency(account.balance)}. Aşağıdaki formdan yükleme talebi oluşturabilirsiniz;
+                  talebiniz istasyona iletilir, ödemeyi aldıklarında bakiyeniz yüklenir.
                 </span>
               </div>
             )}
@@ -320,6 +341,12 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
                 icon={<FuelIcon />}
               />
             </div>
+
+            <TopupRequestPanel
+              account={account}
+              requests={topupRequests}
+              onChanged={loadTopupRequests}
+            />
 
             <div className="toolbar">
               <label htmlFor="fp-from" style={{ margin: 0 }}>
@@ -485,6 +512,167 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
         )}
       </main>
     </div>
+  );
+}
+
+/**
+ * Bakiye yukleme talebi.
+ *
+ * Bu form PARA TASIMAZ - bir mesajdir. Musteri tutari yazar, istasyondaki nobetci
+ * personele bildirim gider, para fiilen tahsil edildiginde personel panelden
+ * onaylar ve bakiye ancak o an artar. Portale kart odemesi koymamanin sebebi
+ * ticari: filo yakit alimi bugun odeme saglayicisina hic ugramiyor, yani filo
+ * cirosunda komisyon yok; yuklemeyi karta baglamak komisyonu hacmin %0'indan
+ * %100'une tasirdi.
+ *
+ * Faturali (sonradan odeme) hesapta ayni akis "borc odeme bildirimi" olarak
+ * calisir: topUp() faturali hesapta bakiyeyi (borcu) azaltir.
+ */
+function TopupRequestPanel({
+  account,
+  requests,
+  onChanged,
+}: {
+  account: PortalAccount;
+  requests: TopupRequest[];
+  onChanged: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const prepaid = account.billingType === "prepaid";
+  const title = prepaid ? "Bakiye Yükleme Talebi" : "Ödeme Bildirimi";
+  const pending = requests.find((r) => r.status === "pending") ?? null;
+  const history = requests.filter((r) => r.status !== "pending").slice(0, 5);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    const value = Number(amount.replace(",", "."));
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("Geçerli bir tutar girin.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await fleetApi.post(`/api/fleet-portal/accounts/${account.accountId}/topup-requests`, {
+        amount: Math.round(value * 100) / 100,
+        note: note.trim() || undefined,
+      });
+      setAmount("");
+      setNote("");
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Talep oluşturulamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancel(id: number) {
+    setBusy(true);
+    setError(null);
+    try {
+      await fleetApi.del(`/api/fleet-portal/accounts/${account.accountId}/topup-requests/${id}`);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Talep geri çekilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <h3>{title}</h3>
+      <div className="card">
+        {pending ? (
+          <div className="topup-pending">
+            <div>
+              <span className="badge warning">Onay bekliyor</span>{" "}
+              <strong>{formatCurrency(pending.requestedAmount)}</strong>
+              <div className="hint-text">
+                {formatDateTime(pending.createdAt)} tarihinde iletildi. İstasyon ödemeyi aldığında bakiyenize işlenir.
+                {pending.note && ` Notunuz: ${pending.note}`}
+              </div>
+            </div>
+            <div className="spacer" />
+            <button type="button" className="ghost btn-sm" onClick={() => cancel(pending.id)} disabled={busy}>
+              Talebi geri çek
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="topup-form">
+            <p className="hint-text" style={{ marginTop: 0 }}>
+              {prepaid
+                ? "Yüklemek istediğiniz tutarı bildirin; talebiniz istasyona iletilir. Ödemeniz alındığında bakiyeniz güncellenir."
+                : "Ödediğiniz tutarı bildirin; istasyon tahsilatı teyit ettiğinde borcunuzdan düşülür."}
+            </p>
+            <div className="topup-fields">
+              <div>
+                <label htmlFor="fp-topup-amount">Tutar (TL)</label>
+                <input
+                  id="fp-topup-amount"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="ör. 5000"
+                  required
+                />
+              </div>
+              <div className="topup-note">
+                <label htmlFor="fp-topup-note">Not (opsiyonel)</label>
+                <input
+                  id="fp-topup-note"
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  placeholder="ör. Havale bugün yapıldı, dekont e-postada"
+                  maxLength={300}
+                />
+              </div>
+              <button type="submit" className="primary" disabled={busy || !account.active}>
+                {busy ? "Gönderiliyor..." : "Talep Gönder"}
+              </button>
+            </div>
+            {!account.active && <p className="hint-text">Hesabınız pasif durumda; talep gönderilemez.</p>}
+          </form>
+        )}
+
+        {error && <p className="error-text">{error}</p>}
+
+        {history.length > 0 && (
+          <table style={{ marginTop: "1rem" }}>
+            <thead>
+              <tr>
+                <th>Tarih</th>
+                <th>Talep</th>
+                <th>Sonuç</th>
+                <th>İşlenen tutar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((r) => (
+                <tr key={r.id}>
+                  <td className="hint-text">{formatDateTime(r.createdAt)}</td>
+                  <td>{formatCurrency(r.requestedAmount)}</td>
+                  <td>
+                    <span className={`badge ${r.status === "approved" ? "resolved" : "warning"}`}>
+                      {r.status === "approved" ? "Onaylandı" : "Reddedildi"}
+                    </span>
+                    {r.handledNote && <div className="hint-text">{r.handledNote}</div>}
+                  </td>
+                  {/* Onaylanan tutar talep edilenden farkli olabilir: bakiyeye yazilan,
+                      istenen degil fiilen tahsil edilendir. */}
+                  <td>{r.approvedAmount !== null ? <strong>{formatCurrency(r.approvedAmount)}</strong> : <span className="hint-text">—</span>}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </>
   );
 }
 

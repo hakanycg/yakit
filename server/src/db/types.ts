@@ -236,6 +236,22 @@ export interface FleetInvoiceRow {
   created_at: string;
 }
 
+export interface FleetTopupRequestRow {
+  id: number;
+  station_id: number;
+  fleet_account_id: number;
+  portal_user_id: number;
+  requested_amount: number;
+  note: string | null;
+  status: "pending" | "approved" | "rejected";
+  /** Personelin FIILEN tahsil ettigi tutar; talep edilenle ayni olmak zorunda degil. */
+  approved_amount: number | null;
+  handled_by: number | null;
+  handled_at: string | null;
+  handled_note: string | null;
+  created_at: string;
+}
+
 export interface FleetPortalUserRow {
   id: number;
   email: string;
