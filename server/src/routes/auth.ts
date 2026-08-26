@@ -55,7 +55,7 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
   const passwordOk = verifyPassword(password, target);
 
   if (!user) {
-    recordAudit({ user: null, action: "login_failed", details: { username, reason: "not_found" }, ip });
+    recordAudit({ user: null, actorType: "anonymous", actorLabel: username, action: "login_failed", details: { username, reason: "not_found" }, ip });
     res.status(401).json({ error: "Kullanici adi veya sifre hatali." });
     return;
   }

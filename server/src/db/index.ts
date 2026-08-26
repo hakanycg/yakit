@@ -58,6 +58,11 @@ export function applyMigrations(): void {
   // musteriye pompa sectirmeye devam eder, davranis degismez.
   ensureColumn("station_kiosks", "pump_id", "INTEGER REFERENCES pumps(id)");
   ensureColumn("stations", "contact_phone", "TEXT");
+  // Denetim kaydi zenginlestirmesi. Eski satirlarda bu alanlar NULL kalir - o kayitlarin
+  // yazildigi anda bu bilgi gercekten toplanmiyordu; geriye donuk uydurmak yaniltici olurdu.
+  ensureColumn("audit_log", "actor_type", "TEXT");
+  ensureColumn("audit_log", "role", "TEXT");
+  ensureColumn("audit_log", "user_agent", "TEXT");
   // Sema henuz "source" kolonu olmadan olusmus kurulumlar: mevcut tum olcumler elle
   // girilmistir, varsayilan dogru degeri zaten verir.
   // Kiraci (dagitim sirketi) katmani. Roller yalnizca seed.ts'te olusturuluyor ve seed

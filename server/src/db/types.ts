@@ -322,11 +322,14 @@ export interface AuditLogRow {
   station_id: number | null;
   user_id: number | null;
   username: string | null;
+  actor_type: string | null;
+  role: string | null;
   action: string;
   entity_type: string | null;
   entity_id: string | null;
   details: string | null;
   ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 }
 

@@ -180,6 +180,8 @@ export function sweepDataRetention(now = new Date()): RetentionSweepResult[] {
         logger.info({ ...result }, "KVKK saklama suresi uygulandi.");
         recordAudit({
           user: null,
+          actorType: "system",
+          actorLabel: "KVKK saklama süresi işi",
           action: "kvkk_retention_applied",
           details: result,
           stationId: station.id,

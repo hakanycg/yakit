@@ -202,13 +202,16 @@ CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER REFERENCES stations(id), -- NULL: platform genelinde islem (ör. istasyon olusturma)
-  user_id INTEGER REFERENCES users(id),
-  username TEXT,
+  user_id INTEGER REFERENCES users(id), -- personel oturumu yoksa NULL (filo portali, sistem isi, basarisiz giris)
+  username TEXT,                       -- ASLA bos kalmaz: personel adi, aktor etiketi ya da aktor turunun karsiligi
+  actor_type TEXT,                     -- staff | fleet_portal | system | anonymous
+  role TEXT,                           -- islemin O AN hangi yetkiyle yapildigi (sonradan rol degisse de degismez)
   action TEXT NOT NULL,
   entity_type TEXT,
   entity_id TEXT,
   details TEXT,                        -- JSON
   ip_address TEXT,
+  user_agent TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);

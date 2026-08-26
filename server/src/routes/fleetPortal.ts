@@ -69,6 +69,8 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
   if (!outcome.ok || !outcome.user) {
     recordAudit({
       user: null,
+      actorType: "anonymous",
+      actorLabel: email.trim().toLowerCase(),
       action: "fleet_portal_login_failed",
       details: { email: email.trim().toLowerCase() },
       ip: req.ip,
@@ -82,6 +84,8 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
   setFleetPortalCookies(res, session.token, session.csrfToken);
   recordAudit({
     user: null,
+    actorType: "fleet_portal",
+    actorLabel: outcome.user.email,
     action: "fleet_portal_login",
     entityType: "fleet_portal_user",
     entityId: outcome.user.id,
@@ -136,6 +140,8 @@ router.post("/password", validateBody(passwordSchema), (req, res) => {
   clearFleetPortalCookies(res);
   recordAudit({
     user: null,
+    actorType: "fleet_portal",
+    actorLabel: req.fleetPortalUser!.email,
     action: "fleet_portal_password_changed",
     entityType: "fleet_portal_user",
     entityId: req.fleetPortalUser!.id,
@@ -220,6 +226,8 @@ router.get("/accounts/:id/statement.csv", validateQuery(rangeSchema), (req, res)
 
   recordAudit({
     user: null,
+    actorType: "fleet_portal",
+    actorLabel: req.fleetPortalUser!.email,
     action: "fleet_portal_statement_exported",
     entityType: "fleet_account",
     entityId: accountId,

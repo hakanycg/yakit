@@ -369,10 +369,15 @@ export interface AuditEntry {
   stationId: number | null;
   userId: number | null;
   username: string | null;
+  /** staff | fleet_portal | system | anonymous - personel oturumu olmayan kayitlarin kaynagi. */
+  actorType: string | null;
+  /** Islemin O AN hangi yetkiyle yapildigi; sonradan rol degisse de degismez. */
+  role: string | null;
   action: string;
   entityType: string | null;
   entityId: string | null;
   details: unknown;
   ipAddress: string | null;
+  userAgent: string | null;
   createdAt: string;
 }

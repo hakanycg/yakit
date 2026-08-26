@@ -84,6 +84,8 @@ export function applyDuePriceChanges(): void {
       db.prepare("UPDATE scheduled_price_changes SET status = 'applied', applied_at = ? WHERE id = ?").run(now, schedule.id);
       recordAudit({
         user: null,
+        actorType: "system",
+        actorLabel: "zamanlanmış fiyat işi",
         action: "fuel_price_scheduled_change_applied",
         entityType: "fuel_price",
         entityId: schedule.fuel_type,

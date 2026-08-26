@@ -39,7 +39,7 @@ export async function requestPasswordReset(identifier: string, requestBaseUrl: s
     .get(trimmed.toLowerCase(), trimmed);
 
   if (!user || !user.active) {
-    recordAudit({ user: null, action: "password_reset_requested", details: { identifier: trimmed, found: false }, ip });
+    recordAudit({ user: null, actorType: "anonymous", actorLabel: trimmed, action: "password_reset_requested", details: { identifier: trimmed, found: false }, ip });
     return;
   }
 

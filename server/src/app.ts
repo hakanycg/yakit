@@ -9,6 +9,7 @@ import { env, isProd } from "./config.js";
 import { logger } from "./utils/logger.js";
 import { db } from "./db/index.js";
 import { attachSession } from "./middleware/auth.js";
+import { attachRequestContext } from "./middleware/requestContext.js";
 import { getLastVerification } from "./services/backupVerifyService.js";
 import { attachFleetPortalSession } from "./middleware/fleetPortalAuth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
@@ -79,6 +80,7 @@ export function createApp() {
 
   app.use(express.json({ limit: "64kb" }));
   app.use(pinoHttp({ logger, autoLogging: !isProd }));
+  app.use(attachRequestContext);
   app.use(attachSession);
   // Filo musteri portali kimligi personel oturumundan ayri bir cerezde tasinir; ikisi
   // ayni tarayicida yan yana durabilir (bkz. middleware/fleetPortalAuth.ts).
