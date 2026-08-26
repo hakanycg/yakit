@@ -682,6 +682,23 @@ istasyonun pompasını müşteriye hiç sormadan seçebilirdi.
 > Panel bunu hem alanın altında yazar hem de pompası bağlı ama hiç bağlanmamış kiosk kaydına
 > *"kurulum adresi uygulanmadı"* rozeti koyar.
 
+## Kiosk ne kadar indiriyor: rota bazlı kod bölme
+
+Kiosk tek parça halinde **yönetim panelinin tamamını** indiriyordu — müşteri ekranına
+hiç girmeyeceği 30 küsur sayfanın kodu, istasyonun zayıf hattından her açılışta tekrar
+geçiyordu.
+
+Kiosk dışındaki her sayfa artık `React.lazy` ile talep üzerine yükleniyor:
+
+| | Önce | Sonra |
+| --- | --- | --- |
+| Kiosk ilk yükü | 580 kB (gzip 154 kB) | **326 kB (gzip 101 kB)** |
+
+Eager kalanlar: kiosk akışının kendisi (`KioskFlow` — ilk boyada askıya düşmemeli),
+panel kabuğu (`AppLayout` / `RequireRole` — zaten her panel sayfasında gerekli) ve giriş
+akışı. Panel sayfaları kendi parçalarını ilk açılışlarında çekiyor; ofis bağlantısında
+bu fark edilmez, istasyonun hattında ise kiosk'un indirmediği her kilobayt kazançtır.
+
 ## Kiosk klavyesi: işletim sisteminin klavyesi hiç açılmaz
 
 Kiosk'ta plaka, tutar, litre, kampanya kodu, e-posta, telefon ve destek mesajı —
