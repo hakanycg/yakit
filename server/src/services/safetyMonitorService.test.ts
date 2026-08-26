@@ -48,7 +48,7 @@ describe("checkSafetySensors", () => {
     createTestFuelPrice(station.id, "benzin", 44.5);
     setTankStock(station.id, "benzin", 500);
 
-    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34SAF001", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 5 });
+    const { transaction } = createTransaction({ pumpId, plate: "34SAF001", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 5 });
     payOk(transaction.id);
 
     setSafetySensorDriver({ checkAlarm: () => "Test: gaz sizintisi tespit edildi." });

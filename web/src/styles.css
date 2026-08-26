@@ -345,6 +345,23 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
 /* Ust uste (normal akista) yigilan kartlar arasindaki bosluk. */
 .card + .card { margin-top: 1rem; }
 .grid { display: grid; gap: 1rem; }
+
+/* Sayfa duzeyinde dikey ritim.
+   Onceden yalnizca .card + .card arasinda bosluk vardi; bir grid'in ardindan gelen
+   kart (ya da art arda iki grid) HIC bosluk almiyor, kutular birbirine yapisik
+   goruntuyordu. Bunu her sayfada tek tek style={{marginTop:"1rem"}} ile kapatmak
+   gerekiyordu - Gun Sonu Mutabakati, Konsolide Rapor ve Kiosk Filosu'ndaki sikisik
+   gorunumun sebebi buydu. Ritim burada, bir kez tanimlaniyor. */
+.grid + .grid,
+.grid + .card,
+.card + .grid,
+.grid + .table-scroll,
+.card + .table-scroll,
+.table-scroll + .card,
+.table-scroll + .grid,
+.toolbar + .grid,
+.grid + .toolbar,
+.card + .toolbar { margin-top: 1rem; }
 /* ...ama gap'li konteynerlerde aralik zaten `gap` ile verilir. Ustteki yigin marji
    orada da uygulanirsa, ilk kart disindaki TUM kartlar 1rem asagi kayar ve satir
    yuksekligi sabit oldugundan ayni oranda kisalir - yani "kutular ayni boyutta degil"
@@ -641,7 +658,8 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 
 .error-text { color: var(--danger); font-size: var(--fs-sm); margin-top: 0.4rem; }
 .hint-text { color: var(--text-dim); font-size: var(--fs-sm); margin-top: 0.4rem; }
-.toolbar { display: flex; gap: 0.6rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+/* Butonlar arasi 0.6rem cok siktı - komsu iki eylem tek bir dugme gibi okunuyordu. */
+.toolbar { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
 .spacer { flex: 1; }
 
 /* Raporlama */
@@ -738,6 +756,17 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 /* Kutu/anahtar satirlari girdi alanlariyla ayni taban cizgisinde degil, kendi
    dikey ortalarinda hizalanmali. */
 .settings-row > .check, .settings-row > .switch-row { align-self: center; }
+
+/* Rapor merkezi baslik seridi: sekme secimi solda, tarih araligi sagda. */
+.report-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 1rem; margin-bottom: 1.25rem; }
+.report-range { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }
+/* Genel `input { width: 100% }` kurali tarih kutularini satir boyu uzatiyordu; burada
+   icerikleri kadar yer kaplamalari gerekiyor. */
+.report-range input[type="date"] { width: auto; min-width: 9.5rem; margin: 0; }
+.report-range .hint-text { margin: 0; }
+/* Grafigin altindaki ilk/son gun etiketleri - ust uste binmesinler. */
+.report-axis { display: flex; justify-content: space-between; gap: 1rem; margin-top: 0.4rem; }
+.report-axis .hint-text { margin: 0; }
 
 /* Segment dugmesi: birbirini disliyan gorunum secimleri ("Acik" / "Tumu").
    Onay kutusu yanlis bilesendi - isaretlenecek bir tercih degil, hangi listeye
