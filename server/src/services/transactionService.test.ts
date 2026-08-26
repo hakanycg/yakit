@@ -160,7 +160,7 @@ describe("AutomationDriver entegrasyonu (IOS - gercek donanim/vendor karari bekl
     setDispenserDriver(instantDriver);
 
     vi.useFakeTimers();
-    const { transaction, accessToken } = createTransaction({
+    const { transaction } = createTransaction({
       pumpId,
       plate: "34AUT001",
       plateSource: "manual",
@@ -318,7 +318,7 @@ describe("reconcileStaleCreatedTransactions", () => {
 
   it("leaves a recently-created transaction untouched", () => {
     const { pumpId } = setUpStationForTransactions();
-    const { transaction, accessToken } = createTransaction({ pumpId, plate: "34STA002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction } = createTransaction({ pumpId, plate: "34STA002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
 
     reconcileStaleCreatedTransactions(10 * 60 * 1000);
 
