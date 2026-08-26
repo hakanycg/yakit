@@ -624,8 +624,21 @@ function AccountDetailDialog({
 
       <h4>Portal Erişimi</h4>
       <p className="hint-text">
-        Şirket yetkilisi <code>/filo</code> adresinden kendi bakiyesini, ekstresini ve araç bazında harcamalarını
-        görebilir. Portal salt okunurdur: bakiye yükleme burada, istasyonda kalır.
+        Şirket yetkilisi aşağıdaki adresten kendi bakiyesini, ekstresini, faturalarını ve araç bazında
+        harcamalarını (hangi plaka, ne zaman, ne kadar) kendisi görür — istasyonu aramasına gerek kalmaz.
+        Portal salt okunurdur: bakiye yükleme burada, istasyonda kalır.
+      </p>
+      {/* Personelin musteriye gonderecegi sey "/filo" degil, tam adres. Elle yazdirmak
+          yerine tek tikla kopyalanir. */}
+      <p className="with-action">
+        <code>{`${window.location.origin}/filo`}</code>
+        <button
+          type="button"
+          className="ghost btn-sm"
+          onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/filo`)}
+        >
+          Adresi kopyala
+        </button>
       </p>
       <div className="toolbar">
         <input

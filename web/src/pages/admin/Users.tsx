@@ -140,7 +140,21 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
   const [submitting, setSubmitting] = useState(false);
 
   const canGrantSuperAdmin = me?.role === "super_admin";
-  const roleOptions: RoleName[] = canGrantSuperAdmin ? ["super_admin", ...EDITABLE_ROLES] : EDITABLE_ROLES;
+  /**
+   * Dagitim sirketi yoneticisi (tenant_admin) hesabini yalnizca platform yoneticisi
+   * acabilir. Bu secenek daha once listede HIC yoktu: sunucu rolu destekliyordu ama
+   * panelden secilemedigi icin bir dagitim sirketine hesap acmanin yolu yoktu.
+   */
+  const roleOptions: RoleName[] = canGrantSuperAdmin
+    ? ["super_admin", "tenant_admin", ...EDITABLE_ROLES]
+    : EDITABLE_ROLES;
+  const [tenants, setTenants] = useState<{ id: number; name: string }[]>([]);
+  const [tenantId, setTenantId] = useState("");
+
+  useEffect(() => {
+    if (!canGrantSuperAdmin) return;
+    api.get<{ tenants: { id: number; name: string }[] }>("/api/tenants").then((r) => setTenants(r.tenants)).catch(() => setTenants([]));
+  }, [canGrantSuperAdmin]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -150,7 +164,11 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       const body: Record<string, unknown> = { username, displayName, password, role };
       if (email.trim()) body.email = email.trim();
       if (phone.trim()) body.phone = phone.trim();
-      if (role !== "super_admin" && me?.role === "super_admin") {
+      // tenant_admin tek bir istasyona degil bir dagitim sirketine baglidir;
+      // istasyon kimligi gonderilmez.
+      if (role === "tenant_admin") {
+        body.tenantId = Number(tenantId);
+      } else if (role !== "super_admin" && me?.role === "super_admin") {
         body.stationId = stationId;
       }
       await api.post("/api/users", body);
@@ -190,6 +208,24 @@ function CreateUserDialog({ onClose, onCreated }: { onClose: () => void; onCreat
         </select>
         {role === "super_admin" && (
           <p className="hint-text">Platform yöneticisi hiçbir istasyona bağlı olmaz, tüm istasyonlara erişir.</p>
+        )}
+        {role === "tenant_admin" && (
+          <>
+            <label htmlFor="user-tenant">Dağıtım Şirketi</label>
+            <select id="user-tenant" value={tenantId} onChange={(e) => setTenantId(e.target.value)} required>
+              <option value="">Seçiniz...</option>
+              {tenants.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+            <p className="hint-text">
+              Bu hesap personelle aynı adresten (/giris) girer; panelde yalnızca bu şirkete atanmış istasyonları,
+              konsolide raporu ve kiosk filosunu görür.
+            </p>
+            {tenants.length === 0 && (
+              <p className="hint-text">Önce "Dağıtım Şirketleri" sayfasından bir şirket tanımlayın.</p>
+            )}
+          </>
         )}
         {error && <p className="error-text">{error}</p>}
         <div className="toolbar" style={{ marginTop: "1.25rem" }}>
