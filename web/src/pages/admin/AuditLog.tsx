@@ -28,6 +28,37 @@ function shortUserAgent(ua: string): string {
   return os ? `${browser} · ${os}` : browser;
 }
 
+/**
+ * Detay sutunu.
+ *
+ * Ham JSON basiliyordu ve icindeki null'lar ("action":null gibi) logu okuyan kisiye
+ * "veri eksik" izlenimi veriyordu; oysa anlami "o suzgec kullanilmadi" idi. Bos
+ * degerler artik hic gosterilmiyor - eski kayitlarda da (sunucu tarafi duzeltmesi
+ * yalnizca yeni kayitlari etkiler).
+ */
+function AuditDetails({ details }: { details: unknown }) {
+  if (details === null || details === undefined) return <span className="hint-text">-</span>;
+  if (typeof details !== "object" || Array.isArray(details)) {
+    return <code style={{ fontSize: "var(--fs-2xs)" }}>{JSON.stringify(details)}</code>;
+  }
+
+  const entries = Object.entries(details as Record<string, unknown>).filter(
+    ([, v]) => v !== null && v !== undefined && v !== ""
+  );
+  if (entries.length === 0) return <span className="hint-text">-</span>;
+
+  return (
+    <span className="audit-detail-list">
+      {entries.map(([k, v]) => (
+        <span className="audit-detail-item" key={k}>
+          <span className="audit-detail-key">{k}</span>
+          <span className="audit-detail-value">{typeof v === "object" ? JSON.stringify(v) : String(v)}</span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export default function AuditLog() {
   const stationId = useEffectiveStationId();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
@@ -83,8 +114,8 @@ export default function AuditLog() {
                 <td style={{ maxWidth: 180, overflowWrap: "break-word" }} title={e.userAgent ?? undefined}>
                   {e.userAgent ? <span className="hint-text">{shortUserAgent(e.userAgent)}</span> : "-"}
                 </td>
-                <td style={{ maxWidth: 320, overflowWrap: "break-word" }}>
-                  {e.details ? <code style={{ fontSize: "0.78rem" }}>{JSON.stringify(e.details)}</code> : "-"}
+                <td style={{ maxWidth: 340, overflowWrap: "break-word" }}>
+                  <AuditDetails details={e.details} />
                 </td>
               </tr>
             ))}

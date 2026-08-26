@@ -757,6 +757,16 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
    dikey ortalarinda hizalanmali. */
 .settings-row > .check, .settings-row > .switch-row { align-self: center; }
 
+/* Denetim kaydi detay sutunu: "anahtar deger" ciftleri, ham JSON yerine. */
+.audit-detail-list { display: flex; flex-wrap: wrap; gap: 0.25rem 0.4rem; }
+.audit-detail-item {
+  display: inline-flex; align-items: baseline; gap: 0.3rem;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 6px;
+  padding: 0.1rem 0.4rem; font-size: var(--fs-2xs); max-width: 100%;
+}
+.audit-detail-key { color: var(--text-dim); }
+.audit-detail-value { font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
 /* Rapor merkezi baslik seridi: sekme secimi solda, tarih araligi sagda. */
 .report-controls { display: flex; align-items: center; flex-wrap: wrap; gap: 0.75rem 1rem; margin-bottom: 1.25rem; }
 .report-range { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; }

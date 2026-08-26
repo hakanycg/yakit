@@ -75,15 +75,15 @@ const SYSTEM_PAGES = [
 /**
  * Sidebar'da tek bir link yerine, tiklaninca alt sayfalarini acan menu basligi.
  *
- * Bulundugunuz sayfayi iceren grup ACIK baslar. Menunun buyuk kismi artik gruplar
- * halinde oldugundan, hepsinin kapali baslamasi her geciste yerinizi kaybetmeniz
- * ve kardes sayfalara ulasmak icin grubu yeniden acmaniz demek olurdu. Kullanici
- * yine de her grubu elle acip kapatabilir.
+ * TUM gruplar KAPALI baslar - bulundugunuz sayfayi icereni de dahil. Acik baslamak
+ * menuyu her sayfada farkli yukseklikte gosteriyor, alttaki gruplarin yeri kayiyordu;
+ * kapali menu her zaman ayni, kisa ve okunur. Bulundugunuz grup yine de baslikta
+ * vurgulanir (containsActive), yani kapaliyken de nerede oldugunuzu gorursunuz.
  */
 function SidebarSubmenu({ label, pages, onNavigate }: { label: string; pages: { to: string; label: string }[]; onNavigate: () => void }) {
   const { pathname } = useLocation();
   const containsActive = pages.some((p) => pathname.startsWith(p.to));
-  const [open, setOpen] = useState(containsActive);
+  const [open, setOpen] = useState(false);
 
   return (
     <div className="sidebar-submenu">

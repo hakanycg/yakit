@@ -42,10 +42,17 @@ router.get("/", validateQuery(listSchema), (req, res) => {
   // "Erisim loglama": bu sayfayi kim, ne zaman, hangi filtrelerle goruntuledi - denetim
   // gunlugunun KENDISINE erisim de (mutasyonlar gibi) ayrica kayit altina alinir, tipki
   // CSV disa aktarma uclarindaki (transactions_exported vb.) mevcut davranis gibi.
+  // Uygulanmamis suzgecler detaya HIC yazilmaz. Onceden `action: null, userId: null`
+  // olarak yaziliyordu: logu okuyan kisi bunu "veri eksik/bozuk" diye okuyor, oysa
+  // anlami sadece "suzgec kullanilmadi" idi. Yoklugun kendisi zaten bu bilgiyi verir.
+  const viewDetails: Record<string, unknown> = { limit, resultCount: rows.length };
+  if (q.action) viewDetails.action = q.action;
+  if (q.userId) viewDetails.userId = q.userId;
+
   recordAudit({
     user: req.user!,
     action: "audit_log_viewed",
-    details: { action: q.action ?? null, userId: q.userId ?? null, limit, resultCount: rows.length },
+    details: viewDetails,
     ip: req.ip,
     stationId: req.stationId,
   });

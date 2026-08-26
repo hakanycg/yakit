@@ -448,9 +448,10 @@ halinde (`AppLayout.tsx`):
 durmamalı. Gruplama yalnızca görünüm içindir; hangi rolün neyi göreceği menüde,
 erişim izolasyonu ise sunucuda belirlenir (bkz. `middleware/tenantScope.ts`).
 
-Bulunduğunuz sayfayı içeren grup **açık başlar**. Menünün büyük kısmı artık gruplar
-halinde olduğundan hepsinin kapalı başlaması, her geçişte yerinizi kaybetmeniz ve
-kardeş sayfalara ulaşmak için grubu yeniden açmanız demek olurdu.
+**Tüm gruplar kapalı başlar** — bulunduğunuz sayfayı içeren de dahil. Açık başlamak menüyü
+her sayfada farklı yükseklikte gösteriyor, alttaki grupların yeri kayıyordu; kapalı menü her
+zaman aynı, kısa ve okunur. Bulunduğunuz grup yine de başlıkta vurgulanır, yani kapalıyken de
+nerede olduğunuzu görürsünüz.
 
 ### Tipografi: tek bir ölçek
 
@@ -597,6 +598,10 @@ Ayrıca:
 - **IP ve tarayıcı imzası** artık isteğin başında bir kez yakalanıp `AsyncLocalStorage` ile
   taşınır (`middleware/requestContext.ts`). 100'den fazla `recordAudit` çağrısı bunları elle
   taşımak zorundaydı; unutulan yerde kayıt "IP yok" olarak düşüyordu.
+- **Detay sütununda boş değer gösterilmez.** Uygulanmamış süzgeçler `{"action":null,"userId":null}`
+  olarak yazılıyor ve logu okuyan kişiye "veri eksik" izlenimi veriyordu; oysa anlamı sadece
+  "süzgeç kullanılmadı" idi. Artık yeni kayıtlara hiç yazılmıyor, eski kayıtlarda da ekranda
+  gizleniyor — detay ham JSON yerine okunur "anahtar değer" çiftleri olarak gösteriliyor.
 
 ## Güvenlik
 
