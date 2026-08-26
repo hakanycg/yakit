@@ -739,6 +739,21 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
    dikey ortalarinda hizalanmali. */
 .settings-row > .check, .settings-row > .switch-row { align-self: center; }
 
+/* Segment dugmesi: birbirini disliyan gorunum secimleri ("Acik" / "Tumu").
+   Onay kutusu yanlis bilesendi - isaretlenecek bir tercih degil, hangi listeye
+   baktiginizi soyleyen bir durum bu; segment secili olani acikca gosterir. */
+.segmented {
+  display: inline-flex; padding: 2px; gap: 2px;
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: 999px;
+}
+.segmented button {
+  border: none; background: transparent; color: var(--text-dim);
+  padding: 0.35rem 0.9rem; border-radius: 999px; font-size: var(--fs-sm); font-weight: 600;
+  cursor: pointer; white-space: nowrap; transition: background 0.12s ease, color 0.12s ease;
+}
+.segmented button:hover { color: var(--text); }
+.segmented button.active { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+
 /* Kartin en altindaki "aciklama + eylem" seridi. */
 .card-footer-row {
   display: flex; align-items: center; justify-content: space-between; gap: 0.6rem 1rem;
