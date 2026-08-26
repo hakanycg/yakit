@@ -53,7 +53,6 @@ function KioskFlowInner() {
   const [plateSource, setPlateSource] = useState<"manual" | "lpr">("manual");
   const [pump, setPump] = useState<Pump | null>(null);
   const [fuelType, setFuelType] = useState<FuelType | null>(null);
-  const [amountSelection, setAmountSelection] = useState<AmountSelection | null>(null);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -247,7 +246,6 @@ function KioskFlowInner() {
     setPlate("");
     setPump(null);
     setFuelType(null);
-    setAmountSelection(null);
     setTransaction(null);
     setAccessToken(null);
     setError(null);
@@ -296,7 +294,6 @@ function KioskFlowInner() {
 
   async function handleAmount(selection: AmountSelection) {
     if (!pump || !fuelType || !station) return;
-    setAmountSelection(selection);
     setError(null);
     setStep("creating");
 

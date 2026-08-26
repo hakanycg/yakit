@@ -54,7 +54,10 @@ export default function Shift() {
   const [closingNote, setClosingNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [tick, setTick] = useState(0);
+  // Degeri OKUNMAZ: amac 30 saniyede bir yeniden render tetikleyip vardiyanin gecen
+  // suresini guncel tutmak. Diziden ilk eleman bilerek alinmiyor - okunmayan bir
+  // degiskene isim vermek, birinin onu kullanmasi gerektigi izlenimi verirdi.
+  const [, forceRerender] = useState(0);
 
   const canManage = user?.role === "admin" || user?.role === "operator" || user?.role === "super_admin";
 
@@ -71,7 +74,7 @@ export default function Shift() {
 
   useEffect(() => {
     if (!current) return;
-    const interval = setInterval(() => setTick((t) => t + 1), 30000);
+    const interval = setInterval(() => forceRerender((t) => t + 1), 30000);
     return () => clearInterval(interval);
   }, [current]);
 
