@@ -127,6 +127,23 @@ export function applyMigrations(): void {
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_stations_code ON stations(code) WHERE code IS NOT NULL");
   backfillStationCodes();
   backfillKioskDeviceTokens();
+  dropRedundantIndexes();
+}
+
+/**
+ * Tek kolonlu station_id indekslerini, yerlerini alan birlesik indeksler kurulduktan
+ * SONRA dusurur (bkz. schema.sql'deki idx_transactions_station_created / idx_audit_station_created).
+ *
+ * (station_id, created_at) indeksi, station_id tek basina soruldugunda da kullanilabilir -
+ * onek eslesmesi - yani eski indeks artik hicbir sorguya yeni bir sey katmiyor. Ama BEDELI
+ * duruyor: transactions'a yazilan her satir bu indeksi de guncelliyor. Saniyede yuzlerce
+ * islem yazan bir sistemde bu, hicbir okumaya yaramayan bir yazma maliyetidir.
+ *
+ * Idempotent (IF EXISTS) - her baslangicta guvenle calisir.
+ */
+function dropRedundantIndexes(): void {
+  db.exec("DROP INDEX IF EXISTS idx_transactions_station");
+  db.exec("DROP INDEX IF EXISTS idx_audit_station");
 }
 
 /** Bu ozellikten once olusturulmus kiosk kayitlarina da birer cihaz tokeni verir. */

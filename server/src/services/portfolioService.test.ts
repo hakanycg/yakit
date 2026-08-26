@@ -3,6 +3,7 @@ import { db } from "../db/index.js";
 import type { StationRow } from "../db/types.js";
 import { createTestPump, createTestStation, createTestTenant } from "../test/dbFixture.js";
 import { getPortfolioReport } from "./portfolioService.js";
+import { businessDayExpr } from "../utils/businessDay.js";
 
 let tenant: { id: number };
 let otherTenant: { id: number };
@@ -181,5 +182,38 @@ describe("getPortfolioReport - operasyonel gostergeler", () => {
 
     expect(r.totals.stationCount).toBe(2);
     expect(r.totals.activeStationCount).toBe(1);
+  });
+});
+
+/**
+ * Konsolide raporun indeksi kullandigini dogrular.
+ *
+ * NEDEN BIR SORGU PLANI TESTI: bu raporun sorgusu tarihi is gunune ceviren bir IFADEYE
+ * (date(COALESCE(completed_at, created_at), '+3 hours')) dayaniyor ve bu yuzden duz bir
+ * (station_id, created_at) indeksinden yararlanamiyor. Onun icin schema.sql'de ifadenin
+ * KENDISI uzerine bir indeks var.
+ *
+ * Ifade indeksinin kullanilmasi, sorgudaki ifadenin indeks tanimindakiyle BIREBIR ayni
+ * olmasina bagli. Biri utils/businessDay.ts icindeki BUSINESS_DAY_SQL_OFFSET'i ('+3 hours')
+ * ya da BUSINESS_DAY_ANCHOR'i degistirirse indeks sessizce devre disi kalir: hicbir test
+ * kirilmaz, hicbir hata cikmaz, rapor sadece yavaslar. Olculdu: 100 istasyon/1,8M islemde
+ * indeksle 6 ms, indekssiz 4.284 ms - bin istasyonda ~43 saniye, yani calismayan bir sayfa.
+ * Fark edilmesi en zor bozulma budur; bu test onu derhal gorunur kilar.
+ */
+describe("getPortfolioReport - sorgu plani", () => {
+  it("is gunu ifade indeksini kullanir (tam tarama yapmaz)", () => {
+    const plan = db
+      .prepare(
+        `EXPLAIN QUERY PLAN
+         SELECT COUNT(*) FROM transactions t
+         WHERE t.station_id = ? AND t.status = 'completed'
+           AND ${businessDayExpr("t")} BETWEEN ? AND ?`
+      )
+      .all(1, "2020-01-01", "2030-01-01") as Array<{ detail: string }>;
+
+    const detail = plan.map((r) => r.detail).join(" | ");
+    expect(detail).toContain("idx_transactions_station_business_day");
+    // "SCAN" = tam tablo taramasi. Bu sorgu icin asla gorulmemeli.
+    expect(detail).not.toMatch(/\bSCAN\b/);
   });
 });

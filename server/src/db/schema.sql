@@ -178,7 +178,38 @@ CREATE TABLE IF NOT EXISTS transactions (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
-CREATE INDEX IF NOT EXISTS idx_transactions_station ON transactions(station_id);
+-- (station_id, created_at) BIRLESIK: tek basina station_id yetmiyordu.
+-- Panelin en sik sorgusu "bu istasyonun son 50 islemi" - station_id ile bulunan TUM
+-- satirlar (bir yilda istasyon basina ~70.000) gecici bir B-agacinda siralanip sonra
+-- 50 tanesi aliniyordu (EXPLAIN: "USE TEMP B-TREE FOR ORDER BY"). Olcum: 100 istasyon/
+-- 90 gunde 29 ms, ve satir sayisiyla DOGRUSAL buyuyor. Birlesik indekste satirlar zaten
+-- tarih sirali durdugundan siralama adimi tamamen kalkar. Ayni indeks tarih araligi
+-- alan rapor sorgularina da hizmet eder.
+CREATE INDEX IF NOT EXISTS idx_transactions_station_created ON transactions(station_id, created_at);
+
+-- IS GUNU (business day) IFADE INDEKSI.
+--
+-- Konsolide rapor ve gun sonu mutabakati tarihi takvim gunune degil IS GUNUNE gore
+-- gruplar: date(COALESCE(completed_at, created_at), '+3 hours') - gece yarisindan sonraki
+-- satis onceki is gunune yazilsin diye (bkz. utils/businessDay.ts). Kolon bir IFADEYE
+-- sarildigi icin yukaridaki duz (station_id, created_at) indeksi bu sorgulara HIZMET EDEMEZ;
+-- SQLite her istasyonun tum islemlerini okuyup her satir icin date() cagirmak zorunda kalir.
+--
+-- Olcum (100 istasyon, 90 gun, 1,8M islem, npm run benchmark):
+--   indekssiz 4.284 ms  ->  indeksle 1.597 ms   (2,7x)
+-- Indeks sorguyu tam taramadan kurtarir ama SINIRI kaldirmaz: konsolide rapor istasyon
+-- basina dort korele alt sorgu calistirir ve her biri o istasyonun aralikTAKI tum
+-- satirlarini gezer - yani sure toplam islem sayisiyla DOGRUSAL kalir. Bin istasyonda
+-- ~16 saniye eder. Oradaki cozum indeks degil GUNLUK OZET TABLOSU'dur; bkz. README
+-- "Kapasite olcumu" ve BEKLEYENLER.md #81.
+--
+-- DIKKAT: ifade, sorgudaki ifadeyle BIREBIR ayni olmali. utils/businessDay.ts icindeki
+-- BUSINESS_DAY_SQL_OFFSET veya BUSINESS_DAY_ANCHOR degistirilirse bu indeks sessizce
+-- kullanilmaz hale gelir - hicbir sey bozulmaz, sadece rapor yavaslar ki fark edilmesi
+-- en zor bozulma budur. portfolioService.test.ts icindeki sorgu plani testi tam olarak
+-- bunu yakalamak icin var.
+CREATE INDEX IF NOT EXISTS idx_transactions_station_business_day
+  ON transactions(station_id, date(COALESCE(completed_at, created_at), '+3 hours'));
 CREATE INDEX IF NOT EXISTS idx_transactions_pump ON transactions(pump_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
@@ -221,7 +252,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
-CREATE INDEX IF NOT EXISTS idx_audit_station ON audit_log(station_id);
+-- transactions ile ayni gerekce: denetim kaydi her zaman "bu istasyon, en yeniden
+-- eskiye, son N" seklinde okunur.
+CREATE INDEX IF NOT EXISTS idx_audit_station_created ON audit_log(station_id, created_at);
 
 CREATE TABLE IF NOT EXISTS shifts (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

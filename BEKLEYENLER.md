@@ -62,6 +62,18 @@ komisyon** var. Yüklemeyi karta bağlamak komisyonu hacmin %0'ından %100'üne 
 
 ## 3. Altyapı: veri merkezine geçiş
 
+**Kapasite artık ölçüldü — sağlayıcıyla konuşurken elde sayı var** (`npm run benchmark`,
+ayrıntı README "Kapasite ölçümü"):
+
+- İşlem başına ~434 bayt (indeksler dahil) → 1000 istasyon × 300 işlem/gün ≈ **48 GB/yıl**.
+- Tek istasyon sorguları (panel, kiosk, rapor) 10 ms'in altında ve toplam veri büyüdükçe
+  **sabit** kalıyor — indeksli oldukları için. Bunlar sunucu boyutlandırmasında baskın değil.
+- **Tek darboğaz konsolide rapor:** 100 istasyonda 1.6 sn, 1000 istasyonda ~16 sn.
+  Bu bir donanım sorunu değil, sorgu şekli sorunu — daha güçlü sunucu almak yerine
+  **günlük özet (rollup) tablosu** yazılmalı. Karar #81 ile birlikte verilmeli:
+  rollup yapılırsa konsolide rapor da sabit zamana iner ve CPU gereksinimi düşer.
+
+
 Bugün Railway üzerinde çalışıyor. Kendi veri merkezine geçiş kararı verildiğinde:
 
 - **Sağlayıcı seçimi ve kapasite planı** — kaç istasyon, kaç kiosk, hangi büyüme eğrisi.

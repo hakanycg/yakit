@@ -907,6 +907,62 @@ Ayrıca:
   "süzgeç kullanılmadı" idi. Artık yeni kayıtlara hiç yazılmıyor, eski kayıtlarda da ekranda
   gizleniyor — detay ham JSON yerine okunur "anahtar değer" çiftleri olarak gösteriliyor.
 
+## Kapasite ölçümü: #81'e tahmin değil sayı
+
+Görev #81 (veri merkezi/sunucu seçimi) "kaç CPU, kaç GB RAM, kaç GB disk" diye soruyor.
+Bu soru tahminle cevaplanamaz — "SQLite hızlıdır" da "bin istasyon çok değil" de ölçülmeden
+hiçbir şey ifade etmez. `npm run benchmark` gerçek veri üretip **gerçek sorguları** çalıştırır.
+
+```
+npm run benchmark                                  # 50 istasyon / 30 gün / 200 işlem
+npm run benchmark -- --stations=100 --days=90 --tx=200
+```
+
+Kendi geçici veritabanında çalışır (`data/benchmark.sqlite`), canlı veriye dokunmaz.
+
+### Ölçüm: 100 istasyon, 90 gün, 1.8M işlem (704 MB)
+
+| Sorgu | Önce | Sonra |
+| --- | --- | --- |
+| İşlem listesi (son 50, tek istasyon) | 29.28 ms | **0.54 ms** |
+| Denetim kaydı (son 100) | 1.08 ms | **0.33 ms** |
+| Konsolide rapor (tüm istasyonlar) | 4284 ms | **1597 ms** |
+| Rapor özeti (tek istasyon) | 6.20 ms | 5.50 ms |
+| Kiosk: fiyat + tank okuma | 0.03 ms | 0.03 ms |
+
+Üç indeks değişikliği:
+
+1. **`(station_id, created_at)` birleşik** — tek başına `station_id` vardı. Panelin en sık
+   sorgusu "bu istasyonun son 50 işlemi"; `station_id` ile bulunan **tüm** satırlar geçici
+   bir B-ağacında sıralanıp sonra 50 tanesi alınıyordu (`USE TEMP B-TREE FOR ORDER BY`) —
+   ve süre satır sayısıyla doğrusal büyüyordu. **54× kazanç.** Aynısı `audit_log` için de.
+2. **İş günü ifade indeksi.** Konsolide rapor ve gün sonu mutabakatı tarihi
+   `date(COALESCE(completed_at, created_at), '+3 hours')` ile **iş gününe** çevirir; kolon bir
+   ifadeye sarıldığı için düz indeks hizmet edemiyordu. İfadenin kendisi indekslendi.
+3. **Gereksiz indeksler düşürüldü.** `(station_id, created_at)` varken tek kolonlu
+   `idx_transactions_station` hiçbir okumaya yeni bir şey katmıyor ama her INSERT'te
+   güncelleniyordu — saniyede yüzlerce işlem yazan bir sistemde karşılıksız yazma maliyeti.
+
+**Ölçmenin kendisi bir hatayı yakaladı.** Konsolide raporu ilk ölçtüğümde elle yazdığım
+basit bir `created_at BETWEEN` sorgusu kullanmıştım: **473 ms** dedi. Gerçek fonksiyonu
+(`getPortfolioReport`) çağırınca **4284 ms** çıktı — 9× iyimser bir yalan. Ölçüm, ölçülen
+şeyin kendisi olmalı; benchmark artık üretim fonksiyonunu çağırıyor.
+
+### #81 için çıkan sayılar
+
+- **Disk:** işlem başına ~**434 bayt** (tüm tablolar, indeksler dahil). 1000 istasyon ×
+  300 işlem/gün ≈ **110M işlem/yıl ≈ 48 GB/yıl**. Arşivleme (#153) ölçüm/denetim
+  tablolarını sabitler; işlem tablosu büyümeye devam eder.
+- **Tek istasyon sorguları sorun değil:** hepsi 10 ms'in altında ve indeksli oldukları için
+  toplam veri büyüdükçe **sabit** kalıyorlar. Kiosk akışı (0.03 ms) rahat.
+- **Tek gerçek darboğaz konsolide rapor.** İndeks 2.7× kazandırdı ama **sınırı kaldırmadı**:
+  istasyon başına dört korele alt sorgu, her biri o istasyonun aralıktaki tüm satırlarını
+  geziyor — süre toplam işlem sayısıyla doğrusal. 100 istasyonda 1.6 sn, **1000 istasyonda
+  ~16 sn**. Oradaki çözüm indeks değil **günlük özet (rollup) tablosu**: her iş günü
+  kapandığında istasyon başına bir satır yazılır, rapor 1.8M satır yerine 90.000 satır okur.
+  Bu bir tasarım değişikliği (iade/geç tamamlanan işlemle özetin senkron kalması gerekir),
+  ölçümün işi onu **boyutlandırmaktı** — kararı #81 ile birlikte verilmeli.
+
 ## Arşivleme: denetim kaydı ve ölçüm tabloları sınırsız büyümesin
 
 `audit_log`, `fuel_tank_readings` ve `station_sync_events` hiç temizlenmiyordu. Bin
