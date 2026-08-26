@@ -72,6 +72,7 @@ const ORG_PAGES = [
 /** Platform yoneticisinin sistem araclari. */
 const SYSTEM_PAGES = [
   { to: "/admin/audit-log", label: "Audit Log" },
+  { to: "/admin/sunucu-hatalari", label: "Sunucu Hataları" },
 ];
 
 /**

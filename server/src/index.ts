@@ -8,6 +8,7 @@ import { purgeExpiredPortalSessions } from "./services/fleetPortalService.js";
 import { reconcileStaleCreatedTransactions, reconcileStuckTransactions } from "./services/transactionService.js";
 import { maybeSendScheduledReportEmails } from "./services/reportEmailService.js";
 import { sweepOverdueReceivables } from "./services/fleetReceivableService.js";
+import { evaluateErrorRate, pruneSystemErrors, recordSystemError } from "./services/systemErrorService.js";
 import { runBackup } from "./services/backupService.js";
 import { verifyLatestBackup } from "./services/backupVerifyService.js";
 import { checkOfflineStations } from "./services/syncService.js";
@@ -39,9 +40,11 @@ if (isProd && !env.COOKIE_SECURE) {
  */
 process.on("uncaughtException", (err) => {
   logger.error({ err }, "Yakalanmamis istisna (uncaughtException) - sunucu calismaya devam ediyor.");
+  recordSystemError({ kind: "uncaught_exception", error: err });
 });
 process.on("unhandledRejection", (reason) => {
   logger.error({ err: reason }, "Yakalanmamis promise reddi (unhandledRejection) - sunucu calismaya devam ediyor.");
+  recordSystemError({ kind: "unhandled_rejection", error: reason });
 });
 
 // iyzico/Uyumsoft sirlarini durumda (at-rest) sifreler (bkz. secretsCrypto.ts) -
@@ -167,6 +170,28 @@ writeQueuePruneInterval.unref();
 applyDuePriceChanges();
 const scheduledPriceInterval = setInterval(applyDuePriceChanges, 60 * 1000);
 scheduledPriceInterval.unref();
+
+// Sunucu hata akisi durduysa alarmi cozer. Hata anindan bagimsiz calismasi sart:
+// hatalar kesildiginde alarmi kapatacak baska bir tetikleyici yok, yeni bir hata
+// gelmedigi surece alarm sonsuza kadar acik kalirdi.
+const systemErrorInterval = setInterval(() => {
+  try {
+    evaluateErrorRate();
+  } catch (err) {
+    logger.error({ err }, "Sunucu hata orani degerlendirilemedi.");
+  }
+}, 5 * 60 * 1000);
+systemErrorInterval.unref();
+
+// Hata tablosu teshis icindir, arsiv degil: 30 gunden eski kayitlar budanir.
+const systemErrorPruneInterval = setInterval(() => {
+  try {
+    pruneSystemErrors();
+  } catch (err) {
+    logger.error({ err }, "Eski sunucu hata kayitlari budanamadi.");
+  }
+}, 24 * 60 * 60 * 1000);
+systemErrorPruneInterval.unref();
 
 // Vadesi gecmis filo alacaklari: her hesap icin bir kez kritik alarm acar ve sirket
 // yetkilisine hatirlatma gonderir. Gunde bir kez yeterli - gecikme gun bazinda olculur

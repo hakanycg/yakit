@@ -1633,6 +1633,50 @@ gerekir.
 - SQLite veritabanı dosyasının (`DATABASE_PATH`) düzenli olarak yedeklenmesini sağlayın —
   bkz. aşağıdaki "Otomatik yedekleme" bölümü, sunucu bunu kendi başına yapabilir.
 
+## Sunucu hatası alarmı
+
+Sistemde 20'den fazla alarm tipi var — yakıt sapması, kalibrasyon toleransı, geç gelen
+ödeme, düşük bakiye, destek talebi. Hepsi kritik alarma dönüp e-posta/SMS gönderiyor,
+cevaplanmazsa yükseliyor. **"Sunucu hata veriyor" için hiçbiri yoktu:** `errorHandler`,
+`uncaughtException` ve `unhandledRejection` yalnızca logluyordu.
+
+Yani bir filo hesabının bakiyesi 100 TL azaldığında nöbetçi personele SMS gidiyordu; API
+tüm kiosk'lara 500 döndürdüğünde **hiçbir şey gitmiyordu**. Personelsiz istasyonda müşteri
+şikâyet etmez — arabasına binip gider. Öğrenme yolu yoktu.
+
+Artık işlenmeyen her hata kaydediliyor; **10 dakikada 5 hata** birikirse sistem geneli
+kritik alarm üretiliyor ve mevcut bildirim zincirine giriyor. Hata akışı **30 dakika**
+tamamen durduğunda alarm kendiliğinden çözülüyor.
+
+### Neden bellekte değil veritabanında
+
+Sayaç bellekte tutulsaydı, çökme–yeniden başlatma döngüsündeki bir sunucu her turda
+sayacı sıfırlar ve eşiği hiç aşamazdı — yani **en kötü durum tam da görünmez olan durum**
+olurdu.
+
+### Bu kod asla hata fırlatmaz
+
+`recordSystemError` çağrıldığı yer zaten hata işleme yolu: buradan çıkan bir istisna
+`errorHandler`'a geri döner, o yine buraya gelir ve sunucu sonsuz döngüye girer.
+Veritabanı yazılamıyorsa yapılacak doğru şey sessizce loglayıp geçmektir — hata izlemenin
+kendisi kesinti sebebi olamaz. Bu davranış testle sabitlendi.
+
+### Diğer kararlar
+
+- **Sessizlik süresi (30 dk) pencereden (10 dk) uzun:** eşiğin hemen altına inen dalgalı
+  bir hata akışı alarmı açıp kapatıp açardı ve her açılışta yeni bildirim giderdi.
+- **Sağlık durumunu düşürmez.** `/api/health` hata sayısını raporlar ama `503` dönmez
+  (yedek doğrulamasıyla aynı gerekçe): sunucu ayakta ve cevap veriyor; `503` dönmek
+  dışarıdan izlemeyi yanlış yere — tam kesintiye — yönlendirirdi. Sayı yine de görünür ki
+  "ayakta ama hata kusuyor" durumu dışarıdan fark edilebilsin.
+- **Alarm nereye yazılır?** Sunucu hatası tüm sisteme aittir ama alarm merkezi istasyon
+  bazlıdır. Yedek doğrulamasıyla aynı çözüm: en düşük id'li aktif istasyon ve mesajda
+  "SİSTEM GENELİ" ibaresi.
+- **Ekran platform yöneticisine özel** (`Sunucu Hataları`, super_admin). İstasyon
+  yöneticisine göstermek yanlış olurdu: elinden gelen bir şey yok, görünce yapabileceği
+  tek şey endişelenmek.
+- Tablo teşhis içindir, arşiv değil: 30 günden eski kayıtlar budanır.
+
 ## Otomatik yedekleme, sağlık kontrolü ve testler
 
 **Yedekleme**: `BACKUP_DIR` ortam değişkeni ayarlanırsa (varsayılan: boş = kapalı), sunucu

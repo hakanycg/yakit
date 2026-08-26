@@ -237,6 +237,25 @@ CREATE INDEX IF NOT EXISTS idx_shifts_station ON shifts(station_id);
 CREATE INDEX IF NOT EXISTS idx_shifts_user ON shifts(user_id);
 CREATE INDEX IF NOT EXISTS idx_shifts_open ON shifts(station_id, ended_at);
 
+-- Sunucunun yakaladigi islenmeyen hatalar.
+--
+-- Sistemde 20'den fazla alarm tipi var (yakit sapmasi, kalibrasyon, gec odeme, dusuk
+-- bakiye) ama "sunucu hata veriyor" icin hicbiri yoktu: errorHandler,
+-- uncaughtException ve unhandledRejection yalnizca logluyordu. Personelsiz istasyonda
+-- musteri sikayet etmez, arabasina binip gider - ogrenme yolu kalmiyordu.
+--
+-- Olaylar BELLEKTE degil burada tutulur: bellekte tutulsaydi cokme-yeniden baslatma
+-- dongusundeki bir sunucu her turda sayaci sifirlar ve esigi hic asamazdi - yani en
+-- kotu durum tam da gorunmez olan durum olurdu.
+CREATE TABLE IF NOT EXISTS system_errors (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind TEXT NOT NULL,                  -- request | uncaught_exception | unhandled_rejection
+  path TEXT,                           -- istekten geldiyse hangi uc
+  message TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_system_errors_created ON system_errors(created_at);
+
 CREATE TABLE IF NOT EXISTS settings (
   station_id INTEGER NOT NULL REFERENCES stations(id),
   key TEXT NOT NULL,

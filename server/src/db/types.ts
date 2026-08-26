@@ -206,6 +206,14 @@ export interface DiscountCodeRow {
   created_by: number | null;
 }
 
+export interface SystemErrorRow {
+  id: number;
+  kind: "request" | "uncaught_exception" | "unhandled_rejection";
+  path: string | null;
+  message: string;
+  created_at: string;
+}
+
 export interface FuelSupplierRow {
   id: number;
   station_id: number;

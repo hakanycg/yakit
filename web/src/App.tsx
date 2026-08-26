@@ -40,6 +40,7 @@ const LoyaltyLookup = lazy(() => import("./pages/admin/LoyaltyLookup"));
 const KvkkRequests = lazy(() => import("./pages/admin/KvkkRequests"));
 const Users = lazy(() => import("./pages/admin/Users"));
 const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
+const SystemErrors = lazy(() => import("./pages/admin/SystemErrors"));
 const FuelPrices = lazy(() => import("./pages/admin/settings/FuelPrices"));
 const PaymentSettings = lazy(() => import("./pages/admin/settings/PaymentSettings"));
 const LoyaltySettings = lazy(() => import("./pages/admin/settings/LoyaltySettings"));
@@ -125,6 +126,7 @@ export default function App() {
               <Route path="/admin/dagitim-sirketleri" element={<Tenants />} />
               <Route path="/admin/konsolide-rapor" element={<Portfolio />} />
               <Route path="/admin/audit-log" element={<AuditLog />} />
+              <Route path="/admin/sunucu-hatalari" element={<SystemErrors />} />
             </Route>
           </Route>
         </Route>

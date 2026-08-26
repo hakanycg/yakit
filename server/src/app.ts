@@ -14,6 +14,7 @@ import { getLastVerification } from "./services/backupVerifyService.js";
 import { attachFleetPortalSession } from "./middleware/fleetPortalAuth.js";
 import { apiRateLimit } from "./middleware/rateLimit.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
+import { getSystemErrorHealth } from "./services/systemErrorService.js";
 import { authRouter } from "./routes/auth.js";
 import { kioskRouter } from "./routes/kiosk.js";
 import { pumpsRouter } from "./routes/pumps.js";
@@ -26,6 +27,7 @@ import { reportsRouter } from "./routes/reports.js";
 import { stationsRouter } from "./routes/stations.js";
 import { kioskFleetRouter } from "./routes/kioskFleet.js";
 import { tenantsRouter } from "./routes/tenants.js";
+import { systemHealthRouter } from "./routes/systemHealth.js";
 import { portfolioRouter } from "./routes/portfolio.js";
 import { reconciliationRouter } from "./routes/reconciliation.js";
 import { supportRouter } from "./routes/support.js";
@@ -101,10 +103,16 @@ export function createApp() {
     // Saglik DURUMUNU dusurmez: bozuk yedek acil bir kesinti degil, kritik bir alarmdir
     // ve 503 dondurmek izlemeyi yanlis yere - servis kesintisine - yonlendirirdi.
     const backup = getLastVerification();
+    // Hata orani saglik DURUMUNU dusurmez (yedek dogrulamasiyla ayni gerekce): sunucu
+    // hata veriyor olsa da ayakta ve isteklere cevap veriyor; 503 dondurmek disaridan
+    // izlemeyi yanlis yere - tam kesintiye - yonlendirirdi. Sayi yine de raporlanir ki
+    // "ayakta ama hata kusuyor" durumu disaridan gorulebilsin.
+    const errors = getSystemErrorHealth();
     const status = dbOk ? "ok" : "degraded";
     res.status(dbOk ? 200 : 503).json({
       status,
       dbOk,
+      recentErrors: errors,
       lastBackupVerification: backup ? { ok: backup.ok, verifiedAt: backup.verifiedAt, error: backup.error } : null,
       uptimeSeconds: Math.round(process.uptime()),
       time: new Date().toISOString(),
@@ -123,6 +131,7 @@ export function createApp() {
   app.use("/api/stations", stationsRouter);
   app.use("/api/kiosk-fleet", kioskFleetRouter);
   app.use("/api/tenants", tenantsRouter);
+  app.use("/api/system", systemHealthRouter);
   app.use("/api/portfolio", portfolioRouter);
   app.use("/api/shifts", shiftsRouter);
   app.use("/api/fuel-stock", fuelStockRouter);
