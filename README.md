@@ -542,6 +542,23 @@ istasyonun pompasını müşteriye hiç sormadan seçebilirdi.
 > Panel bunu hem alanın altında yazar hem de pompası bağlı ama hiç bağlanmamış kiosk kaydına
 > *"kurulum adresi uygulanmadı"* rozeti koyar.
 
+## Makbuz (e-posta / SMS / PDF)
+
+İki sorun düzeltildi:
+
+- **Tutar.** Makbuz `total_amount` (yakıt değeri) yazıyordu; indirim kodu veya puan kullanan
+  bir müşteri **ödediğinden fazla** bir tutar yazan makbuz alıyordu. Artık "Ödenen Tutar"
+  müşteriden gerçekten tahsil edilen nettir (`total − indirim`, negatife düşmez). İndirim
+  varsa ayrıca "Ara Toplam" ve "İndirim / Puan" satırları gösterilir; indirim yoksa bu satırlar
+  hiç çıkmaz — tek kalemlik bir makbuzda aynı rakamı iki kez yazmak kafa karıştırır.
+- **"Bu bir sanal ödeme makbuzudur."** Simüle ödeme kaldırıldıktan sonra her ödeme gerçek
+  (iyzico veya filo hesabı). Müşteriye "sanal" diyen bir makbuz hem yanlış hem de bir
+  uyuşmazlıkta aleyhte delil olurdu. Metin *"Bu belge bilgi amaçlı bir ödeme makbuzudur;
+  mali belge yerine geçmez."* ile değiştirildi (e-posta, SMS ve PDF'te aynı).
+
+Makbuza ayrıca ödeme yöntemi ve (tanımlıysa) istasyon telefonu eklendi. Metin ve HTML
+sürümleri artık **tek kaynaktan** (`buildReceiptRows`) üretiliyor, birbirinden ayrışamazlar.
+
 ## Otomatik e-Fatura
 
 Fatura yalnızca panelde "E-Fatura Oluştur" düğmesine basıldığında kesiliyordu. Personelsiz bir

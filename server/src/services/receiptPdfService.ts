@@ -49,7 +49,13 @@ export function buildReceiptPdf(t: TransactionRow, station: StationRow): Promise
     }
 
     doc.moveDown(1.5);
-    doc.fontSize(9).fillColor("#999").text("Bu bir sanal odeme makbuzudur.", { align: "center" });
+    // "Sanal odeme makbuzu" yaziyordu; simule odeme kaldirildiktan sonra her odeme
+    // gercek. Musteriye "sanal" diyen bir belge hem yanlis hem de bir uyusmazlikta
+    // aleyhte delil olurdu. (Metin e-posta/SMS makbuzuyla ayni tutuluyor.)
+    doc
+      .fontSize(9)
+      .fillColor("#999")
+      .text("Bu belge bilgi amacli bir odeme makbuzudur; mali belge yerine gecmez.", { align: "center" });
 
     doc.end();
   });

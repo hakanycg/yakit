@@ -7,28 +7,36 @@ import { logger } from "../utils/logger.js";
 
 const FUEL_LABEL: Record<string, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
 
+/**
+ * "Bu bir sanal odeme makbuzudur." yaziyordu - simule odeme kaldirildiktan sonra
+ * her odeme gercek (iyzico ya da filo hesabi). Musteriye "sanal" diyen bir makbuz
+ * gondermek hem yanlis hem de bir uyusmazlikta aleyhte delil olurdu.
+ */
+const RECEIPT_FOOTER = "Bu belge bilgi amacli bir odeme makbuzudur; mali belge yerine gecmez.";
+
+const PAYMENT_METHOD_LABEL: Record<string, string> = {
+  iyzico: "Kredi/Banka Karti",
+  fleet: "Filo Hesabi",
+  virtual_card: "Sanal Kart (eski kayit)",
+};
+
 function formatCurrency(value: number): string {
   return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY" }).format(value);
 }
 
-function buildReceiptText(t: TransactionRow, station: StationRow): string {
-  return [
-    `${station.name}`,
-    station.address,
-    "",
-    `Islem No: #${t.id}`,
-    `Tarih: ${t.completed_at ? new Date(t.completed_at).toLocaleString("tr-TR") : "-"}`,
-    `Plaka: ${t.plate}`,
-    `Yakit: ${FUEL_LABEL[t.fuel_type] ?? t.fuel_type}`,
-    `Miktar: ${t.dispensed_liters.toFixed(2)} L`,
-    `Litre Fiyati: ${formatCurrency(t.price_per_liter)}`,
-    `Toplam Tutar: ${formatCurrency(t.total_amount)}`,
-    "",
-    "Bu bir sanal odeme makbuzudur.",
-  ].join("\n");
-}
-
-function buildReceiptHtml(t: TransactionRow, station: StationRow): string {
+/**
+ * Makbuz satirlari - metin ve HTML surumu ayni kaynaktan uretilir ki ikisi
+ * birbirinden ayrisamasin.
+ *
+ * Tutar kurgusu onemli: "Ara Toplam" yakit degeri (total_amount), "Odenen" ise
+ * musteriden GERCEKTEN tahsil edilen nettir (chargeAmount = total - indirim).
+ * Makbuz daha once yalnizca total_amount yaziyordu: indirim kodu ya da puan
+ * kullanan bir musteri, odediginden FAZLA bir tutar yazan bir makbuz aliyordu.
+ * Indirim yoksa ara toplam satiri hic gosterilmez - tek kalem bir makbuzda iki
+ * kez ayni rakami yazmak kafa karistirir.
+ */
+export function buildReceiptRows(t: TransactionRow): Array<[string, string]> {
+  const charged = Math.max(0, Math.round((t.total_amount - t.discount_amount) * 100) / 100);
   const rows: Array<[string, string]> = [
     ["Islem No", `#${t.id}`],
     ["Tarih", t.completed_at ? new Date(t.completed_at).toLocaleString("tr-TR") : "-"],
@@ -36,12 +44,34 @@ function buildReceiptHtml(t: TransactionRow, station: StationRow): string {
     ["Yakit", FUEL_LABEL[t.fuel_type] ?? t.fuel_type],
     ["Miktar", `${t.dispensed_liters.toFixed(2)} L`],
     ["Litre Fiyati", formatCurrency(t.price_per_liter)],
-    ["Toplam Tutar", formatCurrency(t.total_amount)],
   ];
+  if (t.discount_amount > 0) {
+    rows.push(["Ara Toplam", formatCurrency(t.total_amount)]);
+    rows.push(["Indirim / Puan", `-${formatCurrency(t.discount_amount)}`]);
+  }
+  rows.push(["Odenen Tutar", formatCurrency(charged)]);
+  rows.push(["Odeme Yontemi", PAYMENT_METHOD_LABEL[t.payment_method] ?? t.payment_method]);
+  return rows;
+}
+
+export function buildReceiptText(t: TransactionRow, station: StationRow): string {
+  return [
+    `${station.name}`,
+    station.address,
+    ...(station.contact_phone ? [`Tel: ${station.contact_phone}`] : []),
+    "",
+    ...buildReceiptRows(t).map(([label, value]) => `${label}: ${value}`),
+    "",
+    RECEIPT_FOOTER,
+  ].join("\n");
+}
+
+function buildReceiptHtml(t: TransactionRow, station: StationRow): string {
+  const rows = buildReceiptRows(t);
   return `
     <div style="font-family: sans-serif; max-width: 420px; margin: 0 auto;">
       <h2 style="margin-bottom:0">${station.name}</h2>
-      <p style="color:#666; margin-top:4px">${station.address}</p>
+      <p style="color:#666; margin-top:4px">${station.address}${station.contact_phone ? ` &middot; ${station.contact_phone}` : ""}</p>
       <table style="width:100%; border-collapse: collapse; margin-top: 1rem;">
         ${rows
           .map(
@@ -50,7 +80,7 @@ function buildReceiptHtml(t: TransactionRow, station: StationRow): string {
           )
           .join("")}
       </table>
-      <p style="color:#999; font-size:0.85rem; margin-top:1.5rem;">Bu bir sanal odeme makbuzudur.</p>
+      <p style="color:#999; font-size:0.85rem; margin-top:1.5rem;">${RECEIPT_FOOTER}</p>
     </div>
   `;
 }
