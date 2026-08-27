@@ -1909,6 +1909,20 @@ politikası, `chargeAmount`) vitest ile birim testleri çalıştırır; kendi ge
 dosyasını kullanır, gerçek veritabanınıza dokunmaz. `.github/workflows/ci.yml`, her
 push/PR'da typecheck + lint + test + build adımlarını otomatik çalıştırır.
 
+**Uçtan uca (e2e) testler**: `npm run test:e2e --workspace web` (Playwright), gerçek bir
+tarayıcıda gerçek sunucuya karşı çalışır — birim testlerin aksine bileşenleri değil TÜM
+kiosk akışını (dil seçimi → plaka → pompa → yakıt → tutar → ödeme → makbuz) sınar.
+Sunucu üretim modunda `web/dist`'i kendi içinden servis ettiğinden (bkz. yukarıdaki
+"tek origin" notu) ayrı bir `vite preview`/CORS kurulumuna gerek yoktur; her koşu kendi
+tek kullanımlık SQLite dosyasını tohumlar (`server/src/scripts/seedE2E.ts`), gerçek
+veritabanına dokunmaz. İki senaryo kapsanır: filo hesabıyla ödeme (uçtan uca gerçek
+simüle dolum dahil) ve yardım/destek çağrısının gerçekten bir kritik alarma dönüştüğü
+(API üzerinden doğrulanır). **Kapsam bilerek sınırlı**: iyzico ve Uyumsoft bu sandbox'ta
+zaten canlı test edilemiyor (dışa giden ağ erişimi yok) — bu testler o kısıtı
+genişletmez, yalnızca tamamen iç/deterministik yolları kapsar; iyzico/Uyumsoft'un canlı
+testi hâlâ sizin tarafınızda kalır. CI'da (`.github/workflows/ci.yml`) build adımından
+sonra ayrı bir adım olarak çalışır.
+
 ## Komutlar
 
 | Komut | Açıklama |
@@ -1918,4 +1932,5 @@ push/PR'da typecheck + lint + test + build adımlarını otomatik çalıştırı
 | `npm run typecheck` | Tüm workspace'lerde TypeScript tip kontrolü |
 | `npm run lint` | Tüm workspace'lerde ESLint |
 | `npm run test` | Backend birim testleri (vitest) |
+| `npm run test:e2e --workspace web` | Kiosk uçtan uca testleri (Playwright, gerçek tarayıcı) |
 | `npm run seed --workspace server` | Roller, admin kullanıcı, istasyon, pompa, fiyat verisini oluşturur |
