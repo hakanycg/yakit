@@ -234,6 +234,11 @@ CREATE TABLE IF NOT EXISTS alarms (
 );
 CREATE INDEX IF NOT EXISTS idx_alarms_station ON alarms(station_id);
 CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
+-- sweepAlarmEscalations() (bkz. alarmEscalationService.ts) TUM istasyonlar genelinde
+-- "severity = 'critical' AND status = 'active'" tarar - istasyon bazli degil, global
+-- bir taramadir. Tekil status indeksi bu sorguda yeterli secicilige sahip degil
+-- (kritik olmayan HER durumu da eler ama once tum 'active' satirlari taramasi gerekir).
+CREATE INDEX IF NOT EXISTS idx_alarms_severity_status ON alarms(severity, status);
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
