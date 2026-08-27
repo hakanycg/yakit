@@ -1189,6 +1189,14 @@ biriminde birleştirir** (bkz. `transactionService.ts`) — ikisini ayrı para t
 bölecek bir veri yoktur. Bu yüzden rapor da uydurmaz: `indirim_puan` (para, birleşik) ile
 `sadakat_puani_kullanilan` (PUAN, bilgi amaçlı) ayrı sütunlardır.
 
+**Harici entegrasyon için başlangıç noktası:** [`docs/openapi-reporting.yaml`](docs/openapi-reporting.yaml),
+bir dağıtım şirketinin kendi BI/ERP sistemini bağlarken ihtiyaç duyacağı raporlama/dışa
+aktarım uçlarının (bu bölüm, iade raporu, konsolide rapor, gün sonu mutabakatı) elle yazılmış
+bir OpenAPI 3.0 referansıdır — platformun tamamı değil, yalnızca bu dar kapsam. Dosyanın
+kendi üst bilgisinde de belirtildiği gibi koddan otomatik üretilmez; yalnızca geçerli YAML
+olduğu ve iddia ettiği uçları içerdiği testle doğrulanır, route imzasıyla birebir eşleştiği
+otomatik doğrulanmaz.
+
 ## Gerçek e-İrsaliye altyapısı: Uyumsoft (yakıt teslimatları için)
 
 e-Fatura ile aynı Uyumsoft hesabı (Ayarlar → "Fatura / İrsaliye Ayarları"), istasyona gelen
