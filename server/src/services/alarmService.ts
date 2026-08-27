@@ -3,6 +3,7 @@ import type { AlarmRow, StationRow, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { sendEmail, sendSms } from "./notificationService.js";
 import { enqueueWrite, registerWriteQueueHandler } from "./writeQueueService.js";
+import { dispatchAlarmWebhook } from "./webhookSettingsService.js";
 
 export function serializeAlarm(a: AlarmRow) {
   return {
@@ -70,14 +71,16 @@ async function notifyCriticalAlarm(alarm: AlarmRow): Promise<void> {
   const subject = `[KRITIK ALARM] ${station.name}`;
   const text = `${station.name} istasyonunda kritik bir alarm olustu:\n\n${alarm.message}\n\nZaman: ${new Date(alarm.created_at).toLocaleString("tr-TR")}`;
 
-  await Promise.all(
-    recipients.flatMap((u) => {
-      const tasks: Promise<unknown>[] = [];
-      if (u.notify_email && u.email) tasks.push(sendEmail(u.email, subject, text));
-      if (u.notify_sms && u.phone) tasks.push(sendSms(u.phone, `${subject}: ${alarm.message}`));
-      return tasks;
-    })
-  );
+  const tasks: Promise<unknown>[] = recipients.flatMap((u) => {
+    const t: Promise<unknown>[] = [];
+    if (u.notify_email && u.email) t.push(sendEmail(u.email, subject, text));
+    if (u.notify_sms && u.phone) t.push(sendSms(u.phone, `${subject}: ${alarm.message}`));
+    return t;
+  });
+  // E-posta/SMS'e EK olarak (yerine degil) - istasyonun bir webhook'u varsa (bkz.
+  // webhookSettingsService.ts) SIEM/ops aracina da bildirilir.
+  tasks.push(dispatchAlarmWebhook(alarm.station_id, station.name, alarm, "critical_alarm"));
+  await Promise.all(tasks);
 }
 
 export function listAlarms(stationId: number, status?: AlarmRow["status"]): AlarmRow[] {

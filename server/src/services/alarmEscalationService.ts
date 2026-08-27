@@ -3,6 +3,7 @@ import type { AlarmRow, StationRow, UserRow } from "../db/types.js";
 import { sendEmail, sendSms } from "./notificationService.js";
 import { getSetting, setSetting } from "./settingsStore.js";
 import { enqueueWrite, registerWriteQueueHandler } from "./writeQueueService.js";
+import { dispatchAlarmWebhook } from "./webhookSettingsService.js";
 import { logger } from "../utils/logger.js";
 
 /**
@@ -220,6 +221,9 @@ async function notify(alarm: AlarmRow, level: number, now: number): Promise<void
       tasks.push(sendSms(r.phone, `${subject}: ${alarm.message}`));
     }
   }
+  // E-posta/SMS'e EK olarak - webhook da hatirlatma/yukseltme olayini gorsun,
+  // aksi halde SIEM/ops tarafi "cevapsiz kaldi" bilgisini hic almazdi.
+  tasks.push(dispatchAlarmWebhook(alarm.station_id, station.name, alarm, level >= 2 ? "critical_alarm_escalated" : "critical_alarm_reminder"));
   await Promise.all(tasks);
 }
 

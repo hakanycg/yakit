@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
@@ -86,6 +87,39 @@ export async function sendSms(to: string, message: string): Promise<SendResult> 
     return { sent: true };
   } catch (err) {
     logger.error({ err, to: maskContact(to) }, "SMS gonderimi basarisiz.");
+    return { sent: false, reason: err instanceof Error ? err.message : "Bilinmeyen hata." };
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+/**
+ * Genel amacli webhook bildirimi (bkz. webhookSettingsService.ts, alarmService.ts).
+ *
+ * E-posta/SMS'in aksine bir "saglayici" degil, istasyonun KENDI belirledigi bir
+ * URL'dir (ör. bir SIEM/ops aracinin webhook ucu) - bu yuzden `secret` verilmisse
+ * govde HMAC-SHA256 ile imzalanip `X-Yakit-Signature` basliginda gonderilir: alici
+ * taraf, istegin gercekten bu sistemden geldigini (ve yolda degistirilmedigini)
+ * dogrulayabilsin diye. Bu, iyzico'nun bize gonderdigi callback'i BIZIM dogrulama
+ * seklimizin (iyzicoService.ts verifySignature) TERSI - burada BIZ imzaliyoruz.
+ */
+export async function sendWebhook(url: string, payload: unknown, secret: string | null): Promise<SendResult> {
+  const body = JSON.stringify(payload);
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (secret) headers["X-Yakit-Signature"] = createHmac("sha256", secret).update(body).digest("hex");
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 8000);
+
+  try {
+    const res = await fetch(url, { method: "POST", signal: controller.signal, headers, body });
+    if (!res.ok) {
+      logger.error({ url, status: res.status }, "Webhook bildirimi saglayicidan hata dondu.");
+      return { sent: false, reason: `Webhook HTTP ${res.status} dondurdu.` };
+    }
+    return { sent: true };
+  } catch (err) {
+    logger.error({ err, url }, "Webhook bildirimi gonderilemedi.");
     return { sent: false, reason: err instanceof Error ? err.message : "Bilinmeyen hata." };
   } finally {
     clearTimeout(timeout);

@@ -43,6 +43,7 @@ const AuditLog = lazy(() => import("./pages/admin/AuditLog"));
 const SystemErrors = lazy(() => import("./pages/admin/SystemErrors"));
 const FuelPrices = lazy(() => import("./pages/admin/settings/FuelPrices"));
 const PaymentSettings = lazy(() => import("./pages/admin/settings/PaymentSettings"));
+const WebhookSettings = lazy(() => import("./pages/admin/settings/WebhookSettings"));
 const LoyaltySettings = lazy(() => import("./pages/admin/settings/LoyaltySettings"));
 const InvoiceSettings = lazy(() => import("./pages/admin/settings/InvoiceSettings"));
 const ReportEmailSettings = lazy(() => import("./pages/admin/settings/ReportEmailSettings"));
@@ -96,6 +97,7 @@ export default function App() {
               <Route path="/admin/ayarlar" element={<Navigate to="/admin/ayarlar/yakit-fiyatlari" replace />} />
               <Route path="/admin/ayarlar/yakit-fiyatlari" element={<FuelPrices />} />
               <Route path="/admin/ayarlar/odeme" element={<PaymentSettings />} />
+              <Route path="/admin/ayarlar/webhook" element={<WebhookSettings />} />
               <Route path="/admin/ayarlar/sadakat" element={<LoyaltySettings />} />
               <Route path="/admin/ayarlar/fatura" element={<InvoiceSettings />} />
               <Route path="/admin/ayarlar/ozet-raporu" element={<ReportEmailSettings />} />

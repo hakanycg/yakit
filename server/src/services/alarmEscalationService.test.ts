@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/index.js";
 import type { AlarmRow, StationRow } from "../db/types.js";
 import { createTestStation, createTestTenant, createTestUser } from "../test/dbFixture.js";
 import { createAlarm } from "./alarmService.js";
+import { setWebhookConfig } from "./webhookSettingsService.js";
+import { processWriteQueue } from "./writeQueueService.js";
 import {
   AlarmEscalationError,
   nextLevelFor,
@@ -11,6 +13,16 @@ import {
   thresholdsFor,
   updateEscalationSettings,
 } from "./alarmEscalationService.js";
+
+const sendEmailMock = vi.fn((..._args: unknown[]) => Promise.resolve({ sent: true }));
+const sendSmsMock = vi.fn((..._args: unknown[]) => Promise.resolve({ sent: true }));
+const sendWebhookMock = vi.fn((..._args: unknown[]) => Promise.resolve({ sent: true }));
+
+vi.mock("./notificationService.js", () => ({
+  sendEmail: (...args: unknown[]) => sendEmailMock(...args),
+  sendSms: (...args: unknown[]) => sendSmsMock(...args),
+  sendWebhook: (...args: unknown[]) => sendWebhookMock(...args),
+}));
 
 let station: StationRow;
 let actor: ReturnType<typeof createTestUser>;
@@ -45,6 +57,13 @@ function queuedEscalations(): number {
 beforeEach(() => {
   station = createTestStation();
   actor = createTestUser(station.id, "admin");
+  sendEmailMock.mockClear();
+  sendSmsMock.mockClear();
+  sendWebhookMock.mockClear();
+  // write_queue GLOBAL bir tablo (fileParallelism:false) - bu dosyanin kendi
+  // testlerinin processWriteQueue() ile sadece KENDI kuyruga yazdiklarini
+  // gormesi icin her testten once temizlenir.
+  db.prepare("DELETE FROM write_queue").run();
 });
 
 describe("asama secimi", () => {
@@ -195,6 +214,48 @@ describe("tarama", () => {
 
     expect(queuedEscalations()).toBe(before);
     expect(reload(alarm.id).escalation_level).toBe(0);
+  });
+});
+
+describe("webhook bildirimi", () => {
+  it("hatirlatma asamasinda 'critical_alarm_reminder' olayiyla cagirir", async () => {
+    // Once ILK bildirimi (createAlarm'in kendi "critical_alarm" olayi) bosalt - webhook
+    // henuz yapilandirilmadigi icin bu turda hicbir cagri yapilmaz; boylece asagidaki
+    // sayim yalnizca HATIRLATMA olayini olcer.
+    makeAlarm({ ageMinutes: 16 });
+    await processWriteQueue();
+    sendWebhookMock.mockClear();
+
+    setWebhookConfig(station.id, { enabled: true, url: "https://ops.example.com/hook" }, actor);
+    sweepAlarmEscalations();
+    await processWriteQueue();
+
+    expect(sendWebhookMock).toHaveBeenCalledTimes(1);
+    const [, payload] = sendWebhookMock.mock.calls[0]!;
+    expect(payload).toMatchObject({ event: "critical_alarm_reminder", stationId: station.id });
+  });
+
+  it("yukseltme asamasinda 'critical_alarm_escalated' olayiyla cagirir", async () => {
+    makeAlarm({ ageMinutes: 60 });
+    await processWriteQueue();
+    sendWebhookMock.mockClear();
+
+    setWebhookConfig(station.id, { enabled: true, url: "https://ops.example.com/hook" }, actor);
+    sweepAlarmEscalations();
+    await processWriteQueue();
+
+    expect(sendWebhookMock).toHaveBeenCalledTimes(1);
+    const [, payload] = sendWebhookMock.mock.calls[0]!;
+    expect(payload).toMatchObject({ event: "critical_alarm_escalated", stationId: station.id });
+  });
+
+  it("webhook yapilandirilmamis istasyonda hicbir cagri yapilmaz", async () => {
+    makeAlarm({ ageMinutes: 16 });
+
+    sweepAlarmEscalations();
+    await processWriteQueue();
+
+    expect(sendWebhookMock).not.toHaveBeenCalled();
   });
 });
 
