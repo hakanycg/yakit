@@ -955,13 +955,24 @@ basit bir `created_at BETWEEN` sorgusu kullanmıştım: **473 ms** dedi. Gerçek
   tablolarını sabitler; işlem tablosu büyümeye devam eder.
 - **Tek istasyon sorguları sorun değil:** hepsi 10 ms'in altında ve indeksli oldukları için
   toplam veri büyüdükçe **sabit** kalıyorlar. Kiosk akışı (0.03 ms) rahat.
-- **Tek gerçek darboğaz konsolide rapor.** İndeks 2.7× kazandırdı ama **sınırı kaldırmadı**:
-  istasyon başına dört korele alt sorgu, her biri o istasyonun aralıktaki tüm satırlarını
-  geziyor — süre toplam işlem sayısıyla doğrusal. 100 istasyonda 1.6 sn, **1000 istasyonda
-  ~16 sn**. Oradaki çözüm indeks değil **günlük özet (rollup) tablosu**: her iş günü
-  kapandığında istasyon başına bir satır yazılır, rapor 1.8M satır yerine 90.000 satır okur.
-  Bu bir tasarım değişikliği (iade/geç tamamlanan işlemle özetin senkron kalması gerekir),
-  ölçümün işi onu **boyutlandırmaktı** — kararı #81 ile birlikte verilmeli.
+- **Tek gerçek darboğaz konsolide rapordu — artık çözüldü.** İndeks 2.7× kazandırmıştı
+  ama **sınırı kaldırmamıştı**: istasyon başına dört korele alt sorgu, her biri o
+  istasyonun aralıktaki tüm satırlarını geziyordu — süre toplam işlem sayısıyla
+  doğrusaldı (100 istasyonda 1.6 sn, 1000 istasyonda ~16 sn'ye çıkıyordu). Çözüm indeks
+  değil **günlük özet (rollup) tablosu** oldu: `station_daily_rollups` her iş günü için
+  istasyon başına tek bir satır tutar (`rollupService.ts`), rapor artık 1.8M satır
+  yerine ~9.000 istasyon-gün satırı okuyor. Pencere kendi kendini onarır (geç gelen bir
+  iade/düzeltmeyi bir sonraki çalıştırmada yakalar, son 7 günü her seferinde yeniden
+  hesaplar) ve bugünün iş günü her zaman canlı sorgulanır — hiçbir zaman bayat veri
+  gösterilmez. Aynı 100 istasyon/90 gün/1.8M işlem ölçümünde:
+
+  | Sorgu | Rollup'suz (eski yol) | Rollup'lı (yeni yol) |
+  | --- | --- | --- |
+  | Konsolide rapor (tüm istasyonlar) | 1616 ms | **363 ms** |
+
+  İlk kurulumda tek seferlik bir geriye doldurma (backfill) çalışır (bu ölçümde 1187 ms,
+  9.000 istasyon-gün satırı) — sonrasında `server/src/index.ts` her 3 saatte bir
+  `refreshRollups()` çağırıp pencereyi tazeler.
 
 ## Arşivleme: denetim kaydı ve ölçüm tabloları sınırsız büyümesin
 

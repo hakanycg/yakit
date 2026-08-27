@@ -59,6 +59,7 @@ process.env.NODE_ENV ??= "production";
 
 const { db, applySchema, applyMigrations } = await import("../db/index.js");
 const { getPortfolioReport } = await import("../services/portfolioService.js");
+const { refreshRollups } = await import("../services/rollupService.js");
 
 applySchema();
 applyMigrations();
@@ -262,7 +263,21 @@ function runQueries(): Measurement[] {
   // date(COALESCE(completed_at, created_at), '+3 hours') ile IS GUNUNE ceviriyor ve
   // kolonu bir ifadeye sardigi icin duz indeks kullanamiyor. Olcum, olculen seyin
   // kendisi olmali.
-  results.push(measure("Konsolide rapor (GERCEK, tum istasyonlar)", () => {
+  results.push(measure("Konsolide rapor - ROLLUP OLMADAN (eski/yedek yol)", () => {
+    getPortfolioReport({ tenantId: null }, from, to);
+  }));
+
+  // Rollup'in TEK SEFERLIK geriye doldurma (backfill) maliyeti - olcege bagli, ama
+  // BIR KEZ odenir (bkz. rollupService.ts). measure() burada kullanilmiyor: sadece
+  // bir kez calisir, tekrar tekrar olculecek bir sey degil.
+  const backfillStart = performance.now();
+  const backfillResult = refreshRollups();
+  const backfillMs = performance.now() - backfillStart;
+  console.log(
+    `\nRollup ilk geriye doldurma: ${backfillMs.toFixed(1)} ms (${backfillResult.rowsWritten.toLocaleString("tr")} istasyon-gun satiri, tek seferlik)`
+  );
+
+  results.push(measure("Konsolide rapor - ROLLUP ILE (yeni/hizli yol)", () => {
     getPortfolioReport({ tenantId: null }, from, to);
   }));
 
