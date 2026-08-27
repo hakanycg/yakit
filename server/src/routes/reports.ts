@@ -3,6 +3,10 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
+import { recordAudit } from "../services/auditService.js";
+import { buildAccountingExport } from "../services/accountingExportService.js";
+import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
+import { csvEscape } from "../utils/csv.js";
 
 const router = Router();
 /**
@@ -198,5 +202,89 @@ router.get("/refunds", validateQuery(rangeSchema), (req, res) => {
 
   res.json({ totals, byDay, byMethod, recent });
 });
+
+/**
+ * Muhasebe/BI disa aktarimi.
+ *
+ * Diger /api/reports uclarindan daha hassas: KDV ayrimi ve is gunu bazinda ozet
+ * dogrudan muhasebe/ERP'ye tasinacak veridir. Bu yuzden router'in izin verdigi
+ * dort rolun (super_admin/tenant_admin/admin/viewer) ustune, burada AYRICA sadece
+ * admin+super_admin'e izin veren daha siki bir kontrol eklenir - tenant_admin ve
+ * viewer diger raporlari gorebilir ama bu ucu goremez.
+ */
+const accountingExportQuerySchema = z.object({
+  from: dateSchema.optional(),
+  to: dateSchema.optional(),
+  format: z.enum(["csv", "json"]).optional(),
+});
+
+router.get(
+  "/accounting-export",
+  requireRole("admin"),
+  validateQuery(accountingExportQuerySchema),
+  (req, res) => {
+    const stationId = req.stationId!;
+    const q = (req as unknown as { validatedQuery: z.infer<typeof accountingExportQuerySchema> }).validatedQuery;
+    const to = q.to ?? currentBusinessDate();
+    const from = q.from ?? businessDateDaysAgo(29);
+    if (from > to) {
+      res.status(400).json({ error: "Baslangic tarihi bitis tarihinden sonra olamaz." });
+      return;
+    }
+    const format = q.format ?? "json";
+    const report = buildAccountingExport(stationId, from, to);
+
+    recordAudit({
+      user: req.user!,
+      action: "accounting_export",
+      details: { from, to, format, rowCount: report.rows.length },
+      ip: req.ip,
+      stationId,
+    });
+
+    if (format === "json") {
+      res.json(report);
+      return;
+    }
+
+    const header = [
+      "is_gunu",
+      "islem_sayisi",
+      "brut_ciro",
+      "indirim_puan",
+      "sadakat_puani_kullanilan",
+      "net_ciro_kdv_dahil",
+      "kdv_tutari",
+      "net_ciro_kdv_haric",
+      "iade_sayisi",
+      "iade_tutari",
+      ...report.paymentMethods.map((m) => `odeme_${m}`),
+    ];
+    const lines = [header.join(",")];
+    for (const r of report.rows) {
+      lines.push(
+        [
+          r.businessDate,
+          r.transactionCount,
+          r.grossRevenue,
+          r.discountAmount,
+          r.loyaltyPointsRedeemed,
+          r.netRevenue,
+          r.vatAmount,
+          r.netRevenueExVat,
+          r.refundCount,
+          r.refundAmount,
+          ...report.paymentMethods.map((m) => r.byPaymentMethod[m] ?? 0),
+        ]
+          .map(csvEscape)
+          .join(",")
+      );
+    }
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="muhasebe-ozet-${from}_${to}.csv"`);
+    res.send("﻿" + lines.join("\n"));
+  }
+);
 
 export { router as reportsRouter };

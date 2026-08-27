@@ -1165,6 +1165,30 @@ istemci kodudur ve UBL-TR standardına uygun tam bir fatura gövdesi (`Accountin
   kesimi **sizin tarafınızdan test edilmelidir**. KDV oranı kodda %20 olarak sabitlenmiştir
   (`invoiceService.ts` içindeki `VAT_RATE`); oran değişirse orası güncellenmelidir.
 
+## Muhasebe/BI dışa aktarımı
+
+`GET /api/reports/accounting-export?from=&to=&format=csv|json` (yalnızca admin/super_admin),
+işletmenin muhasebe/ERP sistemine veya bir BI aracına aktarabileceği, iş günü bazında bir
+özet üretir: brüt ciro, indirim/puan kullanımı (para, birleşik), kullanılan sadakat puanı
+(bilgi amaçlı, para değil — bkz. aşağıda), KDV dahil/hariç net ciro, KDV tutarı, ödeme
+yöntemine göre kırılım ve iade toplamı. Hesaplama `reconciliationService.ts`/
+`portfolioService.ts` ile **aynı iş günü tanımını** (`utils/businessDay.ts`) ve aynı KDV
+oranını (`invoiceService.ts`'teki `VAT_RATE`) kullanır — bu rapor diğerlerinden farklı bir
+"gün" veya farklı bir KDV oranı göstermez.
+
+**Bu, belirli bir muhasebe yazılımının (Logo/Netsis/Mikro vb.) resmi API'siyle GERÇEK bir
+entegrasyon DEĞİLDİR** — öyle bir entegrasyon, o yazılımın resmi API dokümantasyonu elde
+edilmeden yazılmayacaktır (yukarıdaki Uyumsoft entegrasyonuyla aynı ilke: gerçek istemci kodu
+ancak resmi dokümantasyon varken yazılır). Bunun yerine bu, o yazılımların neredeyse tamamının
+kabul ettiği CSV içe aktarma biçimine uyan **jenerik** bir dışa aktarımdır; CSV çıktısı mevcut
+`csvEscape` ile üretilir ve güvenlik incelemesinde (#152) eklenen formül-enjeksiyonu
+korumasından otomatik yararlanır.
+
+`discount_amount` sütunu kampanya kodu indirimi ile sadakat puanı kullanımını **tek bir para
+biriminde birleştirir** (bkz. `transactionService.ts`) — ikisini ayrı para tutarlarına
+bölecek bir veri yoktur. Bu yüzden rapor da uydurmaz: `indirim_puan` (para, birleşik) ile
+`sadakat_puani_kullanilan` (PUAN, bilgi amaçlı) ayrı sütunlardır.
+
 ## Gerçek e-İrsaliye altyapısı: Uyumsoft (yakıt teslimatları için)
 
 e-Fatura ile aynı Uyumsoft hesabı (Ayarlar → "Fatura / İrsaliye Ayarları"), istasyona gelen
