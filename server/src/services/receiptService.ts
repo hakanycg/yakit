@@ -17,6 +17,7 @@ const RECEIPT_FOOTER = "Bu belge bilgi amacli bir odeme makbuzudur; mali belge y
 const PAYMENT_METHOD_LABEL: Record<string, string> = {
   iyzico: "Kredi/Banka Karti",
   fleet: "Filo Hesabi",
+  pos: "Temassiz Odeme (POS)",
   virtual_card: "Sanal Kart (eski kayit)",
 };
 

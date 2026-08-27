@@ -30,10 +30,19 @@ kiosk'ta bir işlem daha yapmak zorunda kalır.
 **Üçüncü soru (bedava fayda):** cihaz ÖKC'li mi? Öyleyse aşağıdaki #4 (yasal fiş) da
 aynı anda kapanır.
 
-**Cevap gelince yapılacak iş:** `agent/src/okcDriver.ts` ve `printerDriver.ts` ile aynı
-desende bir `PosDriver` (noop sürücü + `setPosDriver()`), `payment_method` olarak `pos`,
-gün sonu mutabakatında kendi satırı, POS üzerinden iade yolu. Kiosk akışında başka
-hiçbir şey değişmez.
+**Vendor cevabı beklenmeden yapılabilecek kısım artık hazır:** `agent/src/posDriver.ts`
+(`okcDriver.ts`/`printerDriver.ts` ile aynı desende, noop sürücü + `setPosDriver()`),
+`agent/src/server.ts`'te aynı desende bir yerel `/pos/charge` ucu, `payment_method`
+olarak `pos` kullanılınca reddedilmeyen bir iyzico/fleet dışı yol ve **iade yolunun
+şimdilik açıkça reddedilmesi** (`refundService.ts` — donanım gelmeden bir POS ödemesini
+"iade edildi" diye kaydetmek, parası hiçbir yere gitmeyen sahte bir başarı olurdu),
+gün sonu mutabakatında kendi satırı (`reconciliationService.ts` zaten jenerik,
+kod değişikliği gerekmedi). **Cevap gelince kalan iş:** bu arayüzü uygulayan GERÇEK
+sürücüyü yazıp `setPosDriver()` ile devreye almak, kiosk'un merkez sunucuya "POS ile
+tahsil edildi" diyeceği GÜVEN ucunu vendor'ın protokolüne göre tasarlamak (bu, hangi
+vendor seçilirse seçilsin protokol netleşmeden tahmin edilerek yazılmayacak — iyzico'nun
+imza sırasının resmi dokümantasyon olmadan asla uydurulmamış olmasıyla aynı gerekçe),
+ve POS iade yolunu gerçek donanıma bağlamak. Kiosk akışında başka hiçbir şey değişmez.
 
 **Ayrıca karar verilecek:** POS gelince iyzico kapatılsın mı? İki kanalı birden
 çalıştırmak, her ödeme kanalı için ayrı mutabakat satırı ve ayrı iade yolu demek.

@@ -98,17 +98,33 @@ export function recordSyncEvent(stationId: number, event: SyncEventInput): SyncE
 
 /**
  * Ajanin bildirdigi bazi olay turleri, sadece kaydedilmekle kalmayip personelin
- * dikkatini gerektirir. Ikisi de ayni sekilde ele alinir: "printer_fault" (ajanin
+ * dikkatini gerektirir. Ucu de ayni sekilde ele alinir: "printer_fault" (ajanin
  * GERCEK bir yazici surucusu, henuz bagli degil - bkz. gorev #97, fiziksel bir ariza
- * bildirdiginde) ve "okc_fault" (gercek bir ÖKC surucusu - henuz bagli degil, bkz.
- * gorev #101 - ayni sekilde ariza bildirdiginde). Ikisini de sessizce loglamak yerine
- * kritik bir alarma ceviririz - boylece "donanim yok" (beklenen, bugunku durum) ile
- * "donanim var ama arizali" (personelin mudahale etmesi gereken durum) ayrisir.
+ * bildirdiginde), "okc_fault" (gercek bir ÖKC surucusu - henuz bagli degil, bkz.
+ * gorev #101 - ayni sekilde ariza bildirdiginde) ve "pos_fault" (gercek bir temassiz
+ * POS surucusu - henuz bagli degil, bkz. gorev #141 - ayni sekilde ariza bildirdiginde).
+ * Uçünü de sessizce loglamak yerine kritik bir alarma ceviririz - boylece "donanim yok"
+ * (beklenen, bugunku durum) ile "donanim var ama arizali" (personelin mudahale etmesi
+ * gereken durum) ayrisir.
  */
 const FAULT_EVENT_LABELS: Record<string, string> = {
   printer_fault: "Fis yazicisi",
   okc_fault: "ÖKC (yasal yazar kasa)",
+  pos_fault: "Temassız POS",
 };
+
+function faultAlarmMessage(
+  eventType: string,
+  label: string,
+  payload: { transactionId?: number; faultCode?: string }
+): string {
+  const txSuffix = payload.transactionId ? `, islem #${payload.transactionId}` : "";
+  const faultSuffix = `arizali (kod: ${payload.faultCode ?? "UNKNOWN"})${txSuffix}`;
+  if (eventType === "pos_fault") {
+    return `${label} ${faultSuffix}. Temassiz odeme alinamadi - musteriden baska bir odeme yontemi istenmeli, POS donaniminin fiziksel olarak kontrol edilmesi gerekiyor.`;
+  }
+  return `${label} ${faultSuffix}. Musteriye fis basilamadi - musteri e-posta/SMS ile makbuz talep edebilir, ancak donanimin fiziksel olarak kontrol edilmesi gerekiyor.`;
+}
 
 function dispatchSyncEventSideEffects(stationId: number, event: SyncEventInput): void {
   const label = FAULT_EVENT_LABELS[event.eventType];
@@ -119,9 +135,7 @@ function dispatchSyncEventSideEffects(stationId: number, event: SyncEventInput):
     stationId,
     type: event.eventType,
     severity: "critical",
-    message: `${label} arizali (kod: ${payload.faultCode ?? "UNKNOWN"})${
-      payload.transactionId ? `, islem #${payload.transactionId}` : ""
-    }. Musteriye fis basilamadi - musteri e-posta/SMS ile makbuz talep edebilir, ancak donanimin fiziksel olarak kontrol edilmesi gerekiyor.`,
+    message: faultAlarmMessage(event.eventType, label, payload),
   });
 }
 

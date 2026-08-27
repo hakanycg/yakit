@@ -94,6 +94,23 @@ describe("syncService - heartbeat ve olay kaydi", () => {
     expect(alarms[0]!.message).toContain("#7");
   });
 
+  it("ajanin bildirdigi gercek POS arizasi (pos_fault) kritik bir alarm olusturur", () => {
+    const station = createTestStation();
+    recordSyncEvent(station.id, {
+      clientEventId: "pos-evt-1",
+      eventType: "pos_fault",
+      payload: { transactionId: 15, faultCode: "DECLINED" },
+    });
+    const alarms = listAlarms(station.id, "active");
+    expect(alarms).toHaveLength(1);
+    expect(alarms[0]!.type).toBe("pos_fault");
+    expect(alarms[0]!.severity).toBe("critical");
+    expect(alarms[0]!.message).toContain("DECLINED");
+    expect(alarms[0]!.message).toContain("#15");
+    // Yazici/OKC mesaji ("fis basilamadi") degil, odemeye ozgu bir mesaj olmali.
+    expect(alarms[0]!.message).toContain("odeme alinamadi");
+  });
+
   it("basarili senkron olaylari (printer_fault olmayan) hicbir alarm olusturmaz", () => {
     const station = createTestStation();
     recordSyncEvent(station.id, { clientEventId: "evt-ok", eventType: "transaction_completed", payload: {} });
