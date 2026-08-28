@@ -6,46 +6,99 @@ import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useAuth } from "../../shared/AuthContext";
 import { appendStationParam } from "../../shared/stationScope";
 import { TRANSACTION_STATUS_LABEL, FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
+import Pagination from "../../shared/Pagination";
 import type { Transaction } from "../../shared/types";
 
 /** Iade yalnizca yoneticide: para disari cikaran tek ekran burasi (bkz. refundService.ts). */
 const REFUND_ROLES = ["super_admin", "tenant_admin", "admin"];
+const PAGE_SIZE = 25;
 
 export default function Transactions() {
   const { user } = useAuth();
   const stationId = useEffectiveStationId();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [statusFilter, setStatusFilter] = useState("");
+  const [plateFilter, setPlateFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [refunding, setRefunding] = useState<Transaction | null>(null);
   const canRefund = user !== null && REFUND_ROLES.includes(user.role);
 
+  // Filtre degistiginde sayfa 1'e donulur - AYNI olay isleyicisinde, aksi halde
+  // eski sayfa+yeni filtreyle bir kere, sayfa 1+yeni filtreyle bir kere olmak
+  // uzere CIFT sorgu atilirdi (bkz. Alarms.tsx/Stations.tsx'teki ayni desen).
+  function updateFilter<T>(setter: (v: T) => void, value: T) {
+    setter(value);
+    setPage(1);
+  }
+
+  function buildParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("status", statusFilter);
+    if (plateFilter.trim()) params.set("plate", plateFilter.trim());
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    return params;
+  }
+
   function load() {
     if (stationId === null) return;
     setLoading(true);
-    const query = statusFilter ? `?status=${statusFilter}` : "";
-    api.get<{ transactions: Transaction[] }>(`/api/transactions${query}`).then((res) => {
+    const params = buildParams();
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
+    api.get<{ transactions: Transaction[]; total: number }>(`/api/transactions?${params.toString()}`).then((res) => {
       setTransactions(res.transactions);
+      setTotal(res.total);
       setLoading(false);
     });
   }
 
-  useEffect(load, [statusFilter, stationId]);
+  useEffect(load, [statusFilter, plateFilter, dateFrom, dateTo, page, stationId]);
 
   useTopicSubscription(stationId !== null ? `transactions:${stationId}` : null, () => load());
 
-  const csvHref = appendStationParam(`/api/transactions/export.csv${statusFilter ? `?status=${statusFilter}` : ""}`);
+  const csvHref = appendStationParam(`/api/transactions/export.csv?${buildParams().toString()}`);
 
   return (
     <div>
       <h2>İşlem Listesi</h2>
       <div className="toolbar">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} style={{ width: 220 }}>
+        <select
+          value={statusFilter}
+          onChange={(e) => updateFilter(setStatusFilter, e.target.value)}
+          style={{ width: 220 }}
+        >
           <option value="">Tüm durumlar</option>
           {Object.entries(TRANSACTION_STATUS_LABEL).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
+        <input
+          value={plateFilter}
+          onChange={(e) => updateFilter(setPlateFilter, e.target.value)}
+          placeholder="Plaka ile ara..."
+          aria-label="Plaka ara"
+          style={{ maxWidth: 160 }}
+        />
+        <input
+          type="date"
+          value={dateFrom}
+          onChange={(e) => updateFilter(setDateFrom, e.target.value)}
+          aria-label="Başlangıç tarihi"
+          style={{ maxWidth: 150 }}
+        />
+        <span className="hint-text">-</span>
+        <input
+          type="date"
+          value={dateTo}
+          onChange={(e) => updateFilter(setDateTo, e.target.value)}
+          aria-label="Bitiş tarihi"
+          style={{ maxWidth: 150 }}
+        />
         <div className="spacer" />
         <a href={csvHref}>
           <button>CSV Dışa Aktar</button>
@@ -108,6 +161,7 @@ export default function Transactions() {
           </table>
         )}
       </div>
+      <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
 
       {refunding && (
         <RefundDialog

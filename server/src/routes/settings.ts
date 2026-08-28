@@ -6,6 +6,7 @@ import { attachStationScope, requireAuth, requireRole, requireStationSelected, c
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
+import { getWebhookConfig, serializeWebhookConfig, setWebhookConfig } from "../services/webhookSettingsService.js";
 import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
 import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
 import { ScheduledPriceError, cancelSchedule, createSchedule, listSchedules, serializeSchedule } from "../services/scheduledPriceService.js";
@@ -167,6 +168,29 @@ router.patch("/payment", validateBody(paymentConfigSchema), (req, res) => {
     stationId: req.stationId,
   });
   res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
+});
+
+router.get("/webhook", (req, res) => {
+  res.json({ config: serializeWebhookConfig(getWebhookConfig(req.stationId!)) });
+});
+
+const webhookConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  url: z.string().url().max(500).optional(),
+  secret: z.string().min(8).max(200).optional(),
+});
+
+router.patch("/webhook", validateBody(webhookConfigSchema), (req, res) => {
+  const body = req.body as z.infer<typeof webhookConfigSchema>;
+  setWebhookConfig(req.stationId!, body, req.user!);
+  recordAudit({
+    user: req.user!,
+    action: "webhook_config_updated",
+    details: { enabled: body.enabled, urlChanged: !!body.url, secretChanged: !!body.secret },
+    ip: req.ip,
+    stationId: req.stationId,
+  });
+  res.json({ config: serializeWebhookConfig(getWebhookConfig(req.stationId!)) });
 });
 
 router.get("/report-email", (req, res) => {

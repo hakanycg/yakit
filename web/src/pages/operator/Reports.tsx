@@ -511,7 +511,7 @@ function StockReport({ range, stationId }: { range: string; stationId: number })
   const [deliveryVariance, setDeliveryVariance] = useState<SupplierDeliveryVarianceRow[] | null>(null);
 
   useEffect(() => {
-    api.get<{ suppliers: SupplierSummaryRow[] }>("/api/fuel-stock/suppliers/summary").then((r) => setSuppliers(r.suppliers));
+    api.get<{ suppliers: SupplierSummaryRow[] }>(`/api/fuel-stock/suppliers/summary?${range}`).then((r) => setSuppliers(r.suppliers));
     // Sapma ozeti kendi ucunda degil, olcum listesinin yaninda donuyor; burada yalnizca
     // ozet kismi kullaniliyor (limit=1 ile gereksiz satir cekilmesin diye).
     api.get<{ summary: VarianceSummaryRow[] }>("/api/fuel-stock/readings?limit=1").then((r) => setVariance(r.summary));

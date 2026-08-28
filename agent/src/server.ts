@@ -6,6 +6,7 @@ import { readCacheSnapshot } from "./cacheStore.js";
 import { getConnectivityState } from "./connectivity.js";
 import { getPrinterDriver } from "./printerDriver.js";
 import { getOkcDriver } from "./okcDriver.js";
+import { getPosDriver } from "./posDriver.js";
 import { logger } from "./logger.js";
 
 const enqueueSchema = z.object({
@@ -22,6 +23,11 @@ const printJobSchema = z.object({
 const fiscalPrintJobSchema = z.object({
   title: z.string().min(1).max(120),
   lines: z.array(z.object({ label: z.string().max(60), value: z.string().max(200) })).max(50),
+  transactionId: z.number().int().positive(),
+  amount: z.number().nonnegative(),
+});
+
+const posChargeJobSchema = z.object({
   transactionId: z.number().int().positive(),
   amount: z.number().nonnegative(),
 });
@@ -119,6 +125,33 @@ export function createAgentApp(db: Database.Database): express.Express {
       logger.error({ err, transactionId: parsed.data.transactionId }, "ÖKC surucusu beklenmedik sekilde hata firlatti.");
       enqueueEvent(db, "okc_fault", { transactionId: parsed.data.transactionId, faultCode: "UNKNOWN" });
       res.status(500).json({ error: "Yasal fis basilamadi.", printed: false });
+    }
+  });
+
+  // Temassiz POS icin /okc/print ile AYNI desen: gercek bir POS modulu baglaninca ve
+  // vendor protokolu netlesince (bkz. gorev #141) setPosDriver() ile devreye alinacak;
+  // su an noop surucu her zaman success:false doner. Bu ONEMLI: bu uc merkez sunucuya
+  // "POS ile tahsilat yapildi" diyecek GUVEN ucu DEGIL - ajanin kendi loopback API'sinde,
+  // /print/okc/print ile birebir ayni riski tasimayan bir yerel kancadir (kiosk bunu
+  // cagirir, sonucu kendi akisinda degerlendirir; merkez sunucuya "odendi" bilgisini
+  // hangi yoldan, nasil dogrulanmis olarak iletecegi vendor protokolu netlesmeden
+  // TASARLANMAYACAK).
+  app.post("/pos/charge", async (req, res) => {
+    const parsed = posChargeJobSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Gecersiz istek.", details: parsed.error.flatten().fieldErrors });
+      return;
+    }
+    try {
+      const result = await getPosDriver().chargeContactless(parsed.data);
+      if (result.faultCode) {
+        enqueueEvent(db, "pos_fault", { transactionId: parsed.data.transactionId, faultCode: result.faultCode });
+      }
+      res.json(result);
+    } catch (err) {
+      logger.error({ err, transactionId: parsed.data.transactionId }, "POS surucusu beklenmedik sekilde hata firlatti.");
+      enqueueEvent(db, "pos_fault", { transactionId: parsed.data.transactionId, faultCode: "UNKNOWN" });
+      res.status(500).json({ error: "Tahsilat basarisiz.", success: false });
     }
   });
 

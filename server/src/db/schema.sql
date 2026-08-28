@@ -234,6 +234,11 @@ CREATE TABLE IF NOT EXISTS alarms (
 );
 CREATE INDEX IF NOT EXISTS idx_alarms_station ON alarms(station_id);
 CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
+-- sweepAlarmEscalations() (bkz. alarmEscalationService.ts) TUM istasyonlar genelinde
+-- "severity = 'critical' AND status = 'active'" tarar - istasyon bazli degil, global
+-- bir taramadir. Tekil status indeksi bu sorguda yeterli secicilige sahip degil
+-- (kritik olmayan HER durumu da eler ama once tum 'active' satirlari taramasi gerekir).
+CREATE INDEX IF NOT EXISTS idx_alarms_severity_status ON alarms(severity, status);
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -901,6 +906,45 @@ CREATE TABLE IF NOT EXISTS scheduled_price_changes (
   applied_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_scheduled_price_changes_station ON scheduled_price_changes(station_id, status, scheduled_for);
+
+-- Konsolide (cok istasyonlu) rapor icin gunluk ozet (bkz. services/rollupService.ts).
+--
+-- Kapasite olcumu (bkz. README "Kapasite olcumu"), konsolide raporun istasyon basina
+-- transactions tablosuna korele alt sorgu calistirdigini ve bunun 100 istasyonda 1,6
+-- saniyeye, 1000 istasyonda tahmini ~16 saniyeye ciktigini olcuyle gosterdi - tek
+-- gercek darbogaz buydu. Bu tablo o alt sorgularin SONUCUNU onceden hesaplayip saklar:
+-- portfolioService, kapali gunler icin transactions'i degil bu tabloyu okur.
+--
+-- SADECE rollupService.refreshRollups() tarafindan yazilir; hicbir zaman elle
+-- guncellenmez. Bugunun (hala buyuyen) is gunu bilerek burada TUTULMAZ - portfolioService
+-- bugun icin her zaman canli sorguya duser.
+CREATE TABLE IF NOT EXISTS station_daily_rollups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  business_date TEXT NOT NULL,          -- YYYY-MM-DD, utils/businessDay.ts ile AYNI tanim
+  transaction_count INTEGER NOT NULL,
+  revenue REAL NOT NULL,
+  discount REAL NOT NULL,
+  liters REAL NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  UNIQUE(station_id, business_date)
+);
+CREATE INDEX IF NOT EXISTS idx_station_daily_rollups_date ON station_daily_rollups(business_date);
+
+-- station_daily_rollups'in HANGI TARIHTEN ITIBAREN guvenilir oldugunu izleyen tek
+-- satirlik durum tablosu.
+--
+-- Bir gun icin rollup satirinin YOKLUGU iki farkli anlama gelebilir: "o gun o istasyonda
+-- hic satis olmadi" (gercek sifir) ya da "o gun icin rollup henuz hic hesaplanmadi"
+-- (eksik veri). Bu ayrimi satir sayarak COZEMEYIZ - ikisi de "0 satir" gorunur. Bu
+-- yuzden kapsamin nereye kadar gittigi AYRI ve ACIKCA saklanir: covered_from'dan eski
+-- olmayan HER tarih icin rollup guvenilirdir (satir yoksa gercekten sifirdir).
+-- covered_from'dan eski bir tarih sorgulanirsa portfolioService eski (canli) yola duser.
+CREATE TABLE IF NOT EXISTS rollup_state (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  covered_from TEXT,                     -- NULL: hic calismadi, hicbir tarih guvenilir degil
+  last_run_at TEXT
+);
 
 -- Dayanikli (durable) yazma kuyrugu: Kafka/RabbitMQ'nun bu uygulamadaki islevsel
 -- karsiligi - ek bir servis/maliyet gerektirmeden ayni SQLite veritabanini kullanir.

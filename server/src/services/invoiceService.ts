@@ -12,7 +12,9 @@ export class InvoiceError extends Error {
 
 // Turkiye'de akaryakit pompa fiyati KDV dahildir; e-Fatura/e-Arsiv satirinda KDV'siz
 // birim fiyat ve KDV tutari ayri ayri gosterilmelidir. Genel KDV orani (2026): %20.
-const VAT_RATE = 0.2;
+// export edilir: accountingExportService.ts ayni orani kullanir, iki yerde KDV orani
+// driftlemesin diye.
+export const VAT_RATE = 0.2;
 
 const FUEL_LABELS: Record<FuelType, string> = {
   benzin: "Kursunsuz Benzin",

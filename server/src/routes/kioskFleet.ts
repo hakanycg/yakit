@@ -24,10 +24,14 @@ router.use(requireAuth, requireRole("super_admin", "tenant_admin"));
 const querySchema = z.object({
   status: z.enum(["online", "offline", "never_seen"]).optional(),
   q: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
 });
 
 router.get("/", validateQuery(querySchema), (req, res) => {
-  const { status, q } = (req as unknown as { validatedQuery: z.infer<typeof querySchema> }).validatedQuery;
+  const { status, q, page: reqPage, pageSize: reqPageSize } = (
+    req as unknown as { validatedQuery: z.infer<typeof querySchema> }
+  ).validatedQuery;
   const all = listKioskFleet(req.user!.tenant_id);
 
   // Ozet HER ZAMAN filtrelenmemis listeden hesaplanir: "3 cevrimdisi" rakami,
@@ -44,7 +48,13 @@ router.get("/", validateQuery(querySchema), (req, res) => {
     );
   }
 
-  res.json({ kiosks: rows.map(serializeKioskFleetRow), summary });
+  const pageSize = Math.min(Math.max(reqPageSize ?? 20, 1), 100);
+  const page = Math.max(reqPage ?? 1, 1);
+  const total = rows.length;
+  const start = (page - 1) * pageSize;
+  const pagedRows = rows.slice(start, start + pageSize);
+
+  res.json({ kiosks: pagedRows.map(serializeKioskFleetRow), summary, total, page, pageSize });
 });
 
 router.get("/export.csv", (req, res) => {

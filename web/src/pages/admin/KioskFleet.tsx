@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
 import { AlertIcon, CheckCircleIcon, SyncIcon } from "../../shared/icons";
+import Pagination from "../../shared/Pagination";
 import type { FleetKiosk, KioskFleetSummary, KioskHealthStatus } from "../../shared/types";
+
+const PAGE_SIZE = 20;
 
 /**
  * Kiosk filosu: tum istasyonlardaki fiziksel kiosk bilgisayarlarinin tek ekranda
@@ -39,27 +42,43 @@ export default function KioskFleet() {
   const [summary, setSummary] = useState<KioskFleetSummary | null>(null);
   const [status, setStatus] = useState<"" | KioskHealthStatus>("");
   const [q, setQ] = useState("");
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+
+  // Filtre degistiginde sayfa 1'e donulur - AYNI olay isleyicisinde, aksi halde
+  // eski sayfa+yeni filtreyle bir kere, sayfa 1+yeni filtreyle bir kere olmak
+  // uzere CIFT sorgu atilirdi (bkz. Alarms.tsx/Stations.tsx'teki ayni desen).
+  function updateStatus(value: "" | KioskHealthStatus) {
+    setStatus(value);
+    setPage(1);
+  }
+  function updateQ(value: string) {
+    setQ(value);
+    setPage(1);
+  }
 
   function load() {
     const params = new URLSearchParams();
     if (status) params.set("status", status);
     if (q.trim()) params.set("q", q.trim());
-    const query = params.toString();
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
     api
-      .get<{ kiosks: FleetKiosk[]; summary: KioskFleetSummary }>(`/api/kiosk-fleet${query ? `?${query}` : ""}`)
+      .get<{ kiosks: FleetKiosk[]; summary: KioskFleetSummary; total: number }>(`/api/kiosk-fleet?${params.toString()}`)
       .then((res) => {
         setKiosks(res.kiosks);
         setSummary(res.summary);
+        setTotal(res.total);
       });
   }
 
-  useEffect(load, [status, q]);
+  useEffect(load, [status, q, page]);
 
   // Ekran acik birakildiginda kendini tazeler; filo durumu dakikalar icinde degisir.
   useEffect(() => {
     const interval = setInterval(load, 60_000);
     return () => clearInterval(interval);
-  }, [status, q]);
+  }, [status, q, page]);
 
   return (
     <div>
@@ -100,14 +119,14 @@ export default function KioskFleet() {
       <div className="toolbar">
         <input
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => updateQ(e.target.value)}
           placeholder="Kiosk, istasyon, kod veya AnyDesk ID ile ara..."
           aria-label="Kiosk ara"
           style={{ flex: "1 1 260px", minWidth: 0 }}
         />
         <select
           value={status}
-          onChange={(e) => setStatus(e.target.value as "" | KioskHealthStatus)}
+          onChange={(e) => updateStatus(e.target.value as "" | KioskHealthStatus)}
           aria-label="Durum filtresi"
           style={{ width: 200 }}
         >
@@ -173,6 +192,7 @@ export default function KioskFleet() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
     </div>
   );
 }

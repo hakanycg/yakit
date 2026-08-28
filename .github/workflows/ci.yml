@@ -30,3 +30,9 @@ jobs:
 
       - name: Build (server + web)
         run: npm run build
+
+      - name: Install Playwright browser (chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests (kiosk flow)
+        run: npm run test:e2e --workspace web

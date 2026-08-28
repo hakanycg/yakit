@@ -4,6 +4,7 @@ import type { StationRow } from "../db/types.js";
 import { createTestPump, createTestStation, createTestTenant } from "../test/dbFixture.js";
 import { getPortfolioReport } from "./portfolioService.js";
 import { businessDayExpr } from "../utils/businessDay.js";
+import { refreshRollups } from "./rollupService.js";
 
 let tenant: { id: number };
 let otherTenant: { id: number };
@@ -45,6 +46,14 @@ function scoped() {
 }
 
 beforeEach(() => {
+  // rollup_state/station_daily_rollups KURESELDIR (istasyona gore izole degil) - tum
+  // test dosyalari ayni SQLite dosyasini paylastigi icin (bkz. vitest.config.ts)
+  // baska bir test dosyasinin (ör. rollupService.test.ts) biraktigi kapsam buraya
+  // sizip asagidaki testlerin - hicbiri refreshRollups() cagirmiyor, hepsi CANLI
+  // yolu sinamak icin yazildi - sessizce hizli yola dusmesine yol acabilirdi.
+  db.prepare("DELETE FROM rollup_state").run();
+  db.prepare("DELETE FROM station_daily_rollups").run();
+
   tenant = createTestTenant();
   otherTenant = createTestTenant();
   stationA = createTestStation(tenant.id);
@@ -200,6 +209,53 @@ describe("getPortfolioReport - operasyonel gostergeler", () => {
  * indeksle 6 ms, indekssiz 4.284 ms - bin istasyonda ~43 saniye, yani calismayan bir sayfa.
  * Fark edilmesi en zor bozulma budur; bu test onu derhal gorunur kilar.
  */
+/**
+ * Rollup ile hizlanan yol, rollup olmadan calisan eski (canli) yolla AYNI sonucu
+ * uretmeli - bu, hiz kazanciyla dogruluk arasinda sapma OLMADIGINI kanitlayan asil
+ * regresyon testidir (bkz. rollupService.ts). Tarihler GERCEK "bugun"e (Date.now())
+ * gore kuruluyor ki "bugun her zaman canli sorgulanir" dalı da (rollup asla bugunu
+ * icermez) bu testte gercekten calissin - diger testlerdeki gibi sabit 2026-08-xx
+ * tarihleri kullanilsaydi, gercek "bugun" o araligin disinda kalabilir ve bu dal hic
+ * sinanmamis olurdu.
+ */
+describe("getPortfolioReport - rollup ile canli yolun esdegerligi", () => {
+  it("rollup'lu (hizli) ve rollup'suz (canli) cagri AYNI toplamlari uretir", () => {
+    const today = new Date();
+    const daysAgo = (n: number) => {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - n);
+      return d.toISOString();
+    };
+
+    // Pencerenin (son 7 gun) icinde, disinda VE bugun olmak uzere ucu de kapsanacak
+    // sekilde satis dagit.
+    addSale({ station: stationA, at: daysAgo(20), amount: 1000, discount: 50, liters: 25 });
+    addSale({ station: stationA, at: daysAgo(3), amount: 300, liters: 6 });
+    addSale({ station: stationB, at: daysAgo(3), amount: 150, liters: 3 });
+    addSale({ station: stationA, at: daysAgo(0), amount: 77, liters: 1.5 }); // bugun
+    addSale({ station: foreignStation, at: daysAgo(0), amount: 999 }); // baska kiraci - dahil olmamali
+
+    const from = daysAgo(25).slice(0, 10);
+    const to = daysAgo(0).slice(0, 10);
+
+    const before = getPortfolioReport({ tenantId: tenant.id }, from, to);
+
+    refreshRollups(); // gercek "simdi" ile - kapsam en eski islemden bugune kadar
+
+    const after = getPortfolioReport({ tenantId: tenant.id }, from, to);
+
+    const normalize = (r: typeof before) => ({
+      totals: r.totals,
+      stations: [...r.stations].sort((a, b) => a.stationId - b.stationId),
+    });
+
+    expect(normalize(after)).toEqual(normalize(before));
+    // Sapma testin kendisinin bos donmedigini kanitlasin: gercekten iki farkli
+    // koddan gectigini gostermek icin ciro sifir OLMAMALI.
+    expect(after.totals.revenue).toBeGreaterThan(0);
+  });
+});
+
 describe("getPortfolioReport - sorgu plani", () => {
   it("is gunu ifade indeksini kullanir (tam tarama yapmaz)", () => {
     const plan = db

@@ -180,11 +180,38 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
 }
 .check:has(input:disabled) { cursor: not-allowed; opacity: 0.6; }
 
+/* Aranabilir istasyon secici (bkz. shared/StationCombobox.tsx) - binlerce istasyon
+   oldugunda duz bir <select>'in tumunu listelemesi yerine sunucu tarafinda arar. */
+.combobox { position: relative; }
+.combobox-list {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  margin: 0; padding: 0.3rem; list-style: none;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.4);
+  max-height: 260px; overflow-y: auto;
+}
+.combobox-list li {
+  padding: 0.5rem 0.6rem; border-radius: 6px; cursor: pointer; font-size: var(--fs-md);
+  color: var(--text);
+}
+.combobox-list li.active, .combobox-list li:hover { background: var(--panel-2); }
+.combobox-list li.combobox-empty { color: var(--text-dim); cursor: default; }
+.combobox-list li.combobox-empty:hover { background: transparent; }
+
 .page-loading { display: flex; align-items: center; justify-content: center; height: 100vh; color: var(--text-dim); }
 
 /* Panelin govde puntosu. Kiosk (dokunmatik, ayakta okunan) ve filo portali bu
    sarmalayicinin disinda kaldigi icin kendi olceklerini korur. */
-.app-shell { display: flex; min-height: 100vh; font-size: var(--fs-md); }
+.app-shell { display: flex; min-height: 100vh; font-size: var(--fs-md); color-scheme: dark; }
+
+/* color-scheme bildirilmezse tarayici checkbox/radio/select acilir listesi/scrollbar
+   gibi NATIVE bilesenleri her zaman ACIK temayla cizer - koyu panelin ustunde bu,
+   ör. "Sayac degistirildi" onay kutusunun duz beyaz bir kare gibi, hic stillenmemis
+   gorunmesine yol acar (accent-color yalnizca ISARETLI durumu renklendirir, kutunun
+   kendisini/kenarligini degil). Kiosk (.kiosk-shell) ve gunduz temasi kendi kapsamlarinda
+   ayrica ele alinir - burada YALNIZCA yonetim panelinin varsayilan (gece) hali icin. */
+:root[data-theme-mode="day"] .app-shell,
+:root[data-theme-mode="day"] .fleet-portal { color-scheme: light; }
 
 .sidebar {
   width: 240px;
@@ -710,6 +737,12 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .toolbar { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
 .spacer { flex: 1; }
 
+/* Sayfa numarali gezinme (bkz. shared/Pagination.tsx). */
+.pagination { display: flex; align-items: center; gap: 0.3rem; margin-top: 1rem; flex-wrap: wrap; }
+.pagination button { min-width: 2.3rem; padding: 0.4rem 0.6rem; text-align: center; }
+.pagination button.active { background: var(--accent); border-color: var(--accent); color: #05141f; font-weight: 600; }
+.pagination-ellipsis { color: var(--text-dim); padding: 0 0.2rem; }
+
 /* Raporlama */
 .fuel-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 0.5rem; vertical-align: middle; }
 .fuel-dot.benzin { background: var(--accent); }
@@ -1100,7 +1133,7 @@ form > .toolbar > button, form > .modal-actions > button { margin-top: 0; }
 /* Filo musteri portali (/filo) - yonetim panelinin sidebar'li kabugunu KULLANMAZ:
    buraya giren kisi personel degildir, gezinecek bir menusu yoktur. Ayni renk
    degiskenlerini kullanir, boylece gun/gece temasi burada da calisir. */
-.fleet-portal { min-height: 100vh; background: var(--bg); color: var(--text); }
+.fleet-portal { min-height: 100vh; background: var(--bg); color: var(--text); color-scheme: dark; }
 .fleet-portal-header {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 0.9rem 1.5rem; background: var(--panel); border-bottom: 1px solid var(--border);

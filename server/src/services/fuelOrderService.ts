@@ -170,6 +170,63 @@ export function listOrders(stationId: number, limit = 50): FuelOrderRow[] {
     .all(stationId, limit);
 }
 
+export type FuelOrderStatus = "draft" | "sent" | "received" | "cancelled";
+
+export interface OrderListFilters {
+  /** Birden fazla durum verilebilir (ör. ["received", "cancelled"]) - "gecmis" gorunumu ikisini birden ister. */
+  status?: FuelOrderStatus[];
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PagedOrders {
+  orders: FuelOrderRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Gercek sayfalama (OFFSET'li) + durum/tarih filtresi. Ekrandaki "Acik Siparisler"
+ * ve "Gecmis" ayrimi hala frontend'de status'e gore yapilir - bu fonksiyon yalnizca
+ * kullanicinin sectigi filtreyle sinirli sayfayi doner.
+ */
+export function listOrdersPaged(stationId: number, filters: OrderListFilters): PagedOrders {
+  const clauses = ["station_id = ?"];
+  const params: (string | number)[] = [stationId];
+  if (filters.status && filters.status.length > 0) {
+    clauses.push(`status IN (${filters.status.map(() => "?").join(",")})`);
+    params.push(...filters.status);
+  }
+  if (filters.from) {
+    clauses.push("created_at >= ?");
+    params.push(filters.from);
+  }
+  if (filters.to) {
+    clauses.push("created_at <= ?");
+    params.push(filters.to);
+  }
+  const where = `WHERE ${clauses.join(" AND ")}`;
+
+  const total = (
+    db.prepare<(string | number)[], { count: number }>(`SELECT COUNT(*) AS count FROM fuel_orders ${where}`).get(...params) ?? {
+      count: 0,
+    }
+  ).count;
+
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 25, 1), 200);
+  const page = Math.max(filters.page ?? 1, 1);
+  const offset = (page - 1) * pageSize;
+
+  const orders = db
+    .prepare<(string | number)[], FuelOrderRow>(`SELECT * FROM fuel_orders ${where} ORDER BY id DESC LIMIT ? OFFSET ?`)
+    .all(...params, pageSize, offset);
+
+  return { orders, total, page, pageSize };
+}
+
 export function getOrder(stationId: number, id: number): FuelOrderRow {
   const row = db.prepare<[number, number], FuelOrderRow>("SELECT * FROM fuel_orders WHERE id = ? AND station_id = ?").get(id, stationId);
   if (!row) throw new FuelOrderError("Siparis bulunamadi.", 404);

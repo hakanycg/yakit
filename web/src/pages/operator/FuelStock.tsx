@@ -4,6 +4,7 @@ import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useTopicSubscription } from "../../shared/useWebSocket";
 import { FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
+import Pagination from "../../shared/Pagination";
 import type {
   DeliveryVariance,
   FuelStockMovement,
@@ -15,17 +16,38 @@ import type {
 const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Düşük", critical: "Kritik" };
 const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical" };
 const MOVEMENT_TYPE_LABEL: Record<string, string> = { delivery: "Teslimat", sale: "Satış", adjustment: "Düzeltme" };
+const MOVEMENT_PAGE_SIZE = 25;
 
 export default function FuelStock() {
   const stationId = useEffectiveStationId();
   const [tanks, setTanks] = useState<FuelTank[]>([]);
   const [movements, setMovements] = useState<FuelStockMovement[]>([]);
   const [movementFilter, setMovementFilter] = useState("");
+  const [movementFrom, setMovementFrom] = useState("");
+  const [movementTo, setMovementTo] = useState("");
+  const [movementTotal, setMovementTotal] = useState(0);
+  const [movementPage, setMovementPage] = useState(1);
   const [suppliers, setSuppliers] = useState<SupplierSummaryRow[]>([]);
   const [deliveryVariance, setDeliveryVariance] = useState<SupplierDeliveryVarianceRow[]>([]);
   const [orderSuggestions, setOrderSuggestions] = useState<OrderSuggestion[]>([]);
   const [orders, setOrders] = useState<FuelOrder[]>([]);
   const [orderSuppliers, setOrderSuppliers] = useState<OrderSupplier[]>([]);
+
+  // Filtre degistiginde sayfa 1'e donulur - AYNI olay isleyicisinde, aksi halde
+  // eski sayfa+yeni filtreyle bir kere, sayfa 1+yeni filtreyle bir kere olmak
+  // uzere CIFT sorgu atilirdi (bkz. Alarms.tsx/Stations.tsx'teki ayni desen).
+  function updateMovementFilter<T>(setter: (v: T) => void, value: T) {
+    setter(value);
+    setMovementPage(1);
+  }
+
+  function movementParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    if (movementFilter) params.set("fuelType", movementFilter);
+    if (movementFrom) params.set("from", movementFrom);
+    if (movementTo) params.set("to", movementTo);
+    return params;
+  }
 
   function loadTanks() {
     if (stationId === null) return;
@@ -33,8 +55,15 @@ export default function FuelStock() {
   }
   function loadMovements() {
     if (stationId === null) return;
-    const query = movementFilter ? `?fuelType=${movementFilter}` : "";
-    api.get<{ movements: FuelStockMovement[] }>(`/api/fuel-stock/movements${query}`).then((res) => setMovements(res.movements));
+    const params = movementParams();
+    params.set("page", String(movementPage));
+    params.set("pageSize", String(MOVEMENT_PAGE_SIZE));
+    api
+      .get<{ movements: FuelStockMovement[]; total: number }>(`/api/fuel-stock/movements?${params.toString()}`)
+      .then((res) => {
+        setMovements(res.movements);
+        setMovementTotal(res.total);
+      });
   }
   function loadSuppliers() {
     if (stationId === null) return;
@@ -48,12 +77,16 @@ export default function FuelStock() {
   function loadOrders() {
     if (stationId === null) return;
     api.get<{ suggestions: OrderSuggestion[] }>("/api/fuel-stock/orders/suggestions").then((r) => setOrderSuggestions(r.suggestions));
-    api.get<{ orders: FuelOrder[] }>("/api/fuel-stock/orders").then((r) => setOrders(r.orders));
+    // Acik siparisler (taslak/gonderildi) dogasi geregi az sayida ve gunceldir - tek
+    // sayfada (pageSize buyuk) hepsi gorunur, ayrica sayfalamaya gerek yok. Gecmis
+    // (teslim alindi/iptal) icin GERCEK filtre+sayfalama FuelOrdersSection icinde,
+    // ayri bir uctan (bkz. HistorySection) yonetilir - o taraf zamanla buyur.
+    api.get<{ orders: FuelOrder[] }>("/api/fuel-stock/orders?pageSize=100").then((r) => setOrders(r.orders));
     api.get<{ suppliers: OrderSupplier[] }>("/api/fuel-stock/suppliers").then((r) => setOrderSuppliers(r.suppliers));
   }
 
   useEffect(loadTanks, [stationId]);
-  useEffect(loadMovements, [stationId, movementFilter]);
+  useEffect(loadMovements, [stationId, movementFilter, movementFrom, movementTo, movementPage]);
   useEffect(loadSuppliers, [stationId]);
   useEffect(loadOrders, [stationId]);
   useTopicSubscription(stationId !== null ? `fuel-stock:${stationId}` : null, () => {
@@ -63,7 +96,7 @@ export default function FuelStock() {
     loadOrders();
   });
 
-  const csvHref = appendStationParam(`/api/fuel-stock/movements/export.csv${movementFilter ? `?fuelType=${movementFilter}` : ""}`);
+  const csvHref = appendStationParam(`/api/fuel-stock/movements/export.csv?${movementParams().toString()}`);
 
   return (
     <div>
@@ -99,12 +132,31 @@ export default function FuelStock() {
         <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
           <h3 style={{ margin: 0 }}>Stok Hareketleri</h3>
           <div className="spacer" />
-          <select value={movementFilter} onChange={(e) => setMovementFilter(e.target.value)} style={{ width: 180 }}>
+          <select
+            value={movementFilter}
+            onChange={(e) => updateMovementFilter(setMovementFilter, e.target.value)}
+            style={{ width: 180 }}
+          >
             <option value="">Tüm yakıt tipleri</option>
             <option value="benzin">Benzin</option>
             <option value="motorin">Motorin</option>
             <option value="lpg">LPG</option>
           </select>
+          <input
+            type="date"
+            value={movementFrom}
+            onChange={(e) => updateMovementFilter(setMovementFrom, e.target.value)}
+            aria-label="Başlangıç tarihi"
+            style={{ maxWidth: 150 }}
+          />
+          <span className="hint-text">-</span>
+          <input
+            type="date"
+            value={movementTo}
+            onChange={(e) => updateMovementFilter(setMovementTo, e.target.value)}
+            aria-label="Bitiş tarihi"
+            style={{ maxWidth: 150 }}
+          />
           <a href={csvHref}>
             <button>CSV İndir</button>
           </a>
@@ -162,6 +214,11 @@ export default function FuelStock() {
             {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
+        <Pagination
+          page={movementPage}
+          pageCount={Math.max(Math.ceil(movementTotal / MOVEMENT_PAGE_SIZE), 1)}
+          onChange={setMovementPage}
+        />
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>
@@ -759,6 +816,8 @@ const ORDER_STATUS_BADGE: Record<FuelOrder["status"], string> = {
   cancelled: "critical",
 };
 
+const HISTORY_PAGE_SIZE = 10;
+
 function FuelOrdersSection({
   suggestions,
   orders,
@@ -770,19 +829,54 @@ function FuelOrdersSection({
   suppliers: OrderSupplier[];
   onChanged: () => void;
 }) {
+  const stationId = useEffectiveStationId();
   const [creating, setCreating] = useState<OrderSuggestion | null>(null);
   const [receiving, setReceiving] = useState<FuelOrder | null>(null);
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Gecmis (teslim alindi/iptal) zamanla buyur - bu yuzden ayri, GERCEK filtre ve
+  // sayfalamaya sahip bir uctan cekilir. Acik siparisler (asagida) dogasi geregi az
+  // sayida ve guncel oldugundan parent'tan gelen `orders`'tan filtrelenir, yeterlidir.
+  const [historyOrders, setHistoryOrders] = useState<FuelOrder[]>([]);
+  const [historyTotal, setHistoryTotal] = useState(0);
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyStatus, setHistoryStatus] = useState<"" | "received" | "cancelled">("");
+  const [historyFrom, setHistoryFrom] = useState("");
+  const [historyTo, setHistoryTo] = useState("");
+
+  function updateHistoryFilter<T>(setter: (v: T) => void, value: T) {
+    setter(value);
+    setHistoryPage(1);
+  }
+
+  function loadHistory() {
+    if (stationId === null) return;
+    const params = new URLSearchParams();
+    // Filtre "Tumu" ise dahi status parametresi ACIKCA gonderilir (received,cancelled) -
+    // aksi halde sunucudan taslak/gonderildi de gelir ve total, ekranda gorunen
+    // (istemci tarafinda ayiklanmis) satir sayisiyla UYUSMAZDI.
+    params.set("status", historyStatus || "received,cancelled");
+    if (historyFrom) params.set("from", historyFrom);
+    if (historyTo) params.set("to", historyTo);
+    params.set("page", String(historyPage));
+    params.set("pageSize", String(HISTORY_PAGE_SIZE));
+    api.get<{ orders: FuelOrder[]; total: number }>(`/api/fuel-stock/orders?${params.toString()}`).then((res) => {
+      setHistoryOrders(res.orders);
+      setHistoryTotal(res.total);
+    });
+  }
+
+  useEffect(loadHistory, [stationId, historyStatus, historyFrom, historyTo, historyPage]);
+
   const openOrders = orders.filter((o) => o.status === "draft" || o.status === "sent");
-  const history = orders.filter((o) => o.status === "received" || o.status === "cancelled").slice(0, 10);
 
   async function act(order: FuelOrder, action: "send" | "cancel") {
     setError(null);
     try {
       await api.post(`/api/fuel-stock/orders/${order.id}/${action}`);
       onChanged();
+      loadHistory();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "İşlem tamamlanamadı.");
     }
@@ -889,48 +983,83 @@ function FuelOrdersSection({
         </>
       )}
 
-      {history.length > 0 && (
-        <>
-          <h4>Geçmiş</h4>
-          <table>
-            <thead>
-              <tr>
-                <th>No</th>
-                <th>Yakıt</th>
-                <th>Tedarikçi</th>
-                <th className="numeric">Sipariş</th>
-                <th className="numeric">Teslim alınan</th>
-                <th>Durum</th>
-              </tr>
-            </thead>
-            <tbody>
-              {history.map((o) => (
-                <tr key={o.id}>
-                  <td>#{o.id}</td>
-                  <td>{FUEL_LABEL[o.fuelType] ?? o.fuelType}</td>
-                  <td>{o.supplierName}</td>
-                  <td className="numeric">{formatLiters(o.orderedLiters)}</td>
-                  <td className="numeric">
-                    {o.receivedLiters === null ? (
-                      <span className="hint-text">—</span>
-                    ) : (
-                      /* Siparis edilenden farkli geldiyse gorunur olmali: eksik gelen
-                         tanker, sizintidan sonra en yaygin kayip kaynagidir. */
-                      <strong style={o.receivedLiters < o.orderedLiters ? { color: "#f87171" } : undefined}>
-                        {formatLiters(o.receivedLiters)}
-                      </strong>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`badge ${ORDER_STATUS_BADGE[o.status]}`}>{ORDER_STATUS_LABEL[o.status]}</span>
-                    <div className="hint-text">{formatDateTime(o.receivedAt ?? o.createdAt)}</div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </>
-      )}
+      <div className="toolbar" style={{ marginTop: "1.25rem", marginBottom: "0.5rem" }}>
+        <h4 style={{ margin: 0 }}>Geçmiş</h4>
+        <div className="spacer" />
+        <select
+          value={historyStatus}
+          onChange={(e) => updateHistoryFilter(setHistoryStatus, e.target.value as "" | "received" | "cancelled")}
+          style={{ width: 160 }}
+        >
+          <option value="">Tümü</option>
+          <option value="received">Teslim alındı</option>
+          <option value="cancelled">İptal</option>
+        </select>
+        <input
+          type="date"
+          value={historyFrom}
+          onChange={(e) => updateHistoryFilter(setHistoryFrom, e.target.value)}
+          aria-label="Başlangıç tarihi"
+          style={{ maxWidth: 150 }}
+        />
+        <span className="hint-text">-</span>
+        <input
+          type="date"
+          value={historyTo}
+          onChange={(e) => updateHistoryFilter(setHistoryTo, e.target.value)}
+          aria-label="Bitiş tarihi"
+          style={{ maxWidth: 150 }}
+        />
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Yakıt</th>
+            <th>Tedarikçi</th>
+            <th className="numeric">Sipariş</th>
+            <th className="numeric">Teslim alınan</th>
+            <th>Durum</th>
+          </tr>
+        </thead>
+        <tbody>
+          {historyOrders.map((o) => (
+            <tr key={o.id}>
+              <td>#{o.id}</td>
+              <td>{FUEL_LABEL[o.fuelType] ?? o.fuelType}</td>
+              <td>{o.supplierName}</td>
+              <td className="numeric">{formatLiters(o.orderedLiters)}</td>
+              <td className="numeric">
+                {o.receivedLiters === null ? (
+                  <span className="hint-text">—</span>
+                ) : (
+                  /* Siparis edilenden farkli geldiyse gorunur olmali: eksik gelen
+                     tanker, sizintidan sonra en yaygin kayip kaynagidir. */
+                  <strong style={o.receivedLiters < o.orderedLiters ? { color: "#f87171" } : undefined}>
+                    {formatLiters(o.receivedLiters)}
+                  </strong>
+                )}
+              </td>
+              <td>
+                <span className={`badge ${ORDER_STATUS_BADGE[o.status]}`}>{ORDER_STATUS_LABEL[o.status]}</span>
+                <div className="hint-text">{formatDateTime(o.receivedAt ?? o.createdAt)}</div>
+              </td>
+            </tr>
+          ))}
+          {historyOrders.length === 0 && (
+            <tr>
+              <td colSpan={6} className="hint-text">
+                Bu filtreye uyan sipariş yok.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      <Pagination
+        page={historyPage}
+        pageCount={Math.max(Math.ceil(historyTotal / HISTORY_PAGE_SIZE), 1)}
+        onChange={setHistoryPage}
+      />
 
       {creating && (
         <CreateOrderDialog
@@ -951,6 +1080,7 @@ function FuelOrdersSection({
           onReceived={() => {
             setReceiving(null);
             onChanged();
+            loadHistory();
           }}
         />
       )}

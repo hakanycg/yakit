@@ -24,6 +24,7 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   virtual_card: "Sanal Kart (eski kayıt)",
   iyzico: "Kredi/Banka Kartı",
   fleet: "Filo Hesabı",
+  pos: "Temassız Ödeme (POS)",
 };
 
 export function formatCurrency(value: number, locale = "tr-TR"): string {

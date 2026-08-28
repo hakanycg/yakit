@@ -11,6 +11,7 @@ import {
   getMovementById,
   getSupplierSummary,
   listMovements,
+  listMovementsPaged,
   listTanks,
   serializeMovement,
   serializeTank,
@@ -36,7 +37,7 @@ import {
   cancelOrder,
   createOrder,
   createSupplier,
-  listOrders,
+  listOrdersPaged,
   listSuppliers,
   receiveOrder,
   sendOrder,
@@ -63,13 +64,22 @@ router.get("/", (req, res) => {
 
 const movementsQuerySchema = z.object({
   fuelType: fuelTypeEnum.optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().positive().max(1000).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
 });
 
 router.get("/movements", validateQuery(movementsQuerySchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof movementsQuerySchema> }).validatedQuery;
-  const rows = listMovements(req.stationId!, q);
-  res.json({ movements: rows.map((m) => serializeMovement(m, m.username)) });
+  const result = listMovementsPaged(req.stationId!, q);
+  res.json({
+    movements: result.movements.map((m) => serializeMovement(m, m.username)),
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+  });
 });
 
 router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, res) => {
@@ -93,8 +103,14 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
   res.send("﻿" + lines.join("\n"));
 });
 
-router.get("/suppliers/summary", (req, res) => {
-  res.json({ suppliers: getSupplierSummary(req.stationId!) });
+const supplierSummaryQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+router.get("/suppliers/summary", validateQuery(supplierSummaryQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof supplierSummaryQuerySchema> }).validatedQuery;
+  res.json({ suppliers: getSupplierSummary(req.stationId!, q.from, q.to) });
 });
 
 // --- Yakit sapma (fiziksel tank olcumu) ---------------------------------------
@@ -406,8 +422,32 @@ router.get("/orders/suggestions", (req, res) => {
   res.json({ suggestions: suggestions(req.stationId!) });
 });
 
-router.get("/orders", (req, res) => {
-  res.json({ orders: listOrders(req.stationId!).map(serializeOrder) });
+const orderStatusEnum = z.enum(["draft", "sent", "received", "cancelled"]);
+
+const ordersQuerySchema = z.object({
+  // Virgulle ayrilmis birden fazla durum kabul edilir (ör. "received,cancelled") -
+  // "Gecmis" gorunumu teslim alinan VE iptal edilen siparisleri birlikte ister.
+  status: z
+    .string()
+    .transform((s) => s.split(",").map((v) => v.trim()))
+    .pipe(z.array(orderStatusEnum))
+    .optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+
+router.get("/orders", validateQuery(ordersQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof ordersQuerySchema> }).validatedQuery;
+  // "to" gun-sonuna kadar dahil olmali - aksi halde o gunun siparisleri disarida kalirdi.
+  const result = listOrdersPaged(req.stationId!, { ...q, to: q.to ? `${q.to}T23:59:59.999Z` : undefined });
+  res.json({
+    orders: result.orders.map(serializeOrder),
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+  });
 });
 
 const orderSchema = z.object({

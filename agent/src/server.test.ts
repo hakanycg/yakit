@@ -7,6 +7,7 @@ import { saveCacheSnapshot } from "./cacheStore.js";
 import { resetConnectivityState } from "./connectivity.js";
 import { noopPrinterDriver, setPrinterDriver } from "./printerDriver.js";
 import { noopOkcDriver, setOkcDriver } from "./okcDriver.js";
+import { noopPosDriver, setPosDriver } from "./posDriver.js";
 
 describe("agent local HTTP server", () => {
   let server: Server;
@@ -17,6 +18,7 @@ describe("agent local HTTP server", () => {
     resetConnectivityState();
     setPrinterDriver(noopPrinterDriver);
     setOkcDriver(noopOkcDriver);
+    setPosDriver(noopPosDriver);
     db = openAgentDb(":memory:");
     const app = createAgentApp(db);
     await new Promise<void>((resolve) => {
@@ -186,6 +188,59 @@ describe("agent local HTTP server", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ lines: [], transactionId: 1 }),
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it("POST /pos/charge returns success:false with the noop driver (no physical POS yet)", async () => {
+    const res = await fetch(`${baseUrl}/pos/charge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId: 1, amount: 250.5 }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { success: boolean; faultCode?: string };
+    expect(body.success).toBe(false);
+    expect(body.faultCode).toBeUndefined();
+
+    const statusRes = await fetch(`${baseUrl}/status`);
+    const status = (await statusRes.json()) as { pendingOutboxCount: number };
+    expect(status.pendingOutboxCount).toBe(0);
+  });
+
+  it("POST /pos/charge returns a reference id once a real driver is wired in", async () => {
+    setPosDriver({ chargeContactless: async () => ({ success: true, referenceId: "REF-1", message: "Tahsil edildi." }) });
+    const res = await fetch(`${baseUrl}/pos/charge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId: 2, amount: 100 }),
+    });
+    const body = (await res.json()) as { success: boolean; referenceId?: string };
+    expect(body.success).toBe(true);
+    expect(body.referenceId).toBe("REF-1");
+  });
+
+  it("POST /pos/charge queues a pos_fault outbox event when a real driver reports a physical fault", async () => {
+    setPosDriver({ chargeContactless: async () => ({ success: false, faultCode: "DECLINED", message: "Reddedildi." }) });
+    const res = await fetch(`${baseUrl}/pos/charge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId: 3, amount: 100 }),
+    });
+    const body = (await res.json()) as { success: boolean; faultCode?: string };
+    expect(body.success).toBe(false);
+    expect(body.faultCode).toBe("DECLINED");
+
+    const statusRes = await fetch(`${baseUrl}/status`);
+    const status = (await statusRes.json()) as { pendingOutboxCount: number };
+    expect(status.pendingOutboxCount).toBe(1);
+  });
+
+  it("POST /pos/charge rejects a request without an amount", async () => {
+    const res = await fetch(`${baseUrl}/pos/charge`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ transactionId: 1 }),
     });
     expect(res.status).toBe(400);
   });

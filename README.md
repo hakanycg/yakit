@@ -955,13 +955,24 @@ basit bir `created_at BETWEEN` sorgusu kullanmıştım: **473 ms** dedi. Gerçek
   tablolarını sabitler; işlem tablosu büyümeye devam eder.
 - **Tek istasyon sorguları sorun değil:** hepsi 10 ms'in altında ve indeksli oldukları için
   toplam veri büyüdükçe **sabit** kalıyorlar. Kiosk akışı (0.03 ms) rahat.
-- **Tek gerçek darboğaz konsolide rapor.** İndeks 2.7× kazandırdı ama **sınırı kaldırmadı**:
-  istasyon başına dört korele alt sorgu, her biri o istasyonun aralıktaki tüm satırlarını
-  geziyor — süre toplam işlem sayısıyla doğrusal. 100 istasyonda 1.6 sn, **1000 istasyonda
-  ~16 sn**. Oradaki çözüm indeks değil **günlük özet (rollup) tablosu**: her iş günü
-  kapandığında istasyon başına bir satır yazılır, rapor 1.8M satır yerine 90.000 satır okur.
-  Bu bir tasarım değişikliği (iade/geç tamamlanan işlemle özetin senkron kalması gerekir),
-  ölçümün işi onu **boyutlandırmaktı** — kararı #81 ile birlikte verilmeli.
+- **Tek gerçek darboğaz konsolide rapordu — artık çözüldü.** İndeks 2.7× kazandırmıştı
+  ama **sınırı kaldırmamıştı**: istasyon başına dört korele alt sorgu, her biri o
+  istasyonun aralıktaki tüm satırlarını geziyordu — süre toplam işlem sayısıyla
+  doğrusaldı (100 istasyonda 1.6 sn, 1000 istasyonda ~16 sn'ye çıkıyordu). Çözüm indeks
+  değil **günlük özet (rollup) tablosu** oldu: `station_daily_rollups` her iş günü için
+  istasyon başına tek bir satır tutar (`rollupService.ts`), rapor artık 1.8M satır
+  yerine ~9.000 istasyon-gün satırı okuyor. Pencere kendi kendini onarır (geç gelen bir
+  iade/düzeltmeyi bir sonraki çalıştırmada yakalar, son 7 günü her seferinde yeniden
+  hesaplar) ve bugünün iş günü her zaman canlı sorgulanır — hiçbir zaman bayat veri
+  gösterilmez. Aynı 100 istasyon/90 gün/1.8M işlem ölçümünde:
+
+  | Sorgu | Rollup'suz (eski yol) | Rollup'lı (yeni yol) |
+  | --- | --- | --- |
+  | Konsolide rapor (tüm istasyonlar) | 1616 ms | **363 ms** |
+
+  İlk kurulumda tek seferlik bir geriye doldurma (backfill) çalışır (bu ölçümde 1187 ms,
+  9.000 istasyon-gün satırı) — sonrasında `server/src/index.ts` her 3 saatte bir
+  `refreshRollups()` çağırıp pencereyi tazeler.
 
 ## Arşivleme: denetim kaydı ve ölçüm tabloları sınırsız büyümesin
 
@@ -1153,6 +1164,38 @@ istemci kodudur ve UBL-TR standardına uygun tam bir fatura gövdesi (`Accountin
   sunucu çökmüyor) — ancak gerçek bir Uyumsoft müşteri hesabıyla uçtan uca başarılı fatura
   kesimi **sizin tarafınızdan test edilmelidir**. KDV oranı kodda %20 olarak sabitlenmiştir
   (`invoiceService.ts` içindeki `VAT_RATE`); oran değişirse orası güncellenmelidir.
+
+## Muhasebe/BI dışa aktarımı
+
+`GET /api/reports/accounting-export?from=&to=&format=csv|json` (yalnızca admin/super_admin),
+işletmenin muhasebe/ERP sistemine veya bir BI aracına aktarabileceği, iş günü bazında bir
+özet üretir: brüt ciro, indirim/puan kullanımı (para, birleşik), kullanılan sadakat puanı
+(bilgi amaçlı, para değil — bkz. aşağıda), KDV dahil/hariç net ciro, KDV tutarı, ödeme
+yöntemine göre kırılım ve iade toplamı. Hesaplama `reconciliationService.ts`/
+`portfolioService.ts` ile **aynı iş günü tanımını** (`utils/businessDay.ts`) ve aynı KDV
+oranını (`invoiceService.ts`'teki `VAT_RATE`) kullanır — bu rapor diğerlerinden farklı bir
+"gün" veya farklı bir KDV oranı göstermez.
+
+**Bu, belirli bir muhasebe yazılımının (Logo/Netsis/Mikro vb.) resmi API'siyle GERÇEK bir
+entegrasyon DEĞİLDİR** — öyle bir entegrasyon, o yazılımın resmi API dokümantasyonu elde
+edilmeden yazılmayacaktır (yukarıdaki Uyumsoft entegrasyonuyla aynı ilke: gerçek istemci kodu
+ancak resmi dokümantasyon varken yazılır). Bunun yerine bu, o yazılımların neredeyse tamamının
+kabul ettiği CSV içe aktarma biçimine uyan **jenerik** bir dışa aktarımdır; CSV çıktısı mevcut
+`csvEscape` ile üretilir ve güvenlik incelemesinde (#152) eklenen formül-enjeksiyonu
+korumasından otomatik yararlanır.
+
+`discount_amount` sütunu kampanya kodu indirimi ile sadakat puanı kullanımını **tek bir para
+biriminde birleştirir** (bkz. `transactionService.ts`) — ikisini ayrı para tutarlarına
+bölecek bir veri yoktur. Bu yüzden rapor da uydurmaz: `indirim_puan` (para, birleşik) ile
+`sadakat_puani_kullanilan` (PUAN, bilgi amaçlı) ayrı sütunlardır.
+
+**Harici entegrasyon için başlangıç noktası:** [`docs/openapi-reporting.yaml`](docs/openapi-reporting.yaml),
+bir dağıtım şirketinin kendi BI/ERP sistemini bağlarken ihtiyaç duyacağı raporlama/dışa
+aktarım uçlarının (bu bölüm, iade raporu, konsolide rapor, gün sonu mutabakatı) elle yazılmış
+bir OpenAPI 3.0 referansıdır — platformun tamamı değil, yalnızca bu dar kapsam. Dosyanın
+kendi üst bilgisinde de belirtildiği gibi koddan otomatik üretilmez; yalnızca geçerli YAML
+olduğu ve iddia ettiği uçları içerdiği testle doğrulanır, route imzasıyla birebir eşleştiği
+otomatik doğrulanmaz.
 
 ## Gerçek e-İrsaliye altyapısı: Uyumsoft (yakıt teslimatları için)
 
@@ -1874,6 +1917,20 @@ politikası, `chargeAmount`) vitest ile birim testleri çalıştırır; kendi ge
 dosyasını kullanır, gerçek veritabanınıza dokunmaz. `.github/workflows/ci.yml`, her
 push/PR'da typecheck + lint + test + build adımlarını otomatik çalıştırır.
 
+**Uçtan uca (e2e) testler**: `npm run test:e2e --workspace web` (Playwright), gerçek bir
+tarayıcıda gerçek sunucuya karşı çalışır — birim testlerin aksine bileşenleri değil TÜM
+kiosk akışını (dil seçimi → plaka → pompa → yakıt → tutar → ödeme → makbuz) sınar.
+Sunucu üretim modunda `web/dist`'i kendi içinden servis ettiğinden (bkz. yukarıdaki
+"tek origin" notu) ayrı bir `vite preview`/CORS kurulumuna gerek yoktur; her koşu kendi
+tek kullanımlık SQLite dosyasını tohumlar (`server/src/scripts/seedE2E.ts`), gerçek
+veritabanına dokunmaz. İki senaryo kapsanır: filo hesabıyla ödeme (uçtan uca gerçek
+simüle dolum dahil) ve yardım/destek çağrısının gerçekten bir kritik alarma dönüştüğü
+(API üzerinden doğrulanır). **Kapsam bilerek sınırlı**: iyzico ve Uyumsoft bu sandbox'ta
+zaten canlı test edilemiyor (dışa giden ağ erişimi yok) — bu testler o kısıtı
+genişletmez, yalnızca tamamen iç/deterministik yolları kapsar; iyzico/Uyumsoft'un canlı
+testi hâlâ sizin tarafınızda kalır. CI'da (`.github/workflows/ci.yml`) build adımından
+sonra ayrı bir adım olarak çalışır.
+
 ## Komutlar
 
 | Komut | Açıklama |
@@ -1883,4 +1940,5 @@ push/PR'da typecheck + lint + test + build adımlarını otomatik çalıştırı
 | `npm run typecheck` | Tüm workspace'lerde TypeScript tip kontrolü |
 | `npm run lint` | Tüm workspace'lerde ESLint |
 | `npm run test` | Backend birim testleri (vitest) |
+| `npm run test:e2e --workspace web` | Kiosk uçtan uca testleri (Playwright, gerçek tarayıcı) |
 | `npm run seed --workspace server` | Roller, admin kullanıcı, istasyon, pompa, fiyat verisini oluşturur |

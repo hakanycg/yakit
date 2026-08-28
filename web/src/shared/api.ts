@@ -16,7 +16,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, unscoped = false): Promise<T> {
   const method = (options.method ?? "GET").toUpperCase();
   const headers = new Headers(options.headers);
 
@@ -35,7 +35,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     if (deviceToken) headers.set("x-kiosk-device-token", deviceToken);
   }
 
-  const url = appendStationParam(path);
+  // unscoped: cagiran taraf istasyon kapsamini KENDISI yonetiyor (ör. Denetim
+  // Kaydi'nin kendi istasyon suzgeci, bkz. AuditLog.tsx) - genel gecerli
+  // secili istasyon buraya sizip cagiranin "tum istasyonlar" niyetini
+  // sessizce bozmasin diye appendStationParam hic uygulanmaz.
+  const url = unscoped ? path : appendStationParam(path);
   const res = await fetch(url, { ...options, headers, credentials: "same-origin" });
 
   if (res.status === 204) return undefined as T;
@@ -52,7 +56,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  get: <T>(path: string) => request<T>(path),
+  get: <T>(path: string, opts?: { unscoped?: boolean }) => request<T>(path, {}, opts?.unscoped),
   post: <T>(path: string, body?: unknown) => request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),

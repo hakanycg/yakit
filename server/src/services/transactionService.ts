@@ -657,15 +657,27 @@ export function cancelPendingTransaction(id: number, accessToken: string, reason
   return updated;
 }
 
-export function listTransactions(
-  stationId: number,
-  filters: { status?: string; from?: string; to?: string; limit?: number }
-): TransactionRow[] {
+export interface TransactionListFilters {
+  status?: string;
+  /** Kismi eslesme (LIKE) - musteri plakayi tam hatirlamayabilir. */
+  plate?: string;
+  from?: string;
+  to?: string;
+  limit?: number;
+}
+
+function buildTransactionWhere(stationId: number, filters: TransactionListFilters): { where: string; params: unknown[] } {
   const clauses: string[] = ["station_id = ?"];
   const params: unknown[] = [stationId];
   if (filters.status) {
     clauses.push("status = ?");
     params.push(filters.status);
+  }
+  if (filters.plate) {
+    // Sutundaki boslular da ayiklanir - aksi halde arama teriminden boslugu
+    // silmek ("34 ABC 01" -> "34ABC01") sutunla hicbir zaman eslesmezdi.
+    clauses.push("REPLACE(UPPER(plate), ' ', '') LIKE ?");
+    params.push(`%${filters.plate.toUpperCase().replace(/\s+/g, "")}%`);
   }
   if (filters.from) {
     clauses.push("created_at >= ?");
@@ -675,9 +687,40 @@ export function listTransactions(
     clauses.push("created_at <= ?");
     params.push(filters.to);
   }
-  const where = `WHERE ${clauses.join(" AND ")}`;
+  return { where: `WHERE ${clauses.join(" AND ")}`, params };
+}
+
+export function listTransactions(stationId: number, filters: TransactionListFilters): TransactionRow[] {
+  const { where, params } = buildTransactionWhere(stationId, filters);
   const limit = Math.min(filters.limit ?? 200, 1000);
   return db.prepare<unknown[], TransactionRow>(`SELECT * FROM transactions ${where} ORDER BY created_at DESC LIMIT ?`).all(...params, limit);
+}
+
+export interface PagedTransactions {
+  transactions: TransactionRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Gercek sayfalama (OFFSET'li): listTransactions'in "en son N kayit" davranisi
+ * CSV disa aktarimi icin dogru kalir (bkz. yukarida) - liste EKRANI ise sayfa
+ * numarasiyla gezinebilmeli, bu yuzden ayri bir fonksiyon.
+ */
+export function listTransactionsPaged(stationId: number, filters: TransactionListFilters & { page?: number; pageSize?: number }): PagedTransactions {
+  const { where, params } = buildTransactionWhere(stationId, filters);
+  const total = (db.prepare<unknown[], { count: number }>(`SELECT COUNT(*) AS count FROM transactions ${where}`).get(...params) ?? { count: 0 }).count;
+
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 25, 1), 200);
+  const page = Math.max(filters.page ?? 1, 1);
+  const offset = (page - 1) * pageSize;
+
+  const transactions = db
+    .prepare<unknown[], TransactionRow>(`SELECT * FROM transactions ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, pageSize, offset);
+
+  return { transactions, total, page, pageSize };
 }
 
 /** Istasyon kapsamli tekil islem sorgusu (IDOR korumali - baska istasyonun islemi 404 doner). */

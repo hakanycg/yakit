@@ -4,7 +4,7 @@ import { db } from "../db/index.js";
 import type { AlarmRow } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
-import { listAlarms, serializeAlarm, broadcastAlarms } from "../services/alarmService.js";
+import { listAlarmsPaged, serializeAlarm, broadcastAlarms } from "../services/alarmService.js";
 import { getPump, setPumpStatus } from "../services/pumpService.js";
 import { recordAudit } from "../services/auditService.js";
 import {
@@ -41,11 +41,28 @@ router.patch("/escalation", csrfProtection, requireRole("super_admin", "tenant_a
   }
 });
 
-const listSchema = z.object({ status: z.enum(["active", "acknowledged", "resolved"]).optional() });
+const alarmDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.");
+
+const listSchema = z.object({
+  status: z.enum(["active", "acknowledged", "resolved"]).optional(),
+  severity: z.enum(["info", "warning", "critical"]).optional(),
+  type: z.string().max(50).optional(),
+  pumpId: z.coerce.number().int().positive().optional(),
+  from: alarmDateSchema.optional(),
+  to: alarmDateSchema.optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
+});
 
 router.get("/", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
-  res.json({ alarms: listAlarms(req.stationId!, q.status).map(serializeAlarm) });
+  const result = listAlarmsPaged(req.stationId!, q);
+  res.json({
+    alarms: result.alarms.map(serializeAlarm),
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+  });
 });
 
 const noteSchema = z.object({ note: z.string().max(300).optional() });

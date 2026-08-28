@@ -29,6 +29,7 @@ const ROLE_LABEL: Record<string, string> = {
 const SETTINGS_PAGES = [
   { to: "/admin/ayarlar/yakit-fiyatlari", label: "Yakıt Fiyatları" },
   { to: "/admin/ayarlar/odeme", label: "Ödeme (iyzico)" },
+  { to: "/admin/ayarlar/webhook", label: "Webhook Bildirimi" },
   { to: "/admin/ayarlar/sadakat", label: "Sadakat / Puan" },
   { to: "/admin/ayarlar/fatura", label: "Fatura / İrsaliye" },
   { to: "/admin/ayarlar/ozet-raporu", label: "Otomatik Özet Raporu" },

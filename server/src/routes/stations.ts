@@ -4,7 +4,7 @@ import { db } from "../db/index.js";
 import type { StationKioskRow, StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { requireStationAccess, stationScopeFilter } from "../middleware/tenantScope.js";
-import { validateBody } from "../middleware/validate.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { generateStationCode } from "../utils/stationCode.js";
 import { randomBytes } from "node:crypto";
@@ -68,37 +68,109 @@ router.get("/current", requireStationSelected, (req, res) => {
   res.json({ station: serializeStation(station) });
 });
 
-router.get("/", requireRole("super_admin", "tenant_admin"), (req, res) => {
+const searchQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().positive().max(50).optional(),
+});
+
+/**
+ * Hafif istasyon aramasi: binlerce istasyon olan bir dagitimda (bkz. Tenants.tsx
+ * "Istasyon Ata") tum istasyon listesini (asagidaki GET /'un yaptigi gibi HER istasyon
+ * icin 5 ayri istatistik sorgusuyla) tek seferde cekmek yerine, yazildikca (debounce'lu)
+ * sunucu tarafinda aranir - istemciye asla binlerce satir gonderilmez. serializeStation
+ * disinda EK bir alan hesaplanmaz (pompa/alarm/kullanici sayisi vb.) - bu uc yalnizca
+ * bir secim bileseni (combobox) icindir, listeleme/istatistik ekrani degil.
+ */
+router.get("/search", requireRole("super_admin", "tenant_admin"), validateQuery(searchQuerySchema), (req, res) => {
+  const { q, limit } = (req as unknown as { validatedQuery: z.infer<typeof searchQuerySchema> }).validatedQuery;
+  const scope = stationScopeFilter(req, "id");
+  const take = limit ?? 20;
+
+  let sql = `SELECT * FROM stations WHERE ${scope.sql}`;
+  const params: (string | number)[] = [...scope.params];
+  if (q) {
+    sql += ` AND (name LIKE ? OR code LIKE ? OR slug LIKE ?)`;
+    const like = `%${q}%`;
+    params.push(like, like, like);
+  }
+  sql += ` ORDER BY name LIMIT ?`;
+  params.push(take);
+
+  const stations = db.prepare<(string | number)[], StationRow>(sql).all(...params);
+  res.json({ stations: stations.map(serializeStation) });
+});
+
+const stationListQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
+});
+
+interface StationWithStatsRow extends StationRow {
+  pumpCount: number;
+  activeAlarms: number;
+  userCount: number;
+  transactionCount: number;
+  lastHeartbeatAt: string | null;
+  lastSyncedAt: string | null;
+  agentConfigured: number;
+}
+
+router.get("/", requireRole("super_admin", "tenant_admin"), validateQuery(stationListQuerySchema), (req, res) => {
   // Bu uc tek bir istasyona degil "tum istasyonlarim"a bakar; attachStationScope'un
   // ?stationId= kapisindan gecmez, bu yuzden kiraci filtresini kendisi uygular.
-  const scope = stationScopeFilter(req, "id");
-  const stations = db
-    .prepare<number[], StationRow>(`SELECT * FROM stations WHERE ${scope.sql} ORDER BY name`)
-    .all(...scope.params);
-  const withStats = stations.map((s) => {
-    const pumpCount = (db.prepare("SELECT COUNT(*) as c FROM pumps WHERE station_id = ?").get(s.id) as { c: number }).c;
-    const activeAlarms = (
-      db.prepare("SELECT COUNT(*) as c FROM alarms WHERE station_id = ? AND status = 'active'").get(s.id) as { c: number }
-    ).c;
-    const userCount = (db.prepare("SELECT COUNT(*) as c FROM users WHERE station_id = ?").get(s.id) as { c: number }).c;
-    const transactionCount = (db.prepare("SELECT COUNT(*) as c FROM transactions WHERE station_id = ?").get(s.id) as { c: number }).c;
-    const syncState = db
-      .prepare<[number], { last_heartbeat_at: string | null; last_synced_at: string | null }>(
-        "SELECT last_heartbeat_at, last_synced_at FROM station_sync_state WHERE station_id = ?"
-      )
-      .get(s.id);
-    return {
-      ...serializeStation(s),
-      pumpCount,
-      activeAlarms,
-      userCount,
-      transactionCount,
-      lastHeartbeatAt: syncState?.last_heartbeat_at ?? null,
-      lastSyncedAt: syncState?.last_synced_at ?? null,
-      agentConfigured: syncState !== undefined,
-    };
-  });
-  res.json({ stations: withStats });
+  const scope = stationScopeFilter(req, "s.id");
+  const { q, page, pageSize } = (req as unknown as { validatedQuery: z.infer<typeof stationListQuerySchema> }).validatedQuery;
+
+  // Onceden HER istasyon icin 5 ayri sorgu (pompa/alarm/kullanici/islem sayisi +
+  // senkron durumu) calisiyordu - N istasyonda 5N+1 sorgu, sinirsiz. Artik TEK
+  // sorguda korele alt sorgular + LEFT JOIN ile, ve HER ZAMAN LIMIT/OFFSET ile
+  // (bkz. listAlarmsPaged'deki ayni gerekce - #163) sinirli.
+  const clauses = [scope.sql];
+  const params: (string | number)[] = [...scope.params];
+  if (q) {
+    clauses.push("(s.name LIKE ? OR s.address LIKE ? OR s.slug LIKE ? OR s.code LIKE ?)");
+    const like = `%${q}%`;
+    params.push(like, like, like, like);
+  }
+  const where = clauses.join(" AND ");
+
+  const total = (db.prepare(`SELECT COUNT(*) as c FROM stations s WHERE ${where}`).get(...params) as { c: number }).c;
+
+  const currentPage = Math.max(page ?? 1, 1);
+  const take = Math.min(Math.max(pageSize ?? 20, 1), 100);
+  const offset = (currentPage - 1) * take;
+
+  const rows = db
+    .prepare<(string | number)[], StationWithStatsRow>(
+      `SELECT s.*,
+              (SELECT COUNT(*) FROM pumps WHERE station_id = s.id) AS pumpCount,
+              (SELECT COUNT(*) FROM alarms WHERE station_id = s.id AND status = 'active') AS activeAlarms,
+              (SELECT COUNT(*) FROM users WHERE station_id = s.id) AS userCount,
+              (SELECT COUNT(*) FROM transactions WHERE station_id = s.id) AS transactionCount,
+              sync.last_heartbeat_at AS lastHeartbeatAt,
+              sync.last_synced_at AS lastSyncedAt,
+              (sync.station_id IS NOT NULL) AS agentConfigured
+       FROM stations s
+       LEFT JOIN station_sync_state sync ON sync.station_id = s.id
+       WHERE ${where}
+       ORDER BY s.name
+       LIMIT ? OFFSET ?`
+    )
+    .all(...params, take, offset);
+
+  const stations = rows.map((s) => ({
+    ...serializeStation(s),
+    pumpCount: s.pumpCount,
+    activeAlarms: s.activeAlarms,
+    userCount: s.userCount,
+    transactionCount: s.transactionCount,
+    lastHeartbeatAt: s.lastHeartbeatAt,
+    lastSyncedAt: s.lastSyncedAt,
+    agentConfigured: !!s.agentConfigured,
+  }));
+
+  res.json({ stations, total, page: currentPage, pageSize: take });
 });
 
 const createSchema = z.object({

@@ -212,6 +212,16 @@ describe("refundTransaction", () => {
     await expect(refundTransaction(station.id, id, { reason: "Deneme" }, actor)).rejects.toThrow(/tahsilat kaydi bulunamadi/);
   });
 
+  it("pos ile yapilan odemenin iadesini reddeder (henuz gercek POS entegrasyonu yok)", async () => {
+    // Bu dal olmasaydi 'pos' asagidaki genel "iyzico disi yontem" dalina sessizce
+    // duser ve gercek para hicbir yere iade edilmeden "iade edildi" kaydi olusurdu.
+    const id = addSale({ amount: 400, method: "pos", reference: null });
+
+    await expect(refundTransaction(station.id, id, { reason: "Deneme" }, actor)).rejects.toThrow(/POS ile yapilan odemeler/);
+    expect(refundedTotal(id)).toBe(0);
+    expect(paymentStatusOf(id)).toBe("captured");
+  });
+
   it("iyzico disi yontemde saglayici cagrisi yapmadan kaydeder", async () => {
     const id = addSale({ amount: 300, method: "card", reference: null });
 

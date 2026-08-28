@@ -19,3 +19,6 @@ coverage/
 .DS_Store
 *.pem
 *.key
+/web/test-results/
+/web/playwright-report/
+/web/e2e/.server.pid.json

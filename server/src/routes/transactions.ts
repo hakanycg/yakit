@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
-import { chargeAmount, getTransactionById, listTransactions, serializeTransaction, TransactionError } from "../services/transactionService.js";
+import { chargeAmount, getTransactionById, listTransactions, listTransactionsPaged, serializeTransaction, TransactionError } from "../services/transactionService.js";
 import { recordAudit } from "../services/auditService.js";
 import {
   RefundError,
@@ -19,26 +19,39 @@ import { csvEscape } from "../utils/csv.js";
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin", "operator", "viewer"), attachStationScope, requireStationSelected);
 
+const dateOnlySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.");
+
 const listSchema = z.object({
   status: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  plate: z.string().trim().max(20).optional(),
+  from: dateOnlySchema.optional(),
+  to: dateOnlySchema.optional(),
   limit: z.coerce.number().int().positive().max(1000).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
 });
+
+/** "to" gun-sonuna kadar dahil olmali - aksi halde o gunun islemleri disarida kalirdi. */
+function withDayBoundary<T extends { to?: string }>(q: T): T {
+  return q.to ? { ...q, to: `${q.to}T23:59:59.999Z` } : q;
+}
 
 router.get("/", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
-  const rows = listTransactions(req.stationId!, q);
+  const result = listTransactionsPaged(req.stationId!, withDayBoundary(q));
   // Iade ozeti listeyle birlikte gelir: aksi halde ekran her satir icin ayri istek atardi.
-  const refunded = refundedTotalsFor(rows.map((t) => t.id));
+  const refunded = refundedTotalsFor(result.transactions.map((t) => t.id));
   res.json({
-    transactions: rows.map((t) => ({ ...serializeTransaction(t), refundedAmount: refunded.get(t.id) ?? 0 })),
+    transactions: result.transactions.map((t) => ({ ...serializeTransaction(t), refundedAmount: refunded.get(t.id) ?? 0 })),
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
   });
 });
 
 router.get("/export.csv", validateQuery(listSchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof listSchema> }).validatedQuery;
-  const rows = listTransactions(req.stationId!, { ...q, limit: q.limit ?? 1000 });
+  const rows = listTransactions(req.stationId!, withDayBoundary({ ...q, limit: q.limit ?? 1000 }));
   // Mutabakat iadeleri kasadan dusuyor; ciro dokumu onlari gostermezse iki rapor
   // birbiriyle celisir ve fark aciklanamaz gorunur.
   const csvRefunded = refundedTotalsFor(rows.map((t) => t.id));

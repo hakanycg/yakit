@@ -3,15 +3,27 @@ import { api, ApiError } from "../../shared/api";
 import { useTopicSubscription } from "../../shared/useWebSocket";
 import { useEscapeKey } from "../../shared/useEscapeKey";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
+import { usePumps } from "../../shared/hooks";
 import { ALARM_SEVERITY_LABEL, ALARM_STATUS_LABEL, formatDateTime } from "../../shared/format";
+import Pagination from "../../shared/Pagination";
 import type { Alarm, AlarmEscalationSettings } from "../../shared/types";
 import { useAuth } from "../../shared/AuthContext";
+
+const PAGE_SIZE = 25;
 
 export default function Alarms() {
   const { user } = useAuth();
   const stationId = useEffectiveStationId();
+  const { pumps } = usePumps();
   const [alarms, setAlarms] = useState<Alarm[]>([]);
+  const [total, setTotal] = useState(0);
   const [statusFilter, setStatusFilter] = useState<"active" | "acknowledged" | "resolved" | "">("active");
+  const [severityFilter, setSeverityFilter] = useState<"info" | "warning" | "critical" | "">("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [pumpFilter, setPumpFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [page, setPage] = useState(1);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [escalation, setEscalation] = useState<AlarmEscalationSettings | null>(null);
@@ -19,11 +31,34 @@ export default function Alarms() {
 
   function load() {
     if (stationId === null) return;
-    const query = statusFilter ? `?status=${statusFilter}` : "";
-    api.get<{ alarms: Alarm[] }>(`/api/alarms${query}`).then((res) => setAlarms(res.alarms));
+    const params = new URLSearchParams();
+    if (statusFilter) params.set("status", statusFilter);
+    if (severityFilter) params.set("severity", severityFilter);
+    if (typeFilter.trim()) params.set("type", typeFilter.trim());
+    if (pumpFilter) params.set("pumpId", pumpFilter);
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
+    api.get<{ alarms: Alarm[]; total: number }>(`/api/alarms?${params.toString()}`).then((res) => {
+      setAlarms(res.alarms);
+      setTotal(res.total);
+    });
   }
 
-  useEffect(load, [statusFilter, stationId]);
+  useEffect(load, [statusFilter, severityFilter, typeFilter, pumpFilter, dateFrom, dateTo, page, stationId]);
+
+  /**
+   * Filtre degistiren her handler ayni zamanda sayfayi 1'e dondurur - ayri bir
+   * "filtre degisince sayfayi sifirla" efekti YAZILMADI: page zaten load()'un
+   * bagimliligi oldugundan, filtre + page'i AYNI ANDA degistiren iki ayri efekt
+   * ard arda iki fetch tetikler (once eski sayfa+yeni filtreyle, sonra
+   * page=1+yeni filtreyle) - burada tek durum guncellemesiyle tek fetch olur.
+   */
+  function updateFilter<T>(setter: (v: T) => void, value: T) {
+    setter(value);
+    setPage(1);
+  }
 
   useEffect(() => {
     if (stationId === null) return;
@@ -53,12 +88,43 @@ export default function Alarms() {
     <div>
       <h2>Alarm Merkezi</h2>
       <div className="toolbar">
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)} style={{ width: 220 }}>
+        <select
+          value={statusFilter}
+          onChange={(e) => updateFilter(setStatusFilter, e.target.value as typeof statusFilter)}
+          style={{ width: 160 }}
+        >
           <option value="active">Aktif</option>
           <option value="acknowledged">Onaylandı</option>
           <option value="resolved">Çözüldü</option>
           <option value="">Tümü</option>
         </select>
+        <select
+          value={severityFilter}
+          onChange={(e) => updateFilter(setSeverityFilter, e.target.value as typeof severityFilter)}
+          style={{ width: 150 }}
+        >
+          <option value="">Tüm önem düzeyleri</option>
+          <option value="info">Bilgi</option>
+          <option value="warning">Uyarı</option>
+          <option value="critical">Kritik</option>
+        </select>
+        <select value={pumpFilter} onChange={(e) => updateFilter(setPumpFilter, e.target.value)} style={{ width: 160 }}>
+          <option value="">Tüm pompalar</option>
+          {pumps.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <input
+          value={typeFilter}
+          onChange={(e) => updateFilter(setTypeFilter, e.target.value)}
+          placeholder="Tip (ör. pump_fault)"
+          style={{ width: 180 }}
+        />
+        <input type="date" value={dateFrom} onChange={(e) => updateFilter(setDateFrom, e.target.value)} style={{ width: 150 }} />
+        <span className="hint-text">-</span>
+        <input type="date" value={dateTo} onChange={(e) => updateFilter(setDateTo, e.target.value)} style={{ width: 150 }} />
         <div className="spacer" />
         {canManage && escalation && (
           <button type="button" onClick={() => setShowEscalation(true)}>
@@ -117,6 +183,12 @@ export default function Alarms() {
             {alarms.length === 0 && <tr><td colSpan={canManage ? 6 : 5} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
+        {total > 0 && (
+          <p className="hint-text">
+            {(page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, total)} / {total} alarm
+          </p>
+        )}
+        <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
       </div>
       {showEscalation && escalation && (
         <EscalationDialog

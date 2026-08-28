@@ -65,7 +65,7 @@ export interface ArchivableTable {
  * Bu tesaduf degil, secim olcutu: bir satiri canli tablodan dusurmek, ona referans veren
  * baska bir satiri yetim birakmamali.
  *
- * transactions bu yuzden BILEREK LISTEDE DEGIL - bkz. dosyanin sonundaki not.
+ * transactions VE alarms bu yuzden BILEREK LISTEDE DEGIL - bkz. dosyanin sonundaki not.
  */
 const ARCHIVABLE: ArchivableTable[] = [
   {
@@ -436,4 +436,13 @@ export function readArchiveFile(fileName: string): { rows: ArchivableRow[]; reco
  * transactions'i eklemek gerektiginde motor hazir: ARCHIVABLE'a bir satir eklemek yetmez,
  * bagimli satirlari da toplayan bir "grup" kavrami gerekir. Kapasite olcumu (gorev #154)
  * bunun ne zaman gerektigini SAYIYLA soyleyecek.
+ *
+ * alarms AYNI GEREKCEYLE (2) LISTEDE DEGIL: support_requests.alarm_id, ve iki tablo daha
+ * (bkz. schema.sql) alarms(id)'e yabanci anahtarla bakiyor. Bir alarmi arsive tasimak,
+ * o alarma bagli destek talebini/kaydi yetim birakir veya (grup kavrami olmadan) onu da
+ * ayni anda tasimayi gerektirir - aynen transactions gibi. Bugunku baski (madde 3) da
+ * henuz burada degil: alarms sweepAlarmEscalations() ile SIK okunuyor olsa da (bkz.
+ * yukaridaki idx_alarms_severity_status indeksi) satir sayisi tank olcumu/denetim kaydi
+ * kadar hizli buyumuyor. Gercek arsivleme istenirse once o FK'lerin arsivlenen bir alarma
+ * ne olacagina (NULL'a mi cekilecek, yoksa o kayit da mi arsivlenecek) karar verilmeli.
  */

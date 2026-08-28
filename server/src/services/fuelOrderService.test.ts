@@ -9,6 +9,7 @@ import {
   createOrder,
   createSupplier,
   listOrders,
+  listOrdersPaged,
   receiveOrder,
   sendOrder,
   suggestions,
@@ -179,5 +180,53 @@ describe("teslim alma", () => {
     );
     // Reddedilen teslimat siparisi kapatmamali: personel duzeltip yeniden dener.
     expect(listOrders(station.id).find((o) => o.id === second.id)!.status).toBe("draft");
+  });
+});
+
+describe("listOrdersPaged", () => {
+  it("birden fazla durumu birlikte filtreler (status IN)", () => {
+    const draft = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
+    const toCancel = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
+    cancelOrder(station.id, toCancel.id);
+    setTankStock(station.id, "motorin", 0);
+    const toReceive = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
+    receiveOrder(station.id, toReceive.id, { liters: 1000 }, actor);
+
+    const history = listOrdersPaged(station.id, { status: ["received", "cancelled"] });
+    expect(history.orders.map((o) => o.id).sort()).toEqual([toCancel.id, toReceive.id].sort());
+    expect(history.orders.some((o) => o.id === draft.id)).toBe(false);
+  });
+
+  it("baska istasyonun siparislerini gostermez", () => {
+    const other = createTestStation();
+    const otherSupplier = createSupplier(other.id, { name: "Baska Tedarikci" }, actor).id;
+    createOrder(station.id, { fuelType: "benzin", supplierId, liters: 500 }, actor);
+    createOrder(other.id, { fuelType: "benzin", supplierId: otherSupplier, liters: 500 }, actor);
+
+    const result = listOrdersPaged(station.id, {});
+    expect(result.orders).toHaveLength(1);
+    expect(result.total).toBe(1);
+  });
+
+  it("total TUM eslesenleri yansitir, sadece o sayfayi degil", () => {
+    for (let i = 0; i < 5; i++) {
+      createOrder(station.id, { fuelType: "benzin", supplierId, liters: 100 }, actor);
+    }
+
+    const page1 = listOrdersPaged(station.id, { page: 1, pageSize: 2 });
+    expect(page1.orders).toHaveLength(2);
+    expect(page1.total).toBe(5);
+
+    const page3 = listOrdersPaged(station.id, { page: 3, pageSize: 2 });
+    expect(page3.orders).toHaveLength(1);
+    expect(page3.total).toBe(5);
+  });
+
+  it("pageSize ve page sinirlarini asamaz", () => {
+    createOrder(station.id, { fuelType: "benzin", supplierId, liters: 100 }, actor);
+
+    const result = listOrdersPaged(station.id, { page: -3, pageSize: 5000 });
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(200);
   });
 });

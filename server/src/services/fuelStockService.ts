@@ -3,6 +3,7 @@ import { evaluateDelivery, raiseShortDeliveryAlarm, type DeliveryVarianceResult 
 import type { FuelStockMovementRow, FuelTankRow, FuelType, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { createAlarm, broadcastAlarms } from "./alarmService.js";
+import { BUSINESS_DAY_SQL_OFFSET } from "../utils/businessDay.js";
 
 export class FuelStockError extends Error {
   constructor(
@@ -410,22 +411,76 @@ export function setDeliveryRef(id: number, stationId: number, deliveryRef: strin
   return getMovementById(id, stationId);
 }
 
-export function listMovements(stationId: number, filters: { fuelType?: FuelType; limit?: number }): (FuelStockMovementRow & { username: string | null })[] {
+export interface MovementListFilters {
+  fuelType?: FuelType;
+  from?: string;
+  to?: string;
+  limit?: number;
+}
+
+function buildMovementWhere(stationId: number, filters: MovementListFilters): { where: string; params: unknown[] } {
   const clauses = ["m.station_id = ?"];
   const params: unknown[] = [stationId];
   if (filters.fuelType) {
     clauses.push("m.fuel_type = ?");
     params.push(filters.fuelType);
   }
+  if (filters.from) {
+    clauses.push(`date(m.created_at, '${BUSINESS_DAY_SQL_OFFSET}') >= ?`);
+    params.push(filters.from);
+  }
+  if (filters.to) {
+    clauses.push(`date(m.created_at, '${BUSINESS_DAY_SQL_OFFSET}') <= ?`);
+    params.push(filters.to);
+  }
+  return { where: `WHERE ${clauses.join(" AND ")}`, params };
+}
+
+export function listMovements(stationId: number, filters: MovementListFilters): (FuelStockMovementRow & { username: string | null })[] {
+  const { where, params } = buildMovementWhere(stationId, filters);
   const limit = Math.min(filters.limit ?? 200, 1000);
   return db
     .prepare<unknown[], FuelStockMovementRow & { username: string | null }>(
       `SELECT m.*, u.username as username
        FROM fuel_stock_movements m LEFT JOIN users u ON u.id = m.user_id
-       WHERE ${clauses.join(" AND ")}
+       ${where}
        ORDER BY m.created_at DESC LIMIT ?`
     )
     .all(...params, limit);
+}
+
+export interface PagedMovements {
+  movements: (FuelStockMovementRow & { username: string | null })[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Gercek sayfalama (OFFSET'li). Bu tablo satisla BIRLIKTE her hareket icin buyur
+ * (bkz. #171) - listMovements'in "en son N kayit" davranisi CSV disa aktarimi icin
+ * korunuyor, ekran ise sayfa numarasiyla gezinebilmeli.
+ */
+export function listMovementsPaged(stationId: number, filters: MovementListFilters & { page?: number; pageSize?: number }): PagedMovements {
+  const { where, params } = buildMovementWhere(stationId, filters);
+  const total = (
+    db.prepare<unknown[], { count: number }>(`SELECT COUNT(*) AS count FROM fuel_stock_movements m ${where}`).get(...params) ?? { count: 0 }
+  ).count;
+
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 25, 1), 200);
+  const page = Math.max(filters.page ?? 1, 1);
+  const offset = (page - 1) * pageSize;
+
+  const movements = db
+    .prepare<unknown[], FuelStockMovementRow & { username: string | null }>(
+      `SELECT m.*, u.username as username
+       FROM fuel_stock_movements m LEFT JOIN users u ON u.id = m.user_id
+       ${where}
+       ORDER BY m.created_at DESC LIMIT ? OFFSET ?`
+    )
+    .all(...params, pageSize, offset);
+
+  return { movements, total, page, pageSize };
 }
 
 export interface SupplierSummaryRow {
@@ -437,10 +492,27 @@ export interface SupplierSummaryRow {
   lastDeliveryAt: string;
 }
 
-/** Tedarikci + yakit tipi bazinda teslimat ozeti (Yakit Stoku sayfasindaki "Tedarikci Ozeti" tablosu icin). */
-export function getSupplierSummary(stationId: number): SupplierSummaryRow[] {
+/**
+ * Tedarikci + yakit tipi bazinda teslimat ozeti (Yakit Stoku sayfasindaki "Tedarikci Ozeti" tablosu icin).
+ *
+ * Bu tablo tedarikci x yakit turu sayisi kadar (tipik olarak 15-20) satir uretir - veri
+ * BUYUMEZ, bu yuzden sayfalama degil tarih araligi filtresi eklendi (bkz. #170).
+ * getSupplierDeliveryVariance ile AYNI is gunu tabanli tarih karsilastirmasi kullanilir.
+ */
+export function getSupplierSummary(stationId: number, from?: string, to?: string): SupplierSummaryRow[] {
+  const clauses = ["station_id = ?", "type = 'delivery'", "supplier IS NOT NULL", "trim(supplier) != ''"];
+  const params: (string | number)[] = [stationId];
+  if (from) {
+    clauses.push(`date(created_at, '${BUSINESS_DAY_SQL_OFFSET}') >= ?`);
+    params.push(from);
+  }
+  if (to) {
+    clauses.push(`date(created_at, '${BUSINESS_DAY_SQL_OFFSET}') <= ?`);
+    params.push(to);
+  }
+
   const rows = db
-    .prepare<[number], { supplier: string; fuel_type: FuelType; deliveryCount: number; totalLiters: number; costedLiters: number; totalCost: number; lastDeliveryAt: string }>(
+    .prepare<(string | number)[], { supplier: string; fuel_type: FuelType; deliveryCount: number; totalLiters: number; costedLiters: number; totalCost: number; lastDeliveryAt: string }>(
       `SELECT supplier, fuel_type,
               COUNT(*) as deliveryCount,
               COALESCE(SUM(liters), 0) as totalLiters,
@@ -448,11 +520,11 @@ export function getSupplierSummary(stationId: number): SupplierSummaryRow[] {
               COALESCE(SUM(CASE WHEN unit_cost IS NOT NULL THEN liters * unit_cost ELSE 0 END), 0) as totalCost,
               MAX(created_at) as lastDeliveryAt
        FROM fuel_stock_movements
-       WHERE station_id = ? AND type = 'delivery' AND supplier IS NOT NULL AND trim(supplier) != ''
+       WHERE ${clauses.join(" AND ")}
        GROUP BY supplier, fuel_type
        ORDER BY totalLiters DESC`
     )
-    .all(stationId);
+    .all(...params);
 
   return rows.map((r) => ({
     supplier: r.supplier,

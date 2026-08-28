@@ -21,6 +21,7 @@ import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
 import { runArchive } from "./services/archiveService.js";
+import { refreshRollups } from "./services/rollupService.js";
 import { encryptLegacyPlaintextSecrets } from "./utils/secretsCrypto.js";
 import { processWriteQueue, pruneWriteQueue } from "./services/writeQueueService.js";
 import "./services/alarmService.js"; // write-queue handler'ini (critical_alarm_notification) kaydeder
@@ -211,6 +212,25 @@ const archiveInterval = setInterval(() => {
   }
 }, env.ARCHIVE_INTERVAL_HOURS * 60 * 60 * 1000);
 archiveInterval.unref();
+
+// Konsolide rapor icin gunluk ozet (rollup) - bkz. services/rollupService.ts.
+// Ilk calistirmada TUM gecmisi bir kerede geriye doldurur (tek seferlik maliyet),
+// sonraki her calistirmada yalnizca son 7 gunu yeniden hesaplar (gec gelen iade/
+// duzeltmeler icin kendi kendini onaran pencere).
+//
+// Baslangicta HEMEN calistirilmiyor - archiveInterval ile ayni gerekce: ilk backfill
+// buyuk bir tabloda potansiyel olarak uzun surebilir, sunucunun acilis saniyeleri
+// bunun icin en kotu an. Kapsam dolana kadar portfolioService otomatik olarak eski
+// (canli) yola duser - rapor yavas kalir ama HICBIR ZAMAN yanlis olmaz.
+const rollupInterval = setInterval(() => {
+  try {
+    const result = refreshRollups();
+    logger.info({ ...result }, "Konsolide rapor ozeti guncellendi.");
+  } catch (err) {
+    logger.error({ err }, "Konsolide rapor ozeti guncellenemedi.");
+  }
+}, 3 * 60 * 60 * 1000);
+rollupInterval.unref();
 
 // Vadesi gecmis filo alacaklari: her hesap icin bir kez kritik alarm acar ve sirket
 // yetkilisine hatirlatma gonderir. Gunde bir kez yeterli - gecikme gun bazinda olculur

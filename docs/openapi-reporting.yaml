@@ -1,0 +1,473 @@
+openapi: 3.0.3
+info:
+  title: Yakıt Platformu - Raporlama/Dışa Aktarım API'si (referans)
+  version: "1.0"
+  description: |
+    Bu dosya ELLE yazılmıştır; koddan OTOMATİK üretilmez veya doğrulanmaz.
+    Sadece iki şey garanti edilir: (1) bir sonraki test (bkz.
+    `server/src/scripts/validateOpenApiReporting.test.ts`) dosyanın geçerli
+    YAML olduğunu doğrular, (2) yazıldığı anda rotalarla (server/src/routes/*.ts)
+    ve servis tipleriyle (server/src/services/*.ts) elle karşılaştırılmıştır.
+    Route imzası değiştiğinde bu dosya OTOMATİK güncellenmez - elle senkron
+    tutulmalıdır. iyzico/Uyumsoft entegrasyonlarında uygulanan "resmi
+    dokümantasyon olmadan bir şey uydurulmaz" ilkesinin burada tersi ama aynı
+    dürüstlük standardı geçerlidir: burada BİZ dokümantasyonu yazıyoruz, bu
+    yüzden neyin kod tarafından garanti edildiği neyin bu dosyanın bir anlık
+    görüntüsü olduğu açıkça belirtilir.
+
+    Kapsam BİLEREK DAR tutulmuştur: platformun ~190 ucunun tamamı değil, bir
+    dağıtım şirketinin kendi BI/ERP/muhasebe sistemine veri çekerken gerçekten
+    ihtiyaç duyacağı raporlama/dışa aktarım uçları. Kiosk API'si (/api/kiosk/*)
+    ve istasyon ajanı senkron API'si (/api/sync/*) bu kitle için alakasızdır ve
+    dahil edilmemiştir.
+  contact:
+    name: Yakıt Platformu
+servers:
+  - url: "{baseUrl}"
+    variables:
+      baseUrl:
+        default: "https://your-station-domain.example.com"
+        description: PUBLIC_API_BASE_URL (.env) ile aynı, sunucunun herkese açık adresi.
+
+security:
+  - sessionCookie: []
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: yakit_sid
+      description: |
+        Kullanıcı adı/şifre (+ etkinse 2FA) ile /api/auth/login üzerinden alınan
+        oturum çerezi. Bu dosyadaki tüm uçlar GET olduğundan CSRF başlığı
+        gerekmez (CSRF koruması yalnızca durum değiştiren POST/PATCH/DELETE
+        uçlarına uygulanır - bkz. middleware/auth.ts csrfProtection).
+  parameters:
+    from:
+      name: from
+      in: query
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Başlangıç tarihi (YYYY-MM-DD, dahil). Belirtilmezse uca özgü bir varsayılan uygulanır.
+    to:
+      name: to
+      in: query
+      schema:
+        type: string
+        pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Bitiş tarihi (YYYY-MM-DD, dahil). Belirtilmezse uca özgü bir varsayılan uygulanır.
+  responses:
+    Unauthorized:
+      description: Oturum yok veya süresi dolmuş.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: "Oturum gerekli. Lutfen giris yapin." }
+    Forbidden:
+      description: Oturum geçerli ama rol bu ucu görmeye yetkili değil.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string, example: "Bu islem icin yetkiniz yok." }
+    BadRequest:
+      description: Geçersiz sorgu parametresi (ör. tarih formatı, from > to).
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error: { type: string }
+
+  schemas:
+    ByFuelTypeRow:
+      type: object
+      properties:
+        fuelType: { type: string, enum: [benzin, motorin, lpg] }
+        count: { type: integer }
+        revenue: { type: number, description: "Net ciro (indirim/puan düşülmüş)." }
+        discount: { type: number }
+        grossRevenue: { type: number, description: "Brüt ciro (indirim düşülmeden önce)." }
+        liters: { type: number }
+        avgCostPerLiter: { type: number, nullable: true, description: "Maliyet hiç girilmemişse null." }
+        estimatedGrossProfit: { type: number, nullable: true, description: "avgCostPerLiter null ise null; bir TAHMİNDİR, satış anındaki değil GÜNCEL ortalama maliyet kullanılır." }
+
+    ReportsSummaryResponse:
+      type: object
+      properties:
+        totals:
+          type: object
+          properties:
+            transactionCount: { type: integer }
+            totalRevenue: { type: number }
+            totalDiscount: { type: number }
+            totalLiters: { type: number }
+            completedCount: { type: integer }
+            cancelledCount: { type: integer }
+            failedCount: { type: integer }
+        byFuelType:
+          type: array
+          items: { $ref: "#/components/schemas/ByFuelTypeRow" }
+        byDay:
+          type: array
+          items:
+            type: object
+            properties:
+              day: { type: string, example: "2026-08-27" }
+              count: { type: integer }
+              revenue: { type: number }
+        byPump:
+          type: array
+          items:
+            type: object
+            properties:
+              pumpNumber: { type: integer }
+              count: { type: integer }
+              revenue: { type: number }
+              liters: { type: number }
+        byPaymentMethod:
+          type: array
+          items:
+            type: object
+            properties:
+              paymentMethod: { type: string, example: "iyzico" }
+              count: { type: integer }
+              revenue: { type: number }
+        byHour:
+          type: array
+          items:
+            type: object
+            properties:
+              hour: { type: integer, minimum: 0, maximum: 23 }
+              count: { type: integer }
+              revenue: { type: number }
+
+    ReportsRefundsResponse:
+      type: object
+      properties:
+        totals:
+          type: object
+          properties:
+            refundCount: { type: integer }
+            refundedAmount: { type: number }
+        byDay:
+          type: array
+          items:
+            type: object
+            properties:
+              day: { type: string }
+              count: { type: integer }
+              amount: { type: number }
+        byMethod:
+          type: array
+          items:
+            type: object
+            properties:
+              paymentMethod: { type: string }
+              count: { type: integer }
+              amount: { type: number }
+        recent:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              transactionId: { type: integer }
+              amount: { type: number }
+              reason: { type: string, nullable: true }
+              paymentMethod: { type: string }
+              createdAt: { type: string, format: date-time }
+              plate: { type: string }
+              username: { type: string, nullable: true }
+
+    AccountingExportRow:
+      type: object
+      properties:
+        businessDate: { type: string, example: "2026-08-27" }
+        transactionCount: { type: integer }
+        grossRevenue: { type: number }
+        discountAmount: { type: number, description: "Kampanya kodu VE sadakat puanı kullanımı birleşik (aynı para kolonu)." }
+        loyaltyPointsRedeemed: { type: integer, description: "PUAN cinsinden - para değil, bilgi amaçlıdır." }
+        netRevenue: { type: number, description: "Gerçekten tahsil edilen (KDV dahil) = MAX(0, brüt - indirim)." }
+        vatAmount: { type: number, description: "netRevenue içindeki KDV payı." }
+        netRevenueExVat: { type: number }
+        refundCount: { type: integer }
+        refundAmount: { type: number }
+        byPaymentMethod:
+          type: object
+          additionalProperties: { type: number }
+          description: "Anahtarlar üst seviyedeki paymentMethods listesiyle aynıdır."
+
+    AccountingExportResponse:
+      type: object
+      properties:
+        from: { type: string }
+        to: { type: string }
+        paymentMethods:
+          type: array
+          items: { type: string }
+          description: "Aralıktaki tüm günlerde görülen ödeme yöntemlerinin birleşimi - CSV başlıklarının sabit sırada kalması için."
+        rows:
+          type: array
+          items: { $ref: "#/components/schemas/AccountingExportRow" }
+        totals:
+          allOf:
+            - $ref: "#/components/schemas/AccountingExportRow"
+          description: "byPaymentMethod/businessDate hariç, rows'un toplamı."
+
+    PortfolioStationRow:
+      type: object
+      properties:
+        stationId: { type: integer }
+        stationName: { type: string }
+        stationCode: { type: string, nullable: true }
+        active: { type: integer, enum: [0, 1] }
+        transactionCount: { type: integer }
+        revenue: { type: number }
+        discount: { type: number }
+        liters: { type: number }
+        activeAlarms: { type: integer }
+        criticalAlarms: { type: integer }
+        openSupportRequests: { type: integer }
+        varianceLiters: { type: number, nullable: true, description: "Ölçüm yoksa null; eksi değer kayıp anlamına gelir." }
+        lastSyncedAt: { type: string, format: date-time, nullable: true }
+
+    PortfolioResponse:
+      type: object
+      properties:
+        report:
+          type: object
+          properties:
+            from: { type: string }
+            to: { type: string }
+            stations:
+              type: array
+              description: "Yalnizca ISTENEN SAYFANIN istasyonlari (bkz. asagidaki page/pageSize)."
+              items: { $ref: "#/components/schemas/PortfolioStationRow" }
+            totals:
+              type: object
+              description: "Sayfadan BAGIMSIZ - her zaman TUM istasyonlar uzerinden hesaplanir."
+              properties:
+                stationCount: { type: integer }
+                activeStationCount: { type: integer }
+                transactionCount: { type: integer }
+                revenue: { type: number }
+                discount: { type: number }
+                liters: { type: number }
+                activeAlarms: { type: integer }
+                criticalAlarms: { type: integer }
+                openSupportRequests: { type: integer }
+                varianceLiters: { type: number }
+        total: { type: integer, description: "Tum istasyon sayisi (sayfalama icin - report.stations.length DEGIL)." }
+        page: { type: integer }
+        pageSize: { type: integer }
+
+    ReconciliationSummaryResponse:
+      type: object
+      properties:
+        summary:
+          type: object
+          properties:
+            businessDate: { type: string }
+            transactionCount: { type: integer }
+            grossAmount: { type: number }
+            discountAmount: { type: number }
+            expectedTotal: { type: number, description: "O gün kasada kalması beklenen net tutar (brüt - indirim - o gün kesilen iadeler)." }
+            refundedAmount: { type: number }
+            refundedCount: { type: integer }
+            byPaymentMethod:
+              type: array
+              items:
+                type: object
+                properties:
+                  paymentMethod: { type: string }
+                  count: { type: integer }
+                  amount: { type: number }
+            byFuelType:
+              type: array
+              items:
+                type: object
+                properties:
+                  fuelType: { type: string }
+                  count: { type: integer }
+                  liters: { type: number }
+                  amount: { type: number }
+            pending:
+              type: array
+              description: "Parası bloke edilmiş/tahsilatı tamamlanmamış işlemler - mutabakatsızlığın genelde asıl kaynağı."
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  plate: { type: string }
+                  status: { type: string }
+                  paymentMethod: { type: string }
+                  paymentStatus: { type: string }
+                  amount: { type: number }
+                  createdAt: { type: string, format: date-time }
+            closed:
+              nullable: true
+              type: object
+              description: "O gün zaten kapatılmışsa (POST /api/reconciliation/close ile), o kayıt; aksi halde null."
+              properties:
+                id: { type: integer }
+                businessDate: { type: string }
+                expectedTotal: { type: number }
+                declaredTotal: { type: number, description: "Operatörün ELLE girdiği, banka/POS ekstresinden okunan gerçekleşen tutar." }
+                difference: { type: number }
+                pendingCount: { type: integer }
+                note: { type: string, nullable: true }
+                closedAt: { type: string, format: date-time }
+                closedBy: { type: string, nullable: true }
+
+paths:
+  /api/reports/summary:
+    get:
+      summary: Ciro/kâr özeti (tek istasyon)
+      description: |
+        Yalnızca super_admin/tenant_admin/admin/viewer rolleri görebilir (operatör
+        göremez - ciro rakamları sahada çalışan personelin değil işletmenin bilgisidir).
+        Seçili istasyon bağlamında çalışır (requireStationSelected).
+      parameters:
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+      responses:
+        "200":
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportsSummaryResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reports/refunds:
+    get:
+      summary: İade raporu (tek istasyon)
+      description: |
+        İade, işlem üzerinde bir bayrak değil kendi başına bir olaydır ve
+        GERÇEKLEŞTİĞİ güne yazılır (orijinal satışın gününe değil) - gün sonu
+        mutabakatıyla aynı kural.
+      parameters:
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+      responses:
+        "200":
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReportsRefundsResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reports/accounting-export:
+    get:
+      summary: Muhasebe/BI dışa aktarımı (tek istasyon, iş günü bazında)
+      description: |
+        Diğer /api/reports uçlarından daha hassas: KDV ayrımı ve iş günü bazında
+        özet doğrudan muhasebe/ERP'ye taşınacak veridir. Bu yüzden yalnızca
+        super_admin/admin görebilir (tenant_admin ve viewer bu ucu GÖREMEZ, diğer
+        raporları görebilseler de).
+
+        Logo/Netsis/Mikro gibi ürünlerin resmi API dokümantasyonu bulunmadığından
+        bunlara "gerçek" bir entegrasyon yazılmamıştır (iyzico/Uyumsoft'un aksine);
+        bunun yerine bu ürünlerin çoğu tarafından kabul edilen CSV içe aktarma
+        şekli + aynı veriye programatik erişim için bir JSON biçimi sunulur.
+      parameters:
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+        - name: format
+          in: query
+          schema: { type: string, enum: [json, csv], default: json }
+      responses:
+        "200":
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/AccountingExportResponse" }
+            text/csv:
+              schema:
+                type: string
+                description: "UTF-8 BOM'lu, ';' değil ',' ayraçlı CSV. Content-Disposition: attachment."
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/portfolio:
+    get:
+      summary: Konsolide (çok istasyonlu) rapor
+      description: |
+        /api/reports'un aksine tek bir istasyona bağlı DEĞİLDİR - yalnızca
+        super_admin (tüm istasyonlar) ve tenant_admin (yalnızca kendi dağıtım
+        şirketinin istasyonları) görebilir. Tek istasyonlu roller (admin/operator/viewer)
+        bu uca erişemez.
+      parameters:
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: "1 tabanli sayfa numarasi. Yalnizca report.stations dizisini etkiler, totals'i degil."
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+      responses:
+        "200":
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/PortfolioResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/portfolio/export.csv:
+    get:
+      summary: Konsolide rapor - CSV dışa aktarımı
+      description: /api/portfolio ile aynı veri, CSV biçiminde (istasyon başına bir satır).
+      parameters:
+        - $ref: "#/components/parameters/from"
+        - $ref: "#/components/parameters/to"
+      responses:
+        "200":
+          description: Başarılı.
+          content:
+            text/csv:
+              schema:
+                type: string
+                description: "Sütunlar: istasyon,kod,durum,islem,ciro,indirim,litre,acik_alarm,kritik_alarm,acik_destek,sapma_litre,son_senkron"
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/reconciliation/summary:
+    get:
+      summary: Gün sonu kasa/ödeme mutabakatı özeti (tek gün, tek istasyon)
+      description: |
+        Sistemin kaydına göre "şu kadar tahsil edilmiş olmalı" (expectedTotal) ile
+        banka/POS ekstresine GERÇEKTEN geçen tutarın (declaredTotal, bkz. `closed`)
+        karşılaştırılması içindir. iyzico'nun hakediş/ekstre raporunu çekecek bir
+        ucu olmadığından declaredTotal ELLE girilir (POST /api/reconciliation/close,
+        bu dosyanın kapsamı dışında - yalnızca okuma uçları belgelenmiştir).
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            pattern: '^\d{4}-\d{2}-\d{2}$'
+          description: "Belirtilmezse bugünün iş günü (utils/businessDay.ts) kullanılır."
+      responses:
+        "200":
+          description: Başarılı.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ReconciliationSummaryResponse" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }

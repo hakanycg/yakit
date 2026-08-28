@@ -210,6 +210,15 @@ export async function refundTransaction(
       .get(transactionId);
     if (!movement) throw new RefundError("Bu islemin filo tahsilat kaydi bulunamadi.", 409);
     refundFleetCharge(stationId, movement.fleet_account_id, amount, transactionId);
+  } else if (t.payment_method === "pos") {
+    // POS icin henuz gercek bir donanim/vendor entegrasyonu yok (bkz. posDriver.ts,
+    // gorev #141) - bu dal olmasaydi 'pos' sessizce asagidaki INSERT'e duserdi ve
+    // gercek parasi hicbir yere iade edilmeden "iade edildi" kaydi olusurdu (tam da
+    // bu sistemde bastan beri kacinilan sahte-basari hatasi).
+    throw new RefundError(
+      "POS ile yapilan odemeler icin iade henuz desteklenmiyor (donanim entegrasyonu tamamlanmadan).",
+      409
+    );
   }
 
   const refundId = db
