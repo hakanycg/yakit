@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "./api";
 import { useAuth } from "./AuthContext";
@@ -9,19 +9,18 @@ import type { Station } from "./types";
 /**
  * Sidebar'in en ustundeki "istasyon karti".
  *
- * super_admin ve tenant_admin icin gercek bir acilir menu (istasyonlar arasi gecis);
- * ikisinin de sabit bir istasyonu yoktur. Aradaki fark listenin icerigidir ve bunu
- * SUNUCU belirler: /api/stations/search, tenant_admin'e yalnizca kendi kiracisinin
- * istasyonlarini doner (bkz. routes/stations.ts). Istemcinin filtrelemesine
- * guvenilmez - izolasyon sunucuda zorlanir.
+ * SABIT bir gostergedir - tiklanip acilir bir menu DEGILDIR: hangi istasyonun
+ * verisi gosteriliyorsa o, kazayla degistirilemesin diye. Istasyonlar arasi
+ * gecis yalnizca Istasyonlar sayfasindaki (bkz. Stations.tsx) "Bu istasyona
+ * geç" butonuyla, bilinçli bir eylemle yapilir.
  *
- * Binlerce istasyon olabilecegi icin (bkz. Stations.tsx'teki ayni gerekce) TUM
- * liste onceden CEKILMEZ: acilis aninda su anki secili istasyon /api/stations/current
- * ile (tek satir) getirilir, acilir menu ise yazildikca sunucu taraflı arayan
- * /api/stations/search ile doldurulur (StationCombobox.tsx ile ayni desen).
+ * super_admin/tenant_admin icin ilk girişte (henüz hiç istasyon seçilmemişse)
+ * ilk istasyon SESSIZCE otomatik secilir - aksi halde bir istasyon secilene
+ * kadar `requireStationSelected` gerektiren hiçbir sayfa çalışmazdı. Bu, bir
+ * kullanıcı EYLEMİ değil, yalnızca bir varsayılan atamadır.
  *
  * Diger roller icin kendi istasyonlarinin adini (bkz. auth.ts /me -> stationName)
- * sadece goruntuleyen, tiklanamayan sabit bir kart.
+ * goruntuleyen, zaten sabit bir kart.
  */
 export default function StationSwitcher() {
   const { user } = useAuth();
@@ -29,16 +28,7 @@ export default function StationSwitcher() {
   const [currentStation, setCurrentStation] = useState<Station | null>(null);
   const [hasAnyStation, setHasAnyStation] = useState(true);
   const [stationId, setStationId] = useCurrentStationId();
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Station[]>([]);
-  const [loadingResults, setLoadingResults] = useState(false);
-  const boxRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Secili bir istasyon zaten varsa adini getirir; hic yoksa (ilk giris) ilk
-  // istasyonu bulup otomatik secer - eskiden "tum listenin ilk elemani" ile
-  // yapilan bu varsayilan artik arama ucundan TEK bir sonucla yapiliyor.
   useEffect(() => {
     if (!canSwitch) return;
     if (stationId !== null) {
@@ -48,6 +38,7 @@ export default function StationSwitcher() {
         .catch(() => setCurrentStation(null));
       return;
     }
+    // Henuz hic istasyon secilmemis (ilk giris) - sessizce ilk istasyona baglanir.
     api.get<{ stations: Station[] }>("/api/stations/search?limit=1").then((res) => {
       if (res.stations.length > 0) {
         setCurrentStation(res.stations[0]!);
@@ -58,31 +49,6 @@ export default function StationSwitcher() {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canSwitch, stationId]);
-
-  useEffect(() => {
-    if (!open) {
-      setQuery("");
-      return;
-    }
-    inputRef.current?.focus();
-    setLoadingResults(true);
-    const timer = setTimeout(() => {
-      api
-        .get<{ stations: Station[] }>(`/api/stations/search?q=${encodeURIComponent(query.trim())}&limit=20`)
-        .then((res) => setResults(res.stations))
-        .finally(() => setLoadingResults(false));
-    }, 200);
-    return () => clearTimeout(timer);
-  }, [open, query]);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocClick(e: MouseEvent) {
-      if (boxRef.current && !boxRef.current.contains(e.target as Node)) setOpen(false);
-    }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
 
   if (!user) return null;
 
@@ -101,62 +67,27 @@ export default function StationSwitcher() {
   if (user.role === "tenant_admin" && !hasAnyStation) {
     return (
       <div className="sidebar-org-card">
-        <button type="button" className="sidebar-card-trigger" style={{ cursor: "default" }} disabled>
+        <div className="sidebar-card-trigger" style={{ cursor: "default" }}>
           <span className="sidebar-avatar">{initials(user.tenantName ?? "?")}</span>
           <span className="sidebar-card-text">
             <strong>{user.tenantName ?? "Dağıtım Şirketi"}</strong>
           </span>
-        </button>
+        </div>
         <p className="hint-text" style={{ margin: "0.4rem 0 0" }}>Henüz istasyon atanmamış.</p>
       </div>
     );
   }
 
-  const currentName = canSwitch ? currentStation?.name ?? "İstasyon seçin" : user.stationName ?? "Yakıt İstasyonu";
+  const currentName = canSwitch ? currentStation?.name ?? "…" : user.stationName ?? "Yakıt İstasyonu";
 
   return (
-    <div className="sidebar-org-card" ref={boxRef}>
-      <button
-        type="button"
-        className="sidebar-card-trigger"
-        onClick={() => canSwitch && setOpen((v) => !v)}
-        style={{ cursor: canSwitch ? "pointer" : "default" }}
-      >
+    <div className="sidebar-org-card">
+      <div className="sidebar-card-trigger" style={{ cursor: "default" }}>
         <span className="sidebar-avatar">{initials(currentName)}</span>
         <span className="sidebar-card-text">
           <strong>{currentName}</strong>
         </span>
-        {canSwitch && <span className={`sidebar-chevron${open ? " open" : ""}`}>▾</span>}
-      </button>
-      {canSwitch && open && (
-        <div className="sidebar-dropdown">
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="İstasyon ara..."
-            style={{ marginBottom: "0.3rem" }}
-          />
-          {loadingResults && <p className="hint-text" style={{ padding: "0.3rem 0.6rem" }}>Aranıyor...</p>}
-          {!loadingResults && results.length === 0 && (
-            <p className="hint-text" style={{ padding: "0.3rem 0.6rem" }}>Sonuç bulunamadı.</p>
-          )}
-          {!loadingResults && results.map((s) => (
-            <button
-              key={s.id}
-              type="button"
-              className={`sidebar-dropdown-item${s.id === stationId ? " active" : ""}`}
-              onClick={() => {
-                setStationId(s.id);
-                setCurrentStation(s);
-                setOpen(false);
-              }}
-            >
-              {s.name}
-            </button>
-          ))}
-        </div>
-      )}
+      </div>
     </div>
   );
 }
