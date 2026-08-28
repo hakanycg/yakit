@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 import { AlertIcon, CheckCircleIcon, FuelIcon, WalletIcon } from "../../shared/icons";
+import Pagination from "../../shared/Pagination";
+
+const PAGE_SIZE = 20;
 
 /**
  * Konsolide (cok istasyonlu) rapor.
@@ -56,10 +59,25 @@ export default function Portfolio() {
   const [from, setFrom] = useState(() => businessDate(29));
   const [to, setTo] = useState(() => businessDate(0));
   const [report, setReport] = useState<PortfolioReport | null>(null);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+
+  // Tarih araligi degistiginde sayfa 1'e donulur - AYNI olay isleyicisinde (bkz.
+  // asagidaki input onChange'leri), aksi halde eski sayfa+yeni tarihle bir kere,
+  // sayfa 1+yeni tarihle bir kere olmak uzere CIFT sorgu atilirdi.
+  function updateRange(setter: (v: string) => void, value: string) {
+    setter(value);
+    setPage(1);
+  }
 
   useEffect(() => {
-    api.get<{ report: PortfolioReport }>(`/api/portfolio?from=${from}&to=${to}`).then((res) => setReport(res.report));
-  }, [from, to]);
+    api
+      .get<{ report: PortfolioReport; total: number }>(`/api/portfolio?from=${from}&to=${to}&page=${page}&pageSize=${PAGE_SIZE}`)
+      .then((res) => {
+        setReport(res.report);
+        setTotal(res.total);
+      });
+  }, [from, to, page]);
 
   const t = report?.totals;
 
@@ -75,11 +93,11 @@ export default function Portfolio() {
         <label htmlFor="pf-from" style={{ margin: 0 }}>
           Başlangıç
         </label>
-        <input id="pf-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 170 }} />
+        <input id="pf-from" type="date" value={from} onChange={(e) => updateRange(setFrom, e.target.value)} style={{ width: 170 }} />
         <label htmlFor="pf-to" style={{ margin: 0 }}>
           Bitiş
         </label>
-        <input id="pf-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 170 }} />
+        <input id="pf-to" type="date" value={to} onChange={(e) => updateRange(setTo, e.target.value)} style={{ width: 170 }} />
         <div className="spacer" />
         <a href={`/api/portfolio/export.csv?from=${from}&to=${to}`}>
           <button type="button">CSV İndir</button>
@@ -188,6 +206,7 @@ export default function Portfolio() {
           </tbody>
         </table>
       </div>
+      <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
     </div>
   );
 }

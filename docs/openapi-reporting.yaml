@@ -247,9 +247,11 @@ components:
             to: { type: string }
             stations:
               type: array
+              description: "Yalnizca ISTENEN SAYFANIN istasyonlari (bkz. asagidaki page/pageSize)."
               items: { $ref: "#/components/schemas/PortfolioStationRow" }
             totals:
               type: object
+              description: "Sayfadan BAGIMSIZ - her zaman TUM istasyonlar uzerinden hesaplanir."
               properties:
                 stationCount: { type: integer }
                 activeStationCount: { type: integer }
@@ -261,6 +263,9 @@ components:
                 criticalAlarms: { type: integer }
                 openSupportRequests: { type: integer }
                 varianceLiters: { type: number }
+        total: { type: integer, description: "Tum istasyon sayisi (sayfalama icin - report.stations.length DEGIL)." }
+        page: { type: integer }
+        pageSize: { type: integer }
 
     ReconciliationSummaryResponse:
       type: object
@@ -405,6 +410,13 @@ paths:
       parameters:
         - $ref: "#/components/parameters/from"
         - $ref: "#/components/parameters/to"
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 1, default: 1 }
+          description: "1 tabanli sayfa numarasi. Yalnizca report.stations dizisini etkiler, totals'i degil."
+        - name: pageSize
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
       responses:
         "200":
           description: Başarılı.

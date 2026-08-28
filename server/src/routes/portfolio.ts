@@ -28,6 +28,8 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD bic
 const querySchema = z.object({
   from: dateSchema.optional(),
   to: dateSchema.optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
 });
 
 function resolveRange(q: z.infer<typeof querySchema>): { from: string; to: string } {
@@ -41,7 +43,18 @@ function resolveRange(q: z.infer<typeof querySchema>): { from: string; to: strin
 router.get("/", validateQuery(querySchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof querySchema> }).validatedQuery;
   const { from, to } = resolveRange(q);
-  res.json({ report: getPortfolioReport({ tenantId: req.user!.tenant_id }, from, to) });
+  const report = getPortfolioReport({ tenantId: req.user!.tenant_id }, from, to);
+
+  // Sayfalama yalnizca TABLO gorunumu icindir: toplamlar (totals) her zaman
+  // TUM istasyonlar uzerinden hesaplanmis kalir - aksi halde sayfa 2'ye
+  // gecince "Toplam ciro" karti yanlislikla sadece o sayfayi yansitirdi.
+  const pageSize = Math.min(Math.max(q.pageSize ?? 20, 1), 100);
+  const page = Math.max(q.page ?? 1, 1);
+  const total = report.stations.length;
+  const start = (page - 1) * pageSize;
+  const pagedReport = { ...report, stations: report.stations.slice(start, start + pageSize) };
+
+  res.json({ report: pagedReport, total, page, pageSize });
 });
 
 router.get("/export.csv", validateQuery(querySchema), (req, res) => {
