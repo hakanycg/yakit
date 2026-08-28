@@ -94,6 +94,76 @@ export function listAlarms(stationId: number, status?: AlarmRow["status"]): Alar
     .all(stationId);
 }
 
+export interface AlarmListFilters {
+  status?: AlarmRow["status"];
+  severity?: AlarmRow["severity"];
+  type?: string;
+  pumpId?: number;
+  /** YYYY-MM-DD, dahil. */
+  from?: string;
+  /** YYYY-MM-DD, dahil (gunun sonuna kadar uzatilir). */
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PagedAlarms {
+  alarms: AlarmRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * Alarm Merkezi ekrani icin filtreli + SAYFALI liste. listAlarms()'in aksine
+ * (o, sadece status'e gore dallanan iki sabit sorgu - broadcastAlarms ve
+ * eski cagiranlarin davranisini degistirmemek icin dokunulmadi) burada dinamik
+ * bir WHERE ve HER ZAMAN bir LIMIT/OFFSET vardir - filtre uygulansa da
+ * uygulanmasa da sonuc sinirsiz BUYUYEMEZ (eski listAlarms'ta status verilince
+ * hicbir sinir yoktu, bu bir olcekleme hatasiydi).
+ */
+export function listAlarmsPaged(stationId: number, filters: AlarmListFilters = {}): PagedAlarms {
+  const clauses = ["station_id = ?"];
+  const params: (string | number)[] = [stationId];
+  if (filters.status) {
+    clauses.push("status = ?");
+    params.push(filters.status);
+  }
+  if (filters.severity) {
+    clauses.push("severity = ?");
+    params.push(filters.severity);
+  }
+  if (filters.type) {
+    clauses.push("type = ?");
+    params.push(filters.type);
+  }
+  if (filters.pumpId !== undefined) {
+    clauses.push("pump_id = ?");
+    params.push(filters.pumpId);
+  }
+  if (filters.from) {
+    clauses.push("created_at >= ?");
+    params.push(filters.from);
+  }
+  if (filters.to) {
+    clauses.push("created_at <= ?");
+    params.push(`${filters.to}T23:59:59.999Z`);
+  }
+  const where = clauses.join(" AND ");
+
+  const total = (db.prepare(`SELECT COUNT(*) as c FROM alarms WHERE ${where}`).get(...params) as { c: number }).c;
+
+  const page = Math.max(filters.page ?? 1, 1);
+  const pageSize = Math.min(Math.max(filters.pageSize ?? 25, 1), 100);
+  const offset = (page - 1) * pageSize;
+
+  const alarms = db
+    .prepare<(string | number)[], AlarmRow>(`SELECT * FROM alarms WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
+    .all(...params, pageSize, offset);
+
+  return { alarms, total, page, pageSize };
+}
+
 export function broadcastAlarms(stationId: number): void {
   broadcast(`alarms:${stationId}`, listAlarms(stationId, "active").map(serializeAlarm));
 }
