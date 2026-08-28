@@ -99,6 +99,39 @@ describe("sendWebhook", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("IPv4-eslesmis IPv6 (::ffff:127.0.0.1) literal adresi engellenir (SSRF)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("http://[::ffff:127.0.0.1]/hook", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toMatch(/yerel\/ozel/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("IPv4-eslesmis IPv6'nin onaltilik formu (::ffff:7f00:1, new URL()'nin normallestirdigi) engellenir (SSRF)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("http://[::ffff:7f00:1]/hook", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toMatch(/yerel\/ozel/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("IPv6 benzersiz yerel adres (ULA, fc00::/7) engellenir (SSRF)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("http://[fd12:3456:789a::1]/hook", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toMatch(/yerel\/ozel/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("http/https disindaki bir sema reddedilir", async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);

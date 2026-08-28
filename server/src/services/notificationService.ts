@@ -117,7 +117,17 @@ export async function sendSms(to: string, message: string): Promise<SendResult> 
 function isBlockedIp(ip: string): boolean {
   if (isIP(ip) === 6) {
     const lower = ip.toLowerCase();
-    return lower === "::" || lower === "::1" || lower.startsWith("fe80") || lower.startsWith("fec0") || lower.startsWith("ff");
+    const mappedV4 = extractIpv4MappedAddress(lower);
+    if (mappedV4) return isBlockedIp(mappedV4);
+    return (
+      lower === "::" ||
+      lower === "::1" ||
+      lower.startsWith("fe80") ||
+      lower.startsWith("fec0") ||
+      lower.startsWith("ff") ||
+      lower.startsWith("fc") || // ULA fc00::/7
+      lower.startsWith("fd") // ULA fc00::/7
+    );
   }
   const parts = ip.split(".").map(Number);
   if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
@@ -130,6 +140,23 @@ function isBlockedIp(ip: string): boolean {
   if (a === 192 && b === 0) return true;
   if (a === 198 && (b === 18 || b === 19)) return true;
   return false;
+}
+
+/**
+ * IPv4-mapped IPv6 adresini ("::ffff:127.0.0.1" ya da `new URL()`'nin urettigi
+ * onaltilik "::ffff:7f00:1" formu) icindeki IPv4 adresine cozer. Aksi halde bu
+ * adresler IPv6 dalindan gecip IPv4 kara listesini atlatirdi - isletim sistemi
+ * bunlari baglanti sirasinda gomulu IPv4 adresine cevirir.
+ */
+function extractIpv4MappedAddress(lowerIpv6: string): string | null {
+  const dotted = lowerIpv6.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
+  if (dotted) return dotted[1]!;
+  const hex = lowerIpv6.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+  if (hex) {
+    const value = (parseInt(hex[1]!, 16) << 16) | parseInt(hex[2]!, 16);
+    return [(value >>> 24) & 255, (value >>> 16) & 255, (value >>> 8) & 255, value & 255].join(".");
+  }
+  return null;
 }
 
 /**
