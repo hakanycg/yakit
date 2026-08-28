@@ -122,9 +122,14 @@ export default function Alarms() {
           placeholder="Tip (ör. pump_fault)"
           style={{ width: 180 }}
         />
-        <input type="date" value={dateFrom} onChange={(e) => updateFilter(setDateFrom, e.target.value)} style={{ width: 150 }} />
-        <span className="hint-text">-</span>
-        <input type="date" value={dateTo} onChange={(e) => updateFilter(setDateTo, e.target.value)} style={{ width: 150 }} />
+        <label htmlFor="alarm-date-from" style={{ margin: 0 }}>
+          Başlangıç
+        </label>
+        <input id="alarm-date-from" type="date" value={dateFrom} onChange={(e) => updateFilter(setDateFrom, e.target.value)} style={{ width: 150 }} />
+        <label htmlFor="alarm-date-to" style={{ margin: 0 }}>
+          Bitiş
+        </label>
+        <input id="alarm-date-to" type="date" value={dateTo} onChange={(e) => updateFilter(setDateTo, e.target.value)} style={{ width: 150 }} />
         <div className="spacer" />
         {canManage && escalation && (
           <button type="button" onClick={() => setShowEscalation(true)}>
