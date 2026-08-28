@@ -14,6 +14,7 @@ import {
   handleLatePaymentAfterCancellation,
   markIyzicoPending,
   finalizeTransactionPayment,
+  listTransactionsPaged,
   payWithFleetAccount,
   reconcileStaleCreatedTransactions,
   reconcileStuckTransactions,
@@ -524,5 +525,88 @@ describe("iptal edilen islemin odeme durumu", () => {
     const cancelled = cancelPendingTransaction(transaction.id, accessToken, "Personel iptali");
     // Bloke edilmis para mutabakatta gorunmeye DEVAM etmeli.
     expect(cancelled.payment_status).toBe("authorized");
+  });
+});
+
+describe("listTransactionsPaged", () => {
+  function insertTransaction(stationId: number, pumpId: number, plate: string, at: string): void {
+    db.prepare(
+      `INSERT INTO transactions
+         (station_id, pump_id, plate, fuel_type, amount_mode, price_per_liter, dispensed_liters,
+          total_amount, discount_amount, payment_status, status, kiosk_access_token, created_at, completed_at)
+       VALUES (?, ?, ?, 'benzin', 'amount', 44.5, 10, 445, 0, 'captured', 'completed', ?, ?, ?)`
+    ).run(stationId, pumpId, plate, `tok-${Math.random().toString(16).slice(2)}`, at, at);
+  }
+
+  it("plaka ile kismi eslesme yapar (buyuk/kucuk harf ve bosluktan bagimsiz)", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id, ["benzin"]);
+    insertTransaction(station.id, pumpId, "34 ABC 01", "2026-01-01T10:00:00.000Z");
+    insertTransaction(station.id, pumpId, "06XYZ99", "2026-01-01T11:00:00.000Z");
+
+    const result = listTransactionsPaged(station.id, { plate: "abc" });
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0]!.plate).toBe("34 ABC 01");
+  });
+
+  it("arama teriminde boslugu silinmis plaka, sutunda boslu kayitla da eslesir", () => {
+    // Musteri plakayi bosluksuz yazabilir ("34abc01") - sutunda ("34 ABC 01")
+    // boslugun ARAMA TERIMINDEN silinmesi tek basina yetmez, sutundan da
+    // silinmeli, aksi halde LIKE hicbir zaman eslesmezdi.
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id, ["benzin"]);
+    insertTransaction(station.id, pumpId, "34 ABC 01", "2026-01-01T10:00:00.000Z");
+
+    const result = listTransactionsPaged(station.id, { plate: "34abc01" });
+    expect(result.transactions).toHaveLength(1);
+  });
+
+  it("baska istasyonun islemlerini gostermez", () => {
+    const stationA = createTestStation();
+    const stationB = createTestStation();
+    const pumpA = createTestPump(stationA.id, ["benzin"]);
+    const pumpB = createTestPump(stationB.id, ["benzin"]);
+    insertTransaction(stationA.id, pumpA, "34AAA01", "2026-01-01T10:00:00.000Z");
+    insertTransaction(stationB.id, pumpB, "34BBB01", "2026-01-01T10:00:00.000Z");
+
+    const result = listTransactionsPaged(stationA.id, {});
+    expect(result.transactions).toHaveLength(1);
+    expect(result.transactions[0]!.plate).toBe("34AAA01");
+  });
+
+  it("tarih araligi 'to' gunun sonuna kadar dahil eder", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id, ["benzin"]);
+    insertTransaction(station.id, pumpId, "34IN0001", "2026-03-05T23:50:00.000Z");
+    insertTransaction(station.id, pumpId, "34OUT001", "2026-03-06T00:10:00.000Z");
+
+    const result = listTransactionsPaged(station.id, { from: "2026-03-01", to: "2026-03-05T23:59:59.999Z" });
+    expect(result.transactions.map((t) => t.plate)).toEqual(["34IN0001"]);
+  });
+
+  it("total TUM eslesenleri yansitir, sadece o sayfayi degil", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id, ["benzin"]);
+    for (let i = 0; i < 5; i++) {
+      insertTransaction(station.id, pumpId, `34PAGE0${i}`, `2026-02-0${i + 1}T10:00:00.000Z`);
+    }
+
+    const page1 = listTransactionsPaged(station.id, { page: 1, pageSize: 2 });
+    expect(page1.transactions).toHaveLength(2);
+    expect(page1.total).toBe(5);
+
+    const page3 = listTransactionsPaged(station.id, { page: 3, pageSize: 2 });
+    expect(page3.transactions).toHaveLength(1);
+    expect(page3.total).toBe(5);
+  });
+
+  it("pageSize ve page sinirlarini asamaz", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id, ["benzin"]);
+    insertTransaction(station.id, pumpId, "34LIMIT1", "2026-04-01T10:00:00.000Z");
+
+    const result = listTransactionsPaged(station.id, { page: -3, pageSize: 5000 });
+    expect(result.page).toBe(1);
+    expect(result.pageSize).toBe(200);
   });
 });
