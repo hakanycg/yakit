@@ -1,6 +1,14 @@
 import { createHmac } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { sendWebhook } from "./notificationService.js";
+
+// sendWebhook artik fetch'ten once hedefi DNS'ten cozup yerel/ozel araliklara
+// karsi kontrol ediyor (SSRF korumasi, bkz. notificationService.ts). Testlerdeki
+// "ops.example.com" gercekte cozulmeyebilir (sanal ortamda ENOTFOUND) - bu yuzden
+// DNS taklit edilip herkese-acik bir adrese cozuluyor, testler agdan bagimsiz kalir.
+const lookupMock = vi.hoisted(() => vi.fn(async () => [{ address: "93.184.216.34", family: 4 }]));
+vi.mock("node:dns/promises", () => ({ lookup: lookupMock }));
+
+const { sendWebhook } = await import("./notificationService.js");
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -56,5 +64,49 @@ describe("sendWebhook", () => {
     const result = await sendWebhook("https://ops.example.com/hook", { event: "critical_alarm" }, null);
 
     expect(result).toEqual({ sent: false, reason: "baglanti yok" });
+  });
+
+  it("literal yerel IP'ye giden URL DNS'e hic gitmeden engellenir (SSRF)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("http://127.0.0.1/hook", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toMatch(/yerel\/ozel/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("literal ozel ag (RFC1918) IP'sine giden URL engellenir (SSRF)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("http://192.168.1.10/hook", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("DNS'ten yerel/ozel adrese cozulen hostname engellenir (SSRF)", async () => {
+    lookupMock.mockResolvedValueOnce([{ address: "10.0.0.5", family: 4 }]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("https://ic-servis.ornek.com/hook", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toMatch(/yerel\/ozel/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("http/https disindaki bir sema reddedilir", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await sendWebhook("file:///etc/passwd", { event: "critical_alarm" }, null);
+
+    expect(result.sent).toBe(false);
+    expect(result.reason).toMatch(/http\/https/);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
