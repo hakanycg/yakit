@@ -187,7 +187,7 @@ describe("listOrdersPaged", () => {
   it("birden fazla durumu birlikte filtreler (status IN)", () => {
     const draft = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
     const toCancel = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
-    cancelOrder(station.id, toCancel.id, actor);
+    cancelOrder(station.id, toCancel.id);
     setTankStock(station.id, "motorin", 0);
     const toReceive = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
     receiveOrder(station.id, toReceive.id, { liters: 1000 }, actor);
