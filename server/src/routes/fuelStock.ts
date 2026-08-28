@@ -93,8 +93,14 @@ router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, r
   res.send("﻿" + lines.join("\n"));
 });
 
-router.get("/suppliers/summary", (req, res) => {
-  res.json({ suppliers: getSupplierSummary(req.stationId!) });
+const supplierSummaryQuerySchema = z.object({
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+router.get("/suppliers/summary", validateQuery(supplierSummaryQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof supplierSummaryQuerySchema> }).validatedQuery;
+  res.json({ suppliers: getSupplierSummary(req.stationId!, q.from, q.to) });
 });
 
 // --- Yakit sapma (fiziksel tank olcumu) ---------------------------------------

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { db } from "../db/index.js";
 import { createTestStation, createTestUser } from "../test/dbFixture.js";
 import type { StationRow, UserRow } from "../db/types.js";
 import {
@@ -105,5 +106,29 @@ describe("fuelStockService", () => {
 
     const motorinRow = summary.find((r) => r.supplier === "Tedarikci A" && r.fuelType === "motorin");
     expect(motorinRow!.avgUnitCost).toBeNull(); // no unit cost given for this delivery
+  });
+
+  it("getSupplierSummary tarih araligina gore filtreler", () => {
+    addStock(station.id, "benzin", 1000, { supplier: "Eski Tedarikci" }, actor);
+    db.prepare("UPDATE fuel_stock_movements SET created_at = ? WHERE station_id = ? AND supplier = ?").run(
+      "2026-01-05T10:00:00.000Z",
+      station.id,
+      "Eski Tedarikci"
+    );
+    addStock(station.id, "benzin", 500, { supplier: "Yeni Tedarikci" }, actor);
+    db.prepare("UPDATE fuel_stock_movements SET created_at = ? WHERE station_id = ? AND supplier = ?").run(
+      "2026-03-10T10:00:00.000Z",
+      station.id,
+      "Yeni Tedarikci"
+    );
+
+    const janOnly = getSupplierSummary(station.id, "2026-01-01", "2026-01-31");
+    expect(janOnly.map((r) => r.supplier)).toEqual(["Eski Tedarikci"]);
+
+    const marOnly = getSupplierSummary(station.id, "2026-03-01", "2026-03-31");
+    expect(marOnly.map((r) => r.supplier)).toEqual(["Yeni Tedarikci"]);
+
+    const all = getSupplierSummary(station.id);
+    expect(all.map((r) => r.supplier).sort()).toEqual(["Eski Tedarikci", "Yeni Tedarikci"]);
   });
 });

@@ -3,6 +3,7 @@ import { evaluateDelivery, raiseShortDeliveryAlarm, type DeliveryVarianceResult 
 import type { FuelStockMovementRow, FuelTankRow, FuelType, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { createAlarm, broadcastAlarms } from "./alarmService.js";
+import { BUSINESS_DAY_SQL_OFFSET } from "../utils/businessDay.js";
 
 export class FuelStockError extends Error {
   constructor(
@@ -437,10 +438,27 @@ export interface SupplierSummaryRow {
   lastDeliveryAt: string;
 }
 
-/** Tedarikci + yakit tipi bazinda teslimat ozeti (Yakit Stoku sayfasindaki "Tedarikci Ozeti" tablosu icin). */
-export function getSupplierSummary(stationId: number): SupplierSummaryRow[] {
+/**
+ * Tedarikci + yakit tipi bazinda teslimat ozeti (Yakit Stoku sayfasindaki "Tedarikci Ozeti" tablosu icin).
+ *
+ * Bu tablo tedarikci x yakit turu sayisi kadar (tipik olarak 15-20) satir uretir - veri
+ * BUYUMEZ, bu yuzden sayfalama degil tarih araligi filtresi eklendi (bkz. #170).
+ * getSupplierDeliveryVariance ile AYNI is gunu tabanli tarih karsilastirmasi kullanilir.
+ */
+export function getSupplierSummary(stationId: number, from?: string, to?: string): SupplierSummaryRow[] {
+  const clauses = ["station_id = ?", "type = 'delivery'", "supplier IS NOT NULL", "trim(supplier) != ''"];
+  const params: (string | number)[] = [stationId];
+  if (from) {
+    clauses.push(`date(created_at, '${BUSINESS_DAY_SQL_OFFSET}') >= ?`);
+    params.push(from);
+  }
+  if (to) {
+    clauses.push(`date(created_at, '${BUSINESS_DAY_SQL_OFFSET}') <= ?`);
+    params.push(to);
+  }
+
   const rows = db
-    .prepare<[number], { supplier: string; fuel_type: FuelType; deliveryCount: number; totalLiters: number; costedLiters: number; totalCost: number; lastDeliveryAt: string }>(
+    .prepare<(string | number)[], { supplier: string; fuel_type: FuelType; deliveryCount: number; totalLiters: number; costedLiters: number; totalCost: number; lastDeliveryAt: string }>(
       `SELECT supplier, fuel_type,
               COUNT(*) as deliveryCount,
               COALESCE(SUM(liters), 0) as totalLiters,
@@ -448,11 +466,11 @@ export function getSupplierSummary(stationId: number): SupplierSummaryRow[] {
               COALESCE(SUM(CASE WHEN unit_cost IS NOT NULL THEN liters * unit_cost ELSE 0 END), 0) as totalCost,
               MAX(created_at) as lastDeliveryAt
        FROM fuel_stock_movements
-       WHERE station_id = ? AND type = 'delivery' AND supplier IS NOT NULL AND trim(supplier) != ''
+       WHERE ${clauses.join(" AND ")}
        GROUP BY supplier, fuel_type
        ORDER BY totalLiters DESC`
     )
-    .all(stationId);
+    .all(...params);
 
   return rows.map((r) => ({
     supplier: r.supplier,
