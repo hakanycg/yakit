@@ -37,7 +37,7 @@ import {
   cancelOrder,
   createOrder,
   createSupplier,
-  listOrders,
+  listOrdersPaged,
   listSuppliers,
   receiveOrder,
   sendOrder,
@@ -422,8 +422,32 @@ router.get("/orders/suggestions", (req, res) => {
   res.json({ suggestions: suggestions(req.stationId!) });
 });
 
-router.get("/orders", (req, res) => {
-  res.json({ orders: listOrders(req.stationId!).map(serializeOrder) });
+const orderStatusEnum = z.enum(["draft", "sent", "received", "cancelled"]);
+
+const ordersQuerySchema = z.object({
+  // Virgulle ayrilmis birden fazla durum kabul edilir (ör. "received,cancelled") -
+  // "Gecmis" gorunumu teslim alinan VE iptal edilen siparisleri birlikte ister.
+  status: z
+    .string()
+    .transform((s) => s.split(",").map((v) => v.trim()))
+    .pipe(z.array(orderStatusEnum))
+    .optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
+});
+
+router.get("/orders", validateQuery(ordersQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof ordersQuerySchema> }).validatedQuery;
+  // "to" gun-sonuna kadar dahil olmali - aksi halde o gunun siparisleri disarida kalirdi.
+  const result = listOrdersPaged(req.stationId!, { ...q, to: q.to ? `${q.to}T23:59:59.999Z` : undefined });
+  res.json({
+    orders: result.orders.map(serializeOrder),
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+  });
 });
 
 const orderSchema = z.object({
