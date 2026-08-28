@@ -84,19 +84,24 @@ export default function Transactions() {
           aria-label="Plaka ara"
           style={{ maxWidth: 160 }}
         />
+        <label htmlFor="tx-date-from" style={{ margin: 0 }}>
+          Başlangıç
+        </label>
         <input
+          id="tx-date-from"
           type="date"
           value={dateFrom}
           onChange={(e) => updateFilter(setDateFrom, e.target.value)}
-          aria-label="Başlangıç tarihi"
           style={{ maxWidth: 150 }}
         />
-        <span className="hint-text">-</span>
+        <label htmlFor="tx-date-to" style={{ margin: 0 }}>
+          Bitiş
+        </label>
         <input
+          id="tx-date-to"
           type="date"
           value={dateTo}
           onChange={(e) => updateFilter(setDateTo, e.target.value)}
-          aria-label="Bitiş tarihi"
           style={{ maxWidth: 150 }}
         />
         <div className="spacer" />

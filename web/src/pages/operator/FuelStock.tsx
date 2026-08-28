@@ -142,19 +142,24 @@ export default function FuelStock() {
             <option value="motorin">Motorin</option>
             <option value="lpg">LPG</option>
           </select>
+          <label htmlFor="fs-mov-from" style={{ margin: 0 }}>
+            Başlangıç
+          </label>
           <input
+            id="fs-mov-from"
             type="date"
             value={movementFrom}
             onChange={(e) => updateMovementFilter(setMovementFrom, e.target.value)}
-            aria-label="Başlangıç tarihi"
             style={{ maxWidth: 150 }}
           />
-          <span className="hint-text">-</span>
+          <label htmlFor="fs-mov-to" style={{ margin: 0 }}>
+            Bitiş
+          </label>
           <input
+            id="fs-mov-to"
             type="date"
             value={movementTo}
             onChange={(e) => updateMovementFilter(setMovementTo, e.target.value)}
-            aria-label="Bitiş tarihi"
             style={{ maxWidth: 150 }}
           />
           <a href={csvHref}>
@@ -995,19 +1000,24 @@ function FuelOrdersSection({
           <option value="received">Teslim alındı</option>
           <option value="cancelled">İptal</option>
         </select>
+        <label htmlFor="fs-hist-from" style={{ margin: 0 }}>
+          Başlangıç
+        </label>
         <input
+          id="fs-hist-from"
           type="date"
           value={historyFrom}
           onChange={(e) => updateHistoryFilter(setHistoryFrom, e.target.value)}
-          aria-label="Başlangıç tarihi"
           style={{ maxWidth: 150 }}
         />
-        <span className="hint-text">-</span>
+        <label htmlFor="fs-hist-to" style={{ margin: 0 }}>
+          Bitiş
+        </label>
         <input
+          id="fs-hist-to"
           type="date"
           value={historyTo}
           onChange={(e) => updateHistoryFilter(setHistoryTo, e.target.value)}
-          aria-label="Bitiş tarihi"
           style={{ maxWidth: 150 }}
         />
       </div>

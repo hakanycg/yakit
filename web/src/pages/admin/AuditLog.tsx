@@ -132,9 +132,14 @@ export default function AuditLog() {
           onChange={(e) => setEntityIdFilter(e.target.value)}
           style={{ maxWidth: 140 }}
         />
-        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ maxWidth: 150 }} />
-        <span className="hint-text">-</span>
-        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ maxWidth: 150 }} />
+        <label htmlFor="audit-date-from" style={{ margin: 0 }}>
+          Başlangıç
+        </label>
+        <input id="audit-date-from" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ maxWidth: 150 }} />
+        <label htmlFor="audit-date-to" style={{ margin: 0 }}>
+          Bitiş
+        </label>
+        <input id="audit-date-to" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ maxWidth: 150 }} />
         <div style={{ minWidth: 220 }}>
           <StationCombobox
             value={stationFilter}

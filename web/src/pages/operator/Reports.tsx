@@ -154,9 +154,14 @@ function RangePicker({ from, to, onChange }: { from: string; to: string; onChang
           {p.label}
         </button>
       ))}
-      <input type="date" value={from} max={to} onChange={(e) => onChange(e.target.value, to)} aria-label="Başlangıç tarihi" />
-      <span className="hint-text">–</span>
-      <input type="date" value={to} min={from} onChange={(e) => onChange(from, e.target.value)} aria-label="Bitiş tarihi" />
+      <label htmlFor="rep-range-from" style={{ margin: 0 }}>
+        Başlangıç
+      </label>
+      <input id="rep-range-from" type="date" value={from} max={to} onChange={(e) => onChange(e.target.value, to)} />
+      <label htmlFor="rep-range-to" style={{ margin: 0 }}>
+        Bitiş
+      </label>
+      <input id="rep-range-to" type="date" value={to} min={from} onChange={(e) => onChange(from, e.target.value)} />
     </div>
   );
 }
