@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import type { TenantRow } from "../db/types.js";
 import { csrfProtection, requireAuth, requireRole } from "../middleware/auth.js";
-import { validateBody } from "../middleware/validate.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 
 /**
@@ -33,17 +33,43 @@ function serializeTenant(t: TenantWithStats) {
   };
 }
 
-router.get("/", (_req, res) => {
+const listQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(100).optional(),
+});
+
+router.get("/", validateQuery(listQuerySchema), (req, res) => {
+  const { q, page: reqPage, pageSize: reqPageSize } = (
+    req as unknown as { validatedQuery: z.infer<typeof listQuerySchema> }
+  ).validatedQuery;
+
+  const where = q ? "WHERE t.name LIKE ? OR t.slug LIKE ?" : "";
+  const params = q ? [`%${q}%`, `%${q}%`] : [];
+
+  const total = (
+    db.prepare<unknown[], { count: number }>(`SELECT COUNT(*) AS count FROM tenants t ${where}`).get(...params) ?? {
+      count: 0,
+    }
+  ).count;
+
+  const pageSize = Math.min(Math.max(reqPageSize ?? 20, 1), 100);
+  const page = Math.max(reqPage ?? 1, 1);
+  const offset = (page - 1) * pageSize;
+
   const tenants = db
-    .prepare<[], TenantWithStats>(
+    .prepare<unknown[], TenantWithStats>(
       `SELECT t.*,
               (SELECT COUNT(*) FROM stations s WHERE s.tenant_id = t.id) AS station_count,
               (SELECT COUNT(*) FROM users u WHERE u.tenant_id = t.id) AS user_count
        FROM tenants t
-       ORDER BY t.name`
+       ${where}
+       ORDER BY t.name
+       LIMIT ? OFFSET ?`
     )
-    .all();
-  res.json({ tenants: tenants.map(serializeTenant) });
+    .all(...params, pageSize, offset);
+
+  res.json({ tenants: tenants.map(serializeTenant), total, page, pageSize });
 });
 
 const createSchema = z.object({

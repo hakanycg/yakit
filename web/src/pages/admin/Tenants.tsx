@@ -1,8 +1,11 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
+import Pagination from "../../shared/Pagination";
 import StationCombobox from "../../shared/StationCombobox";
 import type { Station } from "../../shared/types";
+
+const PAGE_SIZE = 20;
 
 /**
  * Dagitim sirketleri (kiracilar).
@@ -23,12 +26,41 @@ interface Tenant {
 
 export default function Tenants() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
+  // Atama formundaki secim kutusu HER ZAMAN tum sirketleri listelemeli - tablo
+  // sayfalaninca (bkz. asagidaki page/search) o sayfada olmayan bir sirkete
+  // atama yapilamaz hale gelmemeli. Bu yuzden ayri, sayfalanmamis bir liste.
+  const [allTenants, setAllTenants] = useState<Tenant[]>([]);
 
   function load() {
-    api.get<{ tenants: Tenant[] }>("/api/tenants").then((res) => setTenants(res.tenants));
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("q", search.trim());
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
+    api.get<{ tenants: Tenant[]; total: number }>(`/api/tenants?${params.toString()}`).then((res) => {
+      setTenants(res.tenants);
+      setTotal(res.total);
+    });
   }
 
-  useEffect(load, []);
+  function loadAll() {
+    api.get<{ tenants: Tenant[] }>("/api/tenants?pageSize=100").then((res) => setAllTenants(res.tenants));
+  }
+
+  function reload() {
+    load();
+    loadAll();
+  }
+
+  useEffect(load, [search, page]);
+  useEffect(loadAll, []);
+
+  function updateSearch(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
 
   return (
     <div>
@@ -39,8 +71,18 @@ export default function Tenants() {
       </p>
 
       <div className="grid cols-2">
-        <NewTenantCard onCreated={load} />
-        <AssignStationCard tenants={tenants} onAssigned={load} />
+        <NewTenantCard onCreated={reload} />
+        <AssignStationCard tenants={allTenants} onAssigned={reload} />
+      </div>
+
+      <div className="toolbar">
+        <input
+          value={search}
+          onChange={(e) => updateSearch(e.target.value)}
+          placeholder="Şirket adı veya kısa ad ile ara..."
+          aria-label="Dağıtım şirketi ara"
+          style={{ flex: "1 1 260px", minWidth: 0 }}
+        />
       </div>
 
       <div className="card">
@@ -58,19 +100,21 @@ export default function Tenants() {
           </thead>
           <tbody>
             {tenants.map((t) => (
-              <TenantRow key={t.id} tenant={t} onChanged={load} />
+              <TenantRow key={t.id} tenant={t} onChanged={reload} />
             ))}
             {tenants.length === 0 && (
               <tr>
                 <td colSpan={7} className="hint-text">
-                  Henüz dağıtım şirketi yok. Bir şirket açıp istasyon atadığınızda, o şirketin yöneticisi yalnızca
-                  kendi istasyonlarını görecek.
+                  {search
+                    ? "Bu aramaya uyan dağıtım şirketi yok."
+                    : "Henüz dağıtım şirketi yok. Bir şirket açıp istasyon atadığınızda, o şirketin yöneticisi yalnızca kendi istasyonlarını görecek."}
                 </td>
               </tr>
             )}
           </tbody>
         </table>
       </div>
+      <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
     </div>
   );
 }
