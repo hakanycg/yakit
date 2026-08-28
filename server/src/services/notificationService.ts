@@ -1,4 +1,6 @@
 import { createHmac } from "node:crypto";
+import { lookup } from "node:dns/promises";
+import { isIP } from "node:net";
 import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
@@ -103,6 +105,56 @@ export async function sendSms(to: string, message: string): Promise<SendResult> 
  * dogrulayabilsin diye. Bu, iyzico'nun bize gonderdigi callback'i BIZIM dogrulama
  * seklimizin (iyzicoService.ts verifySignature) TERSI - burada BIZ imzaliyoruz.
  */
+/**
+ * IPv4/IPv6 adresi yerel/ozel/rezerve bir araliga mi dusuyor?
+ *
+ * Webhook URL'si istasyonun KENDI belirledigi bir hedef oldugundan (bkz. sendWebhook
+ * yorumu) SSRF riski tasir: sunucu, yapilandirilan URL'ye korlemesine POST atar.
+ * Buradaki liste tam bir IANA rezerve blok listesi degil, pratikte SSRF'de
+ * hedeflenen ana araliklardir (loopback, RFC1918 ozel aglar, link-local, CGNAT,
+ * multicast/rezerve).
+ */
+function isBlockedIp(ip: string): boolean {
+  if (isIP(ip) === 6) {
+    const lower = ip.toLowerCase();
+    return lower === "::" || lower === "::1" || lower.startsWith("fe80") || lower.startsWith("fec0") || lower.startsWith("ff");
+  }
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  const [a, b] = parts as [number, number, number, number];
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true;
+  if (a === 169 && b === 254) return true;
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 192 && b === 0) return true;
+  if (a === 198 && (b === 18 || b === 19)) return true;
+  return false;
+}
+
+/**
+ * Hedefi fetch'ten ONCE dogrular: yalnizca http/https, ve host (literal IP ya da
+ * DNS'ten cozulen HER adres) yerel/ozel bir araliga dusmemeli. Bu, ayarlarda
+ * `z.string().url()`'nin izin verdigi ama sunucunun kendi ic agina (ya da bulut
+ * metadata ucuna) istek atmasina yol acabilecek bir URL'yi calisma zamaninda yakalar.
+ */
+async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
+  const parsed = new URL(rawUrl);
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error("Webhook yalnizca http/https destekler.");
+  }
+  let host = parsed.hostname;
+  if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
+  if (isIP(host)) {
+    if (isBlockedIp(host)) throw new Error("Webhook URL'si yerel/ozel aglara isaret edemez.");
+    return;
+  }
+  const records = await lookup(host, { all: true });
+  if (records.some(({ address }) => isBlockedIp(address))) {
+    throw new Error("Webhook URL'si yerel/ozel aglara isaret edemez.");
+  }
+}
+
 export async function sendWebhook(url: string, payload: unknown, secret: string | null): Promise<SendResult> {
   const body = JSON.stringify(payload);
   const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -112,7 +164,10 @@ export async function sendWebhook(url: string, payload: unknown, secret: string 
   const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
-    const res = await fetch(url, { method: "POST", signal: controller.signal, headers, body });
+    await assertSafeWebhookUrl(url);
+    // redirect: "manual" - aksi halde sunucu, DOGRULANMIS bir hedeften ENGELLENMIS
+    // bir ic adrese yonlendiren bir yanita korlemesine uyar ve kontrolu atlatirdi.
+    const res = await fetch(url, { method: "POST", redirect: "manual", signal: controller.signal, headers, body });
     if (!res.ok) {
       logger.error({ url, status: res.status }, "Webhook bildirimi saglayicidan hata dondu.");
       return { sent: false, reason: `Webhook HTTP ${res.status} dondurdu.` };
