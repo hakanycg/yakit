@@ -3,7 +3,10 @@ import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
 import { useCurrentStationId } from "../../shared/useCurrentStation";
 import { useEscapeKey } from "../../shared/useEscapeKey";
+import Pagination from "../../shared/Pagination";
 import type { Pump, Station, StationKiosk } from "../../shared/types";
+
+const PAGE_SIZE = 20;
 
 function syncBadge(s: Station): { label: string; className: string } | null {
   if (!s.agentConfigured) return { label: "Ajan kurulmadı", className: "info" };
@@ -25,24 +28,35 @@ function slugify(name: string): string {
 
 export default function Stations() {
   const [stations, setStations] = useState<Station[]>([]);
+  const [total, setTotal] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
   const [detailId, setDetailId] = useState<number | null>(null);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [, setCurrentStationId] = useCurrentStationId();
 
-  function load() {
-    api.get<{ stations: Station[] }>("/api/stations").then((res) => setStations(res.stations));
-  }
-  useEffect(load, []);
-
-  // Yuzlerce/binlerce istasyon oldugunda kart listesinde tek tek aramak yerine
-  // isim/adres/kiosk-adresine gore filtrelenebilsin diye. Kiosk bazinda (AnyDesk ID)
-  // arama, her istasyonun kendi kiosk listesi acildiginda orada yapilir - ayri bir
+  // Yuzlerce/binlerce istasyon oldugunda tumunu tek seferde cekip istemcide
+  // filtrelemek/kart listesinde taramak yerine (eskiden boyleydi - ayrica HER
+  // istasyon icin 5 ayri istatistik sorgusu calisiyordu, bkz. routes/stations.ts)
+  // arama VE sayfalama artik sunucu tarafinda. Kiosk bazinda (AnyDesk ID) arama,
+  // her istasyonun kendi kiosk listesi acildiginda orada yapilir - ayri bir
   // AnyDesk kimligini binlerce istasyon arasinda aramak bu sayfanin kapsami disinda.
-  const q = search.trim().toLowerCase();
-  const visibleStations = q
-    ? stations.filter((s) => [s.name, s.address, s.slug, s.code ?? ""].some((field) => field.toLowerCase().includes(q)))
-    : stations;
+  function load() {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set("q", search.trim());
+    params.set("page", String(page));
+    params.set("pageSize", String(PAGE_SIZE));
+    api.get<{ stations: Station[]; total: number }>(`/api/stations?${params.toString()}`).then((res) => {
+      setStations(res.stations);
+      setTotal(res.total);
+    });
+  }
+  useEffect(load, [search, page]);
+
+  function updateSearch(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
 
   const detailStation = detailId === null ? null : stations.find((s) => s.id === detailId) ?? null;
 
@@ -52,11 +66,11 @@ export default function Stations() {
       <div className="toolbar">
         <input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => updateSearch(e.target.value)}
           placeholder="İsim, adres veya kiosk adresi ile ara..."
           style={{ minWidth: 280 }}
         />
-        <span className="hint-text">{visibleStations.length} / {stations.length} istasyon</span>
+        <span className="hint-text">{total} istasyon</span>
         <div className="spacer" />
         <button className="primary" onClick={() => setShowCreate(true)}>Yeni İstasyon</button>
       </div>
@@ -65,7 +79,7 @@ export default function Stations() {
           tamami (adres, kiosk'lar, guvenlik, yonetim) satira tiklaninca acilan
           pencerede; boylece onlarca istasyonda sayfa taranabilir kalir. */}
       <div className="station-list">
-        {visibleStations.map((s) => (
+        {stations.map((s) => (
           <button type="button" className="station-row" key={s.id} onClick={() => setDetailId(s.id)}>
             <span className="station-row-main">
               <span className="station-row-name">{s.name}</span>
@@ -83,13 +97,13 @@ export default function Stations() {
             <span className="station-row-chevron">›</span>
           </button>
         ))}
-        {stations.length === 0 && (
-          <p className="hint-text">Henüz istasyon yok. "Yeni İstasyon" ile ilk istasyonunuzu oluşturun.</p>
-        )}
-        {stations.length > 0 && visibleStations.length === 0 && (
-          <p className="hint-text">"{search}" ile eşleşen bir istasyon bulunamadı.</p>
+        {total === 0 && (
+          <p className="hint-text">
+            {search ? `"${search}" ile eşleşen bir istasyon bulunamadı.` : 'Henüz istasyon yok. "Yeni İstasyon" ile ilk istasyonunuzu oluşturun.'}
+          </p>
         )}
       </div>
+      <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
 
       {detailStation && (
         <StationDetailDialog
