@@ -184,7 +184,16 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
 
 /* Panelin govde puntosu. Kiosk (dokunmatik, ayakta okunan) ve filo portali bu
    sarmalayicinin disinda kaldigi icin kendi olceklerini korur. */
-.app-shell { display: flex; min-height: 100vh; font-size: var(--fs-md); }
+.app-shell { display: flex; min-height: 100vh; font-size: var(--fs-md); color-scheme: dark; }
+
+/* color-scheme bildirilmezse tarayici checkbox/radio/select acilir listesi/scrollbar
+   gibi NATIVE bilesenleri her zaman ACIK temayla cizer - koyu panelin ustunde bu,
+   ör. "Sayac degistirildi" onay kutusunun duz beyaz bir kare gibi, hic stillenmemis
+   gorunmesine yol acar (accent-color yalnizca ISARETLI durumu renklendirir, kutunun
+   kendisini/kenarligini degil). Kiosk (.kiosk-shell) ve gunduz temasi kendi kapsamlarinda
+   ayrica ele alinir - burada YALNIZCA yonetim panelinin varsayilan (gece) hali icin. */
+:root[data-theme-mode="day"] .app-shell,
+:root[data-theme-mode="day"] .fleet-portal { color-scheme: light; }
 
 .sidebar {
   width: 240px;
@@ -1100,7 +1109,7 @@ form > .toolbar > button, form > .modal-actions > button { margin-top: 0; }
 /* Filo musteri portali (/filo) - yonetim panelinin sidebar'li kabugunu KULLANMAZ:
    buraya giren kisi personel degildir, gezinecek bir menusu yoktur. Ayni renk
    degiskenlerini kullanir, boylece gun/gece temasi burada da calisir. */
-.fleet-portal { min-height: 100vh; background: var(--bg); color: var(--text); }
+.fleet-portal { min-height: 100vh; background: var(--bg); color: var(--text); color-scheme: dark; }
 .fleet-portal-header {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
   padding: 0.9rem 1.5rem; background: var(--panel); border-bottom: 1px solid var(--border);
