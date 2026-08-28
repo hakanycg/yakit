@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../../shared/api";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { formatDateTime } from "../../shared/format";
-import type { AuditEntry } from "../../shared/types";
+import StationCombobox from "../../shared/StationCombobox";
+import type { AuditEntry, Station } from "../../shared/types";
 
 /** Personel oturumu OLMAYAN kayitlarin kimin adina yazildigi. */
 const ACTOR_TYPE_LABEL: Record<string, string> = {
@@ -85,12 +86,29 @@ export default function AuditLog() {
   const stationId = useEffectiveStationId();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
   const [actionFilter, setActionFilter] = useState("");
+  const [entityTypeFilter, setEntityTypeFilter] = useState("");
+  const [entityIdFilter, setEntityIdFilter] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  // null = "tum istasyonlar" (yalnizca super_admin gorebilir, bkz. routes/auditLog.ts) -
+  // sayfanin KENDI secimidir, uygulamanin geneli icin secili olan istasyondan BAGIMSIZDIR
+  // (bkz. api.ts'teki { unscoped: true } - sidebar'daki sabit karti etkilemez).
+  const [stationFilter, setStationFilter] = useState<Station | null>(null);
 
   useEffect(() => {
     if (stationId === null) return;
-    const query = actionFilter ? `?action=${encodeURIComponent(actionFilter)}` : "";
-    api.get<{ entries: AuditEntry[] }>(`/api/audit-log${query}`).then((res) => setEntries(res.entries));
-  }, [actionFilter, stationId]);
+    const params = new URLSearchParams();
+    if (actionFilter.trim()) params.set("action", actionFilter.trim());
+    if (entityTypeFilter.trim()) params.set("entityType", entityTypeFilter.trim());
+    if (entityIdFilter.trim()) params.set("entityId", entityIdFilter.trim());
+    if (dateFrom) params.set("from", dateFrom);
+    if (dateTo) params.set("to", dateTo);
+    if (stationFilter) params.set("stationId", String(stationFilter.id));
+    const query = params.toString() ? `?${params.toString()}` : "";
+    api
+      .get<{ entries: AuditEntry[] }>(`/api/audit-log${query}`, { unscoped: true })
+      .then((res) => setEntries(res.entries));
+  }, [actionFilter, entityTypeFilter, entityIdFilter, dateFrom, dateTo, stationFilter, stationId]);
 
   return (
     <div>
@@ -100,14 +118,37 @@ export default function AuditLog() {
           placeholder="Eylem ile filtrele (örn: login_success)"
           value={actionFilter}
           onChange={(e) => setActionFilter(e.target.value)}
-          style={{ maxWidth: 320 }}
+          style={{ maxWidth: 220 }}
         />
+        <input
+          placeholder="Varlık tipi (örn: transaction)"
+          value={entityTypeFilter}
+          onChange={(e) => setEntityTypeFilter(e.target.value)}
+          style={{ maxWidth: 200 }}
+        />
+        <input
+          placeholder="Varlık kimliği"
+          value={entityIdFilter}
+          onChange={(e) => setEntityIdFilter(e.target.value)}
+          style={{ maxWidth: 140 }}
+        />
+        <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} style={{ maxWidth: 150 }} />
+        <span className="hint-text">-</span>
+        <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} style={{ maxWidth: 150 }} />
+        <div style={{ minWidth: 220 }}>
+          <StationCombobox
+            value={stationFilter}
+            onSelect={setStationFilter}
+            placeholder="Tüm istasyonlar (aramak için yazın)"
+          />
+        </div>
       </div>
       <div className="card">
         <table>
           <thead>
             <tr>
               <th>Zaman</th>
+              <th>İstasyon</th>
               <th>Kullanıcı</th>
               <th>Eylem</th>
               <th>Varlık</th>
@@ -120,6 +161,10 @@ export default function AuditLog() {
             {entries.map((e) => (
               <tr key={e.id}>
                 <td>{formatDateTime(e.createdAt)}</td>
+                {/* "Tum istasyonlar" goruntulenirken (bkz. yukaridaki istasyon suzgeci)
+                    satirlar birbirinden farkli istasyonlara ait olabilir - hangisine ait
+                    oldugu burada gorunmeli, aksi halde karistirilirdi. */}
+                <td>{e.stationName ?? <span className="hint-text">-</span>}</td>
                 <td>
                   {e.username ?? "-"}
                   {(e.role || (e.actorType && e.actorType !== "staff")) && (
@@ -141,7 +186,7 @@ export default function AuditLog() {
                 </td>
               </tr>
             ))}
-            {entries.length === 0 && <tr><td colSpan={7} className="hint-text">Kayıt yok.</td></tr>}
+            {entries.length === 0 && <tr><td colSpan={8} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
       </div>

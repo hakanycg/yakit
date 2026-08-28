@@ -381,6 +381,7 @@ export interface AdminUser {
 export interface AuditEntry {
   id: number;
   stationId: number | null;
+  stationName: string | null;
   userId: number | null;
   username: string | null;
   /** staff | fleet_portal | system | anonymous - personel oturumu olmayan kayitlarin kaynagi. */
