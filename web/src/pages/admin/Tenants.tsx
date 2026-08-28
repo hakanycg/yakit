@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../shared/api";
 import { formatDateTime } from "../../shared/format";
+import StationCombobox from "../../shared/StationCombobox";
 import type { Station } from "../../shared/types";
 
 /**
@@ -22,11 +23,9 @@ interface Tenant {
 
 export default function Tenants() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [stations, setStations] = useState<Station[]>([]);
 
   function load() {
     api.get<{ tenants: Tenant[] }>("/api/tenants").then((res) => setTenants(res.tenants));
-    api.get<{ stations: Station[] }>("/api/stations").then((res) => setStations(res.stations));
   }
 
   useEffect(load, []);
@@ -41,7 +40,7 @@ export default function Tenants() {
 
       <div className="grid cols-2">
         <NewTenantCard onCreated={load} />
-        <AssignStationCard tenants={tenants} stations={stations} onAssigned={load} />
+        <AssignStationCard tenants={tenants} onAssigned={load} />
       </div>
 
       <div className="card">
@@ -172,35 +171,26 @@ function NewTenantCard({ onCreated }: { onCreated: () => void }) {
 }
 
 /** Istasyonun hangi sirkete ait oldugu; bu atama erisim izolasyonunu dogrudan belirler. */
-function AssignStationCard({
-  tenants,
-  stations,
-  onAssigned,
-}: {
-  tenants: Tenant[];
-  stations: Station[];
-  onAssigned: () => void;
-}) {
-  const [stationId, setStationId] = useState("");
+function AssignStationCard({ tenants, onAssigned }: { tenants: Tenant[]; onAssigned: () => void }) {
+  const [station, setStation] = useState<Station | null>(null);
   const [tenantId, setTenantId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  const selected = stations.find((s) => String(s.id) === stationId);
-
   useEffect(() => {
-    setTenantId(selected?.tenantId != null ? String(selected.tenantId) : "");
+    setTenantId(station?.tenantId != null ? String(station.tenantId) : "");
     setSaved(false);
-  }, [stationId, selected?.tenantId]);
+  }, [station]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (!station) return;
     setSaving(true);
     setError(null);
     setSaved(false);
     try {
-      await api.patch(`/api/tenants/stations/${stationId}`, {
+      await api.patch(`/api/tenants/stations/${station.id}`, {
         tenantId: tenantId === "" ? null : Number(tenantId),
       });
       setSaved(true);
@@ -221,17 +211,10 @@ function AssignStationCard({
       </p>
 
       <label htmlFor="assign-station">İstasyon</label>
-      <select id="assign-station" value={stationId} onChange={(e) => setStationId(e.target.value)} required>
-        <option value="">Seçin...</option>
-        {stations.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.name} {s.code ? `(${s.code})` : ""}
-          </option>
-        ))}
-      </select>
+      <StationCombobox id="assign-station" value={station} onSelect={setStation} required />
 
       <label htmlFor="assign-tenant">Dağıtım şirketi</label>
-      <select id="assign-tenant" value={tenantId} onChange={(e) => setTenantId(e.target.value)} disabled={!stationId}>
+      <select id="assign-tenant" value={tenantId} onChange={(e) => setTenantId(e.target.value)} disabled={!station}>
         <option value="">Bağlı değil (platformun kendi istasyonu)</option>
         {tenants.map((t) => (
           <option key={t.id} value={t.id}>
@@ -243,7 +226,7 @@ function AssignStationCard({
       {error && <p className="error-text">{error}</p>}
       {saved && <p className="hint-text">Atama güncellendi.</p>}
 
-      <button type="submit" className="primary" disabled={saving || !stationId}>
+      <button type="submit" className="primary" disabled={saving || !station}>
         {saving ? "Kaydediliyor..." : "Atamayı Kaydet"}
       </button>
     </form>

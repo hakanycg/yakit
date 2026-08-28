@@ -4,7 +4,7 @@ import { db } from "../db/index.js";
 import type { StationKioskRow, StationRow, UserRow } from "../db/types.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { requireStationAccess, stationScopeFilter } from "../middleware/tenantScope.js";
-import { validateBody } from "../middleware/validate.js";
+import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { generateStationCode } from "../utils/stationCode.js";
 import { randomBytes } from "node:crypto";
@@ -66,6 +66,38 @@ router.get("/current", requireStationSelected, (req, res) => {
   const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(req.stationId!);
   if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
   res.json({ station: serializeStation(station) });
+});
+
+const searchQuerySchema = z.object({
+  q: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().positive().max(50).optional(),
+});
+
+/**
+ * Hafif istasyon aramasi: binlerce istasyon olan bir dagitimda (bkz. Tenants.tsx
+ * "Istasyon Ata") tum istasyon listesini (asagidaki GET /'un yaptigi gibi HER istasyon
+ * icin 5 ayri istatistik sorgusuyla) tek seferde cekmek yerine, yazildikca (debounce'lu)
+ * sunucu tarafinda aranir - istemciye asla binlerce satir gonderilmez. serializeStation
+ * disinda EK bir alan hesaplanmaz (pompa/alarm/kullanici sayisi vb.) - bu uc yalnizca
+ * bir secim bileseni (combobox) icindir, listeleme/istatistik ekrani degil.
+ */
+router.get("/search", requireRole("super_admin", "tenant_admin"), validateQuery(searchQuerySchema), (req, res) => {
+  const { q, limit } = (req as unknown as { validatedQuery: z.infer<typeof searchQuerySchema> }).validatedQuery;
+  const scope = stationScopeFilter(req, "id");
+  const take = limit ?? 20;
+
+  let sql = `SELECT * FROM stations WHERE ${scope.sql}`;
+  const params: (string | number)[] = [...scope.params];
+  if (q) {
+    sql += ` AND (name LIKE ? OR code LIKE ? OR slug LIKE ?)`;
+    const like = `%${q}%`;
+    params.push(like, like, like);
+  }
+  sql += ` ORDER BY name LIMIT ?`;
+  params.push(take);
+
+  const stations = db.prepare<(string | number)[], StationRow>(sql).all(...params);
+  res.json({ stations: stations.map(serializeStation) });
 });
 
 router.get("/", requireRole("super_admin", "tenant_admin"), (req, res) => {
