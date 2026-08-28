@@ -8,6 +8,7 @@ import {
   adjustStock,
   deductAvailable,
   getSupplierSummary,
+  listMovementsPaged,
   listTanks,
 } from "./fuelStockService.js";
 
@@ -130,5 +131,59 @@ describe("fuelStockService", () => {
 
     const all = getSupplierSummary(station.id);
     expect(all.map((r) => r.supplier).sort()).toEqual(["Eski Tedarikci", "Yeni Tedarikci"]);
+  });
+
+  describe("listMovementsPaged", () => {
+    it("baska istasyonun hareketlerini gostermez", () => {
+      const other = createTestStation();
+      addStock(station.id, "benzin", 100, { supplier: "A" }, actor);
+      addStock(other.id, "benzin", 100, { supplier: "A" }, actor);
+
+      const result = listMovementsPaged(station.id, {});
+      expect(result.movements).toHaveLength(1);
+      expect(result.total).toBe(1);
+    });
+
+    it("tarih araligi 'to' gunun sonuna kadar dahil eder", () => {
+      // Is gunu +3 saat kaydirilir (bkz. BUSINESS_DAY_SQL_OFFSET) - gece yarisina
+      // yakin saatler yanlislikla komsu gune duserdi, bu yuzden gunduz saatleri.
+      addStock(station.id, "benzin", 100, { supplier: "Icinde" }, actor);
+      db.prepare("UPDATE fuel_stock_movements SET created_at = ? WHERE station_id = ? AND supplier = ?").run(
+        "2026-03-05T10:00:00.000Z",
+        station.id,
+        "Icinde"
+      );
+      addStock(station.id, "benzin", 100, { supplier: "Disinda" }, actor);
+      db.prepare("UPDATE fuel_stock_movements SET created_at = ? WHERE station_id = ? AND supplier = ?").run(
+        "2026-03-07T10:00:00.000Z",
+        station.id,
+        "Disinda"
+      );
+
+      const result = listMovementsPaged(station.id, { from: "2026-03-01", to: "2026-03-05" });
+      expect(result.movements.map((m) => m.supplier)).toEqual(["Icinde"]);
+    });
+
+    it("total TUM eslesenleri yansitir, sadece o sayfayi degil", () => {
+      for (let i = 0; i < 5; i++) {
+        addStock(station.id, "benzin", 10, { supplier: `Tedarikci ${i}` }, actor);
+      }
+
+      const page1 = listMovementsPaged(station.id, { page: 1, pageSize: 2 });
+      expect(page1.movements).toHaveLength(2);
+      expect(page1.total).toBe(5);
+
+      const page3 = listMovementsPaged(station.id, { page: 3, pageSize: 2 });
+      expect(page3.movements).toHaveLength(1);
+      expect(page3.total).toBe(5);
+    });
+
+    it("pageSize ve page sinirlarini asamaz", () => {
+      addStock(station.id, "benzin", 10, { supplier: "Tek" }, actor);
+
+      const result = listMovementsPaged(station.id, { page: -3, pageSize: 5000 });
+      expect(result.page).toBe(1);
+      expect(result.pageSize).toBe(200);
+    });
   });
 });

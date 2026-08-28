@@ -4,6 +4,7 @@ import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useTopicSubscription } from "../../shared/useWebSocket";
 import { FUEL_LABEL, formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
+import Pagination from "../../shared/Pagination";
 import type {
   DeliveryVariance,
   FuelStockMovement,
@@ -15,17 +16,38 @@ import type {
 const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Düşük", critical: "Kritik" };
 const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical" };
 const MOVEMENT_TYPE_LABEL: Record<string, string> = { delivery: "Teslimat", sale: "Satış", adjustment: "Düzeltme" };
+const MOVEMENT_PAGE_SIZE = 25;
 
 export default function FuelStock() {
   const stationId = useEffectiveStationId();
   const [tanks, setTanks] = useState<FuelTank[]>([]);
   const [movements, setMovements] = useState<FuelStockMovement[]>([]);
   const [movementFilter, setMovementFilter] = useState("");
+  const [movementFrom, setMovementFrom] = useState("");
+  const [movementTo, setMovementTo] = useState("");
+  const [movementTotal, setMovementTotal] = useState(0);
+  const [movementPage, setMovementPage] = useState(1);
   const [suppliers, setSuppliers] = useState<SupplierSummaryRow[]>([]);
   const [deliveryVariance, setDeliveryVariance] = useState<SupplierDeliveryVarianceRow[]>([]);
   const [orderSuggestions, setOrderSuggestions] = useState<OrderSuggestion[]>([]);
   const [orders, setOrders] = useState<FuelOrder[]>([]);
   const [orderSuppliers, setOrderSuppliers] = useState<OrderSupplier[]>([]);
+
+  // Filtre degistiginde sayfa 1'e donulur - AYNI olay isleyicisinde, aksi halde
+  // eski sayfa+yeni filtreyle bir kere, sayfa 1+yeni filtreyle bir kere olmak
+  // uzere CIFT sorgu atilirdi (bkz. Alarms.tsx/Stations.tsx'teki ayni desen).
+  function updateMovementFilter<T>(setter: (v: T) => void, value: T) {
+    setter(value);
+    setMovementPage(1);
+  }
+
+  function movementParams(): URLSearchParams {
+    const params = new URLSearchParams();
+    if (movementFilter) params.set("fuelType", movementFilter);
+    if (movementFrom) params.set("from", movementFrom);
+    if (movementTo) params.set("to", movementTo);
+    return params;
+  }
 
   function loadTanks() {
     if (stationId === null) return;
@@ -33,8 +55,15 @@ export default function FuelStock() {
   }
   function loadMovements() {
     if (stationId === null) return;
-    const query = movementFilter ? `?fuelType=${movementFilter}` : "";
-    api.get<{ movements: FuelStockMovement[] }>(`/api/fuel-stock/movements${query}`).then((res) => setMovements(res.movements));
+    const params = movementParams();
+    params.set("page", String(movementPage));
+    params.set("pageSize", String(MOVEMENT_PAGE_SIZE));
+    api
+      .get<{ movements: FuelStockMovement[]; total: number }>(`/api/fuel-stock/movements?${params.toString()}`)
+      .then((res) => {
+        setMovements(res.movements);
+        setMovementTotal(res.total);
+      });
   }
   function loadSuppliers() {
     if (stationId === null) return;
@@ -53,7 +82,7 @@ export default function FuelStock() {
   }
 
   useEffect(loadTanks, [stationId]);
-  useEffect(loadMovements, [stationId, movementFilter]);
+  useEffect(loadMovements, [stationId, movementFilter, movementFrom, movementTo, movementPage]);
   useEffect(loadSuppliers, [stationId]);
   useEffect(loadOrders, [stationId]);
   useTopicSubscription(stationId !== null ? `fuel-stock:${stationId}` : null, () => {
@@ -63,7 +92,7 @@ export default function FuelStock() {
     loadOrders();
   });
 
-  const csvHref = appendStationParam(`/api/fuel-stock/movements/export.csv${movementFilter ? `?fuelType=${movementFilter}` : ""}`);
+  const csvHref = appendStationParam(`/api/fuel-stock/movements/export.csv?${movementParams().toString()}`);
 
   return (
     <div>
@@ -99,12 +128,31 @@ export default function FuelStock() {
         <div className="toolbar" style={{ marginBottom: "0.75rem" }}>
           <h3 style={{ margin: 0 }}>Stok Hareketleri</h3>
           <div className="spacer" />
-          <select value={movementFilter} onChange={(e) => setMovementFilter(e.target.value)} style={{ width: 180 }}>
+          <select
+            value={movementFilter}
+            onChange={(e) => updateMovementFilter(setMovementFilter, e.target.value)}
+            style={{ width: 180 }}
+          >
             <option value="">Tüm yakıt tipleri</option>
             <option value="benzin">Benzin</option>
             <option value="motorin">Motorin</option>
             <option value="lpg">LPG</option>
           </select>
+          <input
+            type="date"
+            value={movementFrom}
+            onChange={(e) => updateMovementFilter(setMovementFrom, e.target.value)}
+            aria-label="Başlangıç tarihi"
+            style={{ maxWidth: 150 }}
+          />
+          <span className="hint-text">-</span>
+          <input
+            type="date"
+            value={movementTo}
+            onChange={(e) => updateMovementFilter(setMovementTo, e.target.value)}
+            aria-label="Bitiş tarihi"
+            style={{ maxWidth: 150 }}
+          />
           <a href={csvHref}>
             <button>CSV İndir</button>
           </a>
@@ -162,6 +210,11 @@ export default function FuelStock() {
             {movements.length === 0 && <tr><td colSpan={9} className="hint-text">Kayıt yok.</td></tr>}
           </tbody>
         </table>
+        <Pagination
+          page={movementPage}
+          pageCount={Math.max(Math.ceil(movementTotal / MOVEMENT_PAGE_SIZE), 1)}
+          onChange={setMovementPage}
+        />
       </div>
 
       <div className="card" style={{ marginTop: "1rem" }}>

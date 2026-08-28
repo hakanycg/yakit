@@ -11,6 +11,7 @@ import {
   getMovementById,
   getSupplierSummary,
   listMovements,
+  listMovementsPaged,
   listTanks,
   serializeMovement,
   serializeTank,
@@ -63,13 +64,22 @@ router.get("/", (req, res) => {
 
 const movementsQuerySchema = z.object({
   fuelType: fuelTypeEnum.optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   limit: z.coerce.number().int().positive().max(1000).optional(),
+  page: z.coerce.number().int().positive().optional(),
+  pageSize: z.coerce.number().int().positive().max(200).optional(),
 });
 
 router.get("/movements", validateQuery(movementsQuerySchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof movementsQuerySchema> }).validatedQuery;
-  const rows = listMovements(req.stationId!, q);
-  res.json({ movements: rows.map((m) => serializeMovement(m, m.username)) });
+  const result = listMovementsPaged(req.stationId!, q);
+  res.json({
+    movements: result.movements.map((m) => serializeMovement(m, m.username)),
+    total: result.total,
+    page: result.page,
+    pageSize: result.pageSize,
+  });
 });
 
 router.get("/movements/export.csv", validateQuery(movementsQuerySchema), (req, res) => {
