@@ -35,6 +35,7 @@ import { shiftsRouter } from "./routes/shifts.js";
 import { fuelStockRouter } from "./routes/fuelStock.js";
 import { expensesRouter } from "./routes/expenses.js";
 import { supplierLedgerRouter } from "./routes/supplierLedger.js";
+import { cashAccountsRouter } from "./routes/cashAccounts.js";
 import { loyaltyRouter } from "./routes/loyalty.js";
 import { discountCodesRouter } from "./routes/discountCodes.js";
 import { fleetAccountsRouter } from "./routes/fleetAccounts.js";
@@ -139,6 +140,7 @@ export function createApp() {
   app.use("/api/fuel-stock", fuelStockRouter);
   app.use("/api/expenses", expensesRouter);
   app.use("/api/supplier-ledger", supplierLedgerRouter);
+  app.use("/api/cash-accounts", cashAccountsRouter);
   app.use("/api/reconciliation", reconciliationRouter);
   app.use("/api/support", supportRouter);
   app.use("/api/loyalty", loyaltyRouter);

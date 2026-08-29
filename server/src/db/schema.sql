@@ -405,6 +405,43 @@ CREATE TABLE IF NOT EXISTS supplier_payments (
 );
 CREATE INDEX IF NOT EXISTS idx_supplier_payments_station_supplier ON supplier_payments(station_id, supplier_id);
 
+-- On muhasebe / kasa-banka hesabi (3. modul). Platform personelsiz - kiosk'ta
+-- HICBIR nakit odeme yontemi yok (yalnizca iyzico/fleet/pos), bu yuzden bu bir
+-- fiziksel kasa/vardiya defteri DEGIL. Gun Sonu Mutabakati (daily_reconciliations)
+-- zaten o gunun satis gelirinin banka/POS ekstresiyle eslestigini dogruluyor ama
+-- hicbir zaman bir bakiye TUTMUYOR - her gun bagimsiz kapaniyor. Burasi, isletme
+-- sahibinin kendi banka/nakit hesaplarinin (giris/cikis) elle tuttugu, gunler
+-- arasi tasinan bir bakiye defteri - expenses/supplier_payments'a entegre DEGIL,
+-- bagimsiz bir defter (kapsam genislemesin diye).
+CREATE TABLE IF NOT EXISTS cash_accounts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'bank', -- bank | cash
+  active INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  created_by INTEGER REFERENCES users(id),
+  UNIQUE(station_id, name)
+);
+CREATE INDEX IF NOT EXISTS idx_cash_accounts_station ON cash_accounts(station_id, active);
+
+-- Tutar her zaman POZITIF, yon direction'dan gelir - elle veri girisinde
+-- yanlislikla negatif tutar girme hatasini onler (fuel_stock_movements.liters'in
+-- isaretli olmasinin gerekcesi orada tank stogunun matematiksel toplamiydi,
+-- burada boyle bir zorunluluk yok).
+CREATE TABLE IF NOT EXISTS cash_account_movements (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  account_id INTEGER NOT NULL REFERENCES cash_accounts(id),
+  direction TEXT NOT NULL, -- in | out
+  amount REAL NOT NULL,
+  movement_date TEXT NOT NULL,
+  description TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_cash_account_movements_station_account ON cash_account_movements(station_id, account_id, movement_date);
+
 CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),
