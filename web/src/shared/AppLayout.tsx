@@ -55,6 +55,7 @@ const ACCOUNTING_PAGES = [
   { to: "/operator/giderler", label: "Genel Gider Takibi" },
   { to: "/operator/cari-hesap", label: "Tedarikçi Cari Hesabı" },
   { to: "/operator/kasa-banka", label: "Kasa/Banka Hesabı" },
+  { to: "/operator/gelir-gider", label: "Gelir-Gider Özeti" },
 ];
 
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */

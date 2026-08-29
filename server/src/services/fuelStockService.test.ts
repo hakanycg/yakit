@@ -8,6 +8,7 @@ import {
   adjustStock,
   deductAvailable,
   getSupplierSummary,
+  getTotalFuelCost,
   listMovementsPaged,
   listTanks,
 } from "./fuelStockService.js";
@@ -131,6 +132,40 @@ describe("fuelStockService", () => {
 
     const all = getSupplierSummary(station.id);
     expect(all.map((r) => r.supplier).sort()).toEqual(["Eski Tedarikci", "Yeni Tedarikci"]);
+  });
+
+  describe("getTotalFuelCost", () => {
+    it("yalnizca maliyetlendirilmis teslimatlarin toplamini doner", () => {
+      addStock(station.id, "benzin", 1000, { supplier: "Tedarikci A", unitCost: 30 }, actor);
+      addStock(station.id, "motorin", 500, { supplier: "Tedarikci B" }, actor); // unitCost yok
+      expect(getTotalFuelCost(station.id)).toBe(30000);
+    });
+
+    it("baska istasyonun maliyetini saymaz", () => {
+      const other = createTestStation();
+      const otherActor = createTestUser(other.id);
+      addStock(other.id, "benzin", 1000, { supplier: "X", unitCost: 50 }, otherActor);
+      expect(getTotalFuelCost(station.id)).toBe(0);
+    });
+
+    it("tarih araligina gore filtreler", () => {
+      addStock(station.id, "benzin", 100, { supplier: "Eski", unitCost: 10 }, actor);
+      db.prepare("UPDATE fuel_stock_movements SET created_at = ? WHERE station_id = ? AND supplier = ?").run(
+        "2026-01-05T10:00:00.000Z",
+        station.id,
+        "Eski"
+      );
+      addStock(station.id, "benzin", 200, { supplier: "Yeni", unitCost: 10 }, actor);
+      db.prepare("UPDATE fuel_stock_movements SET created_at = ? WHERE station_id = ? AND supplier = ?").run(
+        "2026-03-05T10:00:00.000Z",
+        station.id,
+        "Yeni"
+      );
+
+      expect(getTotalFuelCost(station.id, "2026-01-01", "2026-01-31")).toBe(1000);
+      expect(getTotalFuelCost(station.id, "2026-03-01", "2026-03-31")).toBe(2000);
+      expect(getTotalFuelCost(station.id)).toBe(3000);
+    });
   });
 
   describe("listMovementsPaged", () => {
