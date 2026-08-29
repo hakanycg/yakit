@@ -442,6 +442,28 @@ CREATE TABLE IF NOT EXISTS cash_account_movements (
 );
 CREATE INDEX IF NOT EXISTS idx_cash_account_movements_station_account ON cash_account_movements(station_id, account_id, movement_date);
 
+-- On muhasebe / personel avans-masraf takibi (6. modul, seri sonu). users
+-- tablosunda ayri bir "personel" varligi yok - istasyon calisanlari zaten
+-- users satirlari (role_id -> operator/admin, station_id o istasyona ait).
+-- kind='avans': calisana verilen, maastan kesilecek nakit avans. kind='masraf':
+-- calisanin isletme icin kendi cebinden yaptigi, geri odeme beklenen masraf.
+-- Ikisi de settled=0 iken "acik" bakiyeye girer; settled=1 avans icin maastan
+-- kesildi, masraf icin calisana odendi anlamina gelir.
+CREATE TABLE IF NOT EXISTS staff_advances (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL,
+  amount REAL NOT NULL,
+  description TEXT,
+  entry_date TEXT NOT NULL,
+  settled INTEGER NOT NULL DEFAULT 0,
+  settled_at TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_staff_advances_station_user ON staff_advances(station_id, user_id, settled);
+
 CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),

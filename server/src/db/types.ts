@@ -289,6 +289,20 @@ export interface CashAccountMovementRow {
   created_at: string;
 }
 
+export interface StaffAdvanceRow {
+  id: number;
+  station_id: number;
+  user_id: number;
+  kind: "avans" | "masraf";
+  amount: number;
+  description: string | null;
+  entry_date: string;
+  settled: number;
+  settled_at: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export interface FleetAccountRow {
   id: number;
   station_id: number;
