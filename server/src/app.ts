@@ -37,6 +37,7 @@ import { expensesRouter } from "./routes/expenses.js";
 import { supplierLedgerRouter } from "./routes/supplierLedger.js";
 import { cashAccountsRouter } from "./routes/cashAccounts.js";
 import { profitLossRouter } from "./routes/profitLoss.js";
+import { vatRouter } from "./routes/vat.js";
 import { loyaltyRouter } from "./routes/loyalty.js";
 import { discountCodesRouter } from "./routes/discountCodes.js";
 import { fleetAccountsRouter } from "./routes/fleetAccounts.js";
@@ -143,6 +144,7 @@ export function createApp() {
   app.use("/api/supplier-ledger", supplierLedgerRouter);
   app.use("/api/cash-accounts", cashAccountsRouter);
   app.use("/api/profit-loss", profitLossRouter);
+  app.use("/api/vat-summary", vatRouter);
   app.use("/api/reconciliation", reconciliationRouter);
   app.use("/api/support", supportRouter);
   app.use("/api/loyalty", loyaltyRouter);

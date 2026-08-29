@@ -56,6 +56,7 @@ const ACCOUNTING_PAGES = [
   { to: "/operator/cari-hesap", label: "Tedarikçi Cari Hesabı" },
   { to: "/operator/kasa-banka", label: "Kasa/Banka Hesabı" },
   { to: "/operator/gelir-gider", label: "Gelir-Gider Özeti" },
+  { to: "/operator/kdv-ozeti", label: "KDV Özet Raporu" },
 ];
 
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */
