@@ -267,6 +267,28 @@ export interface SupplierPaymentRow {
   created_at: string;
 }
 
+export interface CashAccountRow {
+  id: number;
+  station_id: number;
+  name: string;
+  kind: "bank" | "cash";
+  active: number;
+  created_at: string;
+  created_by: number | null;
+}
+
+export interface CashAccountMovementRow {
+  id: number;
+  station_id: number;
+  account_id: number;
+  direction: "in" | "out";
+  amount: number;
+  movement_date: string;
+  description: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export interface FleetAccountRow {
   id: number;
   station_id: number;
