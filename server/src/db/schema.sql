@@ -369,6 +369,23 @@ CREATE TABLE IF NOT EXISTS fuel_orders (
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_orders_station ON fuel_orders(station_id, status);
 
+-- On muhasebe / genel gider takibi. Yakit alim maliyeti fuel_orders'ta zaten var;
+-- burada eksik olan, istasyonun yakit DISINDAKI isletme giderleridir (elektrik,
+-- kira, bakim, personel maasi vb.) - gelir-gider (kar/zarar) ozetinin dogru
+-- olmasi icin bu tarafin da kayit altina alinmasi gerekiyor.
+CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  category TEXT NOT NULL, -- elektrik | su_dogalgaz | kira | bakim_onarim | personel_maasi | sigorta | vergi_harc | diger
+  description TEXT,
+  amount REAL NOT NULL,
+  expense_date TEXT NOT NULL, -- giderin fiilen oldugu tarih (created_at degil)
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_expenses_station_date ON expenses(station_id, expense_date);
+CREATE INDEX IF NOT EXISTS idx_expenses_station_category ON expenses(station_id, category);
+
 CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),

@@ -245,6 +245,17 @@ export interface FuelOrderRow {
   created_at: string;
 }
 
+export interface ExpenseRow {
+  id: number;
+  station_id: number;
+  category: string;
+  description: string | null;
+  amount: number;
+  expense_date: string;
+  created_by: number | null;
+  created_at: string;
+}
+
 export interface FleetAccountRow {
   id: number;
   station_id: number;
