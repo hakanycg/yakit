@@ -51,7 +51,10 @@ const FUEL_PAGES = [
 ];
 
 /** On muhasebe: yakit disindaki isletme giderleri. Sirayla eklenen modullerin ilki. */
-const ACCOUNTING_PAGES = [{ to: "/operator/giderler", label: "Genel Gider Takibi" }];
+const ACCOUNTING_PAGES = [
+  { to: "/operator/giderler", label: "Genel Gider Takibi" },
+  { to: "/operator/cari-hesap", label: "Tedarikçi Cari Hesabı" },
+];
 
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */
 const CUSTOMER_PAGES = [
