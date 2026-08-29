@@ -256,6 +256,17 @@ export interface ExpenseRow {
   created_at: string;
 }
 
+export interface SupplierPaymentRow {
+  id: number;
+  station_id: number;
+  supplier_id: number;
+  amount: number;
+  payment_date: string;
+  note: string | null;
+  created_by: number | null;
+  created_at: string;
+}
+
 export interface FleetAccountRow {
   id: number;
   station_id: number;

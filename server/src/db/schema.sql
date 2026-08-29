@@ -386,6 +386,25 @@ CREATE TABLE IF NOT EXISTS expenses (
 CREATE INDEX IF NOT EXISTS idx_expenses_station_date ON expenses(station_id, expense_date);
 CREATE INDEX IF NOT EXISTS idx_expenses_station_category ON expenses(station_id, category);
 
+-- On muhasebe / tedarikci cari hesabi (borc takibi). fuel_orders/fuel_suppliers'ta
+-- odeme durumu kavrami yok - bu tablo istasyonun tedarikciye yaptigi odemeleri
+-- tutar, borc bakiyesi (borc - odenen) servis katmaninda TURETILIR (bkz.
+-- supplierLedgerService.getSupplierLedger). Yalnizca SIPARIS uzerinden yapilan
+-- teslimatlar borca dahil edilir - fuel_stock_movements.supplier serbest metin
+-- oldugu ve bilerek fuel_suppliers'a baglanmadigi icin (bkz. yukaridaki not),
+-- manuel stok eklemeleri guvenilir bir supplier_id eslesmesi saglamaz.
+CREATE TABLE IF NOT EXISTS supplier_payments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  supplier_id INTEGER NOT NULL REFERENCES fuel_suppliers(id),
+  amount REAL NOT NULL,
+  payment_date TEXT NOT NULL,
+  note TEXT,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_supplier_payments_station_supplier ON supplier_payments(station_id, supplier_id);
+
 CREATE TABLE IF NOT EXISTS fuel_stock_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),
