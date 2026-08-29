@@ -33,6 +33,7 @@ const Expenses = lazy(() => import("./pages/operator/Expenses"));
 const SupplierLedger = lazy(() => import("./pages/operator/SupplierLedger"));
 const CashAccounts = lazy(() => import("./pages/operator/CashAccounts"));
 const ProfitLoss = lazy(() => import("./pages/operator/ProfitLoss"));
+const VatSummary = lazy(() => import("./pages/operator/VatSummary"));
 const FuelVariance = lazy(() => import("./pages/operator/FuelVariance"));
 const PumpTotalizers = lazy(() => import("./pages/operator/PumpTotalizers"));
 const Reconciliation = lazy(() => import("./pages/operator/Reconciliation"));
@@ -111,6 +112,7 @@ export default function App() {
               <Route path="/operator/cari-hesap" element={<SupplierLedger />} />
               <Route path="/operator/kasa-banka" element={<CashAccounts />} />
               <Route path="/operator/gelir-gider" element={<ProfitLoss />} />
+              <Route path="/operator/kdv-ozeti" element={<VatSummary />} />
               <Route path="/operator/sapma" element={<FuelVariance />} />
             <Route path="/operator/pompa-sayaclari" element={<PumpTotalizers />} />
               <Route path="/operator/mutabakat" element={<Reconciliation />} />
