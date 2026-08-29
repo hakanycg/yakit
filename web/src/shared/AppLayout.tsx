@@ -50,6 +50,9 @@ const FUEL_PAGES = [
   { to: "/operator/pompa-sayaclari", label: "Pompa Sayaçları" },
 ];
 
+/** On muhasebe: yakit disindaki isletme giderleri. Sirayla eklenen modullerin ilki. */
+const ACCOUNTING_PAGES = [{ to: "/operator/giderler", label: "Genel Gider Takibi" }];
+
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */
 const CUSTOMER_PAGES = [
   { to: "/admin/kampanyalar", label: "Kampanyalar" },
@@ -240,6 +243,7 @@ export default function AppLayout() {
               <NavLink to="/operator/raporlar">Raporlama</NavLink>
               <NavLink to="/operator/mutabakat">Gün Sonu Mutabakatı</NavLink>
               <SidebarSubmenu label="Akaryakıt" pages={FUEL_PAGES} onNavigate={closeMenu} />
+              <SidebarSubmenu label="Muhasebe" pages={ACCOUNTING_PAGES} onNavigate={closeMenu} />
               <SidebarSubmenu label="Müşteri" pages={CUSTOMER_PAGES} onNavigate={closeMenu} />
               <SidebarSubmenu label="Yetki ve Uyum" pages={COMPLIANCE_PAGES} onNavigate={closeMenu} />
               <SidebarSubmenu label="Ayarlar" pages={SETTINGS_PAGES} onNavigate={closeMenu} />
