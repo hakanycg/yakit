@@ -129,13 +129,17 @@ export function getSupplierLedger(stationId: number): SupplierLedgerEntry[] {
       [number],
       { supplier_id: number; supplier_name: string; totalOwed: number | null; uncostedDeliveries: number }
     >(
-      `SELECT fo.supplier_id AS supplier_id, fo.supplier_name AS supplier_name,
+      `SELECT fo.supplier_id AS supplier_id, MAX(fo.supplier_name) AS supplier_name,
               COALESCE(SUM(CASE WHEN fsm.unit_cost IS NOT NULL THEN fsm.liters * fsm.unit_cost ELSE 0 END), 0) AS totalOwed,
               SUM(CASE WHEN fsm.unit_cost IS NULL THEN 1 ELSE 0 END) AS uncostedDeliveries
          FROM fuel_orders fo
          JOIN fuel_stock_movements fsm ON fsm.id = fo.delivery_movement_id
         WHERE fo.station_id = ? AND fo.status = 'received' AND fo.supplier_id IS NOT NULL
-        GROUP BY fo.supplier_id, fo.supplier_name`
+        -- Yalnizca supplier_id ile grupla (supplier_name ile DEGIL): siparis aninda
+        -- dondurulen supplier_name gelecekte tedarikci yeniden adlandirilirsa farkli
+        -- gruplara ayrilip borcun bir kismi Map'te supplier_id anahtarli birlestirmede
+        -- sessizce kaybolurdu (bkz. Strix PR #7 incelemesi).
+        GROUP BY fo.supplier_id`
     )
     .all(stationId);
 

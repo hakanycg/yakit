@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { db } from "../db/index.js";
 import type { StationRow, UserRow } from "../db/types.js";
 import { createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
 import { createOrder, createSupplier, receiveOrder } from "./fuelOrderService.js";
@@ -68,6 +69,25 @@ describe("getSupplierLedger", () => {
     expect(ledger).toHaveLength(1);
     expect(ledger[0]!.totalOwed).toBe(0);
     expect(ledger[0]!.balance).toBe(-1000);
+  });
+
+  it("siparislerdeki dondurulmus tedarikci adi FARKLI olsa bile ayni tedarikcinin borcu TOPLANIR", () => {
+    // fuel_orders.supplier_name siparis aninda donduruluyor (bugun rename API'si yok,
+    // ama gelecekte eklenirse GROUP BY supplier_id,supplier_name borcun bir kismini
+    // sessizce dusururdu - bkz. Strix PR #7 incelemesi). Rename'i simule etmek icin
+    // dogrudan satiri guncelliyoruz.
+    const order1 = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 1000 }, actor);
+    setTankStock(station.id, "motorin", 0);
+    receiveOrder(station.id, order1.id, { liters: 1000, unitCost: 20 }, actor);
+
+    const order2 = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 500 }, actor);
+    setTankStock(station.id, "motorin", 0);
+    receiveOrder(station.id, order2.id, { liters: 500, unitCost: 20 }, actor);
+    db.prepare("UPDATE fuel_orders SET supplier_name = ? WHERE id = ?").run("Yeniden Adlandirilmis Tedarik", order2.id);
+
+    const ledger = getSupplierLedger(station.id);
+    expect(ledger).toHaveLength(1);
+    expect(ledger[0]!.totalOwed).toBe(20000 + 10000);
   });
 
   it("baska istasyonun borcunu/odemesini gostermez", () => {
