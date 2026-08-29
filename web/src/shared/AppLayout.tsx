@@ -57,6 +57,7 @@ const ACCOUNTING_PAGES = [
   { to: "/operator/kasa-banka", label: "Kasa/Banka Hesabı" },
   { to: "/operator/gelir-gider", label: "Gelir-Gider Özeti" },
   { to: "/operator/kdv-ozeti", label: "KDV Özet Raporu" },
+  { to: "/operator/personel-avans", label: "Personel Avans/Masraf" },
 ];
 
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */
