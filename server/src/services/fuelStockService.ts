@@ -536,6 +536,31 @@ export function getSupplierSummary(stationId: number, from?: string, to?: string
   }));
 }
 
+/**
+ * Tarih araligindaki TUM maliyetlendirilmis teslimatlarin toplam maliyeti (COGS).
+ * getSupplierSummary'den farkli: tedarikci bazinda kirilim/attribution onemli
+ * degil (supplier bos/null olsa da maliyet dahil edilir), tek bir toplam sayi.
+ */
+export function getTotalFuelCost(stationId: number, from?: string, to?: string): number {
+  const clauses = ["station_id = ?", "type = 'delivery'"];
+  const params: (string | number)[] = [stationId];
+  if (from) {
+    clauses.push(`date(created_at, '${BUSINESS_DAY_SQL_OFFSET}') >= ?`);
+    params.push(from);
+  }
+  if (to) {
+    clauses.push(`date(created_at, '${BUSINESS_DAY_SQL_OFFSET}') <= ?`);
+    params.push(to);
+  }
+  const row = db
+    .prepare<(string | number)[], { totalCost: number }>(
+      `SELECT COALESCE(SUM(CASE WHEN unit_cost IS NOT NULL THEN liters * unit_cost ELSE 0 END), 0) as totalCost
+       FROM fuel_stock_movements WHERE ${clauses.join(" AND ")}`
+    )
+    .get(...params)!;
+  return Math.round(row.totalCost * 100) / 100;
+}
+
 const FUEL_LABELS: Record<FuelType, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
 
 function lowStockAlarmType(fuelType: FuelType): string {
