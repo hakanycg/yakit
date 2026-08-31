@@ -1,0 +1,21 @@
+{
+  "appId": "com.yakit.operator",
+  "appName": "Yakıt Yönetim",
+  "webDir": "www",
+  "server": {
+    "url": "https://REPLACE_WITH_PRODUCTION_DOMAIN/giris",
+    "cleartext": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "launchShowDuration": 3000,
+      "backgroundColor": "#0b0f14"
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#0b0f14",
+      "overlaysWebView": false
+    }
+  }
+}
