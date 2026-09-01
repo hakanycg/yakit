@@ -323,6 +323,36 @@ router.get("/fleet-account", (req, res) => {
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   const account = getFleetAccountForPlate(parsed.data.stationId, parsed.data.plate);
+  // GECICI TESHIS LOGU: filo hesabi/yanlis-yakit eslesmesi canli ortamda gozlemlenemeyen
+  // bir nedenle basarisiz oluyor (bkz. destek gorusmesi) - bu satir sorun cozulunce kaldirilacak.
+  // Aranan degeri VE o istasyondaki tum kayitli plakalarin ham (char-code dahil) halini
+  // yan yana loglar ki gorunmez bir karakter farki varsa hemen ortaya cikssin.
+  if (!account) {
+    const normalized = normalizePlate(parsed.data.plate);
+    const rows = db
+      .prepare<[number], { plate: string; active: number; account_id: number }>(
+        `SELECT fp.plate, fa.active, fa.id as account_id FROM fleet_plates fp
+         JOIN fleet_accounts fa ON fa.id = fp.fleet_account_id
+         WHERE fa.station_id = ?`
+      )
+      .all(parsed.data.stationId);
+    logger.info(
+      {
+        stationId: parsed.data.stationId,
+        rawPlate: parsed.data.plate,
+        rawPlateCodes: [...parsed.data.plate].map((c) => c.charCodeAt(0)),
+        normalizedPlate: normalized,
+        normalizedPlateCodes: [...normalized].map((c) => c.charCodeAt(0)),
+        storedPlates: rows.map((r) => ({
+          plate: r.plate,
+          plateCodes: [...r.plate].map((c) => c.charCodeAt(0)),
+          active: r.active,
+          accountId: r.account_id,
+        })),
+      },
+      "TESHIS: kiosk fleet-account sorgusu hesap bulamadi."
+    );
+  }
   res.json({ account: account ? serializeFleetAccount(account) : null });
 });
 
