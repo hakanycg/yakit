@@ -121,6 +121,7 @@ export interface FuelTank {
   averageCostPerLiter: number;
   percentFull: number;
   status: TankStatus;
+  probeBrand: string | null;
   updatedAt: string;
 }
 
