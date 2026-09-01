@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { env } from "../config.js";
 import { generateStationCode } from "../utils/stationCode.js";
+import { normalizePlate } from "../utils/plate.js";
 import { randomBytes } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -128,6 +129,121 @@ export function applyMigrations(): void {
   backfillStationCodes();
   backfillKioskDeviceTokens();
   dropRedundantIndexes();
+
+  // Yanlis yakit onleme: filo aracina beklenen yakit turu (bkz. fleetService.ts
+  // getExpectedFuelTypeForPlate) - doluysa aracin BU istasyondaki gecmisi olmasa
+  // (ilk ziyaret) bile kontrol yapilabilir.
+  ensureColumn("fleet_plates", "expected_fuel_type", "TEXT");
+
+  // Coklu tank/pompa cihazi mimarisi: hangi marka/protokolun hangi tank/pompaya
+  // bagli oldugunun yapilandirmasi (bkz. tankGaugeDriver.ts / dispenserDriver.ts
+  // kayit defteri). Gercek surucu implementasyonlari henuz yok - bu kolonlar
+  // yalnizca mimariyi coklu-marka destekler hale getirir, doldurulmalari
+  // opsiyoneldir.
+  ensureColumn("fuel_tanks", "probe_brand", "TEXT");
+  ensureColumn("fuel_tanks", "probe_connection_config", "TEXT");
+  ensureColumn("pumps", "protocol_type", "TEXT");
+  ensureColumn("pumps", "protocol_connection_config", "TEXT");
+
+  // Tank dolumu canli takip: siparis "sent"ten "received"e dogrudan atlamak yerine
+  // arada "delivering" durumuna gecebilir (bkz. fuelOrderService.startDelivery).
+  ensureColumn("fuel_orders", "delivery_started_at", "TEXT");
+
+  // Tanker canli konum takibi: siparise bagli tasima/lojistik bilgisi ve son
+  // bilinen konum (bkz. routes/tankerTracking.ts). Token, kiosk_access_token ile
+  // ayni desen - girissiz ama tahmin edilemez, tek bir siparise ozel.
+  ensureColumn("fuel_orders", "driver_phone", "TEXT");
+  ensureColumn("fuel_orders", "tanker_plate", "TEXT");
+  ensureColumn("fuel_orders", "tracking_token", "TEXT");
+  ensureColumn("fuel_orders", "tracking_token_expires_at", "TEXT");
+  ensureColumn("fuel_orders", "last_lat", "REAL");
+  ensureColumn("fuel_orders", "last_lng", "REAL");
+  ensureColumn("fuel_orders", "last_location_at", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_fuel_orders_tracking_token ON fuel_orders(tracking_token) WHERE tracking_token IS NOT NULL");
+
+  backfillNormalizedPlates();
+}
+
+/**
+ * Eskiden plaka karsilastirmasi "ardisik boslugu tek bosluga indirme" ile yapiliyordu
+ * (bkz. utils/plate.ts'teki uzun aciklama) - "06VY894" ile "06 VY 894" hicbir zaman
+ * eslesmiyordu. Bu, halihazirda kaydedilmis satirlarda da FARKLI bosluklu ayni plakanin
+ * iki ayri kayit olarak var olmasina yol acmis olabilir. Bu fonksiyon mevcut kayitlari
+ * yeni "tum boslugu kaldir" formuna gecirir; kisit (UNIQUE/PK) yuzunden cakisan satirlar
+ * BIRLESTIRILIR (veri kaybetmeden), silinmez.
+ */
+function backfillNormalizedPlates(): void {
+  const run = db.transaction(() => {
+    // transactions.plate: kisit yok, dogrudan guncellenir.
+    const txRows = db.prepare("SELECT id, plate FROM transactions").all() as Array<{ id: number; plate: string }>;
+    const updateTx = db.prepare("UPDATE transactions SET plate = ? WHERE id = ?");
+    for (const row of txRows) {
+      const normalized = normalizePlate(row.plate);
+      if (normalized !== row.plate) updateTx.run(normalized, row.id);
+    }
+
+    // fleet_plates.plate: UNIQUE(fleet_account_id, plate). Ayni hesapta cakisma
+    // cikarsa (ayni gercek plakanin iki farkli bosluklu kaydi), sonraki silinir -
+    // ama beklenen yakit turu bilgisi varsa once hayatta kalan kayda tasinir.
+    const fpRows = db.prepare("SELECT id, fleet_account_id, plate, expected_fuel_type FROM fleet_plates").all() as Array<{
+      id: number;
+      fleet_account_id: number;
+      plate: string;
+      expected_fuel_type: string | null;
+    }>;
+    const updateFp = db.prepare("UPDATE fleet_plates SET plate = ? WHERE id = ?");
+    const deleteFp = db.prepare("DELETE FROM fleet_plates WHERE id = ?");
+    const fillExpectedFuel = db.prepare("UPDATE fleet_plates SET expected_fuel_type = ? WHERE id = ? AND expected_fuel_type IS NULL");
+    const seenFleetPlates = new Map<string, { id: number; hasExpectedFuel: boolean }>();
+    for (const row of fpRows) {
+      const normalized = normalizePlate(row.plate);
+      const key = `${row.fleet_account_id}:${normalized}`;
+      const existing = seenFleetPlates.get(key);
+      if (existing) {
+        if (row.expected_fuel_type && !existing.hasExpectedFuel) {
+          fillExpectedFuel.run(row.expected_fuel_type, existing.id);
+          existing.hasExpectedFuel = true;
+        }
+        deleteFp.run(row.id);
+        continue;
+      }
+      if (normalized !== row.plate) updateFp.run(normalized, row.id);
+      seenFleetPlates.set(key, { id: row.id, hasExpectedFuel: !!row.expected_fuel_type });
+    }
+
+    // loyalty_accounts.plate: PRIMARY KEY (station_id, plate). Cakisma cikarsa
+    // puanlar TOPLANIR, sonraki kayit silinir.
+    const laRows = db.prepare("SELECT station_id, plate, points FROM loyalty_accounts").all() as Array<{
+      station_id: number;
+      plate: string;
+      points: number;
+    }>;
+    const updateLaPlate = db.prepare("UPDATE loyalty_accounts SET plate = ? WHERE station_id = ? AND plate = ?");
+    const addLaPoints = db.prepare("UPDATE loyalty_accounts SET points = points + ? WHERE station_id = ? AND plate = ?");
+    const deleteLa = db.prepare("DELETE FROM loyalty_accounts WHERE station_id = ? AND plate = ?");
+    const seenLoyaltyAccounts = new Map<string, string>();
+    for (const row of laRows) {
+      const normalized = normalizePlate(row.plate);
+      const key = `${row.station_id}:${normalized}`;
+      const canonicalPlate = seenLoyaltyAccounts.get(key);
+      if (canonicalPlate !== undefined) {
+        if (row.points !== 0) addLaPoints.run(row.points, row.station_id, canonicalPlate);
+        deleteLa.run(row.station_id, row.plate);
+        continue;
+      }
+      if (normalized !== row.plate) updateLaPlate.run(normalized, row.station_id, row.plate);
+      seenLoyaltyAccounts.set(key, normalized);
+    }
+
+    // loyalty_movements.plate: kisit yok (yalnizca gecmis goruntusu icin tutarlilik).
+    const lmRows = db.prepare("SELECT id, plate FROM loyalty_movements").all() as Array<{ id: number; plate: string }>;
+    const updateLm = db.prepare("UPDATE loyalty_movements SET plate = ? WHERE id = ?");
+    for (const row of lmRows) {
+      const normalized = normalizePlate(row.plate);
+      if (normalized !== row.plate) updateLm.run(normalized, row.id);
+    }
+  });
+  run();
 }
 
 /**

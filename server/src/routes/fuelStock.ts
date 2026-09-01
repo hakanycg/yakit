@@ -601,6 +601,9 @@ router.post("/:fuelType/adjust", csrfProtection, validateBody(adjustSchema), (re
 const settingsSchema = z.object({
   capacityLiters: z.number().positive().max(1000000).optional(),
   lowStockThresholdLiters: z.number().min(0).max(1000000).optional(),
+  // Coklu tank cihazi mimarisi (bkz. tankGaugeDriver.ts) - opsiyonel, doldurulmazsa
+  // varsayilan (noop) surucu kullanilmaya devam eder.
+  probeBrand: z.string().trim().max(60).nullable().optional(),
 });
 
 router.patch("/:fuelType/settings", csrfProtection, validateBody(settingsSchema), (req, res) => {

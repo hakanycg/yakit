@@ -85,6 +85,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "fuelStep.mismatchBody": "Bu plaka daha önce {previous} ile dolum yapmış. Şimdi {selected} mi seçmek istiyorsunuz?",
     "fuelStep.mismatchConfirm": "Evet, {selected} ile devam et",
     "fuelStep.mismatchCancel": "Hayır, geri dön",
+    "fuelStep.blockTitle": "Bu yakıt türü bu araç için engellendi",
+    "fuelStep.blockBody": "Bu plaka için beklenen yakıt türü {previous}. Farklı bir tür seçilemez - lütfen istasyon personeliyle görüşün.",
+    "fuelStep.blockBack": "Geri dön",
 
     "amount.title": "Miktar Seçin",
     "amount.modeAmount": "Tutar Gir",
@@ -289,6 +292,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "fuelStep.mismatchBody": "This plate was previously filled with {previous}. Do you want to select {selected} now?",
     "fuelStep.mismatchConfirm": "Yes, continue with {selected}",
     "fuelStep.mismatchCancel": "No, go back",
+    "fuelStep.blockTitle": "This fuel type is blocked for this vehicle",
+    "fuelStep.blockBody": "The expected fuel type for this plate is {previous}. A different type cannot be selected - please speak to station staff.",
+    "fuelStep.blockBack": "Go back",
 
     "amount.title": "Select Amount",
     "amount.modeAmount": "Enter Amount",
@@ -493,6 +499,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "fuelStep.mismatchBody": "Этот номер ранее заправлялся видом топлива {previous}. Выбрать {selected} сейчас?",
     "fuelStep.mismatchConfirm": "Да, продолжить с {selected}",
     "fuelStep.mismatchCancel": "Нет, вернуться назад",
+    "fuelStep.blockTitle": "Этот вид топлива заблокирован для этого автомобиля",
+    "fuelStep.blockBody": "Ожидаемый вид топлива для этого номера - {previous}. Другой вид выбрать нельзя - обратитесь к персоналу станции.",
+    "fuelStep.blockBack": "Назад",
 
     "amount.title": "Выберите количество",
     "amount.modeAmount": "Ввести сумму",
@@ -697,6 +706,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "fuelStep.mismatchBody": "Dieses Kennzeichen wurde zuvor mit {previous} betankt. Möchten Sie jetzt {selected} wählen?",
     "fuelStep.mismatchConfirm": "Ja, mit {selected} fortfahren",
     "fuelStep.mismatchCancel": "Nein, zurück",
+    "fuelStep.blockTitle": "Dieser Kraftstofftyp ist für dieses Fahrzeug gesperrt",
+    "fuelStep.blockBody": "Der erwartete Kraftstofftyp für dieses Kennzeichen ist {previous}. Ein anderer Typ kann nicht ausgewählt werden - bitte wenden Sie sich an das Stationspersonal.",
+    "fuelStep.blockBack": "Zurück",
 
     "amount.title": "Menge auswählen",
     "amount.modeAmount": "Betrag eingeben",
@@ -901,6 +913,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "fuelStep.mismatchBody": "تم تعبئة هذه اللوحة سابقًا بـ {previous}. هل تريد اختيار {selected} الآن؟",
     "fuelStep.mismatchConfirm": "نعم، المتابعة بـ {selected}",
     "fuelStep.mismatchCancel": "لا، رجوع",
+    "fuelStep.blockTitle": "هذا النوع من الوقود محظور لهذه المركبة",
+    "fuelStep.blockBody": "نوع الوقود المتوقع لهذه اللوحة هو {previous}. لا يمكن اختيار نوع مختلف - يرجى التحدث مع موظفي المحطة.",
+    "fuelStep.blockBack": "رجوع",
 
     "amount.title": "اختر الكمية",
     "amount.modeAmount": "إدخال مبلغ",

@@ -24,13 +24,19 @@ import { isIyzicoReady } from "../services/paymentSettingsService.js";
 import { getAvailableLiters } from "../services/fuelStockService.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig } from "../services/loyaltyService.js";
 import { DiscountError, validateCode } from "../services/discountService.js";
-import { getAccountForPlate as getFleetAccountForPlate, serializeAccount as serializeFleetAccount } from "../services/fleetService.js";
+import {
+  getAccountForPlate as getFleetAccountForPlate,
+  getExpectedFuelTypeForPlate,
+  serializeAccount as serializeFleetAccount,
+} from "../services/fleetService.js";
+import { getWrongFuelMode } from "../services/wrongFuelSettingsService.js";
 import { env } from "../config.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, StationRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
 import { attachKioskDevice, requireKioskDevice } from "../middleware/kioskDevice.js";
 import { normalizeStationCode } from "../utils/stationCode.js";
+import { normalizePlate } from "../utils/plate.js";
 import { SUPPORT_CATEGORIES, SupportError, createSupportRequest, serializeSupportRequest } from "../services/supportService.js";
 
 const router = Router();
@@ -43,7 +49,7 @@ const plateRegex = /^[A-Z0-9 ]{5,12}$/;
 
 // Turkiye il plaka kodlari (01-81) - basit LPR simulasyonu icin gecerlilik kontrolu.
 function isPlausiblePlate(plate: string): boolean {
-  const normalized = plate.toUpperCase().replace(/\s+/g, "");
+  const normalized = normalizePlate(plate);
   const match = /^(\d{2})([A-Z]{1,3})(\d{2,4})$/.exec(normalized);
   if (!match) return false;
   const province = Number(match[1]);
@@ -157,7 +163,7 @@ const lprSchema = z.object({ plate: z.string().min(5).max(15) });
 
 router.post("/lpr/recognize", validateBody(lprSchema), (req, res) => {
   const { plate } = req.body as z.infer<typeof lprSchema>;
-  const normalized = plate.toUpperCase().replace(/\s+/g, "");
+  const normalized = normalizePlate(plate);
   const plausible = isPlausiblePlate(normalized);
   // Gercek bir kamera/ANPR donanimi bu ortamda mevcut olmadigindan, plaka format
   // dogrulama + guven skoru simulasyonu ile plaka okuma sureci modellenir.
@@ -183,7 +189,13 @@ router.get("/plate/last-fuel-type", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
-  res.json({ fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate) });
+  res.json({
+    fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate),
+    // Filo kaydinda tanimliysa, bu istasyonda hic gecmisi olmayan (ILK ziyaret)
+    // bir arac icin de calisir - bkz. fleetService.getExpectedFuelTypeForPlate.
+    expectedFuelType: getExpectedFuelTypeForPlate(parsed.data.stationId, parsed.data.plate),
+    hardBlock: getWrongFuelMode(parsed.data.stationId) === "block",
+  });
 });
 
 const priceHistorySchema = z.object({

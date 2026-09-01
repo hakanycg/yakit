@@ -255,6 +255,14 @@ function IyzicoPaymentPanel({
     }
   }
 
+  async function cancel() {
+    try {
+      await kioskApi.cancel(transaction.id, accessToken);
+    } finally {
+      onCancel();
+    }
+  }
+
   useEffect(() => {
     if (!checkoutFormContent || !containerRef.current) return;
     const container = containerRef.current;
@@ -295,7 +303,7 @@ function IyzicoPaymentPanel({
 
       {!checkoutFormContent && (
         <div className="kiosk-actions">
-          <button type="button" onClick={onCancel} disabled={starting}>{t("payment.cancel")}</button>
+          <button type="button" onClick={() => void cancel()} disabled={starting}>{t("payment.cancel")}</button>
           <button type="button" className="primary" onClick={start} disabled={starting}>
             {starting ? t("payment.preparingForm") : t("payment.payWithCard")}
           </button>

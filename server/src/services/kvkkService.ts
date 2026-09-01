@@ -1,4 +1,5 @@
 import { db } from "../db/index.js";
+import { normalizePlate } from "../utils/plate.js";
 
 export class KvkkError extends Error {
   constructor(
@@ -7,10 +8,6 @@ export class KvkkError extends Error {
   ) {
     super(message);
   }
-}
-
-function normalizePlate(plate: string): string {
-  return plate.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 interface PersonalTransaction {

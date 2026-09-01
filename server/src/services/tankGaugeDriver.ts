@@ -11,12 +11,20 @@ import type { FuelType } from "../db/types.js";
  *
  * SafetySensorDriver/DispenserDriver/PrinterDriver ile ayni desen: su an tek uygulama
  * var (noopTankGaugeDriver, hep null doner - "prob bagli degil"). Gercek donanim
- * baglaninca bu arayuzu uygulayan bir surucu yazilip setTankGaugeDriver() ile devreye
- * alinir; periyodik okuma dongusune (bkz. tankGaugeService.ts) dokunmaya gerek kalmaz.
+ * baglaninca bu arayuzu uygulayan bir surucu yazilip setTankGaugeDriver()/
+ * setTankGaugeDriverFor() ile devreye alinir; periyodik okuma dongusune (bkz.
+ * tankGaugeService.ts) dokunmaya gerek kalmaz.
  *
  * Marka farkliliklari surucunun icinde kalir: cogu prob seri port (RS-232/485) veya
  * TCP uzerinden konusur ve her birinin kendi protokolu vardir, ama disariya verdikleri
  * sey aynidir - o andaki hacim.
+ *
+ * COKLU CIHAZ DESTEGI: eskiden tek bir global surucu vardi - ayni istasyonda farkli
+ * markadan birden fazla prob (ör. benzin tanki Veeder-Root, motorin tanki OPW) AYNI ANDA
+ * desteklenemiyordu. Asagidaki kayit defteri (station+fuelType -> surucu) bunu cozer;
+ * `setTankGaugeDriver()` hala global bir VARSAYILAN atar (geriye donuk uyumluluk ve tek
+ * marka kullanan istasyonlar icin), `setTankGaugeDriverFor()` ise belirli bir tank icin
+ * varsayilani gecersiz kilar.
  */
 
 export interface TankGaugeReading {
@@ -54,13 +62,34 @@ export const noopTankGaugeDriver: TankGaugeDriver = {
   read: () => null,
 };
 
-let activeDriver: TankGaugeDriver = noopTankGaugeDriver;
+let defaultDriver: TankGaugeDriver = noopTankGaugeDriver;
+const driversByTank = new Map<string, TankGaugeDriver>();
 
-export function getTankGaugeDriver(): TankGaugeDriver {
-  return activeDriver;
+function tankKey(stationId: number, fuelType: FuelType): string {
+  return `${stationId}:${fuelType}`;
 }
 
-/** Gercek prob baglandiginda, sunucu baslangicinda noop surucusunun yerine gercek surucu takilir. */
+/** @deprecated Cogu kurulumda hala gecerli tek isim - tum istasyonlar/yakit turleri icin VARSAYILAN surucuyu atar. Belirli bir tanka ozel marka icin setTankGaugeDriverFor() kullanin. */
+export function getTankGaugeDriver(): TankGaugeDriver {
+  return defaultDriver;
+}
+
+/** Gercek prob baglandiginda, sunucu baslangicinda noop surucusunun yerine VARSAYILAN surucu takilir - o tanka ozel bir surucu tanimlanmamis her (istasyon, yakit turu) icin kullanilir. */
 export function setTankGaugeDriver(driver: TankGaugeDriver): void {
-  activeDriver = driver;
+  defaultDriver = driver;
+}
+
+/** Belirli bir istasyon+yakit turu icin (yani tek bir fiziksel tank icin) ozel bir surucu tanimlar - farkli tanklarda farkli marka/protokol probu ayni anda calisabilir. */
+export function setTankGaugeDriverFor(stationId: number, fuelType: FuelType, driver: TankGaugeDriver): void {
+  driversByTank.set(tankKey(stationId, fuelType), driver);
+}
+
+/** Bu tank icin tanimli ozel bir surucu varsa onu, yoksa VARSAYILAN surucuyu doner. */
+export function getTankGaugeDriverFor(stationId: number, fuelType: FuelType): TankGaugeDriver {
+  return driversByTank.get(tankKey(stationId, fuelType)) ?? defaultDriver;
+}
+
+/** Testler arasi izolasyon icin: tum tanka-ozel kayitlari temizler (VARSAYILANI etkilemez). */
+export function clearTankGaugeDriverRegistry(): void {
+  driversByTank.clear();
 }

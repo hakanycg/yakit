@@ -3,7 +3,7 @@ import type { FuelType, StationRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
 import { FUEL_TYPES } from "./fuelStockService.js";
 import { recordReading } from "./fuelVarianceService.js";
-import { getTankGaugeDriver } from "./tankGaugeDriver.js";
+import { getTankGaugeDriverFor, noopTankGaugeDriver, setTankGaugeDriverFor } from "./tankGaugeDriver.js";
 
 /**
  * Seviye probundan periyodik otomatik olcum.
@@ -53,6 +53,37 @@ function lastAutoReadingAt(stationId: number, fuelType: FuelType): number | null
   return row ? new Date(row.measured_at).getTime() : null;
 }
 
+interface ProbeConfigRow {
+  station_id: number;
+  fuel_type: FuelType;
+  probe_brand: string;
+}
+
+/**
+ * Sunucu baslangicinda, her tanka yapilandirilmis marka icin gercek bir surucu
+ * varsa kaydeder. Bu ortamda hicbir gercek marka protokolu (Veeder-Root/OPW/Start
+ * Italiana vb.) uygulanmiyor - saha isi, gercek donanim bagli olmadan yazilamaz/
+ * dogrulanamaz. Ama kayit NOKTASI burasi: gercek bir surucu yazilinca tek
+ * yapilacak sey asagidaki switch'e bir case eklemek, cagiran kod (sweepTankGauges)
+ * hic degismez.
+ *
+ * Yapilandirilmis ama karsiligi olmayan markalar icin uyari loglanir - "marka
+ * secildi ama hicbir sey olmuyor" sessizce gecmez.
+ */
+export function loadConfiguredTankGaugeDrivers(): void {
+  const rows = db
+    .prepare<[], ProbeConfigRow>("SELECT station_id, fuel_type, probe_brand FROM fuel_tanks WHERE probe_brand IS NOT NULL")
+    .all();
+  for (const row of rows) {
+    // Henuz hicbir marka icin gercek surucu yok - hepsi bu uyariya dusuyor.
+    logger.warn(
+      { stationId: row.station_id, fuelType: row.fuel_type, probeBrand: row.probe_brand },
+      "Tank probu markasi yapilandirilmis ama bu marka icin gercek surucu henuz yok - varsayilan (noop) surucu kullanilacak."
+    );
+    setTankGaugeDriverFor(row.station_id, row.fuel_type, noopTankGaugeDriver);
+  }
+}
+
 export interface GaugeSweepResult {
   recorded: number;
   skippedNoProbe: number;
@@ -74,7 +105,6 @@ export function sweepTankGauges(now = Date.now()): GaugeSweepResult {
     skippedTooSoon: 0,
     alarmsRaised: 0,
   };
-  const driver = getTankGaugeDriver();
   const stations = db.prepare<[], StationRow>("SELECT * FROM stations WHERE active = 1").all();
 
   for (const station of stations) {
@@ -92,7 +122,7 @@ export function sweepTankGauges(now = Date.now()): GaugeSweepResult {
 
       let reading;
       try {
-        reading = driver.read(station.id, fuelType);
+        reading = getTankGaugeDriverFor(station.id, fuelType).read(station.id, fuelType);
       } catch (err) {
         // Bir tankin probu arizaliysa digerlerinin okunmasi engellenmemeli.
         logger.error({ err, stationId: station.id, fuelType }, "Tank seviye probu okunamadi.");

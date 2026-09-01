@@ -1,9 +1,10 @@
 import { db } from "../db/index.js";
-import type { FleetAccountRow, FleetMovementRow, FleetPlateRow, UserRow } from "../db/types.js";
+import type { FleetAccountRow, FleetMovementRow, FleetPlateRow, FuelType, UserRow } from "../db/types.js";
 import { createAlarm, broadcastAlarms } from "./alarmService.js";
 import { blockingOverdue } from "./fleetReceivableService.js";
 import { sendEmail, sendSms } from "./notificationService.js";
 import { logger } from "../utils/logger.js";
+import { normalizePlate } from "../utils/plate.js";
 
 export class FleetError extends Error {
   constructor(
@@ -12,10 +13,6 @@ export class FleetError extends Error {
   ) {
     super(message);
   }
-}
-
-function normalizePlate(plate: string): string {
-  return plate.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 export function listAccounts(stationId: number): FleetAccountRow[] {
@@ -42,6 +39,22 @@ export function getAccountForPlate(stationId: number, plate: string): FleetAccou
 
 export function listPlates(accountId: number): FleetPlateRow[] {
   return db.prepare<[number], FleetPlateRow>("SELECT * FROM fleet_plates WHERE fleet_account_id = ? ORDER BY created_at DESC").all(accountId);
+}
+
+/**
+ * Yanlis yakit onleme icin: bu plakanin filo kaydinda beklenen yakit turu tanimliysa
+ * doner - transactionService.getLastFuelTypeForPlate'in aksine, bu istasyonda hic
+ * gecmisi olmayan (ILK ziyaret) bir araç icin de calisir.
+ */
+export function getExpectedFuelTypeForPlate(stationId: number, plate: string): FuelType | null {
+  const row = db
+    .prepare<[number, string], { expected_fuel_type: FuelType | null }>(
+      `SELECT fp.expected_fuel_type FROM fleet_plates fp
+       JOIN fleet_accounts fa ON fa.id = fp.fleet_account_id
+       WHERE fa.station_id = ? AND fp.plate = ? AND fa.active = 1 AND fp.expected_fuel_type IS NOT NULL`
+    )
+    .get(stationId, normalizePlate(plate));
+  return row?.expected_fuel_type ?? null;
 }
 
 export interface CreateFleetAccountInput {
@@ -110,11 +123,13 @@ export function setAccountActive(stationId: number, id: number, active: boolean)
   return getAccountById(stationId, id);
 }
 
-export function addPlate(stationId: number, accountId: number, plate: string): FleetPlateRow {
+export function addPlate(stationId: number, accountId: number, plate: string, expectedFuelType?: FuelType | null): FleetPlateRow {
   getAccountById(stationId, accountId);
   const normalized = normalizePlate(plate);
   try {
-    const result = db.prepare("INSERT INTO fleet_plates (fleet_account_id, plate) VALUES (?, ?)").run(accountId, normalized);
+    const result = db
+      .prepare("INSERT INTO fleet_plates (fleet_account_id, plate, expected_fuel_type) VALUES (?, ?, ?)")
+      .run(accountId, normalized, expectedFuelType ?? null);
     return db.prepare<[number], FleetPlateRow>("SELECT * FROM fleet_plates WHERE id = ?").get(result.lastInsertRowid as number)!;
   } catch {
     throw new FleetError("Bu plaka zaten bu hesaba ekli.", 409);
@@ -312,7 +327,7 @@ export function serializeAccountAdmin(a: FleetAccountRow) {
 }
 
 export function serializePlate(p: FleetPlateRow) {
-  return { id: p.id, plate: p.plate, createdAt: p.created_at };
+  return { id: p.id, plate: p.plate, expectedFuelType: p.expected_fuel_type, createdAt: p.created_at };
 }
 
 export function serializeMovement(m: FleetMovementRow & { username?: string | null }) {

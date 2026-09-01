@@ -22,28 +22,56 @@ export default function FuelStep({
   const { t, locale } = useKioskLang();
   const available = fuelPrices.filter((f) => pump.fuelTypes.includes(f.fuelType));
 
-  // Yanlis yakit onleme: resmi bir ruhsat/tescil kaydimiz olmadigi icin, bu plakanin bu
-  // istasyonda EN SON basariyla hangi yakitla dolum yaptigini kendi gecmisimizden
-  // ogreniyoruz. Aracin motor tipi pratikte degismedigi icin farkli bir tur secilmesi,
-  // kesin bir hata kaniti degil ama guclu bir sinyaldir - bu yuzden engellemek yerine
-  // musteriye onay sorulur.
+  // Yanlis yakit onleme: iki kaynak var - (1) bu plakanin bu istasyonda EN SON basariyla
+  // hangi yakitla dolum yaptigi (kendi gecmisimize dayali bir sinyal), (2) filo kaydinda
+  // tanimliysa beklenen yakit turu (ilk ziyarette de calisir - bkz. fleetService.
+  // getExpectedFuelTypeForPlate). expectedFuelType oncelikli: resmi olmasa da filo
+  // sahibinin kendi beyanidir, gecmisten daha guclu bir sinyaldir.
+  //
+  // hardBlock istasyon ayarina bagli (bkz. wrongFuelSettingsService.ts): "warn" ise
+  // musteriye onay sorulur (mevcut davranis), "block" ise dolum HIC baslamaz - cikissiz
+  // bir uyari gosterilir, onNext hic cagrilmaz.
   const [lastFuelType, setLastFuelType] = useState<FuelType | null>(null);
+  const [expectedFuelType, setExpectedFuelType] = useState<FuelType | null>(null);
+  const [hardBlock, setHardBlock] = useState(false);
   const [pendingFuelType, setPendingFuelType] = useState<FuelType | null>(null);
 
   useEffect(() => {
     if (!plate) return;
     kioskApi
       .getLastFuelType(stationId, plate)
-      .then((res) => setLastFuelType(res.fuelType))
-      .catch(() => setLastFuelType(null));
+      .then((res) => {
+        setLastFuelType(res.fuelType);
+        setExpectedFuelType(res.expectedFuelType);
+        setHardBlock(res.hardBlock);
+      })
+      .catch(() => {
+        setLastFuelType(null);
+        setExpectedFuelType(null);
+        setHardBlock(false);
+      });
   }, [stationId, plate]);
 
+  const referenceFuelType = expectedFuelType ?? lastFuelType;
+
   function selectFuel(fuelType: FuelType) {
-    if (lastFuelType && lastFuelType !== fuelType) {
+    if (referenceFuelType && referenceFuelType !== fuelType) {
       setPendingFuelType(fuelType);
       return;
     }
     onNext(fuelType);
+  }
+
+  if (pendingFuelType && hardBlock) {
+    return (
+      <div style={{ textAlign: "center" }}>
+        <h2>{t("fuelStep.blockTitle")}</h2>
+        <p className="error-text">{t("fuelStep.blockBody", { previous: t(`fuel.${referenceFuelType}`) })}</p>
+        <div className="kiosk-actions" style={{ justifyContent: "center" }}>
+          <button onClick={() => setPendingFuelType(null)}>{t("fuelStep.blockBack")}</button>
+        </div>
+      </div>
+    );
   }
 
   if (pendingFuelType) {
@@ -51,7 +79,7 @@ export default function FuelStep({
       <div style={{ textAlign: "center" }}>
         <h2>{t("fuelStep.mismatchTitle")}</h2>
         <p className="hint-text">
-          {t("fuelStep.mismatchBody", { previous: t(`fuel.${lastFuelType}`), selected: t(`fuel.${pendingFuelType}`) })}
+          {t("fuelStep.mismatchBody", { previous: t(`fuel.${referenceFuelType}`), selected: t(`fuel.${pendingFuelType}`) })}
         </p>
         <div className="kiosk-actions" style={{ justifyContent: "center", gap: "1rem" }}>
           <button onClick={() => setPendingFuelType(null)}>{t("fuelStep.mismatchCancel")}</button>

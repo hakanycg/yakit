@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Yakıt Yönetim</string>
+    <string name="title_activity_main">Yakıt Yönetim</string>
+    <string name="package_name">com.yakit.operator</string>
+    <string name="custom_url_scheme">com.yakit.operator</string>
+</resources>

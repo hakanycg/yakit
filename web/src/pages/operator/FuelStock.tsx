@@ -548,9 +548,18 @@ function AddStockDialog({ tank, onClose, onAdded }: { tank: FuelTank; onClose: (
   );
 }
 
+const PROBE_BRAND_OPTIONS = [
+  { value: "", label: "Yapılandırılmadı (simülasyon)" },
+  { value: "veeder_root", label: "Veeder-Root TLS" },
+  { value: "opw", label: "OPW" },
+  { value: "start_italiana", label: "Start İtaliana" },
+  { value: "other", label: "Diğer" },
+];
+
 function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: () => void; onSaved: () => void }) {
   const [capacity, setCapacity] = useState(String(tank.capacityLiters));
   const [threshold, setThreshold] = useState(String(tank.lowStockThresholdLiters));
+  const [probeBrand, setProbeBrand] = useState(tank.probeBrand ?? "");
   const [adjustLiters, setAdjustLiters] = useState(String(tank.currentLiters));
   const [adjustNote, setAdjustNote] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -563,6 +572,7 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
       await api.patch(`/api/fuel-stock/${tank.fuelType}/settings`, {
         capacityLiters: Number(capacity),
         lowStockThresholdLiters: Number(threshold),
+        probeBrand: probeBrand || null,
       });
       onSaved();
     } catch (err) {
@@ -597,6 +607,16 @@ function SettingsDialog({ tank, onClose, onSaved }: { tank: FuelTank; onClose: (
 
       <label>Düşük Stok Eşiği (L)</label>
       <input type="number" min={0} value={threshold} onChange={(e) => setThreshold(e.target.value)} />
+
+      <label htmlFor="probe-brand">Seviye Probu Markası</label>
+      <select id="probe-brand" value={probeBrand} onChange={(e) => setProbeBrand(e.target.value)}>
+        {PROBE_BRAND_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      <p className="hint-text" style={{ marginTop: "0.25rem" }}>
+        Her tank bağımsız bir marka kullanabilir. Gerçek donanım henüz bağlı değilse bu seçim yalnızca kayıt amaçlıdır.
+      </p>
 
       <div className="toolbar" style={{ marginTop: "1rem" }}>
         <div className="spacer" />

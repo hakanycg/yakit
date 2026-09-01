@@ -13,6 +13,7 @@ export default function Login() {
   const [challengeToken, setChallengeToken] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const idleLogout = new URLSearchParams(location.search).get("sebep") === "zaman-asimi";
 
   if (user) {
     const dest = user.role === "super_admin" ? "/admin/istasyonlar" : user.role === "admin" ? "/admin" : "/operator";
@@ -105,6 +106,7 @@ export default function Login() {
       <div className="login-card">
         <h2>Personel Girişi</h2>
         <p className="hint-text">Operatör ve yönetici paneline erişim için giriş yapın.</p>
+        {idleLogout && <p className="error-text">Hareketsizlik nedeniyle oturumunuz güvenlik amacıyla kapatıldı. Lütfen tekrar giriş yapın.</p>}
         <form onSubmit={handlePasswordSubmit}>
           <label htmlFor="username">Kullanıcı adı</label>
           <input id="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus required />

@@ -43,6 +43,7 @@ export function serializeTank(t: FuelTankRow) {
     averageCostPerLiter: Math.round(t.average_cost_per_liter * 100) / 100,
     percentFull: t.capacity_liters > 0 ? Math.round((t.current_liters / t.capacity_liters) * 1000) / 10 : 0,
     status: tankStatus(t),
+    probeBrand: t.probe_brand,
     updatedAt: t.updated_at,
   };
 }
@@ -369,7 +370,7 @@ export function adjustStock(
 export function updateTankSettings(
   stationId: number,
   fuelType: FuelType,
-  input: { capacityLiters?: number; lowStockThresholdLiters?: number },
+  input: { capacityLiters?: number; lowStockThresholdLiters?: number; probeBrand?: string | null },
   actor: UserRow
 ): FuelTankRow {
   const tank = getTank(stationId, fuelType);
@@ -377,10 +378,13 @@ export function updateTankSettings(
   const threshold = input.lowStockThresholdLiters ?? tank.low_stock_threshold_liters;
   if (capacity <= 0) throw new FuelStockError("Tank kapasitesi sifirdan buyuk olmalidir.", 400);
   if (threshold < 0 || threshold > capacity) throw new FuelStockError("Dusuk stok esigi gecersiz.", 400);
+  // probeBrand `undefined` ise dokunulmaz (baska alan guncelleniyor demektir), `null`
+  // ise bilerek temizlenir (bkz. tankGaugeDriver.ts coklu cihaz kayit defteri).
+  const probeBrand = input.probeBrand !== undefined ? input.probeBrand : tank.probe_brand;
 
   db.prepare(
-    "UPDATE fuel_tanks SET capacity_liters = ?, low_stock_threshold_liters = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
-  ).run(capacity, threshold, new Date().toISOString(), actor.id, stationId, fuelType);
+    "UPDATE fuel_tanks SET capacity_liters = ?, low_stock_threshold_liters = ?, probe_brand = ?, updated_at = ?, updated_by = ? WHERE station_id = ? AND fuel_type = ?"
+  ).run(capacity, threshold, probeBrand, new Date().toISOString(), actor.id, stationId, fuelType);
 
   broadcastTanks(stationId);
   return getTank(stationId, fuelType);

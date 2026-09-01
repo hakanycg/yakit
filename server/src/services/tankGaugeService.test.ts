@@ -4,8 +4,15 @@ import type { FuelType, StationRow } from "../db/types.js";
 import { createTestPump, createTestStation, setTankStock } from "../test/dbFixture.js";
 import { getTank } from "./fuelStockService.js";
 import { listReadings } from "./fuelVarianceService.js";
-import { noopTankGaugeDriver, setTankGaugeDriver, type TankGaugeDriver } from "./tankGaugeDriver.js";
-import { sweepTankGauges } from "./tankGaugeService.js";
+import {
+  clearTankGaugeDriverRegistry,
+  getTankGaugeDriverFor,
+  noopTankGaugeDriver,
+  setTankGaugeDriver,
+  setTankGaugeDriverFor,
+  type TankGaugeDriver,
+} from "./tankGaugeDriver.js";
+import { loadConfiguredTankGaugeDrivers, sweepTankGauges } from "./tankGaugeService.js";
 
 let station: StationRow;
 let pumpId: number;
@@ -37,6 +44,7 @@ beforeEach(() => {
 
 afterEach(() => {
   setTankGaugeDriver(noopTankGaugeDriver);
+  clearTankGaugeDriverRegistry();
 });
 
 describe("sweepTankGauges", () => {
@@ -193,5 +201,41 @@ describe("sweepTankGauges", () => {
       )
       .get(station.id);
     expect(alarm?.message).toContain("250 L KAYIP");
+  });
+});
+
+describe("coklu tank cihazi mimarisi (per-tank driver registry)", () => {
+  it("bir tanka ozel surucu tanimlanmadiysa varsayilan surucu kullanilir", () => {
+    setTankGaugeDriver(fixedProbe(station.id, 5000));
+    expect(getTankGaugeDriverFor(station.id, "motorin").read(station.id, "motorin")).toEqual({ liters: 5000 });
+  });
+
+  it("bir tanka ozel surucu, varsayilani gecersiz kilar - digerlerini etkilemez", () => {
+    setTankGaugeDriver({ read: () => ({ liters: 5000 }) });
+    setTankGaugeDriverFor(station.id, "motorin", { read: () => ({ liters: 9999 }) });
+
+    expect(getTankGaugeDriverFor(station.id, "motorin").read(station.id, "motorin")).toEqual({ liters: 9999 });
+    // Ayni istasyonda farkli bir yakit turu hala varsayilani kullanir - iki "marka"
+    // ayni anda, birbirinden bagimsiz calisabiliyor.
+    expect(getTankGaugeDriverFor(station.id, "benzin").read(station.id, "benzin")).toEqual({ liters: 5000 });
+  });
+
+  it("farkli istasyonlarin ozel surucu kayitlari birbirine karismaz", () => {
+    const otherStation = createTestStation();
+    setTankGaugeDriverFor(station.id, "motorin", { read: () => ({ liters: 111 }) });
+    setTankGaugeDriverFor(otherStation.id, "motorin", { read: () => ({ liters: 222 }) });
+
+    expect(getTankGaugeDriverFor(station.id, "motorin").read(station.id, "motorin")).toEqual({ liters: 111 });
+    expect(getTankGaugeDriverFor(otherStation.id, "motorin").read(otherStation.id, "motorin")).toEqual({ liters: 222 });
+  });
+
+  it("loadConfiguredTankGaugeDrivers, marka tanimli tanklari kayit defterine ekler (henuz noop olarak)", () => {
+    db.prepare("UPDATE fuel_tanks SET probe_brand = 'veeder_root' WHERE station_id = ? AND fuel_type = 'motorin'").run(station.id);
+
+    loadConfiguredTankGaugeDrivers();
+
+    // Gercek Veeder-Root surucusu henuz yok - kayitli surucu noop olmali, gercek
+    // donanim baglaninca burasi degisecek (bkz. tankGaugeService.ts yorumu).
+    expect(getTankGaugeDriverFor(station.id, "motorin")).toBe(noopTankGaugeDriver);
   });
 });

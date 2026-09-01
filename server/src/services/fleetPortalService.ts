@@ -3,6 +3,7 @@ import { db } from "../db/index.js";
 import type { FleetAccountRow, FleetPortalSessionRow, FleetPortalUserRow, UserRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
 import { BUSINESS_DAY_SQL_OFFSET } from "../utils/businessDay.js";
+import { normalizePlate } from "../utils/plate.js";
 import { getAccountById, getAvailableAmount } from "./fleetService.js";
 
 /**
@@ -491,7 +492,7 @@ export function getStatement(
 
   if (filters.plate) {
     clauses.push("t.plate = ?");
-    params.push(filters.plate.toUpperCase().replace(/\s+/g, " ").trim());
+    params.push(normalizePlate(filters.plate));
   }
   if (filters.type) {
     clauses.push("m.type = ?");

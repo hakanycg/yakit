@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Yakıt Filo Portalı</string>
+    <string name="title_activity_main">Yakıt Filo Portalı</string>
+    <string name="package_name">com.yakit.fleet</string>
+    <string name="custom_url_scheme">com.yakit.fleet</string>
+</resources>

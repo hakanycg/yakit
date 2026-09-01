@@ -327,6 +327,7 @@ export interface FleetPlateRow {
   id: number;
   fleet_account_id: number;
   plate: string;
+  expected_fuel_type: FuelType | null;
   created_at: string;
 }
 
@@ -512,6 +513,8 @@ export interface FuelTankRow {
   current_liters: number;
   low_stock_threshold_liters: number;
   average_cost_per_liter: number;
+  probe_brand: string | null;
+  probe_connection_config: string | null;
   updated_at: string;
   updated_by: number | null;
 }

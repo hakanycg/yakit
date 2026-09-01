@@ -148,15 +148,18 @@ router.patch("/:id/active", csrfProtection, validateBody(activeSchema), (req, re
   }
 });
 
-const plateSchema = z.object({ plate: z.string().trim().min(5).max(15) });
+const plateSchema = z.object({
+  plate: z.string().trim().min(5).max(15),
+  expectedFuelType: z.enum(["benzin", "motorin", "lpg"]).nullable().optional(),
+});
 
 router.post("/:id/plates", csrfProtection, validateBody(plateSchema), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
   try {
-    const { plate } = req.body as z.infer<typeof plateSchema>;
-    const row = addPlate(req.stationId!, id, plate);
-    recordAudit({ user: req.user!, action: "fleet_plate_added", entityType: "fleet_account", entityId: id, details: { plate }, ip: req.ip, stationId: req.stationId });
+    const { plate, expectedFuelType } = req.body as z.infer<typeof plateSchema>;
+    const row = addPlate(req.stationId!, id, plate, expectedFuelType ?? null);
+    recordAudit({ user: req.user!, action: "fleet_plate_added", entityType: "fleet_account", entityId: id, details: { plate, expectedFuelType }, ip: req.ip, stationId: req.stationId });
     res.status(201).json({ plate: serializePlate(row) });
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
