@@ -59,9 +59,11 @@ export const kioskApi = {
     ),
 
   // Yanlis yakit onleme: bu plaka bu istasyonda daha once hangi yakit turuyle basariyla
-  // dolum yapmis - resmi bir ruhsat/tescil kaydi degil, kendi gecmisimize dayali bir sinyal.
+  // dolum yapmis (kendi gecmisimize dayali sinyal) VE/VEYA filo kaydinda tanimli beklenen
+  // yakit turu (ilk ziyarette de calisir). hardBlock=true ise uyusmazlikta dolum hic
+  // baslamamali (bkz. wrongFuelSettingsService.ts).
   getLastFuelType: (stationId: number, plate: string) =>
-    api.get<{ fuelType: FuelType | null }>(
+    api.get<{ fuelType: FuelType | null; expectedFuelType: FuelType | null; hardBlock: boolean }>(
       `/api/kiosk/plate/last-fuel-type?stationId=${stationId}&plate=${encodeURIComponent(plate)}`
     ),
 

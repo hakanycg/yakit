@@ -17,6 +17,7 @@ import {
   getPriceGuardSettings,
   updatePriceGuardSettings,
 } from "../services/priceGuardService.js";
+import { WrongFuelSettingsError, getWrongFuelMode, setWrongFuelMode } from "../services/wrongFuelSettingsService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected, csrfProtection);
@@ -95,6 +96,24 @@ router.patch("/price-guard", csrfProtection, validateBody(priceGuardSchema), (re
     res.json({ settings });
   } catch (err) {
     if (err instanceof PriceGuardError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.get("/wrong-fuel-mode", (req, res) => {
+  res.json({ mode: getWrongFuelMode(req.stationId!) });
+});
+
+const wrongFuelModeSchema = z.object({ mode: z.enum(["warn", "block"]) });
+
+router.patch("/wrong-fuel-mode", csrfProtection, validateBody(wrongFuelModeSchema), (req, res) => {
+  try {
+    const { mode } = req.body as z.infer<typeof wrongFuelModeSchema>;
+    const saved = setWrongFuelMode(req.stationId!, mode, req.user!);
+    recordAudit({ user: req.user!, action: "wrong_fuel_mode_updated", details: { mode: saved }, ip: req.ip, stationId: req.stationId });
+    res.json({ mode: saved });
+  } catch (err) {
+    if (err instanceof WrongFuelSettingsError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }
 });

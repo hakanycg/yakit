@@ -24,7 +24,12 @@ import { isIyzicoReady } from "../services/paymentSettingsService.js";
 import { getAvailableLiters } from "../services/fuelStockService.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig } from "../services/loyaltyService.js";
 import { DiscountError, validateCode } from "../services/discountService.js";
-import { getAccountForPlate as getFleetAccountForPlate, serializeAccount as serializeFleetAccount } from "../services/fleetService.js";
+import {
+  getAccountForPlate as getFleetAccountForPlate,
+  getExpectedFuelTypeForPlate,
+  serializeAccount as serializeFleetAccount,
+} from "../services/fleetService.js";
+import { getWrongFuelMode } from "../services/wrongFuelSettingsService.js";
 import { env } from "../config.js";
 import { db } from "../db/index.js";
 import type { FuelPriceRow, FuelType, StationRow } from "../db/types.js";
@@ -183,7 +188,13 @@ router.get("/plate/last-fuel-type", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
-  res.json({ fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate) });
+  res.json({
+    fuelType: getLastFuelTypeForPlate(parsed.data.stationId, parsed.data.plate),
+    // Filo kaydinda tanimliysa, bu istasyonda hic gecmisi olmayan (ILK ziyaret)
+    // bir arac icin de calisir - bkz. fleetService.getExpectedFuelTypeForPlate.
+    expectedFuelType: getExpectedFuelTypeForPlate(parsed.data.stationId, parsed.data.plate),
+    hardBlock: getWrongFuelMode(parsed.data.stationId) === "block",
+  });
 });
 
 const priceHistorySchema = z.object({

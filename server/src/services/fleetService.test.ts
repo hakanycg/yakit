@@ -9,6 +9,7 @@ import {
   createAccount,
   getAccountForPlate,
   getAvailableAmount,
+  getExpectedFuelTypeForPlate,
   topUp,
   updateContact,
 } from "./fleetService.js";
@@ -155,5 +156,35 @@ describe("fleetService - plate lookup", () => {
     expect(getAccountForPlate(station.id, "34 ABC 123")?.id).toBe(account.id);
     expect(getAccountForPlate(otherStation.id, "34 ABC 123")).toBeNull();
     expect(getAccountForPlate(station.id, "06 XYZ 999")).toBeNull();
+  });
+});
+
+describe("fleetService - expected fuel type (yanlis yakit onleme)", () => {
+  it("returns the plate's expected fuel type even with no prior transaction history", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Dizel Filo", billingType: "prepaid" }, admin);
+    addPlate(station.id, account.id, "34 def 456", "motorin");
+
+    expect(getExpectedFuelTypeForPlate(station.id, "34 DEF 456")).toBe("motorin");
+  });
+
+  it("returns null when no expected fuel type was set", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Bilinmeyen Filo", billingType: "prepaid" }, admin);
+    addPlate(station.id, account.id, "06 ghi 789");
+
+    expect(getExpectedFuelTypeForPlate(station.id, "06 GHI 789")).toBeNull();
+  });
+
+  it("does not leak an expected fuel type across stations", () => {
+    const station = createTestStation();
+    const otherStation = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "LPG Filo", billingType: "prepaid" }, admin);
+    addPlate(station.id, account.id, "35 jkl 321", "lpg");
+
+    expect(getExpectedFuelTypeForPlate(otherStation.id, "35 JKL 321")).toBeNull();
   });
 });

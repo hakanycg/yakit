@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../shared/api";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
-import { formatCurrency, formatDateTime } from "../../shared/format";
+import { formatCurrency, formatDateTime, FUEL_LABEL } from "../../shared/format";
 
 interface FleetPlate {
   id: number;
   plate: string;
+  expectedFuelType: "benzin" | "motorin" | "lpg" | null;
   createdAt: string;
 }
 
@@ -455,6 +456,7 @@ function AccountDetailDialog({
   /** Gecici sifre yalnizca olusturma/sifirlama yanitinda gelir; hicbir yerde saklanmaz. */
   const [temporaryPassword, setTemporaryPassword] = useState<{ email: string; password: string } | null>(null);
   const [newPlate, setNewPlate] = useState("");
+  const [newPlateFuelType, setNewPlateFuelType] = useState("");
   const [topUpAmount, setTopUpAmount] = useState("");
   const [topUpNote, setTopUpNote] = useState("");
   const [contactEmail, setContactEmail] = useState(account?.contactEmail ?? "");
@@ -589,8 +591,12 @@ function AccountDetailDialog({
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/api/fleet-accounts/${accountId}/plates`, { plate: newPlate.trim() });
+      await api.post(`/api/fleet-accounts/${accountId}/plates`, {
+        plate: newPlate.trim(),
+        expectedFuelType: newPlateFuelType || null,
+      });
       setNewPlate("");
+      setNewPlateFuelType("");
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Plaka eklenemedi.");
@@ -670,6 +676,16 @@ function AccountDetailDialog({
           <h4>Plakalar</h4>
           <div className="toolbar">
             <input value={newPlate} onChange={(e) => setNewPlate(e.target.value.toUpperCase())} placeholder="34 ABC 123" />
+            <select
+              value={newPlateFuelType}
+              onChange={(e) => setNewPlateFuelType(e.target.value)}
+              title="Beklenen yakıt türü (opsiyonel) - yanlış yakıt kontrolünde kullanılır"
+            >
+              <option value="">Beklenen yakıt (opsiyonel)</option>
+              <option value="benzin">{FUEL_LABEL.benzin}</option>
+              <option value="motorin">{FUEL_LABEL.motorin}</option>
+              <option value="lpg">{FUEL_LABEL.lpg}</option>
+            </select>
             <button onClick={addPlate} disabled={busy}>Ekle</button>
           </div>
           {/* Her plaka bir SATIR degil, kendi genisligi kadar bir rozet: 10 arac
@@ -678,6 +694,7 @@ function AccountDetailDialog({
             {account.plates.map((p) => (
               <li key={p.id} className="plate-chip">
                 <span dir="ltr">{p.plate}</span>
+                {p.expectedFuelType && <span className="hint-text">({FUEL_LABEL[p.expectedFuelType]})</span>}
                 <button
                   type="button"
                   onClick={() => removePlate(p.id)}

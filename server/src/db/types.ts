@@ -327,6 +327,7 @@ export interface FleetPlateRow {
   id: number;
   fleet_account_id: number;
   plate: string;
+  expected_fuel_type: FuelType | null;
   created_at: string;
 }
 

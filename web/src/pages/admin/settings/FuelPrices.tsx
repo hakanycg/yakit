@@ -4,6 +4,7 @@ import { useEscapeKey } from "../../../shared/useEscapeKey";
 import { useEffectiveStationId } from "../../../shared/useEffectiveStation";
 import { FUEL_LABEL, formatCurrency, formatDateTime } from "../../../shared/format";
 import type { FuelPrice, PriceGuardWarning } from "../../../shared/types";
+import StatusToggle from "./StatusToggle";
 
 interface ScheduledPriceChange {
   id: number;
@@ -28,12 +29,29 @@ export default function FuelPrices() {
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
+  const [wrongFuelMode, setWrongFuelModeState] = useState<"warn" | "block">("warn");
+  const [wrongFuelBusy, setWrongFuelBusy] = useState(false);
+
   function load() {
     if (stationId === null) return;
     api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => setPrices(res.fuelPrices));
     api.get<{ schedules: ScheduledPriceChange[] }>("/api/settings/fuel-prices/scheduled").then((res) => setSchedules(res.schedules));
+    api.get<{ mode: "warn" | "block" }>("/api/settings/wrong-fuel-mode").then((res) => setWrongFuelModeState(res.mode));
   }
   useEffect(load, [stationId]);
+
+  async function toggleWrongFuelMode() {
+    const next = wrongFuelMode === "block" ? "warn" : "block";
+    setWrongFuelBusy(true);
+    try {
+      const res = await api.patch<{ mode: "warn" | "block" }>("/api/settings/wrong-fuel-mode", { mode: next });
+      setWrongFuelModeState(res.mode);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Ayar kaydedilemedi.");
+    } finally {
+      setWrongFuelBusy(false);
+    }
+  }
 
   /**
    * Fat-finger onayi. Sunucu olagandisi bir fiyat degisikliginde 409 + uyari detayi
@@ -187,6 +205,22 @@ export default function FuelPrices() {
             </tbody>
           </table>
         )}
+      </div>
+
+      <div className="card settings-card">
+        <div className="card-head">
+          <h3>Yanlış Yakıt Önleme</h3>
+        </div>
+        <p className="hint-text">
+          Müşteri, bu istasyondaki geçmişinden veya filo kaydından farklı bir yakıt türü seçerse ne olsun?
+        </p>
+        <StatusToggle
+          checked={wrongFuelMode === "block"}
+          disabled={wrongFuelBusy}
+          onChange={() => void toggleWrongFuelMode()}
+          activeLabel="Engelle (dolum hiç başlamaz)"
+          inactiveLabel="Yalnızca uyar (mevcut davranış)"
+        />
       </div>
     </div>
   );
