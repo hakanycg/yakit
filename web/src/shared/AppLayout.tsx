@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
+import { useIdleLogout } from "./useIdleLogout";
 import { useThemePreference } from "./useThemePreference";
 import { initials } from "./format";
 import { MenuIcon, MoonIcon, SunIcon } from "./icons";
@@ -185,6 +186,9 @@ function SidebarAccountCard({ onLogout }: { onLogout: () => void }) {
   );
 }
 
+/** Hareketsizlikte otomatik cikis suresi - KVKK/PCI kapsaminda paylasimli ekranlarda oturumun acik kalmamasi icin. */
+const IDLE_LOGOUT_MS = 15 * 60 * 1000;
+
 export default function AppLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -192,10 +196,14 @@ export default function AppLayout() {
   const [themeMode, setThemeMode] = useThemePreference();
   useCriticalAlarmNotifications();
 
-  async function handleLogout() {
+  async function handleLogout(reason?: "idle") {
     await logout();
-    navigate("/giris", { replace: true });
+    navigate(reason === "idle" ? "/giris?sebep=zaman-asimi" : "/giris", { replace: true });
   }
+
+  useIdleLogout(IDLE_LOGOUT_MS, () => {
+    void handleLogout("idle");
+  });
 
   const closeMenu = () => setMenuOpen(false);
 
@@ -257,7 +265,7 @@ export default function AppLayout() {
             </>
           )}
         </nav>
-        <SidebarAccountCard onLogout={handleLogout} />
+        <SidebarAccountCard onLogout={() => void handleLogout()} />
       </aside>
       <div className="main-content">
         <header className="topbar">
