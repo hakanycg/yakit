@@ -394,7 +394,13 @@ CREATE TABLE IF NOT EXISTS fuel_orders (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_orders_station ON fuel_orders(station_id, status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_fuel_orders_tracking_token ON fuel_orders(tracking_token) WHERE tracking_token IS NOT NULL;
+-- idx_fuel_orders_tracking_token burada DEGIL, db/index.ts'deki applyMigrations()'da
+-- olusturuluyor - stations.sync_token'daki ayni gerekce (yukaridaki yorum): CREATE
+-- TABLE IF NOT EXISTS, halihazirda var olan (production) 'fuel_orders' tablosunu
+-- DEGISTIRMEZ, yani tracking_token kolonu bu blokla eklenmis olmaz. Bu indeksi burada
+-- olusturmaya calismak, mevcut veritabanlarinda kolon henuz yokken calisip "no such
+-- column: tracking_token" hatasiyla applySchema()'yi (ve tum sunucu baslatmasini)
+-- crash-loop'a sokar.
 
 -- On muhasebe / genel gider takibi. Yakit alim maliyeti fuel_orders'ta zaten var;
 -- burada eksik olan, istasyonun yakit DISINDAKI isletme giderleridir (elektrik,
