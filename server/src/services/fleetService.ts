@@ -4,6 +4,7 @@ import { createAlarm, broadcastAlarms } from "./alarmService.js";
 import { blockingOverdue } from "./fleetReceivableService.js";
 import { sendEmail, sendSms } from "./notificationService.js";
 import { logger } from "../utils/logger.js";
+import { normalizePlate } from "../utils/plate.js";
 
 export class FleetError extends Error {
   constructor(
@@ -12,10 +13,6 @@ export class FleetError extends Error {
   ) {
     super(message);
   }
-}
-
-function normalizePlate(plate: string): string {
-  return plate.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 export function listAccounts(stationId: number): FleetAccountRow[] {

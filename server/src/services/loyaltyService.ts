@@ -1,6 +1,7 @@
 import { db } from "../db/index.js";
 import type { LoyaltyAccountRow, LoyaltyMovementRow, UserRow } from "../db/types.js";
 import { getSetting, setSetting } from "./settingsStore.js";
+import { normalizePlate } from "../utils/plate.js";
 
 export class LoyaltyError extends Error {
   constructor(
@@ -35,10 +36,6 @@ export function setLoyaltyConfig(stationId: number, config: Partial<LoyaltyConfi
   if (config.pointsPerLiter !== undefined) setSetting(stationId, "loyalty_points_per_liter", String(config.pointsPerLiter), actor);
   if (config.pointValueTry !== undefined) setSetting(stationId, "loyalty_point_value_try", String(config.pointValueTry), actor);
   return getLoyaltyConfig(stationId);
-}
-
-function normalizePlate(plate: string): string {
-  return plate.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 function getAccount(stationId: number, plate: string): LoyaltyAccountRow | undefined {

@@ -12,6 +12,7 @@ import { getAutomationDriver } from "./automationDriver.js";
 import { capturePostAuth, cancelPreAuthHold } from "./iyzicoService.js";
 import { logger } from "../utils/logger.js";
 import { safeCompare } from "../utils/safeCompare.js";
+import { normalizePlate } from "../utils/plate.js";
 import { getBalance as getLoyaltyBalance, getLoyaltyConfig, earnPoints, redeemPoints, refundPoints } from "./loyaltyService.js";
 import { validateCode, redeemCode, releaseCode } from "./discountService.js";
 import {
@@ -139,7 +140,7 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
         ? input.requestedLiters! * price.price_per_liter
         : getDispenserDriver().estimateMaxFullTankLiters() * price.price_per_liter;
 
-  const normalizedPlate = input.plate.toUpperCase().replace(/\s+/g, " ").trim();
+  const normalizedPlate = normalizePlate(input.plate);
 
   // Indirim kodu/sadakat puani on-dogrulamasi: yan etkisiz (kullanim sayaci/puan henuz
   // dusulmez), gecersizse islem hic olusturulmadan hata firlatilir.
@@ -677,7 +678,7 @@ function buildTransactionWhere(stationId: number, filters: TransactionListFilter
     // Sutundaki boslular da ayiklanir - aksi halde arama teriminden boslugu
     // silmek ("34 ABC 01" -> "34ABC01") sutunla hicbir zaman eslesmezdi.
     clauses.push("REPLACE(UPPER(plate), ' ', '') LIKE ?");
-    params.push(`%${filters.plate.toUpperCase().replace(/\s+/g, "")}%`);
+    params.push(`%${normalizePlate(filters.plate)}%`);
   }
   if (filters.from) {
     clauses.push("created_at >= ?");
@@ -738,7 +739,7 @@ export function getTransactionById(id: number, stationId: number): TransactionRo
  * degildir, sadece musteriye "emin misiniz?" diye sormak icin bir sinyaldir.
  */
 export function getLastFuelTypeForPlate(stationId: number, plate: string): FuelType | null {
-  const normalized = plate.toUpperCase().replace(/\s+/g, " ").trim();
+  const normalized = normalizePlate(plate);
   const row = db
     .prepare<[number, string], { fuel_type: FuelType }>(
       "SELECT fuel_type FROM transactions WHERE station_id = ? AND plate = ? AND status = 'completed' ORDER BY created_at DESC LIMIT 1"
