@@ -19,8 +19,10 @@ import {
   FleetError,
   chargeAccount as chargeFleetAccount,
   getAccountForPlate as getFleetAccountForPlate,
+  getExpectedFuelTypeForPlate,
   refundChargeForTransaction as refundFleetChargeForTransaction,
 } from "./fleetService.js";
+import { getWrongFuelMode } from "./wrongFuelSettingsService.js";
 
 const DISPENSE_TICK_MS = 500;
 
@@ -141,6 +143,17 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
         : getDispenserDriver().estimateMaxFullTankLiters() * price.price_per_liter;
 
   const normalizedPlate = normalizePlate(input.plate);
+
+  // Yanlis yakit onleme: "block" modunda musterinin sectigi yakit turu, plakanin
+  // beklenen (filo kaydi) veya gecmis yakit turunden farkliysa islem HIC OLUSTURULMAZ.
+  // Kiosk (FuelStep.tsx) ayni kontrolu musteriye ONCEDEN gosterir, ama bu sunucu
+  // kontrolu olmadan dogrudan API cagrisiyla atlatilabilirdi.
+  if (getWrongFuelMode(pump.station_id) === "block") {
+    const reference = getExpectedFuelTypeForPlate(pump.station_id, normalizedPlate) ?? getLastFuelTypeForPlate(pump.station_id, normalizedPlate);
+    if (reference && reference !== input.fuelType) {
+      throw new TransactionError("Bu plaka icin farkli bir yakit turu bekleniyor. Lutfen personelle iletisime gecin.", 409);
+    }
+  }
 
   // Indirim kodu/sadakat puani on-dogrulamasi: yan etkisiz (kullanim sayaci/puan henuz
   // dusulmez), gecersizse islem hic olusturulmadan hata firlatilir.

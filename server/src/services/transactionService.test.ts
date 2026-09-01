@@ -5,6 +5,7 @@ import { createTestFuelPrice, createTestPump, createTestStation, createTestUser,
 import { createAccount as createFleetAccount, addPlate as addFleetPlate, topUp as topUpFleetAccount } from "./fleetService.js";
 import { setDispenserDriver, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
 import { setAutomationDriver, noopAutomationDriver, type AutomationDriver, type AutomationSaleReport } from "./automationDriver.js";
+import { setWrongFuelMode } from "./wrongFuelSettingsService.js";
 import {
   cancelPendingTransaction,
   chargeAmount,
@@ -387,6 +388,50 @@ describe("payWithFleetAccount", () => {
 
     const account = db.prepare("SELECT balance FROM fleet_accounts WHERE id = ?").get(fleet.id) as { balance: number };
     expect(account.balance).toBe(1000);
+  });
+});
+
+describe("createTransaction - yanlis yakit sert engelleme (sunucu tarafi)", () => {
+  it("'block' modunda, filonun beklediginden farkli yakit turuyle islem olusturulamaz - dogrudan API cagrisi da kiosk kontrolunu atlayamaz", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    createTestFuelPrice(station.station_id, "motorin", 45);
+    setTankStock(station.station_id, "motorin", 500);
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Test Filo Yanlis Yakit", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34WFB001", "motorin");
+    setWrongFuelMode(station.station_id, "block", staff);
+
+    expect(() =>
+      createTransaction({ pumpId, plate: "34WFB001", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 1 })
+    ).toThrow();
+  });
+
+  it("'block' modunda, beklenenle AYNI yakit turu secilirse islem normal sekilde olusur", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Test Filo Dogru Yakit", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34WFB002", "benzin");
+    setWrongFuelMode(station.station_id, "block", staff);
+
+    const { transaction } = createTransaction({ pumpId, plate: "34WFB002", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 1 });
+    expect(transaction.fuel_type).toBe("benzin");
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
+  it("varsayilan 'warn' modunda sunucu islemi engellemez - yalnizca kiosk uyarir", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    createTestFuelPrice(station.station_id, "motorin", 45);
+    setTankStock(station.station_id, "motorin", 500);
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Test Filo Warn", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34WFB003", "motorin");
+
+    const { transaction } = createTransaction({ pumpId, plate: "34WFB003", plateSource: "manual", fuelType: "benzin", amountMode: "liters", requestedLiters: 1 });
+    expect(transaction.fuel_type).toBe("benzin");
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
   });
 });
 
