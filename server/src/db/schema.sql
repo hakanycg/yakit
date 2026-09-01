@@ -826,6 +826,10 @@ CREATE TABLE IF NOT EXISTS fleet_plates (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id),
   plate TEXT NOT NULL,
+  -- Bu aracin normalde kullandigi yakit turu (opsiyonel). Doluysa, bu plaka
+  -- istasyona ILK kez gelse bile (henuz gecmisi olmasa bile) yanlis yakit
+  -- kontrolu yapilabilir - bkz. fleetService.ts getExpectedFuelTypeForPlate.
+  expected_fuel_type TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(fleet_account_id, plate)
 );
