@@ -172,7 +172,7 @@ export function applyMigrations(): void {
  * yeni "tum boslugu kaldir" formuna gecirir; kisit (UNIQUE/PK) yuzunden cakisan satirlar
  * BIRLESTIRILIR (veri kaybetmeden), silinmez.
  */
-function backfillNormalizedPlates(): void {
+export function backfillNormalizedPlates(): void {
   const run = db.transaction(() => {
     // transactions.plate: kisit yok, dogrudan guncellenir.
     const txRows = db.prepare("SELECT id, plate FROM transactions").all() as Array<{ id: number; plate: string }>;
@@ -182,9 +182,12 @@ function backfillNormalizedPlates(): void {
       if (normalized !== row.plate) updateTx.run(normalized, row.id);
     }
 
-    // fleet_plates.plate: UNIQUE(fleet_account_id, plate). Ayni hesapta cakisma
-    // cikarsa (ayni gercek plakanin iki farkli bosluklu kaydi), sonraki silinir -
-    // ama beklenen yakit turu bilgisi varsa once hayatta kalan kayda tasinir.
+    // fleet_plates.plate: UNIQUE(fleet_account_id, plate). ONEMLI: Once ayni gruptaki
+    // TUM satirlar toplanip fazlalıklari SILINIR, kalan tek (kanonik) satir en SONDA
+    // yeniden adlandirilir. Sirayla "gordukce" isleyen bir tek-gecis yaklasimi (eski
+    // kod) YANLIS: zaten normalize edilmis bir plakaya sahip satir, henuz normalize
+    // EDILMEMIS bir kardesinden once eklenmisse (dusuk id), o kardes normalize
+    // edilirken UNIQUE ihlali firlatirdi (baska bir satir zaten o degeri tutuyor).
     const fpRows = db.prepare("SELECT id, fleet_account_id, plate, expected_fuel_type FROM fleet_plates").all() as Array<{
       id: number;
       fleet_account_id: number;
@@ -193,46 +196,58 @@ function backfillNormalizedPlates(): void {
     }>;
     const updateFp = db.prepare("UPDATE fleet_plates SET plate = ? WHERE id = ?");
     const deleteFp = db.prepare("DELETE FROM fleet_plates WHERE id = ?");
-    const fillExpectedFuel = db.prepare("UPDATE fleet_plates SET expected_fuel_type = ? WHERE id = ? AND expected_fuel_type IS NULL");
-    const seenFleetPlates = new Map<string, { id: number; hasExpectedFuel: boolean }>();
+    const fillExpectedFuel = db.prepare("UPDATE fleet_plates SET expected_fuel_type = ? WHERE id = ?");
+    const fpGroups = new Map<string, typeof fpRows>();
     for (const row of fpRows) {
-      const normalized = normalizePlate(row.plate);
-      const key = `${row.fleet_account_id}:${normalized}`;
-      const existing = seenFleetPlates.get(key);
-      if (existing) {
-        if (row.expected_fuel_type && !existing.hasExpectedFuel) {
-          fillExpectedFuel.run(row.expected_fuel_type, existing.id);
-          existing.hasExpectedFuel = true;
+      const key = `${row.fleet_account_id}:${normalizePlate(row.plate)}`;
+      const group = fpGroups.get(key);
+      if (group) group.push(row);
+      else fpGroups.set(key, [row]);
+    }
+    for (const rows of fpGroups.values()) {
+      rows.sort((a, b) => a.id - b.id);
+      const canonical = rows.find((r) => r.expected_fuel_type) ?? rows[0]!;
+      for (const row of rows) {
+        if (row.id === canonical.id) continue;
+        if (row.expected_fuel_type && !canonical.expected_fuel_type) {
+          fillExpectedFuel.run(row.expected_fuel_type, canonical.id);
+          canonical.expected_fuel_type = row.expected_fuel_type;
         }
         deleteFp.run(row.id);
-        continue;
       }
-      if (normalized !== row.plate) updateFp.run(normalized, row.id);
-      seenFleetPlates.set(key, { id: row.id, hasExpectedFuel: !!row.expected_fuel_type });
+      const normalized = normalizePlate(canonical.plate);
+      if (normalized !== canonical.plate) updateFp.run(normalized, canonical.id);
     }
 
-    // loyalty_accounts.plate: PRIMARY KEY (station_id, plate). Cakisma cikarsa
-    // puanlar TOPLANIR, sonraki kayit silinir.
-    const laRows = db.prepare("SELECT station_id, plate, points FROM loyalty_accounts").all() as Array<{
+    // loyalty_accounts.plate: PRIMARY KEY (station_id, plate), surrogate id yok - ama
+    // SQLite'ta her tablonun (WITHOUT ROWID degilse) gizli bir rowid'i vardir; fazlalik
+    // satirlar rowid ile silinir/toplanir ki metin esleme sirasindan bagimsiz olsun.
+    // Ayni "once sil, sonra yeniden adlandir" gerekcesi fleet_plates ile aynidir.
+    const laRows = db.prepare("SELECT rowid AS rid, station_id, plate, points FROM loyalty_accounts").all() as Array<{
+      rid: number;
       station_id: number;
       plate: string;
       points: number;
     }>;
-    const updateLaPlate = db.prepare("UPDATE loyalty_accounts SET plate = ? WHERE station_id = ? AND plate = ?");
-    const addLaPoints = db.prepare("UPDATE loyalty_accounts SET points = points + ? WHERE station_id = ? AND plate = ?");
-    const deleteLa = db.prepare("DELETE FROM loyalty_accounts WHERE station_id = ? AND plate = ?");
-    const seenLoyaltyAccounts = new Map<string, string>();
+    const updateLaPlate = db.prepare("UPDATE loyalty_accounts SET plate = ? WHERE rowid = ?");
+    const addLaPoints = db.prepare("UPDATE loyalty_accounts SET points = points + ? WHERE rowid = ?");
+    const deleteLa = db.prepare("DELETE FROM loyalty_accounts WHERE rowid = ?");
+    const laGroups = new Map<string, typeof laRows>();
     for (const row of laRows) {
-      const normalized = normalizePlate(row.plate);
-      const key = `${row.station_id}:${normalized}`;
-      const canonicalPlate = seenLoyaltyAccounts.get(key);
-      if (canonicalPlate !== undefined) {
-        if (row.points !== 0) addLaPoints.run(row.points, row.station_id, canonicalPlate);
-        deleteLa.run(row.station_id, row.plate);
-        continue;
+      const key = `${row.station_id}:${normalizePlate(row.plate)}`;
+      const group = laGroups.get(key);
+      if (group) group.push(row);
+      else laGroups.set(key, [row]);
+    }
+    for (const rows of laGroups.values()) {
+      rows.sort((a, b) => a.rid - b.rid);
+      const canonical = rows[0]!;
+      for (const row of rows.slice(1)) {
+        if (row.points !== 0) addLaPoints.run(row.points, canonical.rid);
+        deleteLa.run(row.rid);
       }
-      if (normalized !== row.plate) updateLaPlate.run(normalized, row.station_id, row.plate);
-      seenLoyaltyAccounts.set(key, normalized);
+      const normalized = normalizePlate(canonical.plate);
+      if (normalized !== canonical.plate) updateLaPlate.run(normalized, canonical.rid);
     }
 
     // loyalty_movements.plate: kisit yok (yalnizca gecmis goruntusu icin tutarlilik).
