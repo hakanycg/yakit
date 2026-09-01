@@ -128,6 +128,37 @@ export function applyMigrations(): void {
   backfillStationCodes();
   backfillKioskDeviceTokens();
   dropRedundantIndexes();
+
+  // Yanlis yakit onleme: filo aracina beklenen yakit turu (bkz. fleetService.ts
+  // getExpectedFuelTypeForPlate) - doluysa aracin BU istasyondaki gecmisi olmasa
+  // (ilk ziyaret) bile kontrol yapilabilir.
+  ensureColumn("fleet_plates", "expected_fuel_type", "TEXT");
+
+  // Coklu tank/pompa cihazi mimarisi: hangi marka/protokolun hangi tank/pompaya
+  // bagli oldugunun yapilandirmasi (bkz. tankGaugeDriver.ts / dispenserDriver.ts
+  // kayit defteri). Gercek surucu implementasyonlari henuz yok - bu kolonlar
+  // yalnizca mimariyi coklu-marka destekler hale getirir, doldurulmalari
+  // opsiyoneldir.
+  ensureColumn("fuel_tanks", "probe_brand", "TEXT");
+  ensureColumn("fuel_tanks", "probe_connection_config", "TEXT");
+  ensureColumn("pumps", "protocol_type", "TEXT");
+  ensureColumn("pumps", "protocol_connection_config", "TEXT");
+
+  // Tank dolumu canli takip: siparis "sent"ten "received"e dogrudan atlamak yerine
+  // arada "delivering" durumuna gecebilir (bkz. fuelOrderService.startDelivery).
+  ensureColumn("fuel_orders", "delivery_started_at", "TEXT");
+
+  // Tanker canli konum takibi: siparise bagli tasima/lojistik bilgisi ve son
+  // bilinen konum (bkz. routes/tankerTracking.ts). Token, kiosk_access_token ile
+  // ayni desen - girissiz ama tahmin edilemez, tek bir siparise ozel.
+  ensureColumn("fuel_orders", "driver_phone", "TEXT");
+  ensureColumn("fuel_orders", "tanker_plate", "TEXT");
+  ensureColumn("fuel_orders", "tracking_token", "TEXT");
+  ensureColumn("fuel_orders", "tracking_token_expires_at", "TEXT");
+  ensureColumn("fuel_orders", "last_lat", "REAL");
+  ensureColumn("fuel_orders", "last_lng", "REAL");
+  ensureColumn("fuel_orders", "last_location_at", "TEXT");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_fuel_orders_tracking_token ON fuel_orders(tracking_token) WHERE tracking_token IS NOT NULL");
 }
 
 /**

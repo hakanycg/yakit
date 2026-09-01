@@ -136,6 +136,11 @@ CREATE TABLE IF NOT EXISTS pumps (
   fault_code TEXT,
   fault_message TEXT,
   current_transaction_id INTEGER,
+  -- Coklu pompa cihazi mimarisi: bu pompanin hangi protokolle (RS485/Modbus RTU/
+  -- TCP/pulse/4-20mA vb.) konustugu, opsiyonel yapilandirma. Bkz. dispenserDriver.ts
+  -- kayit defteri - doldurulmazsa varsayilan (simule) surucu kullanilir.
+  protocol_type TEXT,
+  protocol_connection_config TEXT,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   UNIQUE(station_id, number)
 );
@@ -310,6 +315,11 @@ CREATE TABLE IF NOT EXISTS fuel_tanks (
   current_liters REAL NOT NULL DEFAULT 0,
   low_stock_threshold_liters REAL NOT NULL DEFAULT 1000,
   average_cost_per_liter REAL NOT NULL DEFAULT 0, -- agirlikli ortalama alis maliyeti (TL/L); sadece maliyet girilen teslimatlarla guncellenir
+  -- Coklu tank cihazi mimarisi: bu tankin hangi marka/protokol prob ile okundugu,
+  -- opsiyonel yapilandirma. Bkz. tankGaugeDriver.ts kayit defteri - doldurulmazsa
+  -- varsayilan (noop) surucu kullanilir.
+  probe_brand TEXT,
+  probe_connection_config TEXT,
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_by INTEGER REFERENCES users(id),
   PRIMARY KEY (station_id, fuel_type)
@@ -355,19 +365,36 @@ CREATE TABLE IF NOT EXISTS fuel_orders (
   ordered_liters REAL NOT NULL,
   unit_cost REAL,                      -- anlasilan birim fiyat (TL/L), opsiyonel
   expected_at TEXT,                    -- beklenen teslim tarihi
-  status TEXT NOT NULL DEFAULT 'draft', -- draft | sent | received | cancelled
+  status TEXT NOT NULL DEFAULT 'draft', -- draft | sent | delivering | received | cancelled
   note TEXT,
   -- Teslim alinca olusan stok hareketi. Siparis-teslimat eslesmesi buradan kurulur;
   -- bir siparis yalnizca BIR kez teslim alinabilir (bkz. receiveOrder).
   delivery_movement_id INTEGER REFERENCES fuel_stock_movements(id),
   received_liters REAL,                -- tanka fiilen giren miktar (teslim aninda dondurulur)
   sent_at TEXT,
+  -- Tanker istasyona gelip personel "Teslimat Basladi" dediginde damgalanir (bkz.
+  -- fuelOrderService.startDelivery). Bu sure boyunca o yakit turunun otomatik prob
+  -- okumasi atlanir (bkz. tankGaugeService.hasActiveDelivery) - sahte kayip alarmi
+  -- onlenir.
+  delivery_started_at TEXT,
   received_at TEXT,
   cancelled_at TEXT,
+  -- Tanker canli konum takibi (bkz. routes/tankerTracking.ts). Sofor telefonu
+  -- girilmisse siparis gonderilirken bir takip linki SMS'lenir; token
+  -- kiosk_access_token ile ayni desen (girissiz ama tahmin edilemez, tek siparise
+  -- ozel, suresi dolar).
+  driver_phone TEXT,
+  tanker_plate TEXT,
+  tracking_token TEXT,
+  tracking_token_expires_at TEXT,
+  last_lat REAL,
+  last_lng REAL,
+  last_location_at TEXT,
   created_by INTEGER REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_fuel_orders_station ON fuel_orders(station_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_fuel_orders_tracking_token ON fuel_orders(tracking_token) WHERE tracking_token IS NOT NULL;
 
 -- On muhasebe / genel gider takibi. Yakit alim maliyeti fuel_orders'ta zaten var;
 -- burada eksik olan, istasyonun yakit DISINDAKI isletme giderleridir (elektrik,
