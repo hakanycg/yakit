@@ -39,7 +39,16 @@ async function request<T>(path: string, options: RequestInit = {}, unscoped = fa
   // Kaydi'nin kendi istasyon suzgeci, bkz. AuditLog.tsx) - genel gecerli
   // secili istasyon buraya sizip cagiranin "tum istasyonlar" niyetini
   // sessizce bozmasin diye appendStationParam hic uygulanmaz.
-  const url = unscoped ? path : appendStationParam(path);
+  //
+  // /api/kiosk/* HER ZAMAN unscoped: bu uclar zaten KENDI stationId'lerini query'e
+  // yaziyor (ör. kioskApi.getFleetAccount). Ayni tarayicida daha once admin panelinde
+  // (super_admin/tenant_admin) bir istasyon secilmisse appendStationParam bunun
+  // UZERINE IKINCI bir stationId daha eklerdi - Express'te ayni adli iki query
+  // parametresi bir DIZIYE donusur (ör. stationId=["1","1"]), bu da sunucudaki
+  // z.coerce.number() dogrulamasini NaN ile PATLATIR (bkz. destek gorusmesi -
+  // kiosk'ta filo odemesi/yanlis yakit kontrolu bu yuzden sessizce 400 doner ve
+  // musteri hicbir uyari gormeden yanlis yakitla dolum yapabilirdi).
+  const url = unscoped || path.startsWith("/api/kiosk/") ? path : appendStationParam(path);
   const res = await fetch(url, { ...options, headers, credentials: "same-origin" });
 
   if (res.status === 204) return undefined as T;
