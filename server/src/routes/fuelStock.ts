@@ -43,6 +43,7 @@ import {
   sendOrder,
   serializeOrder,
   serializeSupplier,
+  startDelivery,
   suggestions,
   updateSupplier,
 } from "../services/fuelOrderService.js";
@@ -487,6 +488,34 @@ router.post("/orders/:id/send", csrfProtection, (req, res) => {
     recordAudit({
       user: req.user!,
       action: "fuel_order_sent",
+      entityType: "fuel_order",
+      entityId: id,
+      details: { supplier: order.supplier_name, liters: order.ordered_liters },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ order: serializeOrder(order) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+/**
+ * Tanker istasyona gelip fiili bosaltma baslayinca personel bunu isaretler - siparis
+ * 'sent'ten 'delivering'e gecer. Bu sure boyunca o yakit turunun otomatik prob
+ * okumasi atlanir (bkz. tankGaugeService.hasActiveDelivery), sahte kayip alarmi
+ * onlenir. Teslim alma (receive) adimi hala ayri ve zorunludur - bu yalnizca "su an
+ * suruyor" bilgisini panelde canli gosterir.
+ */
+router.post("/orders/:id/start-delivery", csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz siparis." });
+  try {
+    const order = startDelivery(req.stationId!, id, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_order_delivery_started",
       entityType: "fuel_order",
       entityId: id,
       details: { supplier: order.supplier_name, liters: order.ordered_liters },

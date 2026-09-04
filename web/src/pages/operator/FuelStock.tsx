@@ -107,6 +107,7 @@ export default function FuelStock() {
           <TankCard
             key={t.fuelType}
             tank={t}
+            deliveringOrder={orders.find((o) => o.fuelType === t.fuelType && o.status === "delivering")}
             onChanged={() => {
               loadTanks();
               loadMovements();
@@ -309,7 +310,7 @@ export default function FuelStock() {
   );
 }
 
-function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }) {
+function TankCard({ tank, deliveringOrder, onChanged }: { tank: FuelTank; deliveringOrder?: FuelOrder; onChanged: () => void }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const criticalZoneHeight = tank.capacityLiters > 0 ? (tank.lowStockThresholdLiters / tank.capacityLiters) * 100 : 0;
@@ -320,6 +321,13 @@ function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }
         <span className="tank-card-title"><span className={`fuel-dot ${tank.fuelType}`} />{FUEL_LABEL[tank.fuelType] ?? tank.fuelType}</span>
         <span className={`badge ${STATUS_BADGE[tank.status]}`}>{STATUS_LABEL[tank.status]}</span>
       </div>
+
+      {deliveringOrder && (
+        <p className="hint-text" style={{ marginTop: "0.25rem", marginBottom: 0 }}>
+          🚚 Tanker dolum yapıyor — {deliveringOrder.deliveryStartedAt ? new Date(deliveringOrder.deliveryStartedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "?"}'den beri
+          {" "}(otomatik seviye okuması bu süre boyunca duraklatıldı)
+        </p>
+      )}
 
       <div className="tank-body">
         <div className="tank-gauge">
@@ -819,10 +827,11 @@ interface FuelOrder {
   receivedLiters: number | null;
   unitCost: number | null;
   expectedAt: string | null;
-  status: "draft" | "sent" | "received" | "cancelled";
+  status: "draft" | "sent" | "delivering" | "received" | "cancelled";
   note: string | null;
   deliveryMovementId: number | null;
   sentAt: string | null;
+  deliveryStartedAt: string | null;
   receivedAt: string | null;
   createdAt: string;
 }
@@ -830,6 +839,7 @@ interface FuelOrder {
 const ORDER_STATUS_LABEL: Record<FuelOrder["status"], string> = {
   draft: "Taslak",
   sent: "Gönderildi",
+  delivering: "Teslimat sürüyor",
   received: "Teslim alındı",
   cancelled: "İptal",
 };
@@ -837,6 +847,7 @@ const ORDER_STATUS_LABEL: Record<FuelOrder["status"], string> = {
 const ORDER_STATUS_BADGE: Record<FuelOrder["status"], string> = {
   draft: "warning",
   sent: "info",
+  delivering: "info",
   received: "resolved",
   cancelled: "critical",
 };
@@ -894,9 +905,9 @@ function FuelOrdersSection({
 
   useEffect(loadHistory, [stationId, historyStatus, historyFrom, historyTo, historyPage]);
 
-  const openOrders = orders.filter((o) => o.status === "draft" || o.status === "sent");
+  const openOrders = orders.filter((o) => o.status === "draft" || o.status === "sent" || o.status === "delivering");
 
-  async function act(order: FuelOrder, action: "send" | "cancel") {
+  async function act(order: FuelOrder, action: "send" | "cancel" | "start-delivery") {
     setError(null);
     try {
       await api.post(`/api/fuel-stock/orders/${order.id}/${action}`);
@@ -993,12 +1004,19 @@ function FuelOrdersSection({
                           Gönder
                         </button>
                       )}
+                      {o.status === "sent" && (
+                        <button className="btn-sm" onClick={() => act(o, "start-delivery")}>
+                          Teslimat Başladı
+                        </button>
+                      )}
                       <button className="primary btn-sm" onClick={() => setReceiving(o)}>
                         Teslim Al
                       </button>
-                      <button className="ghost btn-sm" onClick={() => act(o, "cancel")}>
-                        İptal
-                      </button>
+                      {o.status !== "delivering" && (
+                        <button className="ghost btn-sm" onClick={() => act(o, "cancel")}>
+                          İptal
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

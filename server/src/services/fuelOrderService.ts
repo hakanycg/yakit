@@ -2,7 +2,7 @@ import { db } from "../db/index.js";
 import type { FuelOrderRow, FuelSupplierRow, FuelType, UserRow } from "../db/types.js";
 import { logger } from "../utils/logger.js";
 import { sendEmail } from "./notificationService.js";
-import { FUEL_TYPES, FuelStockError, addStock, listTanks } from "./fuelStockService.js";
+import { FUEL_TYPES, FuelStockError, addStock, broadcastTanks, listTanks } from "./fuelStockService.js";
 
 /**
  * Yakit siparisi: dusuk stok alarmi ile teslimat kaydi arasindaki eksik halka.
@@ -306,6 +306,29 @@ export function sendOrder(stationId: number, id: number, actor: UserRow): FuelOr
   return getOrder(stationId, id);
 }
 
+/**
+ * Tanker istasyona gelip fiili bosaltma baslayinca personel bunu isaretler.
+ *
+ * Asama 1 (simdi): elle isaretlenir - sistemde gercek bir tank seviye probu bagli
+ * degil (bkz. tankGaugeDriver.ts, noop). Asama 2 (gercek prob baglaninca): bu,
+ * ATG konsollarinin zaten kullandigi deterministik bir esik kuraliyla (seviyenin
+ * kesintisiz yukselmesi) otomatik tespit edilebilir - simdilik yer birakiliyor.
+ *
+ * Durum 'delivering' oldugu surece bu yakit turunun otomatik prob okumasi atlanir
+ * (bkz. tankGaugeService.hasActiveDelivery) - aksi halde dolan tank, sahte bir
+ * "kayip" sapma alarmi uretirdi (aninda buyuk hacim artisi).
+ */
+export function startDelivery(stationId: number, id: number, actor: UserRow): FuelOrderRow {
+  const order = getOrder(stationId, id);
+  assertStatus(order, ["sent"]);
+
+  db.prepare("UPDATE fuel_orders SET status = 'delivering', delivery_started_at = ? WHERE id = ?").run(new Date().toISOString(), id);
+  logger.info({ orderId: id, actorId: actor.id }, "Tanker teslimati basladi olarak isaretlendi.");
+  broadcastTanks(stationId);
+
+  return getOrder(stationId, id);
+}
+
 export function cancelOrder(stationId: number, id: number): FuelOrderRow {
   const order = getOrder(stationId, id);
   // Teslim alinmis siparis iptal edilemez: yakit tanka girdi, kaydi silmek stogu
@@ -342,7 +365,9 @@ export function receiveOrder(
   actor: UserRow
 ): { order: FuelOrderRow; overflow: number; variance: ReturnType<typeof addStock>["variance"] } {
   const order = getOrder(stationId, id);
-  assertStatus(order, ["draft", "sent"]);
+  // 'delivering': personel "Teslimat Basladi" demis olabilir ama teslim alma
+  // adimini atlamiyor - bosaltma bitince yine burasi kullanilir.
+  assertStatus(order, ["draft", "sent", "delivering"]);
 
   let result: ReturnType<typeof addStock>;
   try {
@@ -399,6 +424,7 @@ export function serializeOrder(o: FuelOrderRow) {
     note: o.note,
     deliveryMovementId: o.delivery_movement_id,
     sentAt: o.sent_at,
+    deliveryStartedAt: o.delivery_started_at,
     receivedAt: o.received_at,
     createdAt: o.created_at,
   };

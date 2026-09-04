@@ -236,11 +236,14 @@ export interface FuelOrderRow {
   ordered_liters: number;
   unit_cost: number | null;
   expected_at: string | null;
-  status: "draft" | "sent" | "received" | "cancelled";
+  status: "draft" | "sent" | "delivering" | "received" | "cancelled";
   note: string | null;
   delivery_movement_id: number | null;
   received_liters: number | null;
   sent_at: string | null;
+  // Tanker istasyona gelip personel "Teslimat Basladi" dediginde damgalanir (bkz.
+  // fuelOrderService.startDelivery / tankGaugeService.hasActiveDelivery).
+  delivery_started_at: string | null;
   received_at: string | null;
   cancelled_at: string | null;
   created_by: number | null;

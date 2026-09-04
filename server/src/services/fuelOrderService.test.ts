@@ -12,6 +12,7 @@ import {
   listOrdersPaged,
   receiveOrder,
   sendOrder,
+  startDelivery,
   suggestions,
 } from "./fuelOrderService.js";
 
@@ -129,6 +130,41 @@ describe("siparis yasam dongusu", () => {
     const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
     const foreign = createTestStation();
     expect(() => cancelOrder(foreign.id, order.id)).toThrow(FuelOrderError);
+  });
+});
+
+describe("startDelivery (tanker teslimati canli takip)", () => {
+  it("'sent' durumundaki siparisi 'delivering'e gecirir ve baslama zamanini damgalar", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+
+    const started = startDelivery(station.id, order.id, actor);
+
+    expect(started.status).toBe("delivering");
+    expect(started.delivery_started_at).not.toBeNull();
+  });
+
+  it("'draft' durumundaki (henuz gonderilmemis) siparis icin reddedilir", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    expect(() => startDelivery(station.id, order.id, actor)).toThrow(FuelOrderError);
+  });
+
+  it("zaten 'delivering' olan siparis icin tekrar cagrilamaz", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+    startDelivery(station.id, order.id, actor);
+    expect(() => startDelivery(station.id, order.id, actor)).toThrow(FuelOrderError);
+  });
+
+  it("'delivering' durumundaki siparis normal sekilde teslim alinabilir", () => {
+    setTankStock(station.id, "motorin", 1000);
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+    startDelivery(station.id, order.id, actor);
+
+    const { order: received } = receiveOrder(station.id, order.id, { liters: 5000 }, actor);
+
+    expect(received.status).toBe("received");
   });
 });
 
