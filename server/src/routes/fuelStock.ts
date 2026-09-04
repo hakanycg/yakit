@@ -458,6 +458,10 @@ const orderSchema = z.object({
   unitCost: z.number().positive().max(1000).optional(),
   expectedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.").optional(),
   note: z.string().trim().max(300).optional(),
+  // Tanker canli konum takibi (bkz. fuelOrderService.sendTrackingLink) - opsiyonel,
+  // sofor telefonu girilmezse takip linki hic olusturulmaz.
+  driverPhone: z.string().trim().min(7).max(20).optional(),
+  tankerPlate: z.string().trim().max(15).optional(),
 });
 
 router.post("/orders", csrfProtection, validateBody(orderSchema), (req, res) => {

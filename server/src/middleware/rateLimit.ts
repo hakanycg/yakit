@@ -31,3 +31,15 @@ export const kioskRateLimit = rateLimit({
   legacyHeaders: false,
   message: { error: "Istek limiti asildi." },
 });
+
+// Tanker canli konum takibi: kimliksiz (yalnizca token korumali) tek yazma ucu -
+// bkz. routes/tankerTracking.ts. Gercek kullanim (soforun cihazi birkac dakikada
+// bir konum gonderir) cok altinda kalir; buradaki amac token'i kaba kuvvetle
+// denemeyi (bkz. safeCompare) pahali kilmak.
+export const tankerTrackingRateLimit = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Istek limiti asildi." },
+});

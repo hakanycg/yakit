@@ -246,6 +246,16 @@ export interface FuelOrderRow {
   delivery_started_at: string | null;
   received_at: string | null;
   cancelled_at: string | null;
+  // Tanker canli konum takibi (bkz. routes/tankerTracking.ts). Sofor telefonu
+  // girilmisse siparis gonderilirken bir takip linki SMS'lenir; token kiosk_access_token
+  // ile ayni desen (girissiz ama tahmin edilemez, tek siparise ozel, suresi dolar).
+  driver_phone: string | null;
+  tanker_plate: string | null;
+  tracking_token: string | null;
+  tracking_token_expires_at: string | null;
+  last_lat: number | null;
+  last_lng: number | null;
+  last_location_at: string | null;
   created_by: number | null;
   created_at: string;
 }

@@ -1,8 +1,16 @@
+import { randomBytes } from "node:crypto";
 import { db } from "../db/index.js";
-import type { FuelOrderRow, FuelSupplierRow, FuelType, UserRow } from "../db/types.js";
+import type { FuelOrderRow, FuelSupplierRow, FuelType, StationRow, UserRow } from "../db/types.js";
+import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
-import { sendEmail } from "./notificationService.js";
+import { safeCompare } from "../utils/safeCompare.js";
+import { sendEmail, sendSms } from "./notificationService.js";
 import { FUEL_TYPES, FuelStockError, addStock, broadcastTanks, listTanks } from "./fuelStockService.js";
+
+/** Takip linkinin gecerlilik suresi - cogu teslimat cok daha kisa surer, ama beklenmedik
+ * bir gecikme (trafik, aksilik) yasandiginda linkin erken sessizce olmesini onlemek icin
+ * cömert tutuldu. */
+const TRACKING_TOKEN_TTL_MS = 48 * 60 * 60 * 1000;
 
 /**
  * Yakit siparisi: dusuk stok alarmi ile teslimat kaydi arasindaki eksik halka.
@@ -240,6 +248,11 @@ export interface CreateOrderInput {
   unitCost?: number;
   expectedAt?: string;
   note?: string;
+  // Tanker canli konum takibi: sofor telefonu girilmisse siparis gonderilirken (bkz.
+  // sendOrder) bir takip linki SMS'lenir. Ikisi de opsiyonel - mevcut siparis akisini
+  // bozmadan eklenir.
+  driverPhone?: string;
+  tankerPlate?: string;
 }
 
 export function createOrder(stationId: number, input: CreateOrderInput, actor: UserRow): FuelOrderRow {
@@ -249,8 +262,8 @@ export function createOrder(stationId: number, input: CreateOrderInput, actor: U
 
   const result = db
     .prepare(
-      `INSERT INTO fuel_orders (station_id, fuel_type, supplier_id, supplier_name, ordered_liters, unit_cost, expected_at, note, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO fuel_orders (station_id, fuel_type, supplier_id, supplier_name, ordered_liters, unit_cost, expected_at, note, driver_phone, tanker_plate, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       stationId,
@@ -261,6 +274,8 @@ export function createOrder(stationId: number, input: CreateOrderInput, actor: U
       input.unitCost ?? null,
       input.expectedAt ?? null,
       input.note?.trim() || null,
+      input.driverPhone?.trim() || null,
+      input.tankerPlate?.trim().toUpperCase() || null,
       actor.id
     );
   return getOrder(stationId, result.lastInsertRowid as number);
@@ -303,7 +318,35 @@ export function sendOrder(stationId: number, id: number, actor: UserRow): FuelOr
     logger.warn({ orderId: order.id, actorId: actor.id }, "Tedarikcinin e-postasi kayitli degil; siparis kaydedildi ama e-posta gonderilmedi.");
   }
 
+  if (order.driver_phone) {
+    sendTrackingLink(getOrder(stationId, id));
+  }
+
   return getOrder(stationId, id);
+}
+
+/**
+ * Sofor telefonu girilmis bir siparis gonderilirken, tanker'in canli konumunu
+ * paylasabilecegi girissiz bir link SMS'lenir (bkz. routes/tankerTracking.ts).
+ *
+ * Token kiosk_access_token ile AYNI desen: randomBytes(24) -> base64url, tahmin
+ * edilemez, tek siparise ozel, suresi dolar. PUBLIC_API_BASE_URL yapilandirilmamissa
+ * (ör. yerel gelistirme) link olusturulamaz - islemi BOZMAZ, yalnizca loglanir.
+ */
+function sendTrackingLink(order: FuelOrderRow): void {
+  if (!env.PUBLIC_API_BASE_URL) {
+    logger.warn({ orderId: order.id }, "PUBLIC_API_BASE_URL tanimlanmamis - tanker takip linki gonderilemedi.");
+    return;
+  }
+
+  const token = randomBytes(24).toString("base64url");
+  const expiresAt = new Date(Date.now() + TRACKING_TOKEN_TTL_MS).toISOString();
+  db.prepare("UPDATE fuel_orders SET tracking_token = ?, tracking_token_expires_at = ? WHERE id = ?").run(token, expiresAt, order.id);
+
+  const link = `${env.PUBLIC_API_BASE_URL}/tanker-takip/${order.id}?token=${token}`;
+  const label = FUEL_LABELS[order.fuel_type] ?? order.fuel_type;
+  const message = `Yakit siparisi #${order.id} (${label}, ${order.ordered_liters.toFixed(0)} L) icin konum paylasim linki: ${link}`;
+  sendSms(order.driver_phone!, message).catch((err) => logger.error({ err, orderId: order.id }, "Tanker takip linki SMS'i gonderilemedi."));
 }
 
 /**
@@ -427,5 +470,64 @@ export function serializeOrder(o: FuelOrderRow) {
     deliveryStartedAt: o.delivery_started_at,
     receivedAt: o.received_at,
     createdAt: o.created_at,
+    driverPhone: o.driver_phone,
+    tankerPlate: o.tanker_plate,
+    // Ham token asla panele donmez - yalnizca linkin var olup olmadigini ve son
+    // bilinen konumu gorunur kilariz (bkz. routes/tankerTracking.ts).
+    hasTrackingLink: !!o.tracking_token,
+    lastLat: o.last_lat,
+    lastLng: o.last_lng,
+    lastLocationAt: o.last_location_at,
   };
+}
+
+export interface TrackingInfo {
+  orderId: number;
+  stationName: string;
+  targetLat: number | null;
+  targetLng: number | null;
+  fuelType: string;
+  orderedLiters: number;
+  status: FuelOrderRow["status"];
+}
+
+/**
+ * Token'i (kiosk_access_token ile AYNI desen - bkz. sendTrackingLink) dogrular ve
+ * bulunamama/gecersiz/suresi dolmus durumlarinin HEPSINI ayni jenerik hatayla
+ * doner - hangisinin gecerli oldugunu disariya sizdirmamak icin (siparis
+ * numarasi tahmin edilebilir olsa da token degil).
+ */
+function getOrderByTrackingToken(orderId: number, token: string): FuelOrderRow {
+  const order = db.prepare<[number], FuelOrderRow>("SELECT * FROM fuel_orders WHERE id = ?").get(orderId);
+  const expired = !!order?.tracking_token_expires_at && new Date(order.tracking_token_expires_at).getTime() < Date.now();
+  if (!order || !order.tracking_token || !safeCompare(order.tracking_token, token) || expired) {
+    throw new FuelOrderError("Gecersiz veya suresi dolmus takip linki.", 403);
+  }
+  return order;
+}
+
+export function getTrackingInfo(orderId: number, token: string): TrackingInfo {
+  const order = getOrderByTrackingToken(orderId, token);
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(order.station_id)!;
+  return {
+    orderId: order.id,
+    stationName: station.name,
+    targetLat: station.latitude,
+    targetLng: station.longitude,
+    fuelType: order.fuel_type,
+    orderedLiters: order.ordered_liters,
+    status: order.status,
+  };
+}
+
+/**
+ * Soforun cihazindan periyodik konum guncellemesi. Yalnizca KENDI siparisinin
+ * satirini gunceller (token, o siparise ozeldir) - istasyon geneli veri sizintisi
+ * yok. Panelde canli gorunmesi icin ayni fuel-stock topic'i tetiklenir (bkz.
+ * FuelStock.tsx'in mevcut useTopicSubscription'i - yeniden REST ile ceker).
+ */
+export function updateTrackerLocation(orderId: number, token: string, lat: number, lng: number): void {
+  const order = getOrderByTrackingToken(orderId, token);
+  db.prepare("UPDATE fuel_orders SET last_lat = ?, last_lng = ?, last_location_at = ? WHERE id = ?").run(lat, lng, new Date().toISOString(), orderId);
+  broadcastTanks(order.station_id);
 }
