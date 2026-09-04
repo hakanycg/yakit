@@ -128,6 +128,7 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetAvailable": "Kullanılabilir Bakiye",
     "payment.fleetPayButton": "Filo Hesabı ile Öde",
     "payment.fleetUseCardInstead": "Kart ile Öde",
+    "payment.fleetInsufficientBalance": "Filo hesabınızın kullanılabilir bakiyesi ({available}) bu işlem tutarından ({amount}) düşük olduğu için kartla ödeme gösteriliyor.",
     "payment.processing": "Ödeme işleniyor...",
     "error.paymentFailed": "Ödeme sırasında hata oluştu.",
 
@@ -335,6 +336,7 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetAvailable": "Available Balance",
     "payment.fleetPayButton": "Pay with Fleet Account",
     "payment.fleetUseCardInstead": "Pay with Card Instead",
+    "payment.fleetInsufficientBalance": "Your fleet account's available balance ({available}) is lower than this transaction's amount ({amount}), so card payment is shown instead.",
     "payment.processing": "Processing payment...",
     "error.paymentFailed": "An error occurred during payment.",
 
@@ -542,6 +544,7 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetAvailable": "Доступный баланс",
     "payment.fleetPayButton": "Оплатить корпоративным счетом",
     "payment.fleetUseCardInstead": "Оплатить картой",
+    "payment.fleetInsufficientBalance": "Доступный баланс вашего корпоративного счёта ({available}) меньше суммы этой операции ({amount}), поэтому предлагается оплата картой.",
     "payment.processing": "Обработка оплаты...",
     "error.paymentFailed": "Произошла ошибка при оплате.",
 
@@ -749,6 +752,7 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetAvailable": "Verfügbares Guthaben",
     "payment.fleetPayButton": "Mit Flottenkonto zahlen",
     "payment.fleetUseCardInstead": "Stattdessen mit Karte zahlen",
+    "payment.fleetInsufficientBalance": "Das verfügbare Guthaben Ihres Flottenkontos ({available}) ist niedriger als der Betrag dieser Transaktion ({amount}), daher wird die Kartenzahlung angezeigt.",
     "payment.processing": "Zahlung wird verarbeitet...",
     "error.paymentFailed": "Bei der Zahlung ist ein Fehler aufgetreten.",
 
@@ -956,6 +960,7 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.fleetAvailable": "الرصيد المتاح",
     "payment.fleetPayButton": "الدفع عبر حساب الأسطول",
     "payment.fleetUseCardInstead": "الدفع بالبطاقة بدلاً من ذلك",
+    "payment.fleetInsufficientBalance": "رصيد حسابك الأسطولي المتاح ({available}) أقل من مبلغ هذه العملية ({amount})، لذا يتم عرض الدفع بالبطاقة بدلاً من ذلك.",
     "payment.processing": "جارٍ معالجة الدفع...",
     "error.paymentFailed": "حدث خطأ أثناء الدفع.",
 
