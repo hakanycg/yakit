@@ -1,5 +1,17 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { getDispenserDriver, setDispenserDriver, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
+import { db } from "../db/index.js";
+import { createTestPump, createTestStation } from "../test/dbFixture.js";
+import {
+  clearDispenserDriverFor,
+  clearDispenserDriverRegistry,
+  getDispenserDriver,
+  getDispenserDriverFor,
+  loadConfiguredDispenserDrivers,
+  setDispenserDriver,
+  setDispenserDriverFor,
+  simulatedDispenserDriver,
+  type DispenserDriver,
+} from "./dispenserDriver.js";
 
 describe("simulatedDispenserDriver", () => {
   it("picks a full-tank target within the realistic 28-55L range", () => {
@@ -43,5 +55,64 @@ describe("dispenser driver registry", () => {
     expect(getDispenserDriver()).toBe(fakeHardwareDriver);
     expect(getDispenserDriver().pickFullTankTargetLiters()).toBeNull();
     expect(getDispenserDriver().tick(500).nozzleStopped).toBe(true);
+  });
+});
+
+describe("coklu pompa cihazi mimarisi (per-pump driver registry)", () => {
+  afterEach(() => {
+    setDispenserDriver(simulatedDispenserDriver);
+    clearDispenserDriverRegistry();
+  });
+
+  it("ozel surucu tanimlanmamis bir pompa icin VARSAYILANI doner", () => {
+    expect(getDispenserDriverFor(999)).toBe(simulatedDispenserDriver);
+  });
+
+  it("bir pompaya ozel surucu tanimlamak DIGER pompalari etkilemez", () => {
+    const fakeA: DispenserDriver = { pickFullTankTargetLiters: () => 40, tick: () => ({ liters: 1, nozzleStopped: false }), estimateMaxFullTankLiters: () => 40 };
+
+    setDispenserDriverFor(1, fakeA);
+
+    expect(getDispenserDriverFor(1)).toBe(fakeA);
+    expect(getDispenserDriverFor(2)).toBe(simulatedDispenserDriver);
+  });
+
+  it("clearDispenserDriverFor pompayi tekrar VARSAYILANA dondurur", () => {
+    setDispenserDriverFor(1, { pickFullTankTargetLiters: () => null, tick: () => ({ liters: 0, nozzleStopped: true }), estimateMaxFullTankLiters: () => 0 });
+    clearDispenserDriverFor(1);
+    expect(getDispenserDriverFor(1)).toBe(simulatedDispenserDriver);
+  });
+
+  it("VARSAYILAN degistirilince ozel surucusu olmayan pompalar yeni varsayilani kullanir", () => {
+    const fakeDefault: DispenserDriver = { pickFullTankTargetLiters: () => null, tick: () => ({ liters: 2, nozzleStopped: false }), estimateMaxFullTankLiters: () => 60 };
+    setDispenserDriver(fakeDefault);
+    expect(getDispenserDriverFor(42)).toBe(fakeDefault);
+  });
+});
+
+describe("loadConfiguredDispenserDrivers", () => {
+  afterEach(() => {
+    setDispenserDriver(simulatedDispenserDriver);
+    clearDispenserDriverRegistry();
+  });
+
+  it("protokolu yapilandirilmis pompalari kayit defterine ekler (henuz simulasyon olarak)", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+    db.prepare("UPDATE pumps SET protocol_type = 'rs485_modbus' WHERE id = ?").run(pumpId);
+
+    loadConfiguredDispenserDrivers();
+
+    // Gercek RS485/Modbus surucusu henuz yok - kayitli surucu simulasyon olmali.
+    expect(getDispenserDriverFor(pumpId)).toBe(simulatedDispenserDriver);
+  });
+
+  it("protokolu tanimsiz (null) pompalara dokunmaz", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+
+    loadConfiguredDispenserDrivers();
+
+    expect(getDispenserDriverFor(pumpId)).toBe(simulatedDispenserDriver);
   });
 });

@@ -3,7 +3,7 @@ import { db } from "../db/index.js";
 import type { AlarmRow, TransactionRow } from "../db/types.js";
 import { createTestFuelPrice, createTestPump, createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
 import { createAccount as createFleetAccount, addPlate as addFleetPlate, topUp as topUpFleetAccount } from "./fleetService.js";
-import { setDispenserDriver, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
+import { clearDispenserDriverRegistry, setDispenserDriver, setDispenserDriverFor, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
 import { setAutomationDriver, noopAutomationDriver, type AutomationDriver, type AutomationSaleReport } from "./automationDriver.js";
 import { setWrongFuelMode } from "./wrongFuelSettingsService.js";
 import {
@@ -132,6 +132,55 @@ describe("finalizeTransactionPayment payment_status", () => {
     const updated = payOk(transaction.id);
     expect(updated.payment_status).toBe("captured");
     emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+});
+
+const staffForMultiPumpTest = createTestUser(null, "admin");
+
+describe("coklu pompa cihazi mimarisi (per-pump dispenser driver)", () => {
+  afterEach(() => {
+    setDispenserDriver(simulatedDispenserDriver);
+    clearDispenserDriverRegistry();
+  });
+
+  it("her pompa KENDI atanmis surucusunu kullanir - biri digerini etkilemez", async () => {
+    const station = createTestStation();
+    const pumpA = createTestPump(station.id, ["benzin"]);
+    const pumpB = createTestPump(station.id, ["benzin"]);
+    createTestFuelPrice(station.id, "benzin", 44.5);
+    setTankStock(station.id, "benzin", 5000);
+
+    const driverA: DispenserDriver = {
+      pickFullTankTargetLiters: () => null,
+      tick: () => ({ liters: 3, nozzleStopped: true }),
+      estimateMaxFullTankLiters: () => 30,
+    };
+    const driverB: DispenserDriver = {
+      pickFullTankTargetLiters: () => null,
+      tick: () => ({ liters: 7, nozzleStopped: true }),
+      estimateMaxFullTankLiters: () => 70,
+    };
+    setDispenserDriverFor(pumpA, driverA);
+    setDispenserDriverFor(pumpB, driverB);
+
+    // full_tank tahmini fiyati: pompaya ozel estimateMaxFullTankLiters() * birim fiyat kullanilmali.
+    const { transaction: tA } = createTransaction({ pumpId: pumpA, plate: "34MPD001", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    const { transaction: tB } = createTransaction({ pumpId: pumpB, plate: "34MPD002", plateSource: "manual", fuelType: "benzin", amountMode: "full_tank" });
+    expect(tA.total_amount).toBeCloseTo(30 * 44.5);
+    expect(tB.total_amount).toBeCloseTo(70 * 44.5);
+
+    // Dolum baslarken de ayni pompaya ozel surucunun tick()'i kullanilmali (7L/A tick'i
+    // degil, kendi 3L'lik driverA'si).
+    vi.useFakeTimers();
+    try {
+      payOk(tA.id);
+      await vi.advanceTimersByTimeAsync(600);
+      const finalA = db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(tA.id)!;
+      expect(finalA.dispensed_liters).toBeCloseTo(3);
+    } finally {
+      vi.useRealTimers();
+      emergencyStopTransaction(tB.id, staffForMultiPumpTest, "test cleanup");
+    }
   });
 });
 

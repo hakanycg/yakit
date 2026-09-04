@@ -97,6 +97,8 @@ export interface PumpRow {
   fault_code: string | null;
   fault_message: string | null;
   current_transaction_id: number | null;
+  protocol_type: string | null;
+  protocol_connection_config: string | null;
   updated_at: string;
 }
 

@@ -58,6 +58,7 @@ export default function Pumps() {
   useEffect(loadCalibrationStatus, [stationId]);
 
   const canOperate = user?.role === "admin" || user?.role === "operator" || user?.role === "super_admin";
+  const isAdmin = user?.role === "super_admin" || user?.role === "tenant_admin" || user?.role === "admin";
   const [showEmergencyDialog, setShowEmergencyDialog] = useState(false);
 
   async function runAction(id: number, action: "start" | "stop" | "reset") {
@@ -97,6 +98,7 @@ export default function Pumps() {
             {p.faultMessage && <p className="error-text">Arıza: {p.faultMessage} ({p.faultCode})</p>}
             {p.currentTransactionId && <p className="hint-text">Aktif işlem: #{p.currentTransactionId}</p>}
             <CalibrationLine status={calibrationStatus.find((c) => c.pumpId === p.id)} maxErrorPct={maxErrorPct} />
+            {isAdmin && <ProtocolSelector pump={p} />}
 
             {canOperate && (
               <div className="toolbar" style={{ marginTop: "0.75rem" }}>
@@ -137,6 +139,50 @@ export default function Pumps() {
         />
       )}
       {showEmergencyDialog && <EmergencyStopDialog onClose={() => setShowEmergencyDialog(false)} />}
+    </div>
+  );
+}
+
+const PROTOCOL_OPTIONS = [
+  { value: "", label: "Yapılandırılmadı (simülasyon)" },
+  { value: "rs485_modbus", label: "RS485 / Modbus RTU" },
+  { value: "tcp_ifsf", label: "TCP / IFSF" },
+  { value: "pulse", label: "Pulse (darbe sayaç)" },
+  { value: "current_loop_4_20ma", label: "4-20mA Akım Döngüsü" },
+  { value: "other", label: "Diğer" },
+];
+
+/**
+ * Coklu pompa cihazi mimarisi (bkz. dispenserDriver.ts): ayni istasyondaki farkli
+ * adalar/pompalar farkli marka/protokol kullanabilir - her pompa bagimsiz secilir.
+ * Gercek donanim henuz bagli degilse bu secim yalnizca kayit amaclidir (simulasyon
+ * surucusu calismaya devam eder).
+ */
+function ProtocolSelector({ pump }: { pump: Pump }) {
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onChange(value: string) {
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch(`/api/pumps/${pump.id}/protocol`, { protocolType: value || null });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Protokol güncellenemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: "0.5rem" }}>
+      <label className="hint-text" htmlFor={`protocol-${pump.id}`}>İletişim Protokolü</label>
+      <select id={`protocol-${pump.id}`} value={pump.protocolType ?? ""} disabled={saving} onChange={(e) => onChange(e.target.value)}>
+        {PROTOCOL_OPTIONS.map((o) => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+      {error && <p className="error-text">{error}</p>}
     </div>
   );
 }

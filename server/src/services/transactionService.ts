@@ -7,7 +7,7 @@ import { createAlarm } from "./alarmService.js";
 import { recordAudit } from "./auditService.js";
 import { issueInvoiceAutomatically } from "./invoiceAutoService.js";
 import { deductAvailable, getAvailableLiters, recordSaleMovement } from "./fuelStockService.js";
-import { getDispenserDriver } from "./dispenserDriver.js";
+import { getDispenserDriverFor } from "./dispenserDriver.js";
 import { getAutomationDriver } from "./automationDriver.js";
 import { capturePostAuth, cancelPreAuthHold } from "./iyzicoService.js";
 import { logger } from "../utils/logger.js";
@@ -140,7 +140,7 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
       ? input.requestedAmount!
       : input.amountMode === "liters"
         ? input.requestedLiters! * price.price_per_liter
-        : getDispenserDriver().estimateMaxFullTankLiters() * price.price_per_liter;
+        : getDispenserDriverFor(pump.id).estimateMaxFullTankLiters() * price.price_per_liter;
 
   const normalizedPlate = normalizePlate(input.plate);
 
@@ -465,7 +465,7 @@ function startDispensing(id: number): void {
   const t = getTransactionOrThrow(id);
   if (t.status !== "authorized") return;
 
-  const driver = getDispenserDriver();
+  const driver = getDispenserDriverFor(t.pump_id);
   // full_tank modunda hedef, gercek donanimda ONCEDEN bilinemeyebilir (bkz. DispenserDriver
   // yorumu) - bu durumda targetLiters null kalir ve dolum yalnizca tick()'in
   // nozzleStopped=true dondurdugu anda (veya depo tukendiginde) biter.

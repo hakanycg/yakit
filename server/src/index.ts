@@ -17,6 +17,7 @@ import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
 import { sweepDataRetention } from "./services/dataRetentionService.js";
 import { checkExpiringSeals } from "./services/pumpCalibrationService.js";
 import { loadConfiguredTankGaugeDrivers, sweepTankGauges } from "./services/tankGaugeService.js";
+import { loadConfiguredDispenserDrivers } from "./services/dispenserDriver.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
 import { sendAutomationAliveSignals } from "./services/automationDriver.js";
 import { applyDuePriceChanges } from "./services/scheduledPriceService.js";
@@ -55,9 +56,11 @@ encryptLegacyPlaintextSecrets();
 
 reconcileStuckTransactions();
 
-// Tank/pompa probu marka yapilandirmasi (bkz. tankGaugeDriver.ts kayit defteri) - her
-// baslangicta yeniden okunur, cunku surucular bellekte tutulur (kalici degildir).
+// Tank probu marka / pompa protokolu yapilandirmasi (bkz. tankGaugeDriver.ts ve
+// dispenserDriver.ts kayit defterleri) - her baslangicta yeniden okunur, cunku
+// surucular bellekte tutulur (kalici degildir).
 loadConfiguredTankGaugeDrivers();
+loadConfiguredDispenserDrivers();
 
 // Odemesini hic tamamlamadan kiosk'tan ayrilan musterilerin pompayi sonsuza dek
 // "reserved" tutmasini engeller (bkz. reconcileStaleCreatedTransactions yorumu). Sik

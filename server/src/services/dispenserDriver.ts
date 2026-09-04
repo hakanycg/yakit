@@ -1,14 +1,24 @@
+import { db } from "../db/index.js";
+import { logger } from "../utils/logger.js";
+
 /**
  * Fiziksel pompa donanimiyla konusan katmanin soyutlamasi. Su an tek bir uygulamasi var
  * (simulatedDispenserDriver) - gercek donanim yok, dolum tamamen yazilimsal olarak taklit
  * ediliyor. Ileride gercek bir pompa/forecourt entegrasyonu (ör. IFSF veya uretici-ozel bir
  * protokol uzerinden) yapildiginda, bu arayuzu uygulayan yeni bir surucu yazip
- * setDispenserDriver() ile devreye alinabilir - transactionService.ts'in dolum dongusune
- * dokunmaya gerek kalmaz.
+ * setDispenserDriver()/setDispenserDriverFor() ile devreye alinabilir - transactionService.ts'in
+ * dolum dongusune dokunmaya gerek kalmaz.
  *
  * Not: gercek yakit sayaclari cogu ulkede (Turkiye dahil) metroloji/kalibrasyon
  * sertifikasyonu gerektirir - bu, yazilimla asilamayacak yasal bir zorunluluktur; gercek bir
  * surucu yazmadan once bunu saglayan sertifikali bir pompa/kontrolor gerekir.
+ *
+ * COKLU CIHAZ DESTEGI: eskiden tek bir global surucu vardi - ayni istasyonda farkli
+ * marka/protokol (ör. RS485/Modbus RTU bir ada, TCP/IFSF baska bir ada) pompa AYNI ANDA
+ * desteklenemiyordu (bkz. tankGaugeDriver.ts'teki AYNI sorun ve cozum). Asagidaki kayit
+ * defteri (pumpId -> surucu) bunu cozer; `setDispenserDriver()` hala global bir VARSAYILAN
+ * atar (geriye donuk uyumluluk ve tek marka kullanan istasyonlar icin), `setDispenserDriverFor()`
+ * ise belirli bir pompa icin varsayilani gecersiz kilar.
  */
 
 export interface DispenserTickResult {
@@ -63,13 +73,65 @@ export const simulatedDispenserDriver: DispenserDriver = {
   },
 };
 
-let activeDriver: DispenserDriver = simulatedDispenserDriver;
+let defaultDriver: DispenserDriver = simulatedDispenserDriver;
+const driversByPumpId = new Map<number, DispenserDriver>();
 
+/** @deprecated Cogu kurulumda hala gecerli tek isim - tum pompalar icin VARSAYILAN surucuyu doner. Belirli bir pompaya ozel marka icin getDispenserDriverFor() kullanin. */
 export function getDispenserDriver(): DispenserDriver {
-  return activeDriver;
+  return defaultDriver;
 }
 
-/** Gercek donanim entegrasyonu yapildiginda, sunucu baslangicinda bu fonksiyonla simulasyon surucusunun yerine gercek surucu takilir. */
+/** Gercek donanim entegrasyonu yapildiginda, sunucu baslangicinda bu fonksiyonla simulasyon surucusunun yerine VARSAYILAN surucu takilir - o pompaya ozel bir surucu tanimlanmamis her pompa icin kullanilir. */
 export function setDispenserDriver(driver: DispenserDriver): void {
-  activeDriver = driver;
+  defaultDriver = driver;
+}
+
+/** Belirli bir pompa icin ozel bir surucu tanimlar - ayni istasyondaki farkli adalar/pompalar farkli marka/protokolle ayni anda calisabilir. */
+export function setDispenserDriverFor(pumpId: number, driver: DispenserDriver): void {
+  driversByPumpId.set(pumpId, driver);
+}
+
+/** Bu pompa icin tanimli ozel bir surucu varsa onu, yoksa VARSAYILAN surucuyu doner. */
+export function getDispenserDriverFor(pumpId: number): DispenserDriver {
+  return driversByPumpId.get(pumpId) ?? defaultDriver;
+}
+
+/** Testler arasi izolasyon icin: tum pompaya-ozel kayitlari temizler (VARSAYILANI etkilemez). */
+export function clearDispenserDriverRegistry(): void {
+  driversByPumpId.clear();
+}
+
+/** Bu pompaya ozel kaydi kaldirir - pompa tekrar global VARSAYILAN surucuyu kullanir (ör. protokol yapilandirmasi kaldirildiginda). */
+export function clearDispenserDriverFor(pumpId: number): void {
+  driversByPumpId.delete(pumpId);
+}
+
+interface ProtocolConfigRow {
+  id: number;
+  protocol_type: string;
+}
+
+/**
+ * Sunucu baslangicinda, protokolu yapilandirilmis her pompa icin gercek bir surucu
+ * varsa kaydeder. Bu ortamda hicbir gercek protokol (RS485/Modbus RTU, TCP/IFSF,
+ * pulse, 4-20mA vb.) uygulanmiyor - saha isi, gercek donanim/metroloji sertifikasyonu
+ * olmadan yazilamaz/dogrulanamaz (bkz. dosya basindaki yorum). Ama kayit NOKTASI
+ * burasi: gercek bir surucu yazilinca tek yapilacak sey asagidaki switch'e bir case
+ * eklemek, cagiran kod (transactionService.ts) hic degismez.
+ *
+ * Yapilandirilmis ama karsiligi olmayan protokoller icin uyari loglanir - "protokol
+ * secildi ama hicbir sey olmuyor" sessizce gecmez. Simulasyon surucusune dusmek
+ * (tank probunun aksine noop degil) bilerek boyle: bir pompadan dolum HER ZAMAN bir
+ * seyler akitmali, "hic okuma yok" pompa icin anlamli bir durum degildir.
+ */
+export function loadConfiguredDispenserDrivers(): void {
+  const rows = db.prepare<[], ProtocolConfigRow>("SELECT id, protocol_type FROM pumps WHERE protocol_type IS NOT NULL").all();
+  for (const row of rows) {
+    // Henuz hicbir protokol icin gercek surucu yok - hepsi bu uyariya dusuyor.
+    logger.warn(
+      { pumpId: row.id, protocolType: row.protocol_type },
+      "Pompa iletisim protokolu yapilandirilmis ama bu protokol icin gercek surucu henuz yok - varsayilan (simulasyon) surucu kullanilacak."
+    );
+    setDispenserDriverFor(row.id, simulatedDispenserDriver);
+  }
 }
