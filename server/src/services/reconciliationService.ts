@@ -174,6 +174,33 @@ export function getDaySummary(stationId: number, businessDate: string): DaySumma
     )
     .all(...params);
 
+  /**
+   * Filo portalindaki kartla anlik yukleme (bkz. fleetCardTopupService.ts) bir pompa
+   * satisi DEGILDIR, transactions tablosuna hic girmez - ama AYNI istasyonun iyzico
+   * hesabindan gecer. Banka/iyzico ekstresi bu tutari da icerir; burada sayilmazsa
+   * mutabakat, bu kanal her kullanildiginda kalici ve aciklanamaz bir fark gosterir.
+   *
+   * gross_amount (net + musteriden alinan hizmet bedeli) kullanilir - filo hesabina
+   * islenen net tutar degil, karttan GERCEKTEN cekilen ve ekstreye gecen tutar budur.
+   */
+  const fleetCardTopups = db
+    .prepare<[number, string], { count: number; amount: number }>(
+      `SELECT COUNT(*) AS count, ROUND(COALESCE(SUM(gross_amount), 0), 2) AS amount
+       FROM fleet_card_topups
+       WHERE station_id = ? AND status = 'paid'
+         AND date(paid_at, '${BUSINESS_DAY_OFFSET}') = ?`
+    )
+    .get(...params)!;
+
+  if (fleetCardTopups.count > 0) {
+    byPaymentMethod.push({
+      paymentMethod: "filo_kartla_yukleme",
+      count: fleetCardTopups.count,
+      amount: fleetCardTopups.amount,
+    });
+    byPaymentMethod.sort((a, b) => b.amount - a.amount);
+  }
+
   const byFuelType = db
     .prepare<[number, string], FuelRow>(
       `SELECT fuel_type AS fuelType,

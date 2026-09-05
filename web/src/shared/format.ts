@@ -25,6 +25,7 @@ export const PAYMENT_METHOD_LABEL: Record<string, string> = {
   iyzico: "Kredi/Banka Kartı",
   fleet: "Filo Hesabı",
   pos: "Temassız Ödeme (POS)",
+  filo_kartla_yukleme: "Filo Kartla Yükleme (iyzico)",
 };
 
 export function formatCurrency(value: number, locale = "tr-TR"): string {

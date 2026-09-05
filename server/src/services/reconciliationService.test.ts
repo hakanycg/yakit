@@ -1,7 +1,9 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/index.js";
-import type { StationRow, UserRow } from "../db/types.js";
+import type { FleetAccountRow, StationRow, UserRow } from "../db/types.js";
 import { createTestPump, createTestStation, createTestUser } from "../test/dbFixture.js";
+import { createAccount } from "./fleetService.js";
+import { createOrLinkPortalUser } from "./fleetPortalService.js";
 import {
   closeDay,
   currentBusinessDate,
@@ -56,6 +58,38 @@ function addRefund(input: { transactionId: number; amount: number; at: string; s
     `INSERT INTO refunds (station_id, transaction_id, amount, reason, payment_method, status, created_at)
      VALUES (?, ?, ?, 'Musteri talebi', 'iyzico', ?, ?)`
   ).run(station.id, input.transactionId, input.amount, input.status ?? "completed", input.at);
+}
+
+let fleetAccountSeq = 0;
+
+/** Filo portalindaki kartla anlik yukleme kaydi - transactions'tan tamamen ayri bir tablo. */
+function addCardTopup(input: { grossAmount: number; requestedAmount?: number; at: string; status?: "pending" | "paid" | "failed" }): void {
+  fleetAccountSeq += 1;
+  const account: FleetAccountRow = createAccount(
+    station.id,
+    { companyName: `Mutabakat Filo ${fleetAccountSeq}`, billingType: "prepaid" },
+    actor
+  );
+  const email = `mutabakat-filo-${fleetAccountSeq}@ornek.com`;
+  createOrLinkPortalUser(station.id, account.id, { email }, actor);
+  const portalUser = db.prepare<[string], { id: number }>("SELECT id FROM fleet_portal_users WHERE email = ?").get(email)!;
+
+  const status = input.status ?? "paid";
+  db.prepare(
+    `INSERT INTO fleet_card_topups
+       (station_id, fleet_account_id, portal_user_id, requested_amount, fee_amount, gross_amount, status, created_at, paid_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    station.id,
+    account.id,
+    portalUser.id,
+    input.requestedAmount ?? input.grossAmount,
+    input.grossAmount - (input.requestedAmount ?? input.grossAmount),
+    input.grossAmount,
+    status,
+    input.at,
+    status === "paid" ? input.at : null
+  );
 }
 
 beforeEach(() => {
@@ -116,6 +150,61 @@ describe("getDaySummary", () => {
       liters: 8,
       amount: 400,
     });
+  });
+
+  it("filo portalindaki kartla odenen yuklemeyi (gross tutar) beklenen toplama ve kirilima ekler", () => {
+    // Bu para bir pompa satisi degil (transactions'a hic girmez) ama AYNI istasyonun
+    // iyzico hesabindan gectigi icin banka ekstresinde goruntur - mutabakat bunu
+    // saymazsa her kullanimda kalici, aciklanamaz bir fark olusur.
+    addSale({ at: "2026-08-10T09:00:00.000Z", amount: 1000 });
+    addCardTopup({ requestedAmount: 500, grossAmount: 515, at: "2026-08-10T10:00:00.000Z" });
+
+    const s = getDaySummary(station.id, "2026-08-10");
+    expect(s.expectedTotal).toBe(1515);
+    expect(s.byPaymentMethod).toContainEqual({ paymentMethod: "filo_kartla_yukleme", count: 1, amount: 515 });
+  });
+
+  it("hesaba islenen NET tutari degil, karttan cekilen GROSS tutari sayar", () => {
+    // Musteriden alinan hizmet bedeli de karttan cekilip ekstreye geciyor; mutabakat
+    // ekstreyle karsilastirildigi icin buradaki sayi da gross olmali.
+    addCardTopup({ requestedAmount: 1000, grossAmount: 1030, at: "2026-08-10T10:00:00.000Z" });
+
+    const s = getDaySummary(station.id, "2026-08-10");
+    expect(s.byPaymentMethod.find((p) => p.paymentMethod === "filo_kartla_yukleme")?.amount).toBe(1030);
+  });
+
+  it("henuz odenmemis ya da basarisiz kartla yuklemeyi saymaz", () => {
+    addCardTopup({ grossAmount: 500, at: "2026-08-10T10:00:00.000Z", status: "pending" });
+    addCardTopup({ grossAmount: 700, at: "2026-08-10T10:05:00.000Z", status: "failed" });
+
+    const s = getDaySummary(station.id, "2026-08-10");
+    expect(s.expectedTotal).toBe(0);
+    expect(s.byPaymentMethod).toEqual([]);
+  });
+
+  it("kartla yuklemeyi de is gunu sinirina gore gruplar", () => {
+    // 2026-08-10 01:30 yerel = 2026-08-09 22:30 UTC.
+    addCardTopup({ grossAmount: 300, at: "2026-08-09T22:30:00.000Z" });
+
+    expect(getDaySummary(station.id, "2026-08-10").expectedTotal).toBe(300);
+    expect(getDaySummary(station.id, "2026-08-09").expectedTotal).toBe(0);
+  });
+
+  it("baska istasyonun kartla yuklemesini karistirmaz", () => {
+    const other = createTestStation();
+    const otherActor = createTestUser(other.id, "admin");
+    const otherAccount = createAccount(other.id, { companyName: "Baska Istasyon Filo", billingType: "prepaid" }, otherActor);
+    createOrLinkPortalUser(other.id, otherAccount.id, { email: "baska-istasyon-filo@ornek.com" }, otherActor);
+    const otherPortalUser = db
+      .prepare<[string], { id: number }>("SELECT id FROM fleet_portal_users WHERE email = ?")
+      .get("baska-istasyon-filo@ornek.com")!;
+    db.prepare(
+      `INSERT INTO fleet_card_topups
+         (station_id, fleet_account_id, portal_user_id, requested_amount, fee_amount, gross_amount, status, created_at, paid_at)
+       VALUES (?, ?, ?, 1000, 30, 1030, 'paid', ?, ?)`
+    ).run(other.id, otherAccount.id, otherPortalUser.id, "2026-08-10T10:00:00.000Z", "2026-08-10T10:00:00.000Z");
+
+    expect(getDaySummary(station.id, "2026-08-10").expectedTotal).toBe(0);
   });
 
   it("tamamlanmamis islemi tahsilat toplamina katmaz", () => {
