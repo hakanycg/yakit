@@ -4,6 +4,8 @@ build/
 *.tsbuildinfo
 /web/vite.config.js
 /web/vite.config.d.ts
+/web/capacitor.config.js
+/web/capacitor.config.d.ts
 *.log
 npm-debug.log*
 .env
