@@ -97,6 +97,8 @@ export interface PumpRow {
   fault_code: string | null;
   fault_message: string | null;
   current_transaction_id: number | null;
+  protocol_type: string | null;
+  protocol_connection_config: string | null;
   updated_at: string;
 }
 
@@ -234,13 +236,26 @@ export interface FuelOrderRow {
   ordered_liters: number;
   unit_cost: number | null;
   expected_at: string | null;
-  status: "draft" | "sent" | "received" | "cancelled";
+  status: "draft" | "sent" | "delivering" | "received" | "cancelled";
   note: string | null;
   delivery_movement_id: number | null;
   received_liters: number | null;
   sent_at: string | null;
+  // Tanker istasyona gelip personel "Teslimat Basladi" dediginde damgalanir (bkz.
+  // fuelOrderService.startDelivery / tankGaugeService.hasActiveDelivery).
+  delivery_started_at: string | null;
   received_at: string | null;
   cancelled_at: string | null;
+  // Tanker canli konum takibi (bkz. routes/tankerTracking.ts). Sofor telefonu
+  // girilmisse siparis gonderilirken bir takip linki SMS'lenir; token kiosk_access_token
+  // ile ayni desen (girissiz ama tahmin edilemez, tek siparise ozel, suresi dolar).
+  driver_phone: string | null;
+  tanker_plate: string | null;
+  tracking_token: string | null;
+  tracking_token_expires_at: string | null;
+  last_lat: number | null;
+  last_lng: number | null;
+  last_location_at: string | null;
   created_by: number | null;
   created_at: string;
 }

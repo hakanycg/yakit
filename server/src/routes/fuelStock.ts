@@ -43,6 +43,7 @@ import {
   sendOrder,
   serializeOrder,
   serializeSupplier,
+  startDelivery,
   suggestions,
   updateSupplier,
 } from "../services/fuelOrderService.js";
@@ -457,6 +458,10 @@ const orderSchema = z.object({
   unitCost: z.number().positive().max(1000).optional(),
   expectedAt: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD biciminde olmalidir.").optional(),
   note: z.string().trim().max(300).optional(),
+  // Tanker canli konum takibi (bkz. fuelOrderService.sendTrackingLink) - opsiyonel,
+  // sofor telefonu girilmezse takip linki hic olusturulmaz.
+  driverPhone: z.string().trim().min(7).max(20).optional(),
+  tankerPlate: z.string().trim().max(15).optional(),
 });
 
 router.post("/orders", csrfProtection, validateBody(orderSchema), (req, res) => {
@@ -487,6 +492,34 @@ router.post("/orders/:id/send", csrfProtection, (req, res) => {
     recordAudit({
       user: req.user!,
       action: "fuel_order_sent",
+      entityType: "fuel_order",
+      entityId: id,
+      details: { supplier: order.supplier_name, liters: order.ordered_liters },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ order: serializeOrder(order) });
+  } catch (err) {
+    if (err instanceof FuelOrderError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+/**
+ * Tanker istasyona gelip fiili bosaltma baslayinca personel bunu isaretler - siparis
+ * 'sent'ten 'delivering'e gecer. Bu sure boyunca o yakit turunun otomatik prob
+ * okumasi atlanir (bkz. tankGaugeService.hasActiveDelivery), sahte kayip alarmi
+ * onlenir. Teslim alma (receive) adimi hala ayri ve zorunludur - bu yalnizca "su an
+ * suruyor" bilgisini panelde canli gosterir.
+ */
+router.post("/orders/:id/start-delivery", csrfProtection, (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz siparis." });
+  try {
+    const order = startDelivery(req.stationId!, id, req.user!);
+    recordAudit({
+      user: req.user!,
+      action: "fuel_order_delivery_started",
       entityType: "fuel_order",
       entityId: id,
       details: { supplier: order.supplier_name, liters: order.ordered_liters },

@@ -1,6 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/index.js";
 import type { StationRow, UserRow } from "../db/types.js";
+import { env } from "../config.js";
 import { createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
 import { DuplicateDeliveryRefError, getTank } from "./fuelStockService.js";
 import {
@@ -8,15 +9,19 @@ import {
   cancelOrder,
   createOrder,
   createSupplier,
+  getTrackingInfo,
   listOrders,
   listOrdersPaged,
   receiveOrder,
   sendOrder,
+  startDelivery,
   suggestions,
+  updateTrackerLocation,
 } from "./fuelOrderService.js";
 
 const sendEmail = vi.hoisted(() => vi.fn(async (_to: string, _subject: string, _body: string) => {}));
-vi.mock("./notificationService.js", () => ({ sendEmail, sendSms: vi.fn(async () => {}) }));
+const sendSms = vi.hoisted(() => vi.fn(async (_to: string, _message: string) => ({ sent: true })));
+vi.mock("./notificationService.js", () => ({ sendEmail, sendSms }));
 
 let station: StationRow;
 let actor: UserRow;
@@ -34,6 +39,7 @@ function addSale(fuelType: string, liters: number, daysAgo: number): void {
 
 beforeEach(() => {
   sendEmail.mockClear();
+  sendSms.mockClear();
   station = createTestStation();
   actor = createTestUser(station.id, "admin");
   supplierId = createSupplier(station.id, { name: "Test Dagitim", email: "siparis@tedarikci.com" }, actor).id;
@@ -129,6 +135,128 @@ describe("siparis yasam dongusu", () => {
     const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
     const foreign = createTestStation();
     expect(() => cancelOrder(foreign.id, order.id)).toThrow(FuelOrderError);
+  });
+});
+
+describe("startDelivery (tanker teslimati canli takip)", () => {
+  it("'sent' durumundaki siparisi 'delivering'e gecirir ve baslama zamanini damgalar", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+
+    const started = startDelivery(station.id, order.id, actor);
+
+    expect(started.status).toBe("delivering");
+    expect(started.delivery_started_at).not.toBeNull();
+  });
+
+  it("'draft' durumundaki (henuz gonderilmemis) siparis icin reddedilir", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    expect(() => startDelivery(station.id, order.id, actor)).toThrow(FuelOrderError);
+  });
+
+  it("zaten 'delivering' olan siparis icin tekrar cagrilamaz", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+    startDelivery(station.id, order.id, actor);
+    expect(() => startDelivery(station.id, order.id, actor)).toThrow(FuelOrderError);
+  });
+
+  it("'delivering' durumundaki siparis normal sekilde teslim alinabilir", () => {
+    setTankStock(station.id, "motorin", 1000);
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+    startDelivery(station.id, order.id, actor);
+
+    const { order: received } = receiveOrder(station.id, order.id, { liters: 5000 }, actor);
+
+    expect(received.status).toBe("received");
+  });
+});
+
+describe("tanker canli konum takibi", () => {
+  const previousPublicApiBaseUrl = env.PUBLIC_API_BASE_URL;
+
+  beforeEach(() => {
+    env.PUBLIC_API_BASE_URL = "https://ops.example.com";
+  });
+
+  afterEach(() => {
+    env.PUBLIC_API_BASE_URL = previousPublicApiBaseUrl;
+  });
+
+  it("sofor telefonu girilmis siparis gonderilince takip linki SMS'lenir", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    sendOrder(station.id, order.id, actor);
+
+    expect(sendSms).toHaveBeenCalledTimes(1);
+    expect(sendSms.mock.calls[0]![0]).toBe("+905551112233");
+    expect(sendSms.mock.calls[0]![1]).toContain(`/tanker-takip/${order.id}?token=`);
+  });
+
+  it("sofor telefonu girilmemis siparis icin SMS gonderilmez", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000 }, actor);
+    sendOrder(station.id, order.id, actor);
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  it("PUBLIC_API_BASE_URL tanimsizsa link olusturulmaz, gonderim atlanir ama siparis yine 'sent' olur", () => {
+    env.PUBLIC_API_BASE_URL = undefined;
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    const sent = sendOrder(station.id, order.id, actor);
+    expect(sent.status).toBe("sent");
+    expect(sendSms).not.toHaveBeenCalled();
+  });
+
+  it("dogru token ile takip bilgisini doner", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    sendOrder(station.id, order.id, actor);
+    const link = sendSms.mock.calls[0]![1] as string;
+    const token = new URL(link.slice(link.indexOf("https://"))).searchParams.get("token")!;
+
+    const info = getTrackingInfo(order.id, token);
+
+    expect(info.orderId).toBe(order.id);
+    expect(info.stationName).toBe(station.name);
+    expect(info.fuelType).toBe("motorin");
+  });
+
+  it("yanlis token ile reddedilir", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    sendOrder(station.id, order.id, actor);
+    expect(() => getTrackingInfo(order.id, "yanlis-token")).toThrow(FuelOrderError);
+  });
+
+  it("suresi dolmus token ile reddedilir", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    sendOrder(station.id, order.id, actor);
+    const link = sendSms.mock.calls[0]![1] as string;
+    const token = new URL(link.slice(link.indexOf("https://"))).searchParams.get("token")!;
+    db.prepare("UPDATE fuel_orders SET tracking_token_expires_at = ? WHERE id = ?").run(new Date(Date.now() - 1000).toISOString(), order.id);
+
+    expect(() => getTrackingInfo(order.id, token)).toThrow(FuelOrderError);
+  });
+
+  it("gecerli token ile konum guncellenir ve baska siparisi etkilemez", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    sendOrder(station.id, order.id, actor);
+    const otherOrder = createOrder(station.id, { fuelType: "benzin", supplierId, liters: 1000 }, actor);
+    const link = sendSms.mock.calls[0]![1] as string;
+    const token = new URL(link.slice(link.indexOf("https://"))).searchParams.get("token")!;
+
+    updateTrackerLocation(order.id, token, 39.92, 32.85);
+
+    const updated = db.prepare<[number], { last_lat: number | null; last_lng: number | null }>("SELECT last_lat, last_lng FROM fuel_orders WHERE id = ?").get(order.id)!;
+    expect(updated.last_lat).toBe(39.92);
+    expect(updated.last_lng).toBe(32.85);
+
+    const other = db.prepare<[number], { last_lat: number | null }>("SELECT last_lat FROM fuel_orders WHERE id = ?").get(otherOrder.id)!;
+    expect(other.last_lat).toBeNull();
+  });
+
+  it("yanlis token ile konum guncellenemez", () => {
+    const order = createOrder(station.id, { fuelType: "motorin", supplierId, liters: 5000, driverPhone: "+905551112233" }, actor);
+    sendOrder(station.id, order.id, actor);
+    expect(() => updateTrackerLocation(order.id, "yanlis-token", 39.92, 32.85)).toThrow(FuelOrderError);
   });
 });
 

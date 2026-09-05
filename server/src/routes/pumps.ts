@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
-import { getPump, listPumps, serializePump, setPumpStatus } from "../services/pumpService.js";
+import { getPump, listPumps, serializePump, setPumpStatus, updatePumpProtocol } from "../services/pumpService.js";
 import { emergencyStopStation, emergencyStopTransaction, TransactionError } from "../services/transactionService.js";
 import { createAlarm } from "../services/alarmService.js";
 import { recordAudit } from "../services/auditService.js";
@@ -129,6 +129,29 @@ router.post("/:id/simulate-fault", requireRole("admin", "operator"), validateBod
     stationId: req.stationId,
   });
   res.json({ pump: serializePump(getPump(pump.id)!) });
+});
+
+const protocolSchema = z.object({
+  // Coklu pompa cihazi mimarisi (bkz. dispenserDriver.ts) - opsiyonel, doldurulmazsa/
+  // null ise varsayilan (simulasyon) surucu kullanilmaya devam eder.
+  protocolType: z.string().trim().max(60).nullable(),
+});
+
+router.patch("/:id/protocol", requireRole("super_admin", "tenant_admin", "admin"), validateBody(protocolSchema), (req, res) => {
+  const pump = pumpInScope(req, Number(req.params.id));
+  if (!pump) return void res.status(404).json({ error: "Pompa bulunamadi." });
+  const { protocolType } = req.body as z.infer<typeof protocolSchema>;
+  const updated = updatePumpProtocol(pump.id, protocolType || null);
+  recordAudit({
+    user: req.user!,
+    action: "pump_protocol_updated",
+    entityType: "pump",
+    entityId: pump.id,
+    details: { protocolType: updated.protocol_type },
+    ip: req.ip,
+    stationId: req.stationId,
+  });
+  res.json({ pump: serializePump(updated) });
 });
 
 // --- Sayac (totalizator) mutabakati ----------------------------------------

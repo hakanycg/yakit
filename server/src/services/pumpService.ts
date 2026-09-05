@@ -1,6 +1,7 @@
 import { db } from "../db/index.js";
 import type { PumpRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
+import { clearDispenserDriverFor, setDispenserDriverFor, simulatedDispenserDriver } from "./dispenserDriver.js";
 
 export function listPumps(stationId: number): PumpRow[] {
   return db.prepare<[number], PumpRow>("SELECT * FROM pumps WHERE station_id = ? ORDER BY number").all(stationId);
@@ -23,6 +24,7 @@ export function serializePump(p: PumpRow) {
     faultCode: p.fault_code,
     faultMessage: p.fault_message,
     currentTransactionId: p.current_transaction_id,
+    protocolType: p.protocol_type,
     // Istasyon haritasinda "3 numarali pompada kim var, ne kadar aldi" sorusunun cevabi.
     // Islem kimligi tek basina bunu soylemiyordu; operator her defasinda islem listesine
     // gidip aramak zorunda kaliyordu.
@@ -69,6 +71,24 @@ function activeSaleFor(transactionId: number | null): {
 
 export function broadcastPumps(stationId: number): void {
   broadcast(`pumps:${stationId}`, listPumps(stationId).map(serializePump));
+}
+
+/**
+ * Coklu pompa cihazi mimarisi (bkz. dispenserDriver.ts kayit defteri): bu pompanin
+ * iletisim protokolunu kaydeder ve VARSAYILAN yerine bu pompaya ozel bir surucuyu
+ * hemen devreye alir - sunucu yeniden baslatilmadan da tutarli davransin diye
+ * (bkz. loadConfiguredDispenserDrivers, sunucu acilisinda ayni islemi yapar).
+ * Gercek bir protokol icin gercek surucu henuz yazilmadigindan (saha isi, donanim
+ * gerektirir) simulasyon surucusune dusulur - protokol null'a cekilirse pompa
+ * global VARSAYILANA doner.
+ */
+export function updatePumpProtocol(id: number, protocolType: string | null): PumpRow {
+  db.prepare("UPDATE pumps SET protocol_type = ?, updated_at = ? WHERE id = ?").run(protocolType, new Date().toISOString(), id);
+  if (protocolType) setDispenserDriverFor(id, simulatedDispenserDriver);
+  else clearDispenserDriverFor(id);
+  const pump = getPump(id)!;
+  broadcastPumps(pump.station_id);
+  return pump;
 }
 
 export function setPumpStatus(

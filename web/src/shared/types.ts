@@ -39,6 +39,8 @@ export interface Pump {
   faultCode: string | null;
   faultMessage: string | null;
   currentTransactionId: number | null;
+  /** Coklu pompa cihazi mimarisi: bu pompaya atanmis iletisim protokolu (yoksa null - varsayilan surucu kullanilir). */
+  protocolType: string | null;
   /** Pompada su an akan dolumun ozeti; pompa bostaysa null. */
   activeSale: {
     transactionId: number;

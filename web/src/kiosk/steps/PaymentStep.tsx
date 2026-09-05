@@ -35,7 +35,7 @@ export default function PaymentStep({
   onPaid: (t: Transaction) => void;
   onCancel: () => void;
 }) {
-  const { t } = useKioskLang();
+  const { t, locale } = useKioskLang();
   const [fleetAccount, setFleetAccount] = useState<FleetAccountSummary | null>(null);
   const [fleetChecked, setFleetChecked] = useState(false);
   const [skipFleet, setSkipFleet] = useState(false);
@@ -76,20 +76,37 @@ export default function PaymentStep({
     );
   }
 
+  // Filo hesabi VAR ama kullanilabilir bakiyesi bu islemin tutarindan dusuk: filo
+  // secenegi bilerek sunulmuyor (baglayici olmayan bir bakiyeyi asan tutar tahsil
+  // edilemez), ama musteri/personel bunu aciklama olmadan "filo secenegi kayboldu"
+  // sanip hataya yorabilir - bkz. destek gorusmesi. Kart odemesine gecmeden once
+  // nedenini acikca belirtiyoruz.
+  const insufficientFleetBalance = !skipFleet && !!fleetAccount && fleetAccount.active && fleetAccount.availableAmount !== null && fleetAccount.availableAmount < transaction.chargeAmount;
+
   // Kart odemesi yapilandirilmamissa islem BURADA durur. Onceden bu noktada bir
   // simulasyon paneli devreye girip odemeyi "onaylanmis" sayiyordu; gercek bir
   // istasyonda bu, parasi tahsil edilmeden yakit veren bir pompa demektir.
-  if (!iyzicoEnabled) {
-    return <PaymentUnavailablePanel transaction={transaction} accessToken={accessToken} onCancel={onCancel} />;
-  }
-
   return (
-    <IyzicoPaymentPanel
-      transaction={transaction}
-      accessToken={accessToken}
-      estimatedPricePerLiter={estimatedPricePerLiter}
-      onCancel={onCancel}
-    />
+    <>
+      {insufficientFleetBalance && fleetAccount && (
+        <p className="hint-text">
+          {t("payment.fleetInsufficientBalance", {
+            available: formatCurrency(fleetAccount.availableAmount!, locale),
+            amount: formatCurrency(transaction.chargeAmount, locale),
+          })}
+        </p>
+      )}
+      {!iyzicoEnabled ? (
+        <PaymentUnavailablePanel transaction={transaction} accessToken={accessToken} onCancel={onCancel} />
+      ) : (
+        <IyzicoPaymentPanel
+          transaction={transaction}
+          accessToken={accessToken}
+          estimatedPricePerLiter={estimatedPricePerLiter}
+          onCancel={onCancel}
+        />
+      )}
+    </>
   );
 }
 

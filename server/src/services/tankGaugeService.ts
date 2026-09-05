@@ -88,8 +88,27 @@ export interface GaugeSweepResult {
   recorded: number;
   skippedNoProbe: number;
   skippedDispensing: number;
+  skippedDelivering: number;
   skippedTooSoon: number;
   alarmsRaised: number;
+}
+
+interface ActiveDeliveryRow {
+  c: number;
+}
+
+/**
+ * Tanker bosaltirken tanktaki seviye HIZLA yukselir ve calkalanir; bu, gercek bir
+ * "kazanc" degil, teslimatin kendisidir. sweepTankGauges bunu es gecmezse her
+ * teslimat sahte bir "sizinti tersi" olayi gibi kaydedilirdi (bkz. hasActiveDispense
+ * ile ayni gerekce, ama YAKIT TURU bazinda: baska bir yakit turunun teslimati bu
+ * tanki etkilemez, okuma durdurulmamali).
+ */
+function hasActiveDelivery(stationId: number, fuelType: FuelType): boolean {
+  const row = db
+    .prepare<[number, string], ActiveDeliveryRow>("SELECT COUNT(*) AS c FROM fuel_orders WHERE station_id = ? AND fuel_type = ? AND status = 'delivering'")
+    .get(stationId, fuelType)!;
+  return row.c > 0;
 }
 
 /**
@@ -102,6 +121,7 @@ export function sweepTankGauges(now = Date.now()): GaugeSweepResult {
     recorded: 0,
     skippedNoProbe: 0,
     skippedDispensing: 0,
+    skippedDelivering: 0,
     skippedTooSoon: 0,
     alarmsRaised: 0,
   };
@@ -114,6 +134,11 @@ export function sweepTankGauges(now = Date.now()): GaugeSweepResult {
     }
 
     for (const fuelType of FUEL_TYPES) {
+      if (hasActiveDelivery(station.id, fuelType)) {
+        result.skippedDelivering++;
+        continue;
+      }
+
       const last = lastAutoReadingAt(station.id, fuelType);
       if (last !== null && now - last < MIN_INTERVAL_MS) {
         result.skippedTooSoon++;

@@ -102,6 +102,39 @@ describe("sweepTankGauges", () => {
     expect(motorinReadings(station.id)).toHaveLength(0);
   });
 
+  it("teslimat surerken (delivering) o yakit turunun olcumu atlanir", () => {
+    // Tanker bosaltirken seviye HIZLA yukselir - bu gercek bir "kazanc" degil,
+    // teslimatin kendisidir; okumak sahte bir "sizinti tersi" olayi uretirdi.
+    setTankStock(station.id, "motorin", 1000);
+    setTankGaugeDriver(fixedProbe(station.id, 6000));
+    db.prepare(
+      "INSERT INTO fuel_orders (station_id, fuel_type, supplier_name, ordered_liters, status) VALUES (?, 'motorin', 'Test Tedarikci', 5000, 'delivering')"
+    ).run(station.id);
+
+    const r = sweepTankGauges();
+
+    expect(r.recorded).toBe(0);
+    expect(r.skippedDelivering).toBeGreaterThan(0);
+    expect(motorinReadings(station.id)).toHaveLength(0);
+  });
+
+  it("teslimat SADECE o yakit turunu etkiler - digerleri normal olculur", () => {
+    setTankStock(station.id, "motorin", 1000);
+    setTankStock(station.id, "benzin", 1000);
+    setTankGaugeDriver({
+      read: (s, fuelType) => (s === station.id ? { liters: fuelType === "motorin" ? 6000 : 900 } : null),
+    });
+    db.prepare(
+      "INSERT INTO fuel_orders (station_id, fuel_type, supplier_name, ordered_liters, status) VALUES (?, 'motorin', 'Test Tedarikci', 5000, 'delivering')"
+    ).run(station.id);
+
+    const r = sweepTankGauges();
+
+    expect(motorinReadings(station.id)).toHaveLength(0);
+    expect(listReadings(station.id, { fuelType: "benzin" })).toHaveLength(1);
+    expect(r.skippedDelivering).toBeGreaterThan(0);
+  });
+
   it("saatlik esikten once ikinci olcum almaz", () => {
     // Sik olcum sapma takibini BOZAR: aradaki hacim sifira yaklasir ve probun normal
     // salinimi yuzde olarak devasa gorunur.

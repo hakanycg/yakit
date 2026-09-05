@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { CircleMarker, MapContainer, TileLayer } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 import { api, ApiError } from "../../shared/api";
 import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
@@ -107,6 +109,7 @@ export default function FuelStock() {
           <TankCard
             key={t.fuelType}
             tank={t}
+            deliveringOrder={orders.find((o) => o.fuelType === t.fuelType && o.status === "delivering")}
             onChanged={() => {
               loadTanks();
               loadMovements();
@@ -309,7 +312,7 @@ export default function FuelStock() {
   );
 }
 
-function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }) {
+function TankCard({ tank, deliveringOrder, onChanged }: { tank: FuelTank; deliveringOrder?: FuelOrder; onChanged: () => void }) {
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const criticalZoneHeight = tank.capacityLiters > 0 ? (tank.lowStockThresholdLiters / tank.capacityLiters) * 100 : 0;
@@ -320,6 +323,13 @@ function TankCard({ tank, onChanged }: { tank: FuelTank; onChanged: () => void }
         <span className="tank-card-title"><span className={`fuel-dot ${tank.fuelType}`} />{FUEL_LABEL[tank.fuelType] ?? tank.fuelType}</span>
         <span className={`badge ${STATUS_BADGE[tank.status]}`}>{STATUS_LABEL[tank.status]}</span>
       </div>
+
+      {deliveringOrder && (
+        <p className="hint-text" style={{ marginTop: "0.25rem", marginBottom: 0 }}>
+          🚚 Tanker dolum yapıyor — {deliveringOrder.deliveryStartedAt ? new Date(deliveringOrder.deliveryStartedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "?"}'den beri
+          {" "}(otomatik seviye okuması bu süre boyunca duraklatıldı)
+        </p>
+      )}
 
       <div className="tank-body">
         <div className="tank-gauge">
@@ -819,17 +829,25 @@ interface FuelOrder {
   receivedLiters: number | null;
   unitCost: number | null;
   expectedAt: string | null;
-  status: "draft" | "sent" | "received" | "cancelled";
+  status: "draft" | "sent" | "delivering" | "received" | "cancelled";
   note: string | null;
   deliveryMovementId: number | null;
   sentAt: string | null;
+  deliveryStartedAt: string | null;
   receivedAt: string | null;
   createdAt: string;
+  driverPhone: string | null;
+  tankerPlate: string | null;
+  hasTrackingLink: boolean;
+  lastLat: number | null;
+  lastLng: number | null;
+  lastLocationAt: string | null;
 }
 
 const ORDER_STATUS_LABEL: Record<FuelOrder["status"], string> = {
   draft: "Taslak",
   sent: "Gönderildi",
+  delivering: "Teslimat sürüyor",
   received: "Teslim alındı",
   cancelled: "İptal",
 };
@@ -837,6 +855,7 @@ const ORDER_STATUS_LABEL: Record<FuelOrder["status"], string> = {
 const ORDER_STATUS_BADGE: Record<FuelOrder["status"], string> = {
   draft: "warning",
   sent: "info",
+  delivering: "info",
   received: "resolved",
   cancelled: "critical",
 };
@@ -857,6 +876,7 @@ function FuelOrdersSection({
   const stationId = useEffectiveStationId();
   const [creating, setCreating] = useState<OrderSuggestion | null>(null);
   const [receiving, setReceiving] = useState<FuelOrder | null>(null);
+  const [trackingOrderId, setTrackingOrderId] = useState<number | null>(null);
   const [showSuppliers, setShowSuppliers] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -894,9 +914,9 @@ function FuelOrdersSection({
 
   useEffect(loadHistory, [stationId, historyStatus, historyFrom, historyTo, historyPage]);
 
-  const openOrders = orders.filter((o) => o.status === "draft" || o.status === "sent");
+  const openOrders = orders.filter((o) => o.status === "draft" || o.status === "sent" || o.status === "delivering");
 
-  async function act(order: FuelOrder, action: "send" | "cancel") {
+  async function act(order: FuelOrder, action: "send" | "cancel" | "start-delivery") {
     setError(null);
     try {
       await api.post(`/api/fuel-stock/orders/${order.id}/${action}`);
@@ -993,12 +1013,24 @@ function FuelOrdersSection({
                           Gönder
                         </button>
                       )}
+                      {o.status === "sent" && (
+                        <button className="btn-sm" onClick={() => act(o, "start-delivery")}>
+                          Teslimat Başladı
+                        </button>
+                      )}
+                      {o.hasTrackingLink && (
+                        <button className="btn-sm" onClick={() => setTrackingOrderId(o.id)}>
+                          📍 Konum
+                        </button>
+                      )}
                       <button className="primary btn-sm" onClick={() => setReceiving(o)}>
                         Teslim Al
                       </button>
-                      <button className="ghost btn-sm" onClick={() => act(o, "cancel")}>
-                        İptal
-                      </button>
+                      {o.status !== "delivering" && (
+                        <button className="ghost btn-sm" onClick={() => act(o, "cancel")}>
+                          İptal
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -1115,6 +1147,12 @@ function FuelOrdersSection({
         />
       )}
 
+      {trackingOrderId !== null &&
+        (() => {
+          const trackingOrder = orders.find((o) => o.id === trackingOrderId);
+          return trackingOrder ? <TankerLocationDialog order={trackingOrder} onClose={() => setTrackingOrderId(null)} /> : null;
+        })()}
+
       {showSuppliers && (
         <SuppliersDialog suppliers={suppliers} onClose={() => setShowSuppliers(false)} onChanged={onChanged} />
       )}
@@ -1138,6 +1176,8 @@ function CreateOrderDialog({
   const [unitCost, setUnitCost] = useState("");
   const [expectedAt, setExpectedAt] = useState("");
   const [note, setNote] = useState("");
+  const [driverPhone, setDriverPhone] = useState("");
+  const [tankerPlate, setTankerPlate] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -1152,6 +1192,8 @@ function CreateOrderDialog({
         unitCost: unitCost ? Number(unitCost) : undefined,
         expectedAt: expectedAt || undefined,
         note: note.trim() || undefined,
+        driverPhone: driverPhone.trim() || undefined,
+        tankerPlate: tankerPlate.trim() || undefined,
       });
       onCreated();
     } catch (err) {
@@ -1192,6 +1234,15 @@ function CreateOrderDialog({
         <label>Not (opsiyonel)</label>
         <input value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
 
+        <label>Şoför Telefonu (opsiyonel)</label>
+        <input value={driverPhone} onChange={(e) => setDriverPhone(e.target.value)} placeholder="+90 5xx xxx xx xx" />
+        <p className="hint-text" style={{ marginTop: "0.25rem" }}>
+          Girilirse sipariş gönderilirken şoföre, tankerin canlı konumunu paylaşabileceği bir link SMS ile gönderilir.
+        </p>
+
+        <label>Tanker Plakası (opsiyonel)</label>
+        <input value={tankerPlate} onChange={(e) => setTankerPlate(e.target.value)} maxLength={15} />
+
         {error && <p className="error-text">{error}</p>}
 
         <div className="modal-actions">
@@ -1201,6 +1252,50 @@ function CreateOrderDialog({
           <div className="spacer" />
           <button className="primary" onClick={submit} disabled={busy || !liters || !supplierId}>
             {busy ? "Kaydediliyor..." : "Siparişi Oluştur"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Tanker canli konum takibi (bkz. fuelOrderService.sendTrackingLink,
+ * routes/tankerTracking.ts). Sofor kendi cihazindan konum paylastikca bu ekran
+ * websocket uzerinden (fuel-stock:<stationId> topic'i) tetiklenen REST
+ * yeniden-cekimiyle guncellenir - ayrica polling yapmaya gerek yok.
+ */
+function TankerLocationDialog({ order, onClose }: { order: FuelOrder; onClose: () => void }) {
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" style={{ width: "min(560px, 94vw)" }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>
+          Sipariş #{order.id} — {FUEL_LABEL[order.fuelType] ?? order.fuelType} Tankeri
+        </h3>
+        {order.tankerPlate && <p className="hint-text" style={{ marginTop: 0 }}>Plaka: {order.tankerPlate}</p>}
+
+        {order.lastLat !== null && order.lastLng !== null ? (
+          <>
+            <div style={{ height: 320, borderRadius: 8, overflow: "hidden" }}>
+              <MapContainer center={[order.lastLat, order.lastLng]} zoom={12} style={{ height: "100%", width: "100%" }}>
+                <TileLayer attribution='&copy; OpenStreetMap' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <CircleMarker center={[order.lastLat, order.lastLng]} radius={9} pathOptions={{ color: "#e05b2b", fillColor: "#e05b2b", fillOpacity: 0.85 }} />
+              </MapContainer>
+            </div>
+            <p className="hint-text" style={{ marginBottom: 0 }}>
+              Son güncelleme: {order.lastLocationAt ? formatDateTime(order.lastLocationAt) : "-"}
+            </p>
+          </>
+        ) : (
+          <p className="hint-text">
+            Şoför henüz konum paylaşmadı. Link SMS ile gönderildi; konum paylaşımı başlar başlamaz burada görünecek.
+          </p>
+        )}
+
+        <div className="modal-actions">
+          <div className="spacer" />
+          <button className="primary" onClick={onClose}>
+            Kapat
           </button>
         </div>
       </div>
