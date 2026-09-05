@@ -5,7 +5,7 @@ import { logger } from "../utils/logger.js";
 import { safeCompare } from "../utils/safeCompare.js";
 import { getFleetCardTopupConfig } from "./paymentSettingsService.js";
 import { IyzicoError, initializeFleetTopupCheckoutForm, retrieveCheckoutForm } from "./iyzicoService.js";
-import { topUpFromCardPayment } from "./fleetService.js";
+import { getAccountById, topUpFromCardPayment } from "./fleetService.js";
 
 /**
  * Filo portalinda KARTLA ANINDA bakiye yukleme.
@@ -45,6 +45,29 @@ export function listTopupsForAccount(accountId: number, limit = 20): FleetCardTo
   return db
     .prepare<[number, number], FleetCardTopupRow>("SELECT * FROM fleet_card_topups WHERE fleet_account_id = ? ORDER BY id DESC LIMIT ?")
     .all(accountId, limit);
+}
+
+/**
+ * Personel gorunumu: aksi halde bu tablo hicbir admin ekranindan gorunmez - musterinin
+ * karti reddedilirse ya da odeme yarida kalirsa personelin durumu gorecegi tek yer
+ * musterinin kendi portal ekrani olurdu. getAccountById istasyon disi hesaba erisimi
+ * engeller (bkz. listMovements ile ayni desen).
+ */
+export function listTopupsForAccountStaff(
+  stationId: number,
+  accountId: number,
+  limit = 50
+): Array<FleetCardTopupRow & { portal_user_email: string }> {
+  getAccountById(stationId, accountId);
+  return db
+    .prepare<[number, number], FleetCardTopupRow & { portal_user_email: string }>(
+      `SELECT t.*, u.email AS portal_user_email
+       FROM fleet_card_topups t
+       JOIN fleet_portal_users u ON u.id = t.portal_user_id
+       WHERE t.fleet_account_id = ?
+       ORDER BY t.id DESC LIMIT ?`
+    )
+    .all(accountId, Math.min(limit, 200));
 }
 
 export interface StartCardTopupResult {
@@ -163,7 +186,7 @@ export async function finalizeCardTopup(id: number, token: string): Promise<{ su
   return { success: true };
 }
 
-export function serializeCardTopup(t: FleetCardTopupRow) {
+export function serializeCardTopup(t: FleetCardTopupRow & { portal_user_email?: string }) {
   return {
     id: t.id,
     fleetAccountId: t.fleet_account_id,
@@ -173,5 +196,8 @@ export function serializeCardTopup(t: FleetCardTopupRow) {
     status: t.status,
     createdAt: t.created_at,
     paidAt: t.paid_at,
+    // Yalnizca personel gorunumunde (listTopupsForAccountStaff) doldurulur - musteri
+    // kendi hesabini goruyor, kimin yaptigini ayrica belirtmeye gerek yok.
+    portalUserEmail: t.portal_user_email,
   };
 }

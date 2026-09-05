@@ -38,6 +38,7 @@ import {
 } from "../services/fleetInvoiceService.js";
 
 import { accountReceivable, stationAging } from "../services/fleetReceivableService.js";
+import { listTopupsForAccountStaff, serializeCardTopup } from "../services/fleetCardTopupService.js";
 import {
   TopupRequestError,
   approveRequest,
@@ -62,6 +63,25 @@ router.get("/:id/movements", (req, res) => {
   try {
     const movements = listMovements(req.stationId!, id).map(serializeMovement);
     res.json({ movements });
+  } catch (err) {
+    if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+/**
+ * Musterinin portaldan kartla yaptigi anlik yukleme gecmisi (bkz. fleetCardTopupService.ts).
+ *
+ * Aksi halde personelin bunu gorecegi hicbir yer yok: basarili olanlar fleet_movements'a
+ * (yukaridaki /movements) net tutarla duser ama bekleyen/basarisiz denemeler oraya hic
+ * girmez - musteri "kartim reddedildi" dediginde personel bunu burada gorebilmeli.
+ */
+router.get("/:id/card-topups", (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    const topups = listTopupsForAccountStaff(req.stationId!, id).map(serializeCardTopup);
+    res.json({ topups });
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
     throw err;

@@ -3,7 +3,7 @@ import { db } from "../db/index.js";
 import type { FleetAccountRow, FleetPortalUserRow, StationRow, UserRow } from "../db/types.js";
 import { env } from "../config.js";
 import { createTestStation, createTestUser } from "../test/dbFixture.js";
-import { createAccount } from "./fleetService.js";
+import { FleetError, createAccount } from "./fleetService.js";
 import { createOrLinkPortalUser } from "./fleetPortalService.js";
 import { setFleetCardTopupConfig } from "./paymentSettingsService.js";
 
@@ -24,6 +24,7 @@ const {
   finalizeCardTopup,
   getTopupOrThrow,
   listTopupsForAccount,
+  listTopupsForAccountStaff,
   startCardTopup,
 } = await import("./fleetCardTopupService.js");
 const { IyzicoError } = await import("./iyzicoService.js");
@@ -189,5 +190,41 @@ describe("filo portali kartla anlik yukleme", () => {
     await expect(finalizeCardTopup(result.topupId, "test-token")).rejects.toThrow(FleetCardTopupError);
     const after = db.prepare<[number], FleetAccountRow>("SELECT * FROM fleet_accounts WHERE id = ?").get(account.id)!;
     expect(after.balance).toBe(0);
+  });
+});
+
+describe("listTopupsForAccountStaff - personel gorunumu", () => {
+  it("basarili, bekleyen ve basarisiz denemelerin hepsini gosterir - Hareket Gecmisi yalnizca basariliyi gorur", async () => {
+    // Aksi halde bekleyen/basarisiz kart denemeleri hicbir admin ekranindan gorunmez -
+    // musteri "kartim reddedildi" dediginde personelin bakacagi tek yer burasi.
+    const ok = await startCardTopup(account, portalUser, 1000, "127.0.0.1");
+    retrieveCheckoutFormMock.mockResolvedValueOnce({
+      success: true,
+      conversationId: String(ok.topupId),
+      paymentId: "pay-1",
+      paidPrice: ok.grossAmount,
+      message: "ok",
+    });
+    await finalizeCardTopup(ok.topupId, "test-token");
+
+    await startCardTopup(account, portalUser, 500, "127.0.0.1"); // pending kalir
+
+    const rows = listTopupsForAccountStaff(station.id, account.id);
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.status).sort()).toEqual(["paid", "pending"]);
+    expect(rows.every((r) => r.portal_user_email === portalUser.email)).toBe(true);
+  });
+
+  it("baska istasyonun hesabina erisimi reddeder", () => {
+    const other = createTestStation();
+    expect(() => listTopupsForAccountStaff(other.id, account.id)).toThrow(FleetError);
+  });
+
+  it("serializeCardTopup personel gorunumunde portalUserEmail'i tasir", async () => {
+    const { serializeCardTopup } = await import("./fleetCardTopupService.js");
+    await startCardTopup(account, portalUser, 1000, "127.0.0.1");
+
+    const [row] = listTopupsForAccountStaff(station.id, account.id);
+    expect(serializeCardTopup(row!).portalUserEmail).toBe(portalUser.email);
   });
 });
