@@ -109,6 +109,30 @@ const MOVEMENT_LABEL: Record<FleetMovement["type"], string> = {
   adjustment: "Düzeltme",
 };
 
+/**
+ * Portaldan kartla yapilan anlik yukleme denemesi.
+ *
+ * Hareket Gecmisi'nden (yukarida) farkli: yalnizca BASARILI olanlar oraya net tutarla
+ * duser. Bekleyen/basarisiz denemeler yalnizca burada gorunur - musteri "kartim
+ * reddedildi" dediginde personelin bakacagi tek yer.
+ */
+interface CardTopup {
+  id: number;
+  requestedAmount: number;
+  feeAmount: number;
+  grossAmount: number;
+  status: "pending" | "paid" | "failed";
+  portalUserEmail: string;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+const CARD_TOPUP_STATUS_LABEL: Record<CardTopup["status"], string> = {
+  pending: "Bekliyor",
+  paid: "Tamamlandı",
+  failed: "Başarısız",
+};
+
 export default function FleetAccounts() {
   const stationId = useEffectiveStationId();
   const [accounts, setAccounts] = useState<FleetAccount[]>([]);
@@ -449,6 +473,7 @@ function AccountDetailDialog({
   onChanged: () => void;
 }) {
   const [movements, setMovements] = useState<FleetMovement[]>([]);
+  const [cardTopups, setCardTopups] = useState<CardTopup[]>([]);
   const [portalUsers, setPortalUsers] = useState<PortalUser[]>([]);
   const [invoices, setInvoices] = useState<FleetInvoice[]>([]);
   const [invoiceDraft, setInvoiceDraft] = useState<FleetInvoiceDraft | null>(null);
@@ -472,6 +497,10 @@ function AccountDetailDialog({
     api.get<{ movements: FleetMovement[] }>(`/api/fleet-accounts/${accountId}/movements`).then((res) => setMovements(res.movements));
   }
   useEffect(loadMovements, [accountId]);
+
+  useEffect(() => {
+    api.get<{ topups: CardTopup[] }>(`/api/fleet-accounts/${accountId}/card-topups`).then((res) => setCardTopups(res.topups));
+  }, [accountId]);
 
   function loadPortalUsers() {
     api.get<{ portalUsers: PortalUser[] }>(`/api/fleet-accounts/${accountId}/portal-users`).then((res) => setPortalUsers(res.portalUsers));
@@ -947,6 +976,29 @@ function AccountDetailDialog({
               </tr>
             ))}
             {movements.length === 0 && <tr><td colSpan={6} className="hint-text">Henüz hareket yok.</td></tr>}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Yalnizca basarili yuklemeler yukaridaki Hareket Gecmisi'ne (net tutarla) duser;
+          bekleyen/basarisiz kart denemelerini personelin gorebilecegi tek yer burasi. */}
+      <h4>Kartla Yükleme Geçmişi</h4>
+      <div className="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Tarih</th><th>Portal Kullanıcısı</th><th className="numeric">Yüklenen</th><th className="numeric">Hizmet Bedeli</th><th>Durum</th></tr>
+          </thead>
+          <tbody>
+            {cardTopups.map((t) => (
+              <tr key={t.id}>
+                <td>{formatDateTime(t.createdAt)}</td>
+                <td>{t.portalUserEmail}</td>
+                <td className="numeric">{formatCurrency(t.requestedAmount)}</td>
+                <td className="numeric">{formatCurrency(t.feeAmount)}</td>
+                <td>{CARD_TOPUP_STATUS_LABEL[t.status]}</td>
+              </tr>
+            ))}
+            {cardTopups.length === 0 && <tr><td colSpan={5} className="hint-text">Henüz kartla yükleme denemesi yok.</td></tr>}
           </tbody>
         </table>
       </div>
