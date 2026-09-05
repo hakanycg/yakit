@@ -748,6 +748,35 @@ CREATE TABLE IF NOT EXISTS fleet_topup_requests (
 CREATE INDEX IF NOT EXISTS idx_fleet_topup_requests_account ON fleet_topup_requests(fleet_account_id, status);
 CREATE INDEX IF NOT EXISTS idx_fleet_topup_requests_station ON fleet_topup_requests(station_id, status);
 
+-- Filo musterisinin portalden KARTLA ANINDA yaptigi bakiye yuklemesi.
+--
+-- fleet_topup_requests'ten (yukarida) FARKLI bir sey: bu PARA TASIR - iyzico'dan
+-- gercek bir tahsilat sonucudur, personel onayi beklemez. Bilerek ayri bir tablo:
+-- ayni anda hem "talep" (odenmemis niyet) hem "odenmis kayit" ayni satirda
+-- durum karisikligina yol acardi.
+--
+-- Bu kanal BILEREK isletmeye komisyon YUKLEMEZ: musteri fee_amount kadar bir hizmet
+-- bedelini KENDISI kart uzerinden fazladan oder (gross_amount = requested_amount +
+-- fee_amount), hesaba yalnizca requested_amount (net) islenir - bkz.
+-- fleetCardTopupService.ts. Boylece filo yakit cirosunda komisyon hala %0 kalir
+-- (bkz. fleetTopupRequestService.ts basindaki ayni gerekce); yalnizca musterinin
+-- KENDI SECTIGI "anlik kartla yukle" kolayligi komisyonu tasir, isletme degil.
+CREATE TABLE IF NOT EXISTS fleet_card_topups (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  fleet_account_id INTEGER NOT NULL REFERENCES fleet_accounts(id),
+  portal_user_id INTEGER NOT NULL REFERENCES fleet_portal_users(id),
+  requested_amount REAL NOT NULL,  -- hesaba islenecek NET tutar
+  fee_amount REAL NOT NULL,        -- musteriden ekstra alinan hizmet bedeli
+  gross_amount REAL NOT NULL,      -- karttan cekilen toplam (requested+fee)
+  status TEXT NOT NULL DEFAULT 'pending',  -- pending | paid | failed
+  iyzico_token TEXT,
+  payment_reference TEXT,
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  paid_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_fleet_card_topups_account ON fleet_card_topups(fleet_account_id);
+
 CREATE INDEX IF NOT EXISTS idx_refunds_station ON refunds(station_id, created_at);
 
 -- Pompa kalibrasyon (ayar) testi ve damga takibi.

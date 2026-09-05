@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "../shared/api";
 import { formatCurrency, formatDateTime, formatLiters } from "../shared/format";
 import { useThemePreference } from "../shared/useThemePreference";
 import { AlertIcon, CheckCircleIcon, FuelIcon, MoonIcon, SunIcon, WalletIcon } from "../shared/icons";
 import {
   fleetApi,
+  type CardTopup,
+  type FleetCardTopupConfig,
   type FleetInvoice,
   type PlateSummary,
   type PortalAccount,
@@ -38,6 +40,13 @@ export default function FleetPortal() {
     setAccounts(next.accounts);
   }, []);
 
+  const reloadSession = useCallback(() => {
+    fleetApi
+      .get<{ user: PortalUser; accounts: PortalAccount[] }>("/api/fleet-portal/me")
+      .then(applySession)
+      .catch(() => {});
+  }, [applySession]);
+
   useEffect(() => {
     fleetApi
       .get<{ user: PortalUser; accounts: PortalAccount[] }>("/api/fleet-portal/me")
@@ -58,7 +67,7 @@ export default function FleetPortal() {
   // e-postayla iletildigi icin kalici olarak kullanilmasi dogru olmaz.
   if (user.mustChangePassword) return <ChangePassword onDone={handleLogout} />;
 
-  return <FleetDashboard user={user} accounts={accounts} onLogout={handleLogout} />;
+  return <FleetDashboard user={user} accounts={accounts} onLogout={handleLogout} onAccountsChanged={reloadSession} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -172,7 +181,17 @@ function ChangePassword({ onDone }: { onDone: () => void }) {
 
 // ---------------------------------------------------------------------------
 
-function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accounts: PortalAccount[]; onLogout: () => void }) {
+function FleetDashboard({
+  user,
+  accounts,
+  onLogout,
+  onAccountsChanged,
+}: {
+  user: PortalUser;
+  accounts: PortalAccount[];
+  onLogout: () => void;
+  onAccountsChanged: () => void;
+}) {
   const [themeMode, setThemeMode] = useThemePreference();
   const [accountId, setAccountId] = useState<number | null>(accounts[0]?.accountId ?? null);
   const [from, setFrom] = useState(() => businessDate(29));
@@ -183,6 +202,8 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
   const [invoices, setInvoices] = useState<FleetInvoice[]>([]);
   const [topupRequests, setTopupRequests] = useState<TopupRequest[]>([]);
   const [consumption, setConsumption] = useState<ConsumptionReport | null>(null);
+  const [cardTopupConfig, setCardTopupConfig] = useState<FleetCardTopupConfig | null>(null);
+  const [cardTopups, setCardTopups] = useState<CardTopup[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const account = accounts.find((a) => a.accountId === accountId) ?? null;
@@ -239,6 +260,43 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
   }, [accountId]);
 
   useEffect(loadTopupRequests, [loadTopupRequests]);
+
+  // Kartla anlik yukleme ayri bir kanal: config istasyona gore acik/kapali olabilir,
+  // gecmisi de talep listesinden bagimsiz kendi tablosundan (fleet_card_topups) gelir.
+  const loadCardTopups = useCallback(() => {
+    if (accountId === null) return;
+    fleetApi
+      .get<{ topups: CardTopup[] }>(`/api/fleet-portal/accounts/${accountId}/card-topups`)
+      .then((r) => setCardTopups(r.topups))
+      .catch(() => setCardTopups([]));
+  }, [accountId]);
+
+  useEffect(loadCardTopups, [loadCardTopups]);
+
+  useEffect(() => {
+    if (accountId === null) return;
+    fleetApi
+      .get<FleetCardTopupConfig>(`/api/fleet-portal/accounts/${accountId}/card-topup-config`)
+      .then(setCardTopupConfig)
+      .catch(() => setCardTopupConfig(null));
+  }, [accountId]);
+
+  // iyzico odemesi tam sayfa yonlendirmeyle doner (bkz. CardTopupPanel); sonucu
+  // buradaki URL parametresinden okuyup bakiyeyi/gecmisi tazeleriz, sonra URL'i
+  // temizleriz - sayfa yenilenince ayni sonuc tekrar islenmesin.
+  const [cardTopupResult, setCardTopupResult] = useState<"ok" | "fail" | null>(null);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("iyzico");
+    if (status !== "ok" && status !== "fail") return;
+    setCardTopupResult(status);
+    window.history.replaceState(null, "", window.location.pathname);
+    if (status === "ok") {
+      onAccountsChanged();
+      loadCardTopups();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const t = statement?.totals;
   const lowBalance =
@@ -353,6 +411,20 @@ function FleetDashboard({ user, accounts, onLogout }: { user: PortalUser; accoun
                 icon={<FuelIcon />}
               />
             </div>
+
+            {cardTopupResult && (
+              <div className="card" style={{ borderColor: cardTopupResult === "ok" ? "#4ade80" : "#f87171" }}>
+                {cardTopupResult === "ok" ? (
+                  <strong style={{ color: "#4ade80" }}>Kartla yükleme başarılı — bakiyenize işlendi.</strong>
+                ) : (
+                  <strong style={{ color: "#f87171" }}>Kartla yükleme tamamlanamadı. Tekrar deneyebilirsiniz.</strong>
+                )}
+              </div>
+            )}
+
+            {cardTopupConfig?.enabled && (
+              <CardTopupPanel account={account} topups={cardTopups} feePct={cardTopupConfig.feePct} onChanged={loadCardTopups} />
+            )}
 
             <TopupRequestPanel
               account={account}
@@ -641,6 +713,162 @@ function ConsumptionSection({ report }: { report: ConsumptionReport | null }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Kartla ANINDA yukleme.
+ *
+ * TopupRequestPanel'den (asagida) farkli: bu PARA TASIR, personel onayi beklemez.
+ * Odeme kiosk'takiyle AYNI guven modelini kullanir (checkout form + sunucu-sunucu
+ * dogrulama) - iyzico odemeyi kiosk gibi tam sayfa yonlendirmeyle ya da gomulu bir
+ * checkout formuyla tamamlar; sonuc bu sayfaya URL parametresiyle doner (bkz.
+ * FleetDashboard'daki cardTopupResult).
+ *
+ * feeAmount musteriden hizmet bedeli olarak alinir, hesaba yalnizca net tutar
+ * (requestedAmount) islenir - komisyon isletmeye degil musteriye yansitilir.
+ */
+function CardTopupPanel({
+  account,
+  topups,
+  feePct,
+  onChanged,
+}: {
+  account: PortalAccount;
+  topups: CardTopup[];
+  feePct: number;
+  onChanged: () => void;
+}) {
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [checkoutFormContent, setCheckoutFormContent] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const value = Number(amount.replace(",", "."));
+  const validAmount = Number.isFinite(value) && value > 0;
+  const feeAmount = validAmount ? Math.round(value * (feePct / 100) * 100) / 100 : 0;
+  const grossAmount = validAmount ? Math.round((value + feeAmount) * 100) / 100 : 0;
+
+  const history = topups.slice(0, 5);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!validAmount) {
+      setError("Geçerli bir tutar girin.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fleetApi.post<{ checkoutFormContent: string; paymentPageUrl: string | null }>(
+        `/api/fleet-portal/accounts/${account.accountId}/card-topups`,
+        { amount: Math.round(value * 100) / 100 }
+      );
+      if (res.paymentPageUrl) {
+        window.location.href = res.paymentPageUrl;
+        return;
+      }
+      setCheckoutFormContent(res.checkoutFormContent);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Yükleme başlatılamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!checkoutFormContent || !containerRef.current) return;
+    const container = containerRef.current;
+    container.innerHTML = "";
+
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = checkoutFormContent;
+    Array.from(wrapper.childNodes).forEach((node) => {
+      if (node.nodeName === "SCRIPT") {
+        const original = node as HTMLScriptElement;
+        const script = document.createElement("script");
+        if (original.src) script.src = original.src;
+        script.text = original.text;
+        container.appendChild(script);
+      } else {
+        container.appendChild(node.cloneNode(true));
+      }
+    });
+  }, [checkoutFormContent]);
+
+  return (
+    <>
+      <h3>Kartla Anında Yükleme</h3>
+      <div className="card">
+        <p className="hint-text" style={{ marginTop: 0 }}>
+          Personel onayı beklemeden, kartınızla anında bakiye yükleyin. Yüklediğiniz tutara ek olarak %{feePct} hizmet
+          bedeli kartınızdan tahsil edilir; hesabınıza yalnızca istediğiniz net tutar işlenir.
+        </p>
+
+        {!checkoutFormContent && (
+          <form onSubmit={submit} className="topup-form">
+            <div className="topup-fields">
+              <div>
+                <label htmlFor="fp-card-topup-amount">Tutar (TL)</label>
+                <input
+                  id="fp-card-topup-amount"
+                  inputMode="decimal"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  placeholder="ör. 5000"
+                  required
+                />
+              </div>
+              <button type="submit" className="primary" disabled={busy || !account.active || !validAmount}>
+                {busy ? "Hazırlanıyor..." : "Kartla Yükle"}
+              </button>
+            </div>
+            {validAmount && (
+              <p className="hint-text">
+                Karttan çekilecek: <strong>{formatCurrency(grossAmount)}</strong> (hizmet bedeli{" "}
+                {formatCurrency(feeAmount)}) — hesabınıza işlenecek: <strong>{formatCurrency(value)}</strong>
+              </p>
+            )}
+            {!account.active && <p className="hint-text">Hesabınız pasif durumda; yükleme yapılamaz.</p>}
+          </form>
+        )}
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div ref={containerRef} className="responsive" style={{ marginTop: checkoutFormContent ? "1rem" : 0 }} />
+
+        {history.length > 0 && (
+          <table style={{ marginTop: "1rem" }}>
+            <thead>
+              <tr>
+                <th>Tarih</th>
+                <th>Yüklenen</th>
+                <th>Hizmet bedeli</th>
+                <th>Durum</th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map((r) => (
+                <tr key={r.id}>
+                  <td className="hint-text">{formatDateTime(r.createdAt)}</td>
+                  <td>{formatCurrency(r.requestedAmount)}</td>
+                  <td className="hint-text">{formatCurrency(r.feeAmount)}</td>
+                  <td>
+                    <span
+                      className={`badge ${r.status === "paid" ? "resolved" : r.status === "failed" ? "warning" : "info"}`}
+                    >
+                      {r.status === "paid" ? "Tamamlandı" : r.status === "failed" ? "Başarısız" : "Bekliyor"}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </>
   );

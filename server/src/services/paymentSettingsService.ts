@@ -65,6 +65,32 @@ export function serializeIyzicoConfig(config: IyzicoConfig) {
   };
 }
 
+export interface FleetCardTopupConfig {
+  enabled: boolean;
+  /** Musteriden hizmet bedeli olarak alinacak yuzde - iyzico komisyonunu KARSILAMAK
+   * icindir, isletme cebinden cikmasin diye (bkz. fleetCardTopupService.ts). */
+  feePct: number;
+}
+
+const DEFAULT_FLEET_CARD_TOPUP_FEE_PCT = 3;
+
+export function getFleetCardTopupConfig(stationId: number): FleetCardTopupConfig {
+  const enabled = getSetting(stationId, "fleet_card_topup_enabled") === "true";
+  const feePctRaw = getSetting(stationId, "fleet_card_topup_fee_pct");
+  const feePct = feePctRaw !== null && Number.isFinite(Number(feePctRaw)) ? Number(feePctRaw) : DEFAULT_FLEET_CARD_TOPUP_FEE_PCT;
+  return { enabled, feePct };
+}
+
+export interface FleetCardTopupConfigInput {
+  enabled?: boolean;
+  feePct?: number;
+}
+
+export function setFleetCardTopupConfig(stationId: number, input: FleetCardTopupConfigInput, actor: UserRow | null): void {
+  if (input.enabled !== undefined) setSetting(stationId, "fleet_card_topup_enabled", String(input.enabled), actor);
+  if (input.feePct !== undefined) setSetting(stationId, "fleet_card_topup_fee_pct", String(input.feePct), actor);
+}
+
 /** Bir istasyonda iyzico ile gercek odeme almak icin gerekli tum sartlarin saglanip saglanmadigini kontrol eder. */
 export function isIyzicoReady(stationId: number): { ready: boolean; reason?: string } {
   const config = getIyzicoConfig(stationId);

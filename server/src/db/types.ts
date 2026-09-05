@@ -397,6 +397,21 @@ export interface FleetTopupRequestRow {
   created_at: string;
 }
 
+export interface FleetCardTopupRow {
+  id: number;
+  station_id: number;
+  fleet_account_id: number;
+  portal_user_id: number;
+  requested_amount: number;
+  fee_amount: number;
+  gross_amount: number;
+  status: "pending" | "paid" | "failed";
+  iyzico_token: string | null;
+  payment_reference: string | null;
+  created_at: string;
+  paid_at: string | null;
+}
+
 export interface FleetPortalUserRow {
   id: number;
   email: string;

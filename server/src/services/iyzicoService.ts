@@ -149,6 +149,102 @@ export function initializeCheckoutForm(input: InitCheckoutFormInput): Promise<In
   });
 }
 
+export interface InitFleetTopupCheckoutFormInput {
+  stationId: number;
+  topupId: number;
+  /** Karttan cekilecek TOPLAM tutar (net yukleme + musteriden alinan hizmet bedeli). */
+  grossAmount: number;
+  companyName: string;
+  buyerEmail: string;
+  ip: string;
+  callbackUrl: string;
+}
+
+/**
+ * Filo portalindaki KARTLA ANINDA bakiye yukleme icin iyzico Checkout Form baslatir.
+ *
+ * initializeCheckoutForm ile ayni desen (kiosk odemesi) ama farkli bir alici/sepet
+ * baglami: burada bir plaka/yakit degil, bir FILO HESABI bakiye yuklemesi var - ayri
+ * bir fonksiyon olarak tutulmasi, kiosk akisinin plaka/yakit alanlarina bagimli
+ * kalmasini onler.
+ */
+export function initializeFleetTopupCheckoutForm(input: InitFleetTopupCheckoutFormInput): Promise<InitCheckoutFormResult> {
+  const readiness = isIyzicoReady(input.stationId);
+  if (!readiness.ready) {
+    throw new IyzicoError(readiness.reason ?? "iyzico kullanima hazir degil.", 409);
+  }
+
+  const { client, secretKey } = getClient(input.stationId);
+  const price = input.grossAmount.toFixed(2);
+
+  const request = {
+    locale: Iyzipay.LOCALE.TR,
+    conversationId: String(input.topupId),
+    price,
+    paidPrice: price,
+    currency: Iyzipay.CURRENCY.TRY,
+    basketId: `FLEET-TOPUP-${input.topupId}`,
+    paymentGroup: Iyzipay.PAYMENT_GROUP.PRODUCT,
+    callbackUrl: input.callbackUrl,
+    enabledInstallments: [1],
+    buyer: {
+      id: `fleet-topup-${input.topupId}`,
+      name: input.companyName,
+      surname: "Filo Hesabi",
+      gsmNumber: "+905000000000",
+      email: input.buyerEmail,
+      identityNumber: "11111111111",
+      lastLoginDate: new Date().toISOString().replace("T", " ").slice(0, 19),
+      registrationDate: new Date().toISOString().replace("T", " ").slice(0, 19),
+      registrationAddress: "Filo musteri portali",
+      ip: input.ip,
+      city: "Istanbul",
+      country: "Turkey",
+      zipCode: "34000",
+    },
+    shippingAddress: {
+      contactName: input.companyName,
+      city: "Istanbul",
+      country: "Turkey",
+      address: "Filo musteri portali",
+      zipCode: "34000",
+    },
+    billingAddress: {
+      contactName: input.companyName,
+      city: "Istanbul",
+      country: "Turkey",
+      address: "Filo musteri portali",
+      zipCode: "34000",
+    },
+    basketItems: [
+      {
+        id: `FLEET-TOPUP-${input.topupId}`,
+        name: `Filo Hesabi Bakiye Yuklemesi - ${input.companyName}`,
+        category1: "Bakiye Yukleme",
+        itemType: Iyzipay.BASKET_ITEM_TYPE.VIRTUAL,
+        price,
+      },
+    ],
+  };
+
+  return new Promise((resolve, reject) => {
+    client.checkoutFormInitialize.create(request, (err, result) => {
+      if (err) return reject(new IyzicoError(`iyzico baglanti hatasi: ${err.message}`, 502));
+      if (result.status !== "success" || !result.token || !result.checkoutFormContent) {
+        return reject(new IyzicoError(result.errorMessage ?? "iyzico odeme formu baslatilamadi.", 502));
+      }
+      if (!verifySignature([result.conversationId, result.token], secretKey, result.signature)) {
+        return reject(new IyzicoError("iyzico yanit imzasi dogrulanamadi.", 502));
+      }
+      resolve({
+        token: result.token,
+        checkoutFormContent: result.checkoutFormContent,
+        paymentPageUrl: result.paymentPageUrl,
+      });
+    });
+  });
+}
+
 export interface RetrieveResult {
   success: boolean;
   conversationId: string | null;

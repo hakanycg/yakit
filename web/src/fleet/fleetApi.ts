@@ -149,6 +149,28 @@ export interface TopupRequest {
   createdAt: string;
 }
 
+export interface FleetCardTopupConfig {
+  enabled: boolean;
+  feePct: number;
+}
+
+/**
+ * Kartla ANINDA yukleme - yukarıdaki TopupRequest'ten farklı, gerçek bir para
+ * hareketidir (istasyon personeli onayı beklemez, iyzico'dan doğrudan tahsilattır).
+ * feeAmount müşteriden hizmet bedeli olarak alınan kısımdır; hesaba yalnızca
+ * requestedAmount (net) işlenir.
+ */
+export interface CardTopup {
+  id: number;
+  fleetAccountId: number;
+  requestedAmount: number;
+  feeAmount: number;
+  grossAmount: number;
+  status: "pending" | "paid" | "failed";
+  createdAt: string;
+  paidAt: string | null;
+}
+
 /**
  * Arac basina yakit tuketimi.
  *
