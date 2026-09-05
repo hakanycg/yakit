@@ -1261,6 +1261,43 @@ kullanımlık, 30 dakika geçerli bir bağlantı gönderilir (bağ veritabanınd
 oluşturulur ama teslim edilemez — bu durumda hesabı olan bir yönetici, Kullanıcı Yönetimi
 sayfasındaki "Şifre Sıfırla" ile elle bir geçici şifre atayabilir.
 
+## Mobil uygulama (Capacitor): Android/iOS kabuğu
+
+Yönetim paneli ve filo portalı için App Store/Play Store'da yayınlanabilecek bir mobil kabuk
+(`web/capacitor.config.ts`) eklendi. Bu kabuk uygulamanın **kendi içinde statik bir kopya
+taşımaz** — doğrudan canlı siteyi (`server.url`) bir WebView içinde açar. Sebep teknik ve
+kasıtlı: oturum çerezleri `sameSite=strict` ile işaretli (bkz. `server/src/middleware/auth.ts`),
+bu yüzden çerezin gönderilebilmesi için WebView'in **gerçek https origin'i** yüklemesi şart —
+yerelde paketlenmiş bir `index.html` (kendi sahte origin'iyle) bu çerezle çalışmaz. Sonuç
+olarak backend tarafında hiçbir şey değişmedi; mobil uygulama aynı oturum/CSRF/RBAC
+mekanizmasını, aynı sunucu üzerinden kullanıyor.
+
+**Şu ana kadar yapılan:**
+- `@capacitor/core`, `@capacitor/cli`, `@capacitor/android` bağımlılıkları eklendi.
+- `web/capacitor.config.ts`: `server.url` üretim adresine (`CAPACITOR_SERVER_URL` ortam
+  değişkeniyle geçersiz kılınabilir), `cleartext: false` ve `androidScheme: "https"` ile
+  yapılandırıldı.
+- `web/android/` native Android projesi (`npx cap add android`) oluşturuldu ve senkronlandı.
+
+**Yayına almadan önce sizin tamamlamanız gerekenler** (bunlar kod değil, hesap/araç/karar
+gerektirir — bu ortamda tamamlanamaz):
+1. **`capacitor.config.ts`'teki `appId`'yi değiştirin.** Şu an `com.yakit.app` bir yer
+   tutucudur; mağazaya yayınlandıktan sonra **değiştirilemez**, bu yüzden kendi ters-alan-adı
+   değerinizle (ör. şirket alan adınız varsa `com.sirketiniz.yakit`) baştan belirleyin.
+2. **Uygulama ikonu ve açılış ekranı (splash screen)** — `@capacitor/assets` paketiyle tek
+   bir kaynak görselden üretilebilir; şu an varsayılan Capacitor ikonu duruyor.
+3. **Android:** Android Studio kurulu bir makinede `npm run cap:android --workspace web`
+   ile projeyi açıp imzalı bir `.aab` üretmek, Google Play Console hesabı açmak ve mağaza
+   listeleme (ekran görüntüleri, gizlilik politikası, veri güvenliği formu) bilgilerini
+   doldurmak gerekiyor.
+4. **iOS:** `npx cap add ios` **macOS + Xcode gerektirir** — bu ortam Linux olduğu için iOS
+   platformu hiç eklenemedi. Bir Mac'te önce `npx cap add ios` çalıştırılmalı, ardından
+   Apple Developer Program üyeliği (App Store Connect), imzalama sertifikaları ve mağaza
+   inceleme süreci tamamlanmalı.
+5. **Push bildirimi gibi native özellikler** istenirse (`@capacitor/push-notifications` vb.)
+   ayrıca eklenip yapılandırılmalı; şu anki kabuk yalnızca mevcut web deneyimini native bir
+   pencerede sunuyor.
+
 ## Kurulum
 
 ```bash
@@ -1942,3 +1979,5 @@ sonra ayrı bir adım olarak çalışır.
 | `npm run test` | Backend birim testleri (vitest) |
 | `npm run test:e2e --workspace web` | Kiosk uçtan uca testleri (Playwright, gerçek tarayıcı) |
 | `npm run seed --workspace server` | Roller, admin kullanıcı, istasyon, pompa, fiyat verisini oluşturur |
+| `npm run cap:sync --workspace web` | Capacitor: web assets + native proje ayarlarını senkronlar |
+| `npm run cap:android --workspace web` | Capacitor: Android Studio'da native projeyi açar |
