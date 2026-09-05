@@ -1,6 +1,9 @@
-import { Router } from "express";
+import express, { Router } from "express";
 import type { NextFunction, Request, Response } from "express";
 import { z } from "zod";
+import { db } from "../db/index.js";
+import { env } from "../config.js";
+import { logger } from "../utils/logger.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import { loginRateLimit } from "../middleware/rateLimit.js";
 import {
@@ -31,6 +34,16 @@ import {
   listRequestsForAccount,
   serializeRequest,
 } from "../services/fleetTopupRequestService.js";
+import {
+  FleetCardTopupError,
+  finalizeCardTopup,
+  getTopupOrThrow,
+  listTopupsForAccount,
+  serializeCardTopup,
+  startCardTopup,
+} from "../services/fleetCardTopupService.js";
+import { getFleetCardTopupConfig } from "../services/paymentSettingsService.js";
+import { IyzicoError } from "../services/iyzicoService.js";
 import { getConsumptionReport } from "../services/fleetConsumptionService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 import { csvEscape } from "../utils/csv.js";
@@ -126,6 +139,47 @@ router.post("/logout", requireFleetPortalAuth, fleetPortalCsrfProtection, (req, 
   if (req.fleetPortalToken) destroyPortalSession(req.fleetPortalToken);
   clearFleetPortalCookies(res);
   res.json({ ok: true });
+});
+
+/**
+ * iyzico'nun odeme sonrasi yonlendirdigi (musteri tarayicisi araciligiyla, sunucudan
+ * sunucuya degil) genel erisimli endpoint - kiosk/routes/kiosk.ts'teki iyzico callback'i
+ * ile AYNI gerekce: bu istek CROSS-SITE'tir (iyzico'dan gelir), portal oturum cerezini
+ * TASIMAZ, bu yuzden requireFleetPortalAuth/CSRF korumasinin DISINDA tutulur - guven
+ * tamamen callback URL'sindeki siparis kimligi + govdedeki iyzico token'inin sunucu-
+ * sunucu dogrulamasindan (retrieveCheckoutForm, imzali) gelir.
+ */
+router.post("/card-topups/:id/callback", express.urlencoded({ extended: false, limit: "8kb" }), async (req, res) => {
+  const id = Number(req.params.id);
+  const token = typeof (req.body as Record<string, unknown> | undefined)?.token === "string" ? (req.body as Record<string, string>).token : null;
+
+  function redirectToPortal(status: "ok" | "fail") {
+    res.redirect(303, `${env.WEB_ORIGIN}/filo?topup=${id}&iyzico=${status}`);
+  }
+
+  if (!Number.isInteger(id) || !token) {
+    logger.warn({ id }, "Filo kartla yukleme callback: eksik parametre.");
+    redirectToPortal("fail");
+    return;
+  }
+
+  try {
+    const result = await finalizeCardTopup(id, token);
+    redirectToPortal(result.success ? "ok" : "fail");
+  } catch (err) {
+    logger.error({ id, err }, "Filo kartla yukleme callback dogrulama hatasi.");
+    if (err instanceof FleetCardTopupError && err.status === 403) {
+      // Yanlis/eslesmeyen token - kaydin durumuna dokunmadan sessizce fail'e yonlendir.
+      redirectToPortal("fail");
+      return;
+    }
+    try {
+      db.prepare("UPDATE fleet_card_topups SET status = 'failed' WHERE id = ? AND status = 'pending'").run(id);
+    } catch {
+      /* kayit zaten degismis olabilir - yut. */
+    }
+    redirectToPortal("fail");
+  }
 });
 
 router.use(requireFleetPortalAuth, fleetPortalCsrfProtection);
@@ -263,6 +317,70 @@ router.delete("/accounts/:id/topup-requests/:requestId", (req, res) => {
 });
 
 /**
+ * Kartla anlik yukleme - fleetTopupRequestService'teki TALEP akisindan farkli olarak
+ * gercek para hareketidir (bkz. fleetCardTopupService.ts). Musteri istasyon
+ * yapilandirmasinda acik BIRAKMISSA bu ucu kullanabilir; kapaliysa 409 doner.
+ */
+router.get("/accounts/:id/card-topup-config", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const account = accountForVerifiedAccess(accountId);
+  res.json(getFleetCardTopupConfig(account.station_id));
+});
+
+const cardTopupSchema = z.object({ amount: z.number().positive().max(10000000) });
+
+router.post("/accounts/:id/card-topups", validateBody(cardTopupSchema), async (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const body = req.body as z.infer<typeof cardTopupSchema>;
+  try {
+    const account = accountForVerifiedAccess(accountId);
+    const result = await startCardTopup(account, req.fleetPortalUser!, body.amount, req.ip ?? "0.0.0.0");
+    recordAudit({
+      user: null,
+      actorType: "fleet_portal",
+      actorLabel: req.fleetPortalUser!.email,
+      action: "fleet_card_topup_started",
+      entityType: "fleet_account",
+      entityId: accountId,
+      details: { topupId: result.topupId, requestedAmount: result.requestedAmount, feeAmount: result.feeAmount },
+      ip: req.ip,
+      stationId: account.station_id,
+    });
+    res.json({
+      topupId: result.topupId,
+      requestedAmount: result.requestedAmount,
+      feeAmount: result.feeAmount,
+      grossAmount: result.grossAmount,
+      checkoutFormContent: result.checkoutFormContent,
+      paymentPageUrl: result.paymentPageUrl,
+    });
+  } catch (err) {
+    if (err instanceof FleetCardTopupError || err instanceof IyzicoError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+router.get("/accounts/:id/card-topups", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  res.json({ topups: listTopupsForAccount(accountId).map(serializeCardTopup) });
+});
+
+/** Musteri odeme ekranindan geri gelmeden once sonuc sormak isterse (ör. sekme kapanmisti). */
+router.get("/accounts/:id/card-topups/:topupId", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const topupId = Number(req.params.topupId);
+  if (!Number.isInteger(topupId) || topupId <= 0) return void res.status(400).json({ error: "Gecersiz yukleme." });
+  try {
+    const topup = getTopupOrThrow(topupId);
+    if (topup.fleet_account_id !== accountId) throw new FleetCardTopupError("Yukleme bulunamadi.", 404);
+    res.json({ topup: serializeCardTopup(topup) });
+  } catch (err) {
+    if (err instanceof FleetCardTopupError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+/**
  * Arac basina yakit tuketimi (L/100km).
  *
  * "Hangi arac ne kadar aldi" ekstrede zaten var; buradaki soru "ne kadar YAKTI".
@@ -324,7 +442,7 @@ router.get("/accounts/:id/statement.csv", validateQuery(rangeSchema), (req, res)
  * duzeltebilecegi durumlarin 500 gorunmesi hem yaniltici hem de gereksiz destek cagrisi.
  */
 router.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
-  if (err instanceof FleetPortalError) {
+  if (err instanceof FleetPortalError || err instanceof FleetCardTopupError) {
     res.status(err.status).json({ error: err.message });
     return;
   }

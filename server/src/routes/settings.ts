@@ -5,7 +5,13 @@ import type { FuelPriceRow, FuelType } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole, requireStationSelected, csrfProtection } from "../middleware/auth.js";
 import { validateBody } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
-import { getIyzicoConfig, serializeIyzicoConfig, setIyzicoConfig } from "../services/paymentSettingsService.js";
+import {
+  getFleetCardTopupConfig,
+  getIyzicoConfig,
+  serializeIyzicoConfig,
+  setFleetCardTopupConfig,
+  setIyzicoConfig,
+} from "../services/paymentSettingsService.js";
 import { getWebhookConfig, serializeWebhookConfig, setWebhookConfig } from "../services/webhookSettingsService.js";
 import { getInvoiceConfig, serializeInvoiceConfig, setInvoiceConfig } from "../services/invoiceSettingsService.js";
 import { getReportEmailConfig, setReportEmailFrequency } from "../services/reportEmailService.js";
@@ -166,7 +172,10 @@ router.delete("/fuel-prices/scheduled/:id", (req, res) => {
 });
 
 router.get("/payment", (req, res) => {
-  res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
+  res.json({
+    config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)),
+    fleetCardTopup: getFleetCardTopupConfig(req.stationId!),
+  });
 });
 
 const paymentConfigSchema = z.object({
@@ -174,19 +183,36 @@ const paymentConfigSchema = z.object({
   environment: z.enum(["sandbox", "production"]).optional(),
   apiKey: z.string().min(4).max(200).optional(),
   secretKey: z.string().min(4).max(200).optional(),
+  fleetCardTopupEnabled: z.boolean().optional(),
+  // Musteriden alinan hizmet bedeli yuzdesi - iyzico komisyonunu karsilamak icin
+  // (bkz. paymentSettingsService.ts). 0 = hizmet bedeli yok, tum tutar aynen yuklenir.
+  fleetCardTopupFeePct: z.number().min(0).max(20).optional(),
 });
 
 router.patch("/payment", validateBody(paymentConfigSchema), (req, res) => {
   const body = req.body as z.infer<typeof paymentConfigSchema>;
   setIyzicoConfig(req.stationId!, body, req.user!);
+  if (body.fleetCardTopupEnabled !== undefined || body.fleetCardTopupFeePct !== undefined) {
+    setFleetCardTopupConfig(req.stationId!, { enabled: body.fleetCardTopupEnabled, feePct: body.fleetCardTopupFeePct }, req.user!);
+  }
   recordAudit({
     user: req.user!,
     action: "payment_config_updated",
-    details: { enabled: body.enabled, environment: body.environment, apiKeyChanged: !!body.apiKey, secretKeyChanged: !!body.secretKey },
+    details: {
+      enabled: body.enabled,
+      environment: body.environment,
+      apiKeyChanged: !!body.apiKey,
+      secretKeyChanged: !!body.secretKey,
+      fleetCardTopupEnabled: body.fleetCardTopupEnabled,
+      fleetCardTopupFeePct: body.fleetCardTopupFeePct,
+    },
     ip: req.ip,
     stationId: req.stationId,
   });
-  res.json({ config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)) });
+  res.json({
+    config: serializeIyzicoConfig(getIyzicoConfig(req.stationId!)),
+    fleetCardTopup: getFleetCardTopupConfig(req.stationId!),
+  });
 });
 
 router.get("/webhook", (req, res) => {

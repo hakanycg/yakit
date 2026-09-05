@@ -211,17 +211,31 @@ function checkLowBalance(account: FleetAccountRow): void {
 }
 
 /** Yonetici/operator tarafindan bakiye yuklemesi (prepaid) veya borc kapama kaydi (postpaid). */
-export function topUp(stationId: number, accountId: number, amount: number, note: string | undefined, actor: UserRow): FleetAccountRow {
+function applyTopUp(stationId: number, accountId: number, amount: number, note: string | undefined, userId: number | null): FleetAccountRow {
   if (amount <= 0) throw new FleetError("Gecersiz tutar.", 400);
   const account = getAccountById(stationId, accountId);
   const newBalance =
     account.billing_type === "prepaid" ? Math.round((account.balance + amount) * 100) / 100 : Math.max(0, Math.round((account.balance - amount) * 100) / 100);
 
   db.prepare("UPDATE fleet_accounts SET balance = ? WHERE id = ?").run(newBalance, accountId);
-  insertMovement({ accountId, type: "topup", amount, balanceAfter: newBalance, note: note ?? null, userId: actor.id });
+  insertMovement({ accountId, type: "topup", amount, balanceAfter: newBalance, note: note ?? null, userId });
   const updated = getAccountById(stationId, accountId);
   checkLowBalance(updated);
   return updated;
+}
+
+export function topUp(stationId: number, accountId: number, amount: number, note: string | undefined, actor: UserRow): FleetAccountRow {
+  return applyTopUp(stationId, accountId, amount, note, actor.id);
+}
+
+/**
+ * Personel onayi OLMADAN, dogrudan bir kart odemesi sonucunda bakiye yukler
+ * (bkz. fleetCardTopupService.ts). user_id kasten NULL kalir - bunu yapan bir
+ * personel degil, musterinin kendi kart odemesidir; movement gecmisinde "kim
+ * yapti" sorusunun dogru cevabi budur.
+ */
+export function topUpFromCardPayment(stationId: number, accountId: number, amount: number, note: string): FleetAccountRow {
+  return applyTopUp(stationId, accountId, amount, note, null);
 }
 
 /** Kiosk odemesinde filo hesabindan tahsilat yapar. Yetersiz bakiye/limit asimi durumunda hata firlatir. */

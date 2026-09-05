@@ -14,9 +14,16 @@ interface PaymentConfig {
   publicApiBaseUrl: string | null;
 }
 
+interface FleetCardTopupConfig {
+  enabled: boolean;
+  feePct: number;
+}
+
 export default function PaymentSettings() {
   const stationId = useEffectiveStationId();
   const [config, setConfig] = useState<PaymentConfig | null>(null);
+  const [fleetCardTopup, setFleetCardTopup] = useState<FleetCardTopupConfig | null>(null);
+  const [feePctInput, setFeePctInput] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [secretKey, setSecretKey] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -25,7 +32,11 @@ export default function PaymentSettings() {
 
   function load() {
     if (stationId === null) return;
-    api.get<{ config: PaymentConfig }>("/api/settings/payment").then((res) => setConfig(res.config));
+    api.get<{ config: PaymentConfig; fleetCardTopup: FleetCardTopupConfig }>("/api/settings/payment").then((res) => {
+      setConfig(res.config);
+      setFleetCardTopup(res.fleetCardTopup);
+      setFeePctInput(String(res.fleetCardTopup.feePct));
+    });
   }
   useEffect(load, [stationId]);
 
@@ -46,7 +57,7 @@ export default function PaymentSettings() {
     }
   }
 
-  if (!config) return null;
+  if (!config || !fleetCardTopup) return null;
 
   return (
     <div className="settings-page">
@@ -114,6 +125,47 @@ export default function PaymentSettings() {
             </p>
           )}
         </div>
+      </div>
+
+      <div className="card settings-card">
+        <div className="card-head">
+          <h3>Filo Portalı — Kartla Anında Yükleme</h3>
+          <StatusToggle
+            checked={fleetCardTopup.enabled}
+            disabled={saving || !config.enabled}
+            onChange={() => update({ fleetCardTopupEnabled: !fleetCardTopup.enabled })}
+          />
+        </div>
+        <p className="hint-text card-desc">
+          Filo müşterisi portalda, personel onayı beklemeden kartıyla anında bakiye yükleyebilir. Bu tahsilat da
+          yukarıdaki iyzico hesabı üzerinden geçer, bu yüzden yukarıdaki entegrasyon aktif olmadan açılamaz.
+          İşletmeye komisyon yansımaması için müşteriden, yüklediği tutara ek olarak aşağıdaki oranda bir hizmet
+          bedeli alınır — hesabına yalnızca istediği net tutar işlenir.
+        </p>
+        {!config.enabled && <p className="error-text">Önce yukarıdaki iyzico entegrasyonunu etkinleştirin.</p>}
+
+        <label>Hizmet Bedeli (%)</label>
+        <div className="toolbar" style={{ maxWidth: 220 }}>
+          <input
+            type="number"
+            min={0}
+            max={20}
+            step="0.1"
+            value={feePctInput}
+            disabled={saving}
+            onChange={(e) => setFeePctInput(e.target.value)}
+          />
+          <button
+            disabled={saving || feePctInput.trim() === "" || Number(feePctInput) === fleetCardTopup.feePct}
+            onClick={() => update({ fleetCardTopupFeePct: Number(feePctInput) })}
+          >
+            Kaydet
+          </button>
+        </div>
+        <p className="hint-text" style={{ marginTop: "0.25rem" }}>
+          Örnek: 1000 TL yükleme, %{fleetCardTopup.feePct} hizmet bedeliyle karttan{" "}
+          {(1000 * (1 + fleetCardTopup.feePct / 100)).toFixed(2)} TL çekilir; hesaba 1000 TL işlenir.
+        </p>
       </div>
     </div>
   );
