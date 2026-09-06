@@ -218,6 +218,11 @@ CREATE INDEX IF NOT EXISTS idx_transactions_station_business_day
 CREATE INDEX IF NOT EXISTS idx_transactions_pump ON transactions(pump_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
 CREATE INDEX IF NOT EXISTS idx_transactions_created ON transactions(created_at);
+-- discountService.ts'teki getUsageStats bu ikisiyle join yapiyor (kod bazinda kullanim
+-- analitigi, Kampanya Kodlari sayfasi her acildiginda calisir); indeks yoksa istasyonun
+-- TUM islem gecmisi taranir. Cogu satirda discount_code NULL oldugundan (sparse) partial.
+CREATE INDEX IF NOT EXISTS idx_transactions_station_discount_code
+  ON transactions(station_id, discount_code) WHERE discount_code IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS alarms (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

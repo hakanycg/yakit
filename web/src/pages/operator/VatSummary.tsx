@@ -13,10 +13,14 @@ interface VatSummary {
   netVat: number;
 }
 
+function businessDate(daysAgo = 0): string {
+  return new Date(Date.now() + 3 * 3600_000 - daysAgo * 86400_000).toISOString().slice(0, 10);
+}
+
 export default function VatSummary() {
   const stationId = useEffectiveStationId();
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [dateFrom, setDateFrom] = useState(() => businessDate(29));
+  const [dateTo, setDateTo] = useState(() => businessDate(0));
   const [summary, setSummary] = useState<VatSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
 

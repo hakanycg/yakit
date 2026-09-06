@@ -161,6 +161,12 @@ export function applyMigrations(): void {
   ensureColumn("fuel_orders", "last_location_at", "TEXT");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_fuel_orders_tracking_token ON fuel_orders(tracking_token) WHERE tracking_token IS NOT NULL");
 
+  // discountService.ts'teki getUsageStats bu kolonla join yapiyor (Kampanya Kodlari
+  // sayfasi her acildiginda calisir); indeks yoksa istasyonun TUM islem gecmisi taranir.
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_transactions_station_discount_code ON transactions(station_id, discount_code) WHERE discount_code IS NOT NULL"
+  );
+
   backfillNormalizedPlates();
 }
 
