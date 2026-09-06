@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError } from "../../../shared/api";
 import { useEffectiveStationId } from "../../../shared/useEffectiveStation";
+import type { FuelPrice } from "../../../shared/types";
 import StatusToggle from "./StatusToggle";
 
 interface LoyaltyConfig {
@@ -17,6 +18,9 @@ export default function LoyaltySettings() {
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Geri odeme oranini GERCEK litre fiyatiyla goster - genel bir varsayim degil,
+  // admin'in kendi istasyonundaki fiyat uzerinden hesaplanir.
+  const [avgFuelPrice, setAvgFuelPrice] = useState<number | null>(null);
 
   function load() {
     if (stationId === null) return;
@@ -25,8 +29,25 @@ export default function LoyaltySettings() {
       setPointsPerLiter(String(res.config.pointsPerLiter));
       setPointValueTry(String(res.config.pointValueTry));
     });
+    api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => {
+      if (res.fuelPrices.length === 0) return;
+      setAvgFuelPrice(res.fuelPrices.reduce((sum, p) => sum + p.pricePerLiter, 0) / res.fuelPrices.length);
+    });
   }
   useEffect(load, [stationId]);
+
+  const parsedPointsPerLiter = Number(pointsPerLiter);
+  const parsedPointValueTry = Number(pointValueTry);
+  const validNumbers =
+    Number.isFinite(parsedPointsPerLiter) && parsedPointsPerLiter >= 0 && Number.isFinite(parsedPointValueTry) && parsedPointValueTry >= 0;
+  // Litre basina kazanilan TL indirim degeri - iki alanin BIRLIKTE ne anlama geldigini
+  // gosteren tek sayi. Ayri ayri makul gorunen iki deger (ör. "50" ve "100") birlikte
+  // yikici olabilir (bkz. asagidaki uyari esigi) - admin bunu ayri ayri goremez.
+  const valuePerLiter = validNumbers ? parsedPointsPerLiter * parsedPointValueTry : null;
+  const cashbackPct = valuePerLiter !== null && avgFuelPrice ? (valuePerLiter / avgFuelPrice) * 100 : null;
+  // %10 ustu, akaryakit sektorunde hicbir sadakat programinin gercekci olarak
+  // sunamayacagi bir oran - yanlislikla girilmis bir ondalik/birim hatasinin isaretidir.
+  const HIGH_CASHBACK_WARNING_PCT = 10;
 
   async function update(patch: Partial<LoyaltyConfig>) {
     setSaving(true);
@@ -61,12 +82,44 @@ export default function LoyaltySettings() {
           <div>
             <label>Litre başına kazanılan puan</label>
             <input type="number" min={0} step={0.1} value={pointsPerLiter} onChange={(e) => setPointsPerLiter(e.target.value)} />
+            <p className="hint-text" style={{ marginTop: "0.25rem" }}>
+              Müşterinin her litre alımında kazandığı puan sayısı. Örn: <strong>50</strong> yazarsanız, 10 litre alan
+              müşteri 500 puan kazanır.
+            </p>
           </div>
           <div>
             <label>1 puanın TL değeri (kullanıldığında)</label>
             <input type="number" min={0} step={0.01} value={pointValueTry} onChange={(e) => setPointValueTry(e.target.value)} />
+            <p className="hint-text" style={{ marginTop: "0.25rem" }}>
+              Kazanılan puanların TL karşılığı. Bu genellikle <strong>1'in çok altında küçük bir sayı</strong> olmalı
+              (varsayılan: <strong>0.10</strong> — yani 1 puan = 10 kuruş). Yukarıdaki "litre başına puan" zaten büyük
+              bir sayıysa (ör. 50), bu alana da büyük bir sayı (ör. 100) yazmak iki değeri birbirine çarpar ve
+              işletmeyi zarara sokacak kadar yüksek bir indirim üretir.
+            </p>
           </div>
         </div>
+
+        {validNumbers && valuePerLiter !== null && valuePerLiter > 0 && (
+          <p className={`hint-text ${cashbackPct !== null && cashbackPct > HIGH_CASHBACK_WARNING_PCT ? "error-text" : ""}`}>
+            Bu ayarla: her litre alımda müşteri <strong>{valuePerLiter.toFixed(2)} TL</strong> değerinde puan
+            kazanıyor
+            {cashbackPct !== null && (
+              <>
+                {" "}
+                (istasyonunuzun ortalama litre fiyatına göre yaklaşık <strong>%{cashbackPct.toFixed(1)}</strong> geri
+                ödeme oranı)
+              </>
+            )}
+            .
+            {cashbackPct !== null && cashbackPct > HIGH_CASHBACK_WARNING_PCT && (
+              <>
+                {" "}
+                Bu oran akaryakıt sektörü için olağan dışı yüksek (çoğu program %1-%5 arası çalışır) — muhtemelen
+                "1 puanın TL değeri" alanına yanlışlıkla büyük bir sayı girildi, kontrol edin.
+              </>
+            )}
+          </p>
+        )}
 
         {error && <p className="error-text">{error}</p>}
         {savedMsg && <p className="success-text">{savedMsg}</p>}
