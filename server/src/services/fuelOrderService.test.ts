@@ -37,6 +37,17 @@ function addSale(fuelType: string, liters: number, daysAgo: number): void {
   ).run(station.id, fuelType, -liters, new Date(NOW - daysAgo * DAY).toISOString());
 }
 
+/**
+ * Gecmise donuk, zaten teslim alinmis bir siparis - avgLeadTimeDays'in girdisi.
+ * sentDaysAgo > receivedDaysAgo olmali (once gonderilir, sonra teslim alinir).
+ */
+function seedReceivedOrder(fuelType: string, sentDaysAgo: number, receivedDaysAgo: number): void {
+  db.prepare(
+    `INSERT INTO fuel_orders (station_id, fuel_type, supplier_id, supplier_name, ordered_liters, status, sent_at, received_at, created_by)
+     VALUES (?, ?, ?, 'Test Dagitim', 1000, 'received', ?, ?, ?)`
+  ).run(station.id, fuelType, supplierId, new Date(NOW - sentDaysAgo * DAY).toISOString(), new Date(NOW - receivedDaysAgo * DAY).toISOString(), actor.id);
+}
+
 beforeEach(() => {
   sendEmail.mockClear();
   sendSms.mockClear();
@@ -94,6 +105,58 @@ describe("siparis onerisi", () => {
     setTankStock(station.id, "motorin", 2800); // esik 1500, yani "dusuk stok" degil
     for (let d = 1; d <= 14; d += 1) addSale("motorin", 1400, d); // gunde 1.400 -> 2 gun
     expect(suggestions(station.id, NOW).find((s) => s.fuelType === "motorin")!.urgent).toBe(true);
+  });
+
+  describe("tedarikci teslimat suresi (avgLeadTimeDays)", () => {
+    it("hic teslim alinmis siparis yoksa null doner, varsayilan 3 gun esigi kullanilir", () => {
+      const motorin = suggestions(station.id, NOW).find((s) => s.fuelType === "motorin")!;
+      expect(motorin.avgLeadTimeDays).toBeNull();
+    });
+
+    it("gecmis teslimatlardan gercek ortalama teslimat suresini hesaplar", () => {
+      seedReceivedOrder("motorin", 10, 5); // 5 gun surmus
+      seedReceivedOrder("motorin", 10, 7); // 3 gun surmus
+      const motorin = suggestions(station.id, NOW).find((s) => s.fuelType === "motorin")!;
+      expect(motorin.avgLeadTimeDays).toBe(4); // (5+3)/2
+    });
+
+    it("sent_at'i olmayan (dogrudan teslim alinan) siparisler ortalamaya katilmaz", () => {
+      // receiveOrder status 'draft' iken de calisabilir - sent_at hic yazilmamis olabilir.
+      db.prepare(
+        `INSERT INTO fuel_orders (station_id, fuel_type, supplier_id, supplier_name, ordered_liters, status, received_at, created_by)
+         VALUES (?, 'motorin', ?, 'Test Dagitim', 1000, 'received', ?, ?)`
+      ).run(station.id, supplierId, new Date(NOW).toISOString(), actor.id);
+      const motorin = suggestions(station.id, NOW).find((s) => s.fuelType === "motorin")!;
+      expect(motorin.avgLeadTimeDays).toBeNull();
+    });
+
+    it("tedarikci normalde YAVAS teslim ediyorsa, sabit 3 gunun UZERINDE kalan gunle bile acil isaretlenir", () => {
+      // Bu tedarikci ortalama 5 gunde teslim ediyor - eski sabit "3 gun" kurali bu
+      // istasyonda YETERSIZDI (siparis verilse bile tanker vaktinde yetismezdi).
+      seedReceivedOrder("motorin", 10, 5);
+      seedReceivedOrder("motorin", 10, 5);
+      setTankStock(station.id, "motorin", 4000); // esik 1500, dusuk stok degil
+      for (let d = 1; d <= 14; d += 1) addSale("motorin", 1000, d); // gunde 1.000 -> 4 gun yeter
+
+      const motorin = suggestions(station.id, NOW).find((s) => s.fuelType === "motorin")!;
+      expect(motorin.daysOfCover).toBe(4);
+      expect(motorin.avgLeadTimeDays).toBe(5);
+      // 4 gun kaldi ama tedarikci 5 gunde teslim ediyor (+1 pay) -> acil.
+      expect(motorin.urgent).toBe(true);
+    });
+
+    it("tedarikci HIZLI teslim ediyorsa, eskiden acil sayilacak bir durum artik acil degildir", () => {
+      seedReceivedOrder("motorin", 10, 9); // 1 gunde teslim
+      seedReceivedOrder("motorin", 10, 9);
+      setTankStock(station.id, "motorin", 2800); // esik 1500
+      for (let d = 1; d <= 14; d += 1) addSale("motorin", 1400, d); // gunde 1.400 -> 2 gun yeter
+
+      const motorin = suggestions(station.id, NOW).find((s) => s.fuelType === "motorin")!;
+      expect(motorin.daysOfCover).toBe(2);
+      expect(motorin.avgLeadTimeDays).toBe(1);
+      // 2 gun kaldi, tedarikci 1 gunde teslim ediyor (+1 pay = 2 gun esik) -> henuz acil DEGIL.
+      expect(motorin.urgent).toBe(false);
+    });
   });
 });
 

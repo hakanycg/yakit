@@ -807,6 +807,7 @@ interface OrderSuggestion {
   lowStockThresholdLiters: number;
   dailyAverageLiters: number;
   daysOfCover: number | null;
+  avgLeadTimeDays: number | null;
   suggestedLiters: number;
   urgent: boolean;
   openOrderLiters: number;
@@ -960,7 +961,12 @@ function FuelOrdersSection({
                 {s.daysOfCover === null ? (
                   <span className="hint-text">tüketim yok</span>
                 ) : (
-                  <span className={`badge ${s.urgent ? "critical" : "resolved"}`}>{s.daysOfCover} gün</span>
+                  <>
+                    <span className={`badge ${s.urgent ? "critical" : "resolved"}`}>{s.daysOfCover} gün</span>
+                    {s.avgLeadTimeDays !== null && (
+                      <div className="hint-text">~{s.avgLeadTimeDays} gün teslimat süresi</div>
+                    )}
+                  </>
                 )}
               </td>
               <td className="numeric hint-text">{s.openOrderLiters > 0 ? formatLiters(s.openOrderLiters) : "—"}</td>
@@ -1210,6 +1216,7 @@ function CreateOrderDialog({
         <p className="hint-text" style={{ marginTop: 0 }}>
           Mevcut {formatLiters(suggestion.currentLiters)} / {formatLiters(suggestion.capacityLiters)} kapasite
           {suggestion.daysOfCover !== null && ` · bu hızla ${suggestion.daysOfCover} gün yeter`}
+          {suggestion.avgLeadTimeDays !== null && ` · tedarikçiler ortalama ~${suggestion.avgLeadTimeDays} günde teslim ediyor`}
         </p>
 
         <label>Tedarikçi</label>

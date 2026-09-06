@@ -101,15 +101,52 @@ export interface OrderSuggestion {
   dailyAverageLiters: number;
   /** Mevcut stok bu hizla kac gun yeter? Tuketim yoksa null (tahmin yapilamaz). */
   daysOfCover: number | null;
+  /** Bu yakit turu icin gecmis siparislerden hesaplanan ortalama teslimat suresi (gun).
+   * Hic teslim alinmis siparis yoksa (yeni istasyon) null - bkz. avgLeadTimeDays. */
+  avgLeadTimeDays: number | null;
   /** Tanki dolduracak miktar. Zaten doluysa 0. */
   suggestedLiters: number;
-  /** Esigin altina dusmus ya da 3 gunden az kalmis mi? */
+  /** Esigin altina dusmus mu, ya da kalan gun bu tedarikcinin ORTALAMA teslimat
+   * suresinden (+1 gun pay) az mi? Gecmis yoksa varsayilan 3 gun kullanilir. */
   urgent: boolean;
   /** Bu yakit icin halihazirda yolda olan siparis var mi? */
   openOrderLiters: number;
 }
 
 const COVER_WINDOW_DAYS = 14;
+
+/** Ortalamayi kac son teslimattan hesaplayacagimiz. dailyAverage'daki pencereyle ayni
+ * gerekce: az sayida siparis tek bir anormal teslimatla (trafik, tedarikci sorunu)
+ * savrulur, cok fazlasi tedarikcinin son donemde YAVASLAMIS/HIZLANMIS olmasini gec yakalar. */
+const LEAD_TIME_WINDOW_ORDERS = 10;
+
+/** Gecmis siparis yoksa (yeni istasyon, hic teslimat alinmamis) kullanilan varsayilan -
+ * eskiden TEK kural buydu, hala geriye donuk uyumluluk icin korunuyor. */
+const DEFAULT_URGENT_LEAD_TIME_DAYS = 3;
+
+/**
+ * Bu istasyon+yakit turu icin GECMIS teslimatlardan hesaplanan ortalama teslimat
+ * suresi (siparis gonderilmesinden teslim alinmasina kadar gecen gun).
+ *
+ * NEDEN: eskiden "acil" esigi sabit 3 gundu - tedarikcinin GERCEKTE ne kadar surdugunu
+ * hic bilmiyordu. Tedarikcisi 4-5 gunde teslim eden bir istasyonda "3 gun kaldi, acil"
+ * uyarisi geldiginde artik gec kalinmis olurdu: siparis o an verilse bile tanker
+ * gelene kadar tank muhtemelen bosalirdi. dailyAverage() ile AYNI felsefe: admin'e
+ * bir sayi tahmin ettirmek yerine, zaten kayitli olan sent_at/received_at
+ * zaman damgalarindan gercek sureyi hesapla.
+ */
+function avgLeadTimeDays(stationId: number, fuelType: FuelType): number | null {
+  const row = db
+    .prepare<[number, string, number], { avgDays: number | null }>(
+      `SELECT AVG(julianday(received_at) - julianday(sent_at)) as avgDays FROM (
+         SELECT sent_at, received_at FROM fuel_orders
+          WHERE station_id = ? AND fuel_type = ? AND status = 'received' AND sent_at IS NOT NULL AND received_at IS NOT NULL
+          ORDER BY received_at DESC LIMIT ?
+       )`
+    )
+    .get(stationId, fuelType, LEAD_TIME_WINDOW_ORDERS);
+  return row?.avgDays === null || row?.avgDays === undefined ? null : round2(row.avgDays);
+}
 
 /**
  * "Kac gun yeter" sorusunun cevabi, siparis kararinin en onemli girdisidir - kalan
@@ -152,6 +189,11 @@ export function suggestions(stationId: number, now = Date.now()): OrderSuggestio
       const dailyAverageLiters = dailyAverage(stationId, fuelType, now);
       const daysOfCover = dailyAverageLiters > 0 ? Math.round((t.current_liters / dailyAverageLiters) * 10) / 10 : null;
       const open = openOrderLiters(stationId, fuelType);
+      const leadTimeDays = avgLeadTimeDays(stationId, fuelType);
+      // +1 gun: ortalama tam olarak o kadar surse bile siparisin AYNI GUN verilmesi
+      // gerekir - "ortalama kadar gun kaldi" zaten sinirdadir, pay birakmazsak "acil"
+      // etiketi tam da geç kalinacak anda gelirdi.
+      const urgentThresholdDays = leadTimeDays !== null ? leadTimeDays + 1 : DEFAULT_URGENT_LEAD_TIME_DAYS;
       // Oneri tanki DOLDURACAK miktardir, eksigi kapatan degil: tanker zaten yola
       // ciktiginda yarim getirmesinin bir maliyet avantaji yok. Yolda olan siparis
       // dusulur, aksi halde ayni eksik icin ikinci kez siparis onerilirdi.
@@ -163,8 +205,9 @@ export function suggestions(stationId: number, now = Date.now()): OrderSuggestio
         lowStockThresholdLiters: round2(t.low_stock_threshold_liters),
         dailyAverageLiters,
         daysOfCover,
+        avgLeadTimeDays: leadTimeDays,
         suggestedLiters,
-        urgent: t.current_liters <= t.low_stock_threshold_liters || (daysOfCover !== null && daysOfCover < 3),
+        urgent: t.current_liters <= t.low_stock_threshold_liters || (daysOfCover !== null && daysOfCover < urgentThresholdDays),
         openOrderLiters: open,
       };
     });
