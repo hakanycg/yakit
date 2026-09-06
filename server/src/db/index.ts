@@ -167,6 +167,11 @@ export function applyMigrations(): void {
     "CREATE INDEX IF NOT EXISTS idx_transactions_station_discount_code ON transactions(station_id, discount_code) WHERE discount_code IS NOT NULL"
   );
 
+  // TUBITAK KamuSM zaman damgasi (bkz. timestampAuthorityClient.ts) - hesap acilana
+  // kadar hep NULL kalir, arsivlemeyi engellemez (bkz. archiveService.ts).
+  ensureColumn("archive_files", "tsa_token", "TEXT");
+  ensureColumn("archive_files", "tsa_timestamped_at", "TEXT");
+
   backfillNormalizedPlates();
 }
 

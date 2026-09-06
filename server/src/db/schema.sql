@@ -1158,6 +1158,10 @@ CREATE TABLE IF NOT EXISTS archive_files (
   content_sha256 TEXT NOT NULL,
   file_sha256 TEXT NOT NULL,
   byte_size INTEGER NOT NULL,
+  -- TUBITAK KamuSM zaman damgasi (bkz. timestampAuthorityClient.ts) - hesap acilana
+  -- kadar hep NULL kalir, arsivlemeyi engellemez.
+  tsa_token TEXT,
+  tsa_timestamped_at TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_archive_files_table ON archive_files(table_name, created_at);
