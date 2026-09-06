@@ -6,6 +6,7 @@ import { db } from "../db/index.js";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
 import { encryptBuffer, decryptBuffer } from "../utils/backupCrypto.js";
+import { getTimestampAuthorityClient } from "./timestampAuthorityClient.js";
 
 /**
  * Denetim kaydi ve olcum tablolarinin arsivlenmesi (gorev #153).
@@ -197,7 +198,7 @@ function timestampForFilename(now: Date): string {
 /**
  * Tek bir tabloyu arsivler. Dosya yazilip DOGRULANMADAN hicbir satir silinmez.
  */
-function archiveTable(spec: ArchivableTable, dir: string, now: Date): ArchivedTableResult {
+async function archiveTable(spec: ArchivableTable, dir: string, now: Date): Promise<ArchivedTableResult> {
   const retentionMonths = resolveRetentionMonths(spec);
   const cutoff = cutoffFor(retentionMonths, now);
   const base: ArchivedTableResult = {
@@ -253,13 +254,19 @@ function archiveTable(spec: ArchivableTable, dir: string, now: Date): ArchivedTa
   const timestamps = rows.map((r) => String(r[spec.timestampColumn]));
   const fileSha = sha256(readBack);
 
+  // TSA istegi kasitli olarak asagidaki db.transaction()'IN DISINDA: bu bir ag cagrisi,
+  // SQLite'in tek yazma kilidini bir ag round-trip'i boyunca tutmak, o sirada gelen her
+  // kiosk islemini beklemeye zorlardi. TSA hesabi henuz yoksa (noopTimestampAuthorityClient)
+  // bu satir aninda null doner - arsivleme akisina hicbir gecikme eklemez.
+  const tsa = await getTimestampAuthorityClient().requestTimestamp(fileSha);
+
   // Kayit ve silme AYNI islemde: arsiv dosyasi kaydedilmeden satirlarin silinmesi
   // (ya da tersi) mumkun olmasin.
   db.transaction(() => {
     db.prepare(
       `INSERT INTO archive_files
-         (table_name, file_name, row_count, first_row_at, last_row_at, min_row_id, max_row_id, content_sha256, file_sha256, byte_size)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (table_name, file_name, row_count, first_row_at, last_row_at, min_row_id, max_row_id, content_sha256, file_sha256, byte_size, tsa_token, tsa_timestamped_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       spec.table,
       fileName,
@@ -270,7 +277,9 @@ function archiveTable(spec: ArchivableTable, dir: string, now: Date): ArchivedTa
       ids[ids.length - 1]!,
       contentSha,
       fileSha,
-      readBack.byteLength
+      readBack.byteLength,
+      tsa?.token ?? null,
+      tsa?.timestampedAt ?? null
     );
 
     // Silme, esik ifadesiyle DEGIL, yukarida okunan KIMLIK LISTESIYLE yapilir. Esigi
@@ -302,7 +311,7 @@ function archiveTable(spec: ArchivableTable, dir: string, now: Date): ArchivedTa
  * kapali olmasi "sil gitsin" demek degildir; arsivlenecek yer yoksa satirlar yerinde
  * kalir ve tablo buyumeye devam eder (bu, veri kaybetmekten iyidir).
  */
-export function runArchive(now = new Date()): ArchiveRunResult {
+export async function runArchive(now = new Date()): Promise<ArchiveRunResult> {
   if (!env.ARCHIVE_DIR) return { enabled: false, tables: [], totalRows: 0 };
 
   // Dizin acilamiyorsa (yanlis yol, izin yok, mount dusmus) tarama SESSIZCE ve
@@ -320,7 +329,7 @@ export function runArchive(now = new Date()): ArchiveRunResult {
 
   for (const spec of ARCHIVABLE) {
     try {
-      tables.push(archiveTable(spec, env.ARCHIVE_DIR, now));
+      tables.push(await archiveTable(spec, env.ARCHIVE_DIR, now));
     } catch (err) {
       // Bir tablonun arsivlenememesi digerlerini engellemez. Hata durumunda o tablodan
       // hicbir satir silinmemis olur (silme, dogrulamadan SONRA gelir).
@@ -344,6 +353,8 @@ export interface ArchiveFileRow {
   content_sha256: string;
   file_sha256: string;
   byte_size: number;
+  tsa_token: string | null;
+  tsa_timestamped_at: string | null;
   created_at: string;
 }
 

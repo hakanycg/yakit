@@ -209,14 +209,15 @@ systemErrorPruneInterval.unref();
 // Baslangicta HEMEN calistirilmiyor: sunucunun ilk aciliş saniyeleri, uzun surebilecek
 // bir toplu silme icin en kotu an. Ilk tarama araligin sonunda gelir.
 const archiveInterval = setInterval(() => {
-  try {
-    const result = runArchive();
-    if (result.totalRows > 0) {
-      logger.info({ tables: result.tables, totalRows: result.totalRows }, "Arsivleme taramasi tamamlandi.");
-    }
-  } catch (err) {
-    logger.error({ err }, "Arsivleme taramasi basarisiz.");
-  }
+  runArchive()
+    .then((result) => {
+      if (result.totalRows > 0) {
+        logger.info({ tables: result.tables, totalRows: result.totalRows }, "Arsivleme taramasi tamamlandi.");
+      }
+    })
+    .catch((err: unknown) => {
+      logger.error({ err }, "Arsivleme taramasi basarisiz.");
+    });
 }, env.ARCHIVE_INTERVAL_HOURS * 60 * 60 * 1000);
 archiveInterval.unref();
 
