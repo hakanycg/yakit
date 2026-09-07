@@ -83,6 +83,25 @@ describe("discountService", () => {
     expect(() => createCode(station.id, { code: "AYNI", type: "fixed", value: 5 }, actor)).toThrow(DiscountError);
   });
 
+  it("rejects a percent discount above 100 - it has no valid meaning ('%110 indirim' yok)", () => {
+    expect(() => createCode(station.id, { code: "ASIRI", type: "percent", value: 110 }, actor)).toThrow(
+      "Yuzde indirim 100'u gecemez."
+    );
+  });
+
+  it("allows a percent discount of exactly 100 (bedava yakit kampanyasi gecerli bir senaryo)", () => {
+    expect(() => createCode(station.id, { code: "BEDAVA", type: "percent", value: 100 }, actor)).not.toThrow();
+  });
+
+  it("a fixed discount above 100 is NOT rejected - buyuk TL tutarlari gecerli bir senaryo", () => {
+    expect(() => createCode(station.id, { code: "BUYUKSABIT", type: "fixed", value: 5000 }, actor)).not.toThrow();
+  });
+
+  it("rejects a zero or negative discount value", () => {
+    expect(() => createCode(station.id, { code: "SIFIR", type: "percent", value: 0 }, actor)).toThrow(DiscountError);
+    expect(() => createCode(station.id, { code: "NEGATIF", type: "fixed", value: -5 }, actor)).toThrow(DiscountError);
+  });
+
   it("getUsageStats reflects only completed transactions, not the live used_count", () => {
     const code = createCode(station.id, { code: "ISTATISTIK", type: "percent", value: 10 }, actor);
     const pumpId = createTestPump(station.id);
