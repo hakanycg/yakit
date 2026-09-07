@@ -63,6 +63,16 @@ export function createCode(stationId: number, input: CreateCodeInput, actor: Use
   const existing = getActiveCode(stationId, code);
   if (existing) throw new DiscountError("Bu kod zaten kullanimda.", 409);
 
+  if (input.value <= 0) throw new DiscountError("Indirim degeri sifirdan buyuk olmalidir.", 400);
+  // Yuzde indirim matematiksel olarak 100'u gecemez ("%110 indirim" diye bir sey yok) -
+  // validateCode zaten uygulanan tutari islem tutarina kirpiyor, ama kirpma olmadan
+  // ONCE burada reddetmek daha guvenli: aksi halde tip alani yanlislikla "Yuzde"de
+  // birakilip TL tutari girilirse (ör. 500), kod sessizce %100 indirime (bedava yakita)
+  // donusur ve hicbir uyari olmaz.
+  if (input.type === "percent" && input.value > 100) {
+    throw new DiscountError("Yuzde indirim 100'u gecemez.", 400);
+  }
+
   const result = db
     .prepare(
       `INSERT INTO discount_codes (station_id, code, type, value, fuel_type, max_uses, starts_at, expires_at, created_by)

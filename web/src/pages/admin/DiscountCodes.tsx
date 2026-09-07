@@ -150,7 +150,12 @@ function CreateCodeDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       </select>
 
       <label>Değer</label>
-      <input type="number" min={0} step={0.01} value={value} onChange={(e) => setValue(e.target.value)} />
+      <input type="number" min={0} max={type === "percent" ? 100 : undefined} step={0.01} value={value} onChange={(e) => setValue(e.target.value)} />
+      {type === "percent" && Number(value) > 100 && (
+        <p className="error-text">
+          Yüzde indirim 100'ü geçemez — "Sabit Tutar (TL)" mi demek istediniz?
+        </p>
+      )}
 
       <label>Yakıt Tipi (opsiyonel, boş = tümü)</label>
       <select value={fuelType} onChange={(e) => setFuelType(e.target.value)}>
@@ -179,7 +184,11 @@ function CreateCodeDialog({ onClose, onCreated }: { onClose: () => void; onCreat
       <div className="toolbar" style={{ marginTop: "1.25rem" }}>
         <button type="button" onClick={onClose} disabled={submitting}>Vazgeç</button>
         <div className="spacer" />
-        <button className="primary" disabled={submitting || !code.trim() || !value} onClick={submit}>
+        <button
+          className="primary"
+          disabled={submitting || !code.trim() || !value || (type === "percent" && Number(value) > 100)}
+          onClick={submit}
+        >
           {submitting ? "Oluşturuluyor..." : "Oluştur"}
         </button>
       </div>
