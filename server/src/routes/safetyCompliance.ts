@@ -12,6 +12,9 @@ import {
   serializeComplianceRecord,
   type SafetyComplianceItemType,
 } from "../services/safetyComplianceService.js";
+import { buildComplianceReportCsv, buildComplianceReportData, buildComplianceReportPdf } from "../services/complianceReportService.js";
+import { db } from "../db/index.js";
+import type { StationRow } from "../db/types.js";
 
 const router = Router();
 router.use(requireAuth, attachStationScope, requireStationSelected, csrfProtection);
@@ -20,6 +23,31 @@ const ITEM_TYPES = SAFETY_COMPLIANCE_ITEMS.map((i) => i.type) as [SafetyComplian
 
 router.get("/", (req, res) => {
   res.json({ items: SAFETY_COMPLIANCE_ITEMS, status: getStationComplianceStatus(req.stationId!) });
+});
+
+/**
+ * Uyum Panosu'nun (Emniyet Uyum Takvimi + pompa kalibrasyon/damga + acik alarmlar)
+ * denetci ziyaretinde goturulebilecek PDF/CSV disa aktarimi. Ekranin kendisiyle AYNI
+ * ucu KULLANMAZ - ayri bir istek olsa da, tamamen ayni 3 sorguyu (getStationComplianceStatus,
+ * getStationCalibrationStatus, listAlarms) birlestirir; yeni bir veri kaynagi eklemez.
+ */
+router.get("/report.pdf", async (req, res) => {
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(req.stationId!);
+  if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  const data = buildComplianceReportData(station);
+  const pdf = await buildComplianceReportPdf(data);
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename="uyum-raporu-${Date.now()}.pdf"`);
+  res.send(pdf);
+});
+
+router.get("/report.csv", (req, res) => {
+  const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(req.stationId!);
+  if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });
+  const data = buildComplianceReportData(station);
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="uyum-raporu-${Date.now()}.csv"`);
+  res.send(buildComplianceReportCsv(data));
 });
 
 router.get("/:itemType/records", (req, res) => {

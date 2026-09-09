@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../shared/api";
+import { appendStationParam } from "../../shared/stationScope";
 import { useEffectiveStationId } from "../../shared/useEffectiveStation";
 import { useActiveAlarms } from "../../shared/hooks";
 import { ALARM_SEVERITY_LABEL, formatDateTime } from "../../shared/format";
@@ -63,7 +64,19 @@ export default function ComplianceDashboard() {
 
   return (
     <div>
-      <h2>Uyum Panosu</h2>
+      <div className="toolbar">
+        <h2 style={{ margin: 0 }}>Uyum Panosu</h2>
+        <div className="spacer" />
+        {/* Denetci ziyaretinde bu ekrani goturebilmek icin: yeni bir veri kaynagi
+            eklemez, ekranin aldigi ayni 3 sorguyu (bkz. complianceReportService.ts)
+            tek belgede birlestirir. */}
+        <a href={appendStationParam("/api/safety-compliance/report.pdf")}>
+          <button type="button">PDF İndir</button>
+        </a>
+        <a href={appendStationParam("/api/safety-compliance/report.csv")}>
+          <button type="button">CSV İndir</button>
+        </a>
+      </div>
       <p className="hint-text">
         Emniyet Uyum Takvimi, pompa kalibrasyon/damga durumu ve açık alarmların tek bakışta özeti.
       </p>
