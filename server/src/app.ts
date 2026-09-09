@@ -46,6 +46,7 @@ import { fleetPortalRouter } from "./routes/fleetPortal.js";
 import { syncRouter } from "./routes/sync.js";
 import { kvkkRouter } from "./routes/kvkk.js";
 import { tankerTrackingRouter } from "./routes/tankerTracking.js";
+import { safetyComplianceRouter } from "./routes/safetyCompliance.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
@@ -157,6 +158,7 @@ export function createApp() {
   app.use("/api/sync", syncRouter);
   app.use("/api/kvkk", kvkkRouter);
   app.use("/api/tanker-tracking", tankerTrackingRouter);
+  app.use("/api/safety-compliance", safetyComplianceRouter);
 
   app.use("/api", notFoundHandler);
 

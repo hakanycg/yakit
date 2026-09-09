@@ -649,6 +649,19 @@ export interface PumpCalibrationRow {
   user_id: number | null;
 }
 
+export interface SafetyComplianceRecordRow {
+  id: number;
+  station_id: number;
+  item_type: string;
+  completed_at: string;
+  next_due_at: string;
+  interval_months: number;
+  reference: string | null;
+  note: string | null;
+  user_id: number | null;
+  created_at: string;
+}
+
 export interface RefundRow {
   id: number;
   station_id: number;
