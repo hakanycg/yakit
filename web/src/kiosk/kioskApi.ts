@@ -84,7 +84,7 @@ export const kioskApi = {
       { method: "POST" }
     ),
 
-  sendReceipt: (id: number, token: string, target: { email?: string; phone?: string }) =>
+  sendReceipt: (id: number, token: string, target: { email?: string; phone?: string; marketingConsent?: boolean }) =>
     kioskRequest<{ result: { email?: { sent: boolean; reason?: string }; sms?: { sent: boolean; reason?: string } } }>(
       `/api/kiosk/transactions/${id}/receipt`,
       token,

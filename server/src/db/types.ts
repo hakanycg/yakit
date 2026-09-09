@@ -55,6 +55,7 @@ export interface UserRow {
   phone: string | null;
   notify_email: 0 | 1;
   notify_sms: 0 | 1;
+  notify_push: 0 | 1;
   reset_token_hash: string | null;
   reset_token_expires_at: string | null;
   totp_secret: string | null;
@@ -176,6 +177,9 @@ export interface LoyaltyAccountRow {
   station_id: number;
   plate: string;
   points: number;
+  marketing_consent: 0 | 1;
+  contact_email: string | null;
+  contact_phone: string | null;
   updated_at: string;
 }
 
@@ -733,4 +737,27 @@ export interface CallRecordingRow {
   size_bytes: number;
   recorded_by: number | null;
   created_at: string;
+}
+
+export interface DevicePushTokenRow {
+  id: number;
+  user_id: number;
+  token: string;
+  platform: string;
+  created_at: string;
+}
+
+export interface MarketingCampaignRow {
+  id: number;
+  station_id: number;
+  name: string;
+  channel: "email" | "sms";
+  message: string;
+  min_days_since_visit: number | null;
+  max_days_since_visit: number | null;
+  recipient_count: number;
+  success_count: number;
+  created_by: number | null;
+  created_at: string;
+  sent_at: string | null;
 }

@@ -10,6 +10,7 @@ export default function NotificationSettings() {
   const [phone, setPhone] = useState(user?.phone ?? "");
   const [notifyEmail, setNotifyEmail] = useState(user?.notifyEmail ?? true);
   const [notifySms, setNotifySms] = useState(user?.notifySms ?? false);
+  const [notifyPush, setNotifyPush] = useState(user?.notifyPush ?? true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -24,6 +25,7 @@ export default function NotificationSettings() {
         phone: phone.trim() || null,
         notifyEmail,
         notifySms,
+        notifyPush,
       });
       setSuccess(true);
       await refresh();
@@ -58,6 +60,10 @@ export default function NotificationSettings() {
         <label className="check" style={{ marginTop: "0.5rem" }}>
           <input type="checkbox" checked={notifySms} onChange={(e) => setNotifySms(e.target.checked)} />
           Kritik alarmlarda SMS gönder
+        </label>
+        <label className="check" style={{ marginTop: "0.5rem" }}>
+          <input type="checkbox" checked={notifyPush} onChange={(e) => setNotifyPush(e.target.checked)} />
+          Kritik alarmlarda mobil uygulama bildirimi gönder
         </label>
 
         {error && <p className="error-text">{error}</p>}

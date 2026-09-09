@@ -71,6 +71,15 @@ const envSchema = z.object({
   // sifreli (AES-256-GCM) olarak yazilir.
   INTERCOM_RECORDING_DIR: optionalString(),
 
+  // Kritik alarm mobil push bildirimi (bkz. utils/fcmClient.ts, services/pushNotificationService.ts) -
+  // ucu bos birakilirsa (varsayilan) devre disi kalir, e-posta/SMS/webhook etkilenmez.
+  // Firebase konsolundaki servis hesabi (Project Settings > Service Accounts > Generate
+  // new private key) JSON dosyasindaki alanlardir. FCM_PRIVATE_KEY'deki satir sonlari
+  // ortam degiskenlerinde genelde "\n" olarak kacar - okunurken gercek satir sonuna cevrilir.
+  FCM_PROJECT_ID: optionalString(),
+  FCM_CLIENT_EMAIL: optionalString(),
+  FCM_PRIVATE_KEY: optionalString(),
+
   // iyzico/Uyumsoft API anahtarlarini veritabaninda sifrelemek icin kullanilan anahtar
   // (bkz. utils/secretsCrypto.ts). Opsiyoneldir - bos birakilirsa SESSION_SECRET'tan
   // turetilir, boylece mevcut dagitimlarda yeni bir zorunlu degisken eklemeden

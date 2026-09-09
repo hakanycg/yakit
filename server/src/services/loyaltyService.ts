@@ -81,6 +81,33 @@ function upsertBalance(stationId: number, plate: string, newBalance: number): vo
   ).run(stationId, plate, rounded, new Date().toISOString());
 }
 
+/**
+ * Kampanya bildirimi rizasi (bkz. marketingCampaignService.ts) - musteri kiosk'ta
+ * makbuz e-posta/telefonunu girerken ayri bir onay kutusuyla belirtir (bkz.
+ * receiptService.ts sendReceipt). points'e DOKUNMAZ (ON CONFLICT DO UPDATE'te
+ * listelenmedigi icin mevcut deger korunur) - hesap yoksa 0 puanla olusturulur.
+ * Musteri rizayi geri cekerse (consent=false) de AYNI yoldan cagrilir - acik
+ * secim her iki yonde de yazilmalidir.
+ */
+export function setMarketingConsent(
+  stationId: number,
+  plate: string,
+  consent: boolean,
+  contactEmail: string | null,
+  contactPhone: string | null
+): void {
+  const normalized = normalizePlate(plate);
+  db.prepare(
+    `INSERT INTO loyalty_accounts (station_id, plate, points, marketing_consent, contact_email, contact_phone, updated_at)
+     VALUES (?, ?, 0, ?, ?, ?, ?)
+     ON CONFLICT(station_id, plate) DO UPDATE SET
+       marketing_consent = excluded.marketing_consent,
+       contact_email = excluded.contact_email,
+       contact_phone = excluded.contact_phone,
+       updated_at = excluded.updated_at`
+  ).run(stationId, normalized, consent ? 1 : 0, contactEmail, contactPhone, new Date().toISOString());
+}
+
 /** Odeme oncesi, musterinin talep ettigi puani bakiyeden dusup karsiligi TL indirim tutarini dondurur. Yetersiz bakiyede hata firlatir. */
 export function redeemPoints(stationId: number, plate: string, points: number, transactionId: number): number {
   if (points <= 0) throw new LoyaltyError("Gecersiz puan miktari.", 400);

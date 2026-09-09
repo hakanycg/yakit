@@ -152,6 +152,7 @@ function ReceiptSender({ transactionId, accessToken }: { transactionId: number; 
   const { t } = useKioskLang();
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [marketingConsent, setMarketingConsent] = useState(false);
   const [sending, setSending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -164,6 +165,7 @@ function ReceiptSender({ transactionId, accessToken }: { transactionId: number; 
       const { result } = await kioskApi.sendReceipt(transactionId, accessToken, {
         email: email.trim() || undefined,
         phone: phone.trim() || undefined,
+        marketingConsent,
       });
       const parts: string[] = [];
       if (result.email) parts.push(result.email.sent ? t("receipt.emailSent") : t("receipt.emailFailed", { reason: result.email.reason ?? "" }));
@@ -200,6 +202,15 @@ function ReceiptSender({ transactionId, accessToken }: { transactionId: number; 
         maxLength={20}
         ltr
       />
+      <label className="toolbar" style={{ alignItems: "flex-start", gap: "0.5rem", cursor: "pointer" }}>
+        <input
+          type="checkbox"
+          checked={marketingConsent}
+          onChange={(e) => setMarketingConsent(e.target.checked)}
+          style={{ marginTop: "0.2rem" }}
+        />
+        <span className="hint-text">{t("receipt.marketingConsentLabel")}</span>
+      </label>
       {error && <p className="error-text">{error}</p>}
       {message && <p className="hint-text" style={{ color: "#4ade80" }}>{message}</p>}
       <button style={{ marginTop: "0.75rem" }} disabled={sending || (!email.trim() && !phone.trim())} onClick={submit}>
