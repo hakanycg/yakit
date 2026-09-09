@@ -2,6 +2,7 @@ import { db } from "../db/index.js";
 import type { AlarmRow, StationRow, UserRow } from "../db/types.js";
 import { broadcast } from "../ws/hub.js";
 import { sendEmail, sendSms } from "./notificationService.js";
+import { sendPushToUser } from "./pushNotificationService.js";
 import { enqueueWrite, registerWriteQueueHandler } from "./writeQueueService.js";
 import { dispatchAlarmWebhook } from "./webhookSettingsService.js";
 
@@ -75,6 +76,9 @@ async function notifyCriticalAlarm(alarm: AlarmRow): Promise<void> {
     const t: Promise<unknown>[] = [];
     if (u.notify_email && u.email) t.push(sendEmail(u.email, subject, text));
     if (u.notify_sms && u.phone) t.push(sendSms(u.phone, `${subject}: ${alarm.message}`));
+    // Mobil push: yalnizca kayitli bir cihazi VARSA bir sey gonderir (sendPushToUser
+    // kendi ici bos ise no-op) - e-posta/SMS gibi ayrica bir iletisim adresi gerekmez.
+    if (u.notify_push) t.push(sendPushToUser(u.id, subject, alarm.message));
     return t;
   });
   // E-posta/SMS'e EK olarak (yerine degil) - istasyonun bir webhook'u varsa (bkz.

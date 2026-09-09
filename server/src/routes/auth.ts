@@ -210,6 +210,7 @@ router.get("/me", requireAuth, (req, res) => {
       phone: user.phone,
       notifyEmail: !!user.notify_email,
       notifySms: !!user.notify_sms,
+      notifyPush: !!user.notify_push,
       totpEnabled: !!user.totp_enabled,
     },
     csrfToken: req.csrfToken,
@@ -225,6 +226,7 @@ const notificationSettingsSchema = z.object({
     .optional(),
   notifyEmail: z.boolean().optional(),
   notifySms: z.boolean().optional(),
+  notifyPush: z.boolean().optional(),
 });
 
 router.patch("/notification-settings", requireAuth, csrfProtection, validateBody(notificationSettingsSchema), (req, res) => {
@@ -247,6 +249,13 @@ router.patch("/notification-settings", requireAuth, csrfProtection, validateBody
   if (body.notifySms !== undefined) {
     db.prepare("UPDATE users SET notify_sms = ?, updated_at = ? WHERE id = ?").run(
       body.notifySms ? 1 : 0,
+      new Date().toISOString(),
+      user.id
+    );
+  }
+  if (body.notifyPush !== undefined) {
+    db.prepare("UPDATE users SET notify_push = ?, updated_at = ? WHERE id = ?").run(
+      body.notifyPush ? 1 : 0,
       new Date().toISOString(),
       user.id
     );

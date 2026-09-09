@@ -550,6 +550,7 @@ const receiptSchema = z.object({
     .string()
     .regex(/^\+?[0-9 ]{10,16}$/, "Gecersiz telefon numarasi.")
     .optional(),
+  marketingConsent: z.boolean().optional(),
 });
 
 router.post("/transactions/:id/receipt", validateBody(receiptSchema), async (req, res) => {

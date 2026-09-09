@@ -34,6 +34,7 @@ function serializeUser(u: UserRow, roleName: string, stationName: string | null)
     phone: u.phone,
     notifyEmail: !!u.notify_email,
     notifySms: !!u.notify_sms,
+    notifyPush: !!u.notify_push,
   };
 }
 
@@ -178,6 +179,7 @@ const updateUserSchema = z.object({
     .optional(),
   notifyEmail: z.boolean().optional(),
   notifySms: z.boolean().optional(),
+  notifyPush: z.boolean().optional(),
 });
 
 router.patch("/:id", validateBody(updateUserSchema), (req, res) => {
@@ -239,6 +241,9 @@ router.patch("/:id", validateBody(updateUserSchema), (req, res) => {
   }
   if (body.notifySms !== undefined) {
     db.prepare("UPDATE users SET notify_sms = ?, updated_at = ? WHERE id = ?").run(body.notifySms ? 1 : 0, new Date().toISOString(), id);
+  }
+  if (body.notifyPush !== undefined) {
+    db.prepare("UPDATE users SET notify_push = ?, updated_at = ? WHERE id = ?").run(body.notifyPush ? 1 : 0, new Date().toISOString(), id);
   }
 
   recordAudit({

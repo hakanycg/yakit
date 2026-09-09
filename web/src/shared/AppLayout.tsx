@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
+import { useMobilePush } from "./useMobilePush";
 import IncomingIntercomCall from "./IncomingIntercomCall";
 import { useIdleLogout } from "./useIdleLogout";
 import { useThemePreference } from "./useThemePreference";
@@ -65,6 +66,7 @@ const ACCOUNTING_PAGES = [
 /** Musteriye donuk programlar: kampanya, filo sozlesmesi, puan. */
 const CUSTOMER_PAGES = [
   { to: "/admin/kampanyalar", label: "Kampanyalar" },
+  { to: "/operator/kampanya-bildirimi", label: "Kampanya Bildirimi" },
   { to: "/admin/filo-hesaplari", label: "Filo Hesapları" },
   { to: "/admin/filo-alacaklari", label: "Filo Alacakları" },
   { to: "/admin/sadakat-puanlari", label: "Sadakat Puanları" },
@@ -197,6 +199,7 @@ export default function AppLayout() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [themeMode, setThemeMode] = useThemePreference();
   useCriticalAlarmNotifications();
+  useMobilePush(!!user);
 
   async function handleLogout(reason?: "idle") {
     await logout();

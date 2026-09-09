@@ -1209,6 +1209,41 @@ CREATE TABLE IF NOT EXISTS call_recordings (
 );
 CREATE INDEX IF NOT EXISTS idx_call_recordings_station ON call_recordings(station_id, created_at);
 
+-- Mobil kabuktaki (bkz. web mobil paketi) push bildirim izni verilen cihazlarin FCM
+-- token'lari (bkz. server/src/services/pushNotificationService.ts). Bir kullanicinin
+-- birden fazla cihazi olabilir (telefon + tablet) - UNIQUE(token) ayni token'in iki
+-- kullaniciya cift kaydedilmesini onler (ör. paylasilan bir cihazda hesap degisimi).
+CREATE TABLE IF NOT EXISTS device_push_tokens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  token TEXT NOT NULL UNIQUE,
+  platform TEXT NOT NULL DEFAULT 'unknown',
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_device_push_tokens_user ON device_push_tokens(user_id);
+
+-- Toplu pazarlama/kampanya bildirimi (bkz. marketingCampaignService.ts). YASAL NOT:
+-- bu tablo yalnizca istasyonun KENDI KVKK riza kaydini (loyalty_accounts.marketing_consent)
+-- tutar - Turkiye'de ticari elektronik ileti gonderimi ayrica Ileti Yonetim Sistemi (IYS)
+-- kaydi/kontrolu gerektirir (6563 sayili Kanun), bu entegrasyon burada YOKTUR (bkz. gorev
+-- listesindeki "Regulasyon: IYS entegrasyonu" kaydi) - gercek olcekte kullanmadan once
+-- hukuk/uyum departmaniyla teyit edilmelidir.
+CREATE TABLE IF NOT EXISTS marketing_campaigns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  name TEXT NOT NULL,
+  channel TEXT NOT NULL, -- email | sms
+  message TEXT NOT NULL,
+  min_days_since_visit INTEGER,
+  max_days_since_visit INTEGER,
+  recipient_count INTEGER NOT NULL DEFAULT 0,
+  success_count INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  sent_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_marketing_campaigns_station ON marketing_campaigns(station_id, created_at);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.

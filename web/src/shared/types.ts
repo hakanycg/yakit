@@ -24,6 +24,7 @@ export interface CurrentUser {
   phone: string | null;
   notifyEmail: boolean;
   notifySms: boolean;
+  notifyPush: boolean;
   totpEnabled: boolean;
 }
 
@@ -379,6 +380,7 @@ export interface AdminUser {
   phone: string | null;
   notifyEmail: boolean;
   notifySms: boolean;
+  notifyPush: boolean;
 }
 
 export interface AuditEntry {

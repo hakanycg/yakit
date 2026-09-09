@@ -1,6 +1,7 @@
 import { db } from "../db/index.js";
 import type { StationRow, TransactionRow } from "../db/types.js";
 import { sendEmail, sendSms } from "./notificationService.js";
+import { setMarketingConsent } from "./loyaltyService.js";
 import { TransactionError, getTransactionForKiosk } from "./transactionService.js";
 import { buildReceiptPdf } from "./receiptPdfService.js";
 import { logger } from "../utils/logger.js";
@@ -94,7 +95,7 @@ export interface ReceiptResult {
 export async function sendReceipt(
   transactionId: number,
   accessToken: string,
-  target: { email?: string; phone?: string }
+  target: { email?: string; phone?: string; marketingConsent?: boolean }
 ): Promise<ReceiptResult> {
   const t = getTransactionForKiosk(transactionId, accessToken);
   if (t.status !== "completed") {
@@ -135,6 +136,12 @@ export async function sendReceipt(
     new Date().toISOString(),
     t.id
   );
+
+  // Kampanya rizasi (bkz. loyaltyService.setMarketingConsent) - musteri acikca bir
+  // secim yaptiysa (kutuyu isaretledi ya da isaretlemedi) her iki durumda da yazilir.
+  if (target.marketingConsent !== undefined) {
+    setMarketingConsent(t.station_id, t.plate, target.marketingConsent, target.email ?? null, target.phone ?? null);
+  }
 
   return result;
 }

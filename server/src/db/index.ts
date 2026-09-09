@@ -172,6 +172,22 @@ export function applyMigrations(): void {
   ensureColumn("archive_files", "tsa_token", "TEXT");
   ensureColumn("archive_files", "tsa_timestamped_at", "TEXT");
 
+  // Kritik alarm mobil push bildirimi (bkz. pushNotificationService.ts) - notify_email/
+  // notify_sms ile AYNI ilke, varsayilan ACIK: SMS'in aksine maliyeti yok, ve zaten
+  // yalnizca kullanici mobil uygulamada bildirime izin verip bir cihaz kaydettiyse
+  // (device_push_tokens) fiilen bir sey gonderilir.
+  ensureColumn("users", "notify_push", "INTEGER NOT NULL DEFAULT 1");
+
+  // Kampanya bildirimi (bkz. marketingCampaignService.ts) - KVKK Art. 5/1 ve Ticari
+  // Elektronik Ileti mevzuati geregi acik riza sart: varsayilan KAPALI, musteri kiosk'ta
+  // makbuz e-posta/telefonunu girerken ayri bir onay kutusuyla acikca kabul etmelidir.
+  ensureColumn("loyalty_accounts", "marketing_consent", "INTEGER NOT NULL DEFAULT 0");
+  // Kampanya mesaji gonderebilmek icin plakaya bagli KALICI bir iletisim adresi gerekir -
+  // transactions.receipt_email/phone tek bir islemin geriye donuk kaydidir, musteri
+  // rizasi verirken en son girdigi adres buraya (hesaba) da yazilir.
+  ensureColumn("loyalty_accounts", "contact_email", "TEXT");
+  ensureColumn("loyalty_accounts", "contact_phone", "TEXT");
+
   backfillNormalizedPlates();
 }
 
