@@ -860,6 +860,27 @@ CREATE TABLE IF NOT EXISTS pump_calibrations (
 CREATE INDEX IF NOT EXISTS idx_pump_calibrations_pump ON pump_calibrations(pump_id, tested_at);
 CREATE INDEX IF NOT EXISTS idx_pump_calibrations_station ON pump_calibrations(station_id, tested_at);
 
+-- TS 12820'nin pompa/damga disindaki periyodik emniyet kontrolu/sertifika gerektiren
+-- maddeleri (bkz. safetyComplianceService.ts): yangin sondurucu (madde 4.12, >=6 ayda
+-- bir), paratoner/yangindan korunma belgesi (madde 4.12.3), katodik koruma (madde
+-- 4.2.5.1, yilda >=1), tank topraklamasi (madde 4.2.5.3/4.15.16.3) ve personel
+-- saglik/emniyet/yangin egitimi + tahliye tatbikati (madde 4.12.4). Pompa kalibrasyonu
+-- ile AYNI desen: her kayit bir "test/kontrol yapildi" olayidir, bir sonraki vade
+-- kayit anindaki aralikla hesaplanip saklanir.
+CREATE TABLE IF NOT EXISTS safety_compliance_records (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  item_type TEXT NOT NULL,             -- bkz. SafetyComplianceItemType (safetyComplianceService.ts)
+  completed_at TEXT NOT NULL,          -- kontrolun/egitimin fiilen yapildigi tarih (gun bazinda, gunun sonu kabul edilir)
+  next_due_at TEXT NOT NULL,           -- completed_at + o kayitta kullanilan aralik; sorgulamak icin onceden hesaplanip saklanir
+  interval_months INTEGER NOT NULL,    -- bu kayitta kullanilan aralik (varsayilani degistirebilir - bkz. asagidaki yorum)
+  reference TEXT,                      -- sertifika/rapor/tutanak no
+  note TEXT,
+  user_id INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_safety_compliance_station_item ON safety_compliance_records(station_id, item_type, completed_at DESC);
+
 -- Filo/kurumsal musteri hesaplari: sirketlerin birden fazla plakasini tek bir
 -- bakiyeye (on odemeli) veya kredi limitine (sonradan faturalandirma) baglar.
 CREATE TABLE IF NOT EXISTS fleet_accounts (

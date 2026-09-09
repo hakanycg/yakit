@@ -259,6 +259,8 @@ export default function AppLayout() {
                   uyguluyor (bkz. server/src/routes/reports.ts). */}
               <NavLink to="/operator/raporlar">Raporlama</NavLink>
               <NavLink to="/operator/mutabakat">Gün Sonu Mutabakatı</NavLink>
+              <NavLink to="/operator/uyum-panosu">Uyum Panosu</NavLink>
+              <NavLink to="/operator/emniyet-uyum">Emniyet Uyum Takvimi</NavLink>
               <SidebarSubmenu label="Akaryakıt" pages={FUEL_PAGES} onNavigate={closeMenu} />
               <SidebarSubmenu label="Muhasebe" pages={ACCOUNTING_PAGES} onNavigate={closeMenu} />
               <SidebarSubmenu label="Müşteri" pages={CUSTOMER_PAGES} onNavigate={closeMenu} />

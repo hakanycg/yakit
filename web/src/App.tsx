@@ -37,6 +37,8 @@ const ProfitLoss = lazy(() => import("./pages/operator/ProfitLoss"));
 const VatSummary = lazy(() => import("./pages/operator/VatSummary"));
 const StaffAdvances = lazy(() => import("./pages/operator/StaffAdvances"));
 const FuelVariance = lazy(() => import("./pages/operator/FuelVariance"));
+const SafetyCompliance = lazy(() => import("./pages/operator/SafetyCompliance"));
+const ComplianceDashboard = lazy(() => import("./pages/operator/ComplianceDashboard"));
 const PumpTotalizers = lazy(() => import("./pages/operator/PumpTotalizers"));
 const Reconciliation = lazy(() => import("./pages/operator/Reconciliation"));
 const SupportRequests = lazy(() => import("./pages/operator/SupportRequests"));
@@ -122,6 +124,8 @@ export default function App() {
               <Route path="/operator/sapma" element={<FuelVariance />} />
             <Route path="/operator/pompa-sayaclari" element={<PumpTotalizers />} />
               <Route path="/operator/mutabakat" element={<Reconciliation />} />
+              <Route path="/operator/emniyet-uyum" element={<SafetyCompliance />} />
+              <Route path="/operator/uyum-panosu" element={<ComplianceDashboard />} />
               {/* Ciro/kar raporlari istasyon sahibinindir (bkz. server/src/routes/reports.ts). */}
               <Route path="/operator/raporlar" element={<Reports />} />
               <Route path="/admin/kampanyalar" element={<DiscountCodes />} />

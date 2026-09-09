@@ -16,6 +16,7 @@ import { checkOfflineKiosks } from "./services/kioskFleetService.js";
 import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
 import { sweepDataRetention } from "./services/dataRetentionService.js";
 import { checkExpiringSeals } from "./services/pumpCalibrationService.js";
+import { checkExpiringCompliance } from "./services/safetyComplianceService.js";
 import { loadConfiguredTankGaugeDrivers, sweepTankGauges } from "./services/tankGaugeService.js";
 import { loadConfiguredDispenserDrivers } from "./services/dispenserDriver.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
@@ -96,6 +97,22 @@ const sealCheckInterval = setInterval(
   24 * 60 * 60 * 1000
 );
 sealCheckInterval.unref();
+
+// TS 12820'nin sondurucu/paratoner/katodik koruma/topraklama/elektrik tesisati/personel
+// egitimi maddeleri icin vadesi gecen/yaklasan kontroller alarma cevrilir (bkz.
+// safetyComplianceService.ts) - pompa damga kontroluyle AYNI gerekce: vadeler aylarla
+// olculur, gunde bir kez yeterlidir.
+const safetyComplianceCheckInterval = setInterval(
+  () => {
+    try {
+      checkExpiringCompliance();
+    } catch (err) {
+      logger.error({ err }, "Emniyet uyum kontrolu basarisiz.");
+    }
+  },
+  24 * 60 * 60 * 1000
+);
+safetyComplianceCheckInterval.unref();
 
 // KVKK saklama suresi: penceresi dolmus kisisel veriyi anonimlestirir. Gunde bir kez
 // yeterlidir - saklama suresi aylarla olculur, birkac saatlik gecikme onemsizdir ve daha
