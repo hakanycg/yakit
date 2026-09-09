@@ -17,6 +17,7 @@ import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
 import { sweepDataRetention } from "./services/dataRetentionService.js";
 import { checkExpiringSeals } from "./services/pumpCalibrationService.js";
 import { checkExpiringCompliance } from "./services/safetyComplianceService.js";
+import { sweepCallRecordings } from "./services/callRecordingService.js";
 import { loadConfiguredTankGaugeDrivers, sweepTankGauges } from "./services/tankGaugeService.js";
 import { loadConfiguredDispenserDrivers } from "./services/dispenserDriver.js";
 import { checkSafetySensors } from "./services/safetyMonitorService.js";
@@ -113,6 +114,21 @@ const safetyComplianceCheckInterval = setInterval(
   24 * 60 * 60 * 1000
 );
 safetyComplianceCheckInterval.unref();
+
+// Interkom cagri kaydi saklama suresi (bkz. callRecordingService.ts) - KVKK saklama
+// suresi taramasiyla (retentionInterval) AYNI gerekce: sure gunlerle olculur, gunde
+// bir kez yeterlidir. INTERCOM_RECORDING_DIR ayarlanmamissa fonksiyon kendisi no-op'tur.
+const callRecordingRetentionInterval = setInterval(
+  () => {
+    try {
+      sweepCallRecordings();
+    } catch (err) {
+      logger.error({ err }, "Interkom kayit saklama suresi taramasi basarisiz.");
+    }
+  },
+  24 * 60 * 60 * 1000
+);
+callRecordingRetentionInterval.unref();
 
 // KVKK saklama suresi: penceresi dolmus kisisel veriyi anonimlestirir. Gunde bir kez
 // yeterlidir - saklama suresi aylarla olculur, birkac saatlik gecikme onemsizdir ve daha

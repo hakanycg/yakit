@@ -65,6 +65,12 @@ const envSchema = z.object({
   ARCHIVE_TANK_READING_MONTHS: optionalMonths(),
   ARCHIVE_SYNC_EVENT_MONTHS: optionalMonths(),
 
+  // Interkom cagri kaydi (bkz. services/callRecordingService.ts) - bos birakilirsa
+  // (varsayilan) devre disi kalir, hicbir ses kaydedilmez/yuklenmez. Ayarlanirsa,
+  // gorevlinin tarayicisinda karistirilan (yerel+uzak ses) kayitlar bu dizine
+  // sifreli (AES-256-GCM) olarak yazilir.
+  INTERCOM_RECORDING_DIR: optionalString(),
+
   // iyzico/Uyumsoft API anahtarlarini veritabaninda sifrelemek icin kullanilan anahtar
   // (bkz. utils/secretsCrypto.ts). Opsiyoneldir - bos birakilirsa SESSION_SECRET'tan
   // turetilir, boylece mevcut dagitimlarda yeni bir zorunlu degisken eklemeden

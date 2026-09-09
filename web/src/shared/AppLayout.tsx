@@ -74,6 +74,7 @@ const CUSTOMER_PAGES = [
 const COMPLIANCE_PAGES = [
   { to: "/admin/kullanicilar", label: "Kullanıcı / Rol Yönetimi" },
   { to: "/admin/kvkk", label: "KVKK Başvuruları" },
+  { to: "/operator/interkom-kayitlari", label: "İnterkom Kayıtları" },
 ];
 
 /** Platform yoneticisinin kurulus kayitlari. */

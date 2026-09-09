@@ -39,6 +39,7 @@ const StaffAdvances = lazy(() => import("./pages/operator/StaffAdvances"));
 const FuelVariance = lazy(() => import("./pages/operator/FuelVariance"));
 const SafetyCompliance = lazy(() => import("./pages/operator/SafetyCompliance"));
 const ComplianceDashboard = lazy(() => import("./pages/operator/ComplianceDashboard"));
+const IntercomRecordings = lazy(() => import("./pages/operator/IntercomRecordings"));
 const PumpTotalizers = lazy(() => import("./pages/operator/PumpTotalizers"));
 const Reconciliation = lazy(() => import("./pages/operator/Reconciliation"));
 const SupportRequests = lazy(() => import("./pages/operator/SupportRequests"));
@@ -126,6 +127,7 @@ export default function App() {
               <Route path="/operator/mutabakat" element={<Reconciliation />} />
               <Route path="/operator/emniyet-uyum" element={<SafetyCompliance />} />
               <Route path="/operator/uyum-panosu" element={<ComplianceDashboard />} />
+              <Route path="/operator/interkom-kayitlari" element={<IntercomRecordings />} />
               {/* Ciro/kar raporlari istasyon sahibinindir (bkz. server/src/routes/reports.ts). */}
               <Route path="/operator/raporlar" element={<Reports />} />
               <Route path="/admin/kampanyalar" element={<DiscountCodes />} />
