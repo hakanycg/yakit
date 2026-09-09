@@ -109,6 +109,11 @@ export const kioskApi = {
     api.get<{ campaigns: { code: string; type: "percent" | "fixed"; value: number; fuelType: FuelType | null }[] }>(
       `/api/kiosk/campaigns/active?stationId=${stationId}`
     ),
+
+  // Interkom: gorevliye canli cagri bildirimi yayinlar, donen signalingTopic uzerinden
+  // WebRTC sinyallesmesi baslar (bkz. shared/useIntercomCall.ts).
+  ringIntercom: (pumpId?: number) =>
+    api.post<{ callId: string; signalingTopic: string }>("/api/kiosk/intercom/ring", pumpId ? { pumpId } : undefined),
 };
 
 export interface FleetAccountSummary {

@@ -39,6 +39,12 @@ export default defineConfig({
     // dogrudan onceden kurulu ikiliyi kullanir. CI'da (bkz. .github/workflows/ci.yml,
     // `playwright install --with-deps chromium`) bu yol yoktur - o zaman Playwright kendi
     // indirdigi surumu kullanir; PLAYWRIGHT_BROWSERS_PATH tanimli degilse bu satir no-op'tur.
-    launchOptions: process.env.PLAYWRIGHT_BROWSERS_PATH ? { executablePath: "/opt/pw-browsers/chromium" } : {},
+    launchOptions: {
+      ...(process.env.PLAYWRIGHT_BROWSERS_PATH ? { executablePath: "/opt/pw-browsers/chromium" } : {}),
+      // Interkom testi (kiosk-intercom-call.spec.ts) gercek bir mikrofon olmadan
+      // getUserMedia() cagirir - sahte medya cihazi bayraklari olmadan izin istegi
+      // hicbir zaman cozulmez ve WebRTC baglantisi hic kurulmaz.
+      args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"],
+    },
   },
 });
