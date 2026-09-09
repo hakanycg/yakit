@@ -38,6 +38,8 @@ import { attachKioskDevice, requireKioskDevice } from "../middleware/kioskDevice
 import { normalizeStationCode } from "../utils/stationCode.js";
 import { normalizePlate } from "../utils/plate.js";
 import { SUPPORT_CATEGORIES, SupportError, createSupportRequest, serializeSupportRequest } from "../services/supportService.js";
+import { broadcast } from "../ws/hub.js";
+import { randomBytes } from "node:crypto";
 
 const router = Router();
 router.use(kioskRateLimit);
@@ -116,6 +118,43 @@ router.post("/support", validateBody(supportSchema), (req, res) => {
     if (err instanceof SupportError) return void res.status(err.status).json({ error: err.message });
     throw err;
   }
+});
+
+/**
+ * Interkom cagrisi baslatma (TS 12820 madde 4.9.3.5): gorevli, dagitim birimi
+ * bolgesindeki kisiyle daima iletisim kurabilmelidir. Personelsiz/uzaktaki bir
+ * istasyonda bu, musterinin kiosk'tan gorevliyi "arayabilmesi" ve iki yonlu sesli
+ * gorusme yapabilmesi anlamina gelir.
+ *
+ * Bu uc yalnizca personele CANLI CAGRI BILDIRIMI yayinlar (mevcut broadcast()
+ * uzerinden, /support'un kritik alarma cevirmesiyle AYNI amac ama ESZAMANLI/canli).
+ * Gercek ses WebRTC ile, donen callId'ye baglanan "intercom:<kioskId>:<callId>"
+ * WS kanali uzerinden dogrudan tarayicidan tarayiciya akar - sunucu sesi hic
+ * gormez, yalnizca SDP/ICE sinyallesmesini ISTEMCIDEN ISTEMCIYE iletir (bkz. ws/hub.ts).
+ *
+ * Cihaz tokeni ZORUNLU: aksi halde istasyon kimligini bilen herkes personelin
+ * telefonunu/ekranini surekli calistirabilirdi.
+ */
+const intercomRingSchema = z.object({
+  pumpId: z.number().int().positive().optional(),
+});
+
+router.post("/intercom/ring", validateBody(intercomRingSchema), (req, res) => {
+  if (!req.kioskDevice || !req.kioskStation) {
+    return void res.status(401).json({ error: "Kiosk cihaz tokeni gerekiyor." });
+  }
+  const body = req.body as z.infer<typeof intercomRingSchema>;
+  const callId = randomBytes(12).toString("base64url");
+  const signalingTopic = `intercom:${req.kioskDevice.id}:${callId}`;
+  broadcast(`intercom-calls:${req.kioskStation.id}`, {
+    kioskId: req.kioskDevice.id,
+    kioskLabel: req.kioskDevice.label,
+    pumpId: body.pumpId ?? req.kioskDevice.pump_id ?? null,
+    callId,
+    signalingTopic,
+    startedAt: new Date().toISOString(),
+  });
+  res.status(201).json({ callId, signalingTopic });
 });
 
 router.get("/station/:slug", (req, res) => {

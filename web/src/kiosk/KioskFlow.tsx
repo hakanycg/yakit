@@ -16,6 +16,7 @@ import { clearPendingKioskTransaction, readPendingKioskTransaction } from "./res
 import { KioskLangProvider, LanguageSwitcher, RTL_LANGS, useKioskLang } from "./i18n";
 import PrivacyNoticeLink from "./PrivacyNotice";
 import HelpRequestLink from "./HelpRequest";
+import IntercomCall from "./IntercomCall";
 import PriceHistoryLink from "./PriceHistory";
 import VoiceGuidanceToggle from "./VoiceGuidanceToggle";
 import { playClickSound, speak } from "./voiceGuidance";
@@ -472,6 +473,10 @@ function KioskFlowInner() {
             transactionId={transaction?.id ?? null}
             contactPhone={station.contactPhone}
           />
+          {/* Sesli interkom: TS 12820 madde 4.9.3.5 geregi gorevlinin dagitim birimi
+              bolgesindeki musteriyle DAIMA iletisim kurabilmesi gerekir - yazili destek
+              talebinin (yukaridaki) aksine burada gecikmesiz, canli sesli baglanti kurulur. */}
+          <IntercomCall pumpId={pump?.id ?? null} />
           <PriceHistoryLink stationId={station.station.id} fuelPrices={station.fuelPrices} />
           <PrivacyNoticeLink stationName={station.station.name} stationAddress={station.station.address} />
         </div>

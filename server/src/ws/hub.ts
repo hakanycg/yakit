@@ -40,13 +40,20 @@ export function initWebSocketHub(server: HttpServer): void {
 
     ws.on("message", (raw) => {
       try {
-        const msg = JSON.parse(raw.toString()) as { type: string; topic?: string; accessToken?: string };
+        const msg = JSON.parse(raw.toString()) as { type: string; topic?: string; accessToken?: string; data?: unknown };
         if (msg.type === "subscribe" && msg.topic) {
           if (isTopicAllowed(msg.topic, state, msg.accessToken)) {
             state.topics.add(msg.topic);
           }
         } else if (msg.type === "unsubscribe" && msg.topic) {
           state.topics.delete(msg.topic);
+        } else if (msg.type === "relay" && msg.topic) {
+          // Istemciden istemciye yayin (ör. WebRTC SDP/ICE sinyallesmesi icin, bkz.
+          // intercom ozelligi). Gonderenin bu topic'e ZATEN abone olmasi sart -
+          // yetkilendirme subscribe asamasinda isTopicAllowed() ile yapildigindan,
+          // burada ayrica bir yetki kontrolu tekrarlanmaz. Mesaj, ayni topic'e abone
+          // DIGER (gonderen haric) tum istemcilere oldugu gibi iletilir.
+          relay(msg.topic, msg.data, state);
         }
       } catch {
         // gecersiz mesajlari sessizce yok say
@@ -95,6 +102,34 @@ function isTopicAllowed(topic: string, state: ClientState, accessToken?: string)
     return !!accessToken && safeCompare(row.kiosk_access_token, accessToken);
   }
 
+  // Interkom cagri bildirimi: yalnizca o istasyonun personeli dinler (alarms:<id> ile ayni desen).
+  // Kiosk bu topic'e HIC abone olmaz - cagriyi POST /api/kiosk/intercom/ring uzerinden
+  // sunucu broadcast() ile baslatir (bkz. routes/kiosk.ts).
+  if (topic.startsWith("intercom-calls:")) {
+    const stationId = Number(topic.slice("intercom-calls:".length));
+    if (!Number.isInteger(stationId)) return false;
+    return isStaffForStation(state, stationId);
+  }
+
+  // Interkom sinyallesme kanali ("intercom:<kioskId>:<callId>"): TS 12820 madde 4.9.3.5
+  // geregi gorevlinin dagitim birimi bolgesindeki kisiyle her zaman iletisim
+  // kurabilmesini saglayan iki yonlu WebRTC SDP/ICE degisimi buradan gecer. O kiosk'un
+  // istasyonundaki personel VEYA kiosk'un kendisi (cihaz tokeniyle - transaction:<id>
+  // ile ayni desen) abone olabilir.
+  if (topic.startsWith("intercom:")) {
+    const rest = topic.slice("intercom:".length);
+    const kioskId = Number(rest.split(":")[0]);
+    if (!Number.isInteger(kioskId)) return false;
+    const kiosk = db
+      .prepare<[number], { station_id: number; device_token: string | null }>(
+        "SELECT station_id, device_token FROM station_kiosks WHERE id = ?"
+      )
+      .get(kioskId);
+    if (!kiosk) return false;
+    if (isStaffForStation(state, kiosk.station_id)) return true;
+    return !!accessToken && !!kiosk.device_token && safeCompare(kiosk.device_token, accessToken);
+  }
+
   return false;
 }
 
@@ -102,6 +137,17 @@ export function broadcast(topic: string, payload: unknown): void {
   const message = JSON.stringify({ type: "event", topic, payload });
   for (const client of clients) {
     if (client.topics.has(topic) && client.ws.readyState === client.ws.OPEN) {
+      client.ws.send(message);
+    }
+  }
+}
+
+/** Bir topic'e abone TUM DIGER istemcilere (gonderen haric) oldugu gibi iletir - client-to-client relay. */
+function relay(topic: string, data: unknown, sender: ClientState): void {
+  if (!sender.topics.has(topic)) return;
+  const message = JSON.stringify({ type: "relay", topic, data });
+  for (const client of clients) {
+    if (client !== sender && client.topics.has(topic) && client.ws.readyState === client.ws.OPEN) {
       client.ws.send(message);
     }
   }

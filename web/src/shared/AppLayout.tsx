@@ -4,6 +4,7 @@ import { useAuth } from "./AuthContext";
 import ChangePasswordBanner from "../pages/ChangePasswordBanner";
 import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
+import IncomingIntercomCall from "./IncomingIntercomCall";
 import { useIdleLogout } from "./useIdleLogout";
 import { useThemePreference } from "./useThemePreference";
 import { initials } from "./format";
@@ -215,6 +216,7 @@ export default function AppLayout() {
 
   return (
     <div className="app-shell">
+      <IncomingIntercomCall />
       {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar${menuOpen ? " open" : ""}`}>
         <StationSwitcher />
