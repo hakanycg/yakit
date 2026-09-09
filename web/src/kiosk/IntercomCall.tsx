@@ -18,7 +18,7 @@ export default function IntercomCall({ pumpId }: { pumpId?: number | null }) {
   const [starting, setStarting] = useState(false);
   const [startFailed, setStartFailed] = useState(false);
 
-  const { status, remoteAudioRef, hangUp } = useIntercomCall({
+  const { status, remoteAudioRef, audioBlocked, playRemoteAudio, hangUp } = useIntercomCall({
     topic: signalingTopic,
     accessToken: getKioskDeviceToken() ?? undefined,
     isCaller: true,
@@ -96,6 +96,7 @@ export default function IntercomCall({ pumpId }: { pumpId?: number | null }) {
               <>
                 <p className="hint-text">{t("intercom.intro")}</p>
                 <p className="hint-text">{t("intercom.micPrompt")}</p>
+                <p className="hint-text">{t("intercom.recordingNotice")}</p>
                 {startFailed && <p className="error-text">{t("intercom.error")}</p>}
                 <div className="kiosk-actions">
                   <button type="button" onClick={reset}>
@@ -112,6 +113,13 @@ export default function IntercomCall({ pumpId }: { pumpId?: number | null }) {
                   {statusLabel()}
                 </p>
                 <audio ref={remoteAudioRef} autoPlay />
+                {status === "connected" && audioBlocked && (
+                  <p>
+                    <button type="button" className="primary" onClick={playRemoteAudio}>
+                      {t("intercom.enableAudio")}
+                    </button>
+                  </p>
+                )}
                 <div className="kiosk-actions">
                   <span />
                   {status === "ended" || status === "error" || status === "mic-denied" || status === "timeout" ? (

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useRelayChannel } from "./useRelayChannel";
+import { api, uploadBinary } from "./api";
 
 /**
  * Kiosk <-> operator iki yonlu sesli interkom (TS 12820 madde 4.9.3.5): gorevli,
@@ -29,6 +30,41 @@ type SignalMessage =
 
 export type IntercomCallStatus = "connecting" | "ringing" | "connected" | "ended" | "error" | "mic-denied" | "timeout";
 
+/**
+ * Tarayicilarin otomatik-oynatma (autoplay) politikasi: bir kullanici jesti (tiklama)
+ * OLMADAN baslatilan sesli oynatma genellikle reddedilir. "Yanitla"/"Aramayi Baslat"
+ * tiklamasi bir jest olsa da, WebRTC muzakeresi (ICE/DTLS) bitip uzak ses parcasi
+ * (ontrack) gelene kadar gecen sure boyunca bu jestin geçerliligi (Chrome'un
+ * "transient activation" penceresi) suresi dolabilir - bu durumda remoteAudioRef.play()
+ * SESSIZCE reddedilir: baglanti "Baglandi" gorunur ama HICBIR SES CALMAZ. Bu, gercek
+ * kullanimda bildirilen "interkomdan ses gelmiyor" sorununun kok nedeniydi. Cozum:
+ * play() basarisiz olursa bunu disariya (audioBlocked) bildir, UI dogrudan bir
+ * tiklamayla (bu TAZE bir kullanici jesti oldugundan kesin basarili olur) tekrar
+ * calistirabilecegi bir dugme gostersin.
+ */
+
+/**
+ * Interkom cagri kaydi (guvenlik amacli - bkz. server/src/services/callRecordingService.ts):
+ * SADECE YANITLAYAN tarafta (isCaller=false, her zaman gorevli/operator) alinir - kiosk
+ * her zaman ARAYAN taraftir, yani gorevlinin tarayicisi her cagride var olan TEK
+ * deterministik/kimligi dogrulanmis uctur. Yerel mikrofon + WebRTC uzak sesi Web Audio
+ * API (AudioContext.createMediaStreamDestination) ile TEK bir akista karistirilir,
+ * MediaRecorder ile kaydedilir; cagri bitince tek dosya olarak yuklenir.
+ *
+ * Kayit BEST-EFFORT'tur: tarayici destegi yoksa, sunucu ozelligi kapaliysa (config
+ * ucu enabled=false doner) ya da yukleme basarisiz olursa GORUSMENIN KENDISI hic
+ * etkilenmez - yalnizca kayit sessizce atlanir.
+ */
+async function fetchRecordingEnabled(): Promise<boolean> {
+  try {
+    const res = await api.get<{ enabled: boolean }>("/api/intercom-recordings/config");
+    return res.enabled;
+  } catch {
+    return false;
+  }
+}
+
+
 const ICE_SERVERS: RTCIceServer[] = [{ urls: "stun:stun.l.google.com:19302" }];
 const OFFER_RETRY_MS = 1500;
 const RING_TIMEOUT_MS = 45_000;
@@ -40,13 +76,25 @@ export function useIntercomCall(options: {
   accessToken?: string;
   /** true: cagriyi baslatan taraf (offer olusturur ve yanit gelene kadar tekrar gonderir). false: cagriyi yanitlayan taraf. */
   isCaller: boolean;
+  /**
+   * Yalnizca isCaller=false (operator) tarafinda, GUVENLIK KAYDI icin kullanilir - bkz.
+   * yukaridaki "Interkom cagri kaydi" yorumu. isCaller=true iken yoksayilir.
+   */
+  callId?: string;
+  kioskId?: number | null;
+  pumpId?: number | null;
 }): {
   status: IntercomCallStatus;
   remoteAudioRef: React.RefObject<HTMLAudioElement>;
+  /** true: uzak ses parcasi baglandi ama tarayici otomatik oynatmayi engelledi - kullaniciya "dokunun" dugmesi gosterin. */
+  audioBlocked: boolean;
+  /** audioBlocked iken, KULLANICI TIKLAMASI icinden cagrilmali (autoplay politikasini asmak icin taze bir jest gerekir). */
+  playRemoteAudio: () => void;
   hangUp: () => void;
 } {
-  const { topic, accessToken, isCaller } = options;
+  const { topic, accessToken, isCaller, callId, kioskId, pumpId } = options;
   const [status, setStatus] = useState<IntercomCallStatus>("connecting");
+  const [audioBlocked, setAudioBlocked] = useState(false);
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement>(null);
@@ -54,6 +102,83 @@ export function useIntercomCall(options: {
   const answeredRef = useRef(false);
   const offerHandledRef = useRef(false);
   const pendingRef = useRef<SignalMessage[]>([]);
+
+  // Interkom kaydi (bkz. yukaridaki blok yorumu) - yalnizca isCaller=false icin doldurulur.
+  const recordingEnabledRef = useRef(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordingChunksRef = useRef<BlobPart[]>([]);
+  const recordingAudioCtxRef = useRef<AudioContext | null>(null);
+  const recordingStartedAtRef = useRef<string | null>(null);
+  const callIdRef = useRef(callId);
+  const kioskIdRef = useRef(kioskId);
+  const pumpIdRef = useRef(pumpId);
+  callIdRef.current = callId;
+  kioskIdRef.current = kioskId;
+  pumpIdRef.current = pumpId;
+
+  useEffect(() => {
+    if (isCaller) return;
+    let cancelled = false;
+    void fetchRecordingEnabled().then((enabled) => {
+      if (!cancelled) recordingEnabledRef.current = enabled;
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCaller]);
+
+  function startRecording(remoteStream: MediaStream) {
+    if (isCaller || !recordingEnabledRef.current || mediaRecorderRef.current || !localStreamRef.current) return;
+    try {
+      const AudioCtx = window.AudioContext;
+      const ctx = new AudioCtx();
+      const dest = ctx.createMediaStreamDestination();
+      ctx.createMediaStreamSource(localStreamRef.current).connect(dest);
+      ctx.createMediaStreamSource(remoteStream).connect(dest);
+
+      const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus" : "audio/webm";
+      const recorder = new MediaRecorder(dest.stream, { mimeType });
+      recordingChunksRef.current = [];
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordingChunksRef.current.push(event.data);
+      };
+      recorder.start(1000);
+      mediaRecorderRef.current = recorder;
+      recordingAudioCtxRef.current = ctx;
+      recordingStartedAtRef.current = new Date().toISOString();
+    } catch {
+      // Web Audio/MediaRecorder desteklenmiyor olabilir - kayit atlanir, gorusme etkilenmez.
+    }
+  }
+
+  function finishRecording() {
+    const recorder = mediaRecorderRef.current;
+    const ctx = recordingAudioCtxRef.current;
+    const startedAt = recordingStartedAtRef.current;
+    const thisCallId = callIdRef.current;
+    mediaRecorderRef.current = null;
+    recordingAudioCtxRef.current = null;
+    recordingStartedAtRef.current = null;
+    if (!recorder || !startedAt || !thisCallId) return;
+
+    recorder.onstop = () => {
+      void ctx?.close();
+      const chunks = recordingChunksRef.current;
+      recordingChunksRef.current = [];
+      if (chunks.length === 0) return;
+      const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
+      void uploadBinary("/api/intercom-recordings", blob, {
+        callId: thisCallId,
+        ...(kioskIdRef.current ? { kioskId: kioskIdRef.current } : {}),
+        ...(pumpIdRef.current ? { pumpId: pumpIdRef.current } : {}),
+        startedAt,
+        endedAt: new Date().toISOString(),
+      }).catch(() => {
+        // Yukleme basarisiz olsa bile gorusme zaten bitmis - sessizce yoksayilir (best-effort).
+      });
+    };
+    if (recorder.state !== "inactive") recorder.stop();
+  }
 
   const handleSignalRef = useRef<(msg: SignalMessage) => void>(() => {});
   const { send } = useRelayChannel(
@@ -94,6 +219,7 @@ export function useIntercomCall(options: {
       } else if (msg.kind === "hangup") {
         if (offerRetryTimer) clearInterval(offerRetryTimer);
         if (ringTimeoutTimer) clearTimeout(ringTimeoutTimer);
+        finishRecording();
         setStatus("ended");
       }
     }
@@ -129,12 +255,19 @@ export function useIntercomCall(options: {
       stream.getTracks().forEach((track) => pc.addTrack(track, stream));
 
       pc.ontrack = (event) => {
+        const remoteStream = event.streams[0] ?? null;
         if (remoteAudioRef.current) {
-          remoteAudioRef.current.srcObject = event.streams[0] ?? null;
-          void remoteAudioRef.current.play().catch(() => {
-            // Otomatik oynatma engellenmis olabilir - kullanici etkilesimiyle devam eder
-          });
+          remoteAudioRef.current.srcObject = remoteStream;
+          void remoteAudioRef.current
+            .play()
+            .then(() => setAudioBlocked(false))
+            .catch(() => {
+              // Otomatik oynatma tarayici tarafindan engellendi - UI'a bildir, kullanici
+              // dogrudan bir tiklamayla (playRemoteAudio) tekrar deneyebilsin.
+              setAudioBlocked(true);
+            });
         }
+        if (remoteStream) startRecording(remoteStream);
         setStatus("connected");
       };
 
@@ -144,8 +277,10 @@ export function useIntercomCall(options: {
 
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === "failed") {
+          finishRecording();
           setStatus("error");
         } else if (pc.connectionState === "closed") {
+          finishRecording();
           setStatus((s) => (s === "connected" ? "ended" : s));
         }
       };
@@ -189,6 +324,7 @@ export function useIntercomCall(options: {
       cancelled = true;
       if (offerRetryTimer) clearInterval(offerRetryTimer);
       if (ringTimeoutTimer) clearTimeout(ringTimeoutTimer);
+      finishRecording();
       pcRef.current?.close();
       pcRef.current = null;
       localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -201,6 +337,7 @@ export function useIntercomCall(options: {
     if (hungUpRef.current) return;
     hungUpRef.current = true;
     send({ kind: "hangup" });
+    finishRecording();
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((t) => t.stop());
@@ -208,5 +345,12 @@ export function useIntercomCall(options: {
     setStatus("ended");
   }
 
-  return { status, remoteAudioRef, hangUp };
+  function playRemoteAudio() {
+    void remoteAudioRef.current
+      ?.play()
+      .then(() => setAudioBlocked(false))
+      .catch(() => setAudioBlocked(true));
+  }
+
+  return { status, remoteAudioRef, audioBlocked, playRemoteAudio, hangUp };
 }

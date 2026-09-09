@@ -44,7 +44,13 @@ export default function IncomingIntercomCall() {
     setIncoming(payload as IncomingCall);
   });
 
-  const { status, remoteAudioRef, hangUp } = useIntercomCall({ topic: activeTopic, isCaller: false });
+  const { status, remoteAudioRef, audioBlocked, playRemoteAudio, hangUp } = useIntercomCall({
+    topic: activeTopic,
+    isCaller: false,
+    callId: incoming?.callId,
+    kioskId: incoming?.kioskId,
+    pumpId: incoming?.pumpId,
+  });
 
   if (!incoming) return null;
 
@@ -85,6 +91,7 @@ export default function IncomingIntercomCall() {
         {!answered ? (
           <>
             <p style={{ fontSize: "1.1rem", margin: "1.5rem 0" }}>Müşteri sizi arıyor...</p>
+            <p className="hint-text">Bu görüşme güvenlik amacıyla kaydedilmektedir.</p>
             <div className="toolbar" style={{ justifyContent: "center", gap: "0.75rem" }}>
               <button type="button" onClick={decline}>
                 Reddet
@@ -100,6 +107,13 @@ export default function IncomingIntercomCall() {
               {STATUS_LABEL[status]}
             </p>
             <audio ref={remoteAudioRef} autoPlay />
+            {status === "connected" && audioBlocked && (
+              <p>
+                <button type="button" className="primary" onClick={playRemoteAudio}>
+                  🔊 Sesi Aç
+                </button>
+              </p>
+            )}
             <div className="toolbar" style={{ justifyContent: "center" }}>
               {finished ? (
                 <button type="button" className="primary" onClick={() => setIncoming(null)}>

@@ -71,6 +71,29 @@ export const api = {
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
 
+/**
+ * Interkom kaydi yuklemesi icin: api.post gibi govdeyi JSON'a CEVIRMEZ, ham bir Blob'u
+ * (kaydedilen ses) oldugu gibi gonderir. Metadata (callId, kioskId, vb.) govdede degil
+ * QUERY parametrelerinde tasinir - govde tamamen ses baytlarina ayrilir (bkz.
+ * server/src/routes/intercomRecordings.ts POST / , raw() body parser).
+ */
+export async function uploadBinary(path: string, blob: Blob, query: Record<string, string | number>): Promise<void> {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) params.set(key, String(value));
+  const headers = new Headers({ "Content-Type": blob.type || "application/octet-stream" });
+  const csrf = readCookie("yakit_csrf");
+  if (csrf) headers.set("X-CSRF-Token", csrf);
+
+  const url = appendStationParam(`${path}?${params.toString()}`);
+  const res = await fetch(url, { method: "POST", headers, body: blob, credentials: "same-origin" });
+  if (!res.ok) {
+    const isJson = res.headers.get("content-type")?.includes("application/json");
+    const data = isJson ? await res.json().catch(() => null) : null;
+    const message = data && typeof data === "object" && "error" in data ? String((data as { error: unknown }).error) : `Yukleme basarisiz (${res.status})`;
+    throw new ApiError(message, res.status);
+  }
+}
+
 export function kioskHeaders(token: string): Record<string, string> {
   return { "X-Kiosk-Token": token };
 }

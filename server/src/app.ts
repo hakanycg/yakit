@@ -47,6 +47,7 @@ import { syncRouter } from "./routes/sync.js";
 import { kvkkRouter } from "./routes/kvkk.js";
 import { tankerTrackingRouter } from "./routes/tankerTracking.js";
 import { safetyComplianceRouter } from "./routes/safetyCompliance.js";
+import { intercomRecordingsRouter } from "./routes/intercomRecordings.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
@@ -159,6 +160,7 @@ export function createApp() {
   app.use("/api/kvkk", kvkkRouter);
   app.use("/api/tanker-tracking", tankerTrackingRouter);
   app.use("/api/safety-compliance", safetyComplianceRouter);
+  app.use("/api/intercom-recordings", intercomRecordingsRouter);
 
   app.use("/api", notFoundHandler);
 

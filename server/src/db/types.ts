@@ -719,3 +719,18 @@ export interface StationSyncEventRow {
   error_message: string | null;
   received_at: string;
 }
+
+export interface CallRecordingRow {
+  id: number;
+  station_id: number;
+  call_id: string;
+  kiosk_id: number | null;
+  pump_id: number | null;
+  started_at: string;
+  ended_at: string;
+  file_name: string;
+  mime_type: string;
+  size_bytes: number;
+  recorded_by: number | null;
+  created_at: string;
+}

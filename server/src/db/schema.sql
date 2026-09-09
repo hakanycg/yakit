@@ -1187,6 +1187,28 @@ CREATE TABLE IF NOT EXISTS archive_files (
 );
 CREATE INDEX IF NOT EXISTS idx_archive_files_table ON archive_files(table_name, created_at);
 
+-- Interkom cagri kayitlari (bkz. server/src/services/callRecordingService.ts): TS 12820
+-- madde 4.9.3.5 kapsamindaki musteri<->gorevli sesli gorusmelerin GUVENLIK amacli kaydi.
+-- Ses dosyasinin kendisi VERITABANINDA DEGIL, INTERCOM_RECORDING_DIR altinda AES-256-GCM
+-- ile sifrelenmis olarak diskte durur (bkz. utils/backupCrypto.ts encryptBuffer) - bu
+-- satir yalnizca dosyanin dizinini ve KVKK saklama suresi taramasinin (sweepCallRecordings)
+-- ihtiyac duydugu meta veriyi tutar.
+CREATE TABLE IF NOT EXISTS call_recordings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  call_id TEXT NOT NULL UNIQUE,
+  kiosk_id INTEGER,
+  pump_id INTEGER,
+  started_at TEXT NOT NULL,
+  ended_at TEXT NOT NULL,
+  file_name TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  size_bytes INTEGER NOT NULL,
+  recorded_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
+CREATE INDEX IF NOT EXISTS idx_call_recordings_station ON call_recordings(station_id, created_at);
+
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta
 -- calisabilir; yeni istasyonlar zaten olusturulurken kendi tank kayitlarini alir.
