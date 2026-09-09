@@ -1532,6 +1532,67 @@ kalmadığı için ekranı geri getirmek yalnızca kiosk modundaki tarayıcı ya
 dönerse akış kaldığı yerden devam eder: işlem kimliği ve erişim token'ı `sessionStorage`'a
 yazıldığı için sayfa geri geldiğinde doğru adıma otomatik olarak konumlanır.
 
+## Kiosk fiziksel donanımı ve tarayıcı yapılandırması
+
+**Önerilen donanım:** Fansız (sessiz, tozdan az etkilenen) Windows 10/11 mini PC + kapasitif
+dokunmatik ekran (all-in-one veya ayrı monitör), yönlü/gürültü bastırmalı **harici USB
+mikrofon** (dahili ekran mikrofonları pompa alanının gürültüsünde kullanılamaz hale gelir).
+Windows tercih edilir çünkü: (1) mevcut uzaktan destek altyapısı zaten Windows'ta en olgun
+olan **AnyDesk** üzerine kurulu (bkz. yukarıdaki "Kiosk filosu" — her kiosk kaydının bir
+AnyDesk ID'si var), (2) fiş yazıcısı/POS/tank probu gibi donanımların (bkz. `PrinterDriver`,
+`PosDriver`, `TankGaugeDriver` soyutlamaları) gerçek sürücüleri neredeyse istisnasız
+Windows içindir, (3) Chrome'un kurumsal politika desteği (aşağıda) Windows'ta kayıt defteri
+üzerinden basitçe uygulanabilir.
+
+Tarayıcı olarak **Google Chrome**, **Windows Kiosk Modu / Atanmış Erişim (Assigned Access)**
+ile tek bir URL'e ("Ayarlar → Hesaplar → Aile ve diğer kullanıcılar → Kiosk kur") kilitlenir.
+
+### Mikrofon izni neden "her seferinde soruyor" ve nasıl kalıcı otomatik onaylanır
+
+Tarayıcı, mikrofon/kamera erişimini sayfanın kendi JavaScript'i **hiçbir şekilde**
+kendiliğinden açamayacağı şekilde tasarlanmıştır — bu bilinçli bir güvenlik sınırıdır (aksi
+halde herhangi bir web sitesi sessizce dinleme yapabilirdi). Dolayısıyla bu, uygulama
+koduyla değil, kiosk'un **tarayıcısında bir kez** yapılacak bir kurumsal politika ayarıyla
+çözülür — sonrasında o URL için izin penceresi bir daha hiç çıkmaz.
+
+**Windows + Chrome (kayıt defteri):**
+
+`HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Google\Chrome` altında `AudioCaptureAllowedUrls`
+adında bir alt anahtar oluşturup içine sıralı REG_SZ değerleri eklenir:
+
+```
+HKLM\SOFTWARE\Policies\Google\Chrome\AudioCaptureAllowedUrls
+  "1" = "https://<production-alan-adi>/*"
+```
+
+**Linux + Chrome/Chromium (yönetilen politika dosyası):**
+
+`/etc/opt/chrome/policies/managed/kiosk.json` (Chromium: `/etc/chromium/policies/managed/kiosk.json`):
+
+```json
+{ "AudioCaptureAllowedUrls": ["https://<production-alan-adi>/*"] }
+```
+
+### Otomatik oynatma (autoplay) engeli — kiosk için asıl çözüm
+
+İnterkom görüşmesinde uzak sesin çalması için (bkz. `useIntercomCall.ts`) uygulama, tarayıcı
+otomatik-oynatma politikası `play()`'i reddederse bir "Sesi Aç" butonu gösterir — ama bu,
+**kontrol edemediğimiz** bir tarayıcı (müşterinin kendi telefonu) için tasarlanmış bir geri
+düşüş yoludur. Kiosk PC'si tamamen bizim kontrolümüzde olduğundan doğru çözüm, tarayıcıyı bu
+kısıtlamayı hiç uygulamayacak şekilde başlatmaktır — böylece ses bağlantı kurulur kurulmaz
+kendiliğinden çalar, butona hiç gerek kalmaz (buton yine de zararsız bir güvenlik ağı olarak
+kodda kalır). Kiosk kısayoluna şu komut satırı bayrakları eklenir:
+
+```
+chrome.exe --kiosk --autoplay-policy=no-user-gesture-required "https://<production-alan-adi>/kiosk/<istasyon-kodu>"
+```
+
+Tek amaçlı, başka hiçbir siteye gitmeyen bir kiosk kutusuysa mikrofon iznini de aynı
+komuttan (kayıt defteri politikası yerine) çözmek isteyen kurulumlar `--use-fake-ui-for-media-stream`
+bayrağını da ekleyebilir — bu, o tarayıcı örneğindeki **her** getUserMedia isteğini
+otomatik onaylar, dolayısıyla yalnızca tarayıcı asla başka bir sayfaya gitmeyen kilitli bir
+kiosk kutusundaysa güvenlidir.
+
 ## Yakıt sapma (kaçak/kayıp) takibi
 
 Personelsiz istasyonda tankı gözüyle kontrol eden kimse yoktur. Sızıntı yapan bir tank,
