@@ -1,5 +1,5 @@
 import { execFileSync, spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -52,6 +52,23 @@ async function waitForHealth(url: string, timeoutMs: number): Promise<void> {
  * karsilik gelen kapatma).
  */
 export default async function globalSetup(): Promise<void> {
+  // Onceki bir kosu globalTeardown'i hic calistiramadan kesintiye ugramis olabilir
+  // (ör. elle Ctrl+C, sandbox'in kendisi oldurulmus) - boyle bir "hayalet" sunucu
+  // E2E_PORT'ta hala dinliyorsa, asagida baslatilan YENI sunucunun health-check'i
+  // YANLISLIKLA o eskisine cevap alip gecebilir; yeni sunucu port catismasindan
+  // sessizce basarisiz olur ama test paketi eski/farkli-veriye-sahip sunucuyla
+  // calismaya devam eder (bkz. globalTeardown.ts'teki ayrintili kok neden notu).
+  if (existsSync(PID_FILE)) {
+    try {
+      const { pid } = JSON.parse(readFileSync(PID_FILE, "utf-8")) as { pid: number };
+      process.kill(-pid, "SIGKILL");
+    } catch {
+      // Zaten sonlanmis olabilir - en iyi caba.
+    } finally {
+      rmSync(PID_FILE, { force: true });
+    }
+  }
+
   const dbPath = path.resolve(SERVER_DIR, E2E_DATABASE_PATH);
   for (const suffix of ["", "-wal", "-shm"]) {
     const p = dbPath + suffix;
