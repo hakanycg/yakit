@@ -75,6 +75,20 @@ export const SAFETY_COMPLIANCE_ITEMS = [
     defaultIntervalMonths: 12,
     intervalIsFromStandard: false,
   },
+  {
+    type: "dispenser_shutoff_valve",
+    label: "Dağıtım birimi otomatik kapama vanası testi",
+    standardClause: "TS 12820 madde 4.5.2.5",
+    defaultIntervalMonths: 12,
+    intervalIsFromStandard: true,
+  },
+  {
+    type: "remote_pump_leak_detector",
+    label: "Uzaktan pompalama sistemi kaçak dedektörü testi (varsa)",
+    standardClause: "TS 12820 madde 4.5.2.6",
+    defaultIntervalMonths: 12,
+    intervalIsFromStandard: true,
+  },
 ] as const satisfies readonly SafetyComplianceItemMeta[];
 
 export type SafetyComplianceItemType = (typeof SAFETY_COMPLIANCE_ITEMS)[number]["type"];

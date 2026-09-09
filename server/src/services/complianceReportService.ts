@@ -2,14 +2,20 @@ import PDFDocument from "pdfkit";
 import { getStationCalibrationStatus, MAX_PERMISSIBLE_ERROR_PCT, type PumpCalibrationStatus } from "./pumpCalibrationService.js";
 import { getStationComplianceStatus, type SafetyComplianceStatus } from "./safetyComplianceService.js";
 import { listAlarms } from "./alarmService.js";
+import { getVarianceSummary, type VarianceSummaryRow } from "./fuelVarianceService.js";
 import { csvEscape } from "../utils/csv.js";
 import type { AlarmRow, StationRow } from "../db/types.js";
 
 /**
  * Uyum Panosu'nun (bkz. web/src/pages/operator/ComplianceDashboard.tsx) PDF/CSV disa
- * aktarimi. Bir denetci ziyaretinde ekrandaki 3 bolumu (Emniyet Uyum Takvimi, pompa
+ * aktarimi. Bir denetci ziyaretinde ekrandaki bolumleri (Emniyet Uyum Takvimi, pompa
  * kalibrasyon/damga durumu, acik alarmlar) tek belgede goturebilmek icin - ayri bir
- * veri kaynagi eklemez, yalnizca ekranin aldigi 3 mevcut sorguyu bir araya getirir.
+ * veri kaynagi eklemez, yalnizca ekranin aldigi mevcut sorgulari bir araya getirir.
+ *
+ * Yakit sapma ozeti (TS 12820 madde 4.2.7.4.9 - "gunluk hassas satis ve stok
+ * kayitlari... denetleyicilerin incelemesi icin hazir bulundurulmali") ekranin
+ * kendisinde degil, Yakit Sapma Takibi sayfasinda goruntuleniyor; denetci raporunun
+ * TEK belgede olmasi gerektiginden buraya da eklenir.
  */
 
 export interface ComplianceReportData {
@@ -18,6 +24,7 @@ export interface ComplianceReportData {
   compliance: SafetyComplianceStatus[];
   pumps: PumpCalibrationStatus[];
   alarms: AlarmRow[];
+  variance: VarianceSummaryRow[];
 }
 
 export function buildComplianceReportData(station: StationRow, now = Date.now()): ComplianceReportData {
@@ -27,11 +34,13 @@ export function buildComplianceReportData(station: StationRow, now = Date.now())
     compliance: getStationComplianceStatus(station.id, now),
     pumps: getStationCalibrationStatus(station.id, now),
     alarms: listAlarms(station.id, "active"),
+    variance: getVarianceSummary(station.id),
   };
 }
 
 const STATUS_LABEL_TR: Record<string, string> = { valid: "Gecerli", expiring: "Yaklasiyor", expired: "Suresi Doldu", unknown: "Kayit yok" };
 const SEVERITY_LABEL_TR: Record<string, string> = { info: "Bilgi", warning: "Uyari", critical: "Kritik" };
+const FUEL_LABEL_TR: Record<string, string> = { benzin: "Benzin", motorin: "Motorin", lpg: "LPG" };
 
 function fmtDate(iso: string | null): string {
   return iso ? iso.slice(0, 10) : "-";
@@ -104,6 +113,28 @@ export function buildComplianceReportPdf(data: ComplianceReportData): Promise<Bu
       }
     }
 
+    // --- Gunluk Stok Mutabakati (TS 12820 madde 4.2.7.4.9) ---
+    sectionTitle("Yakit Sapma / Stok Mutabakati (madde 4.2.7.4.9)");
+    if (data.variance.length === 0) {
+      tableRow(["Henuz olcum kaydi yok."], [60]);
+    } else {
+      const varianceWidths = [10, 10, 14, 16, 12, 14];
+      tableRow(["Yakit", "Olcum", "Top. Sapma (L)", "Top. Akis (L)", "Net %", "Son Olcum"], varianceWidths, true);
+      for (const v of data.variance) {
+        tableRow(
+          [
+            FUEL_LABEL_TR[v.fuelType] ?? v.fuelType,
+            String(v.readingCount),
+            v.totalVarianceLiters.toFixed(2),
+            v.totalThroughputLiters.toFixed(2),
+            `%${v.netVariancePct.toFixed(2)}`,
+            fmtDate(v.lastMeasuredAt),
+          ],
+          varianceWidths
+        );
+      }
+    }
+
     doc.moveDown(1.5);
     doc.font("Helvetica").fontSize(8).fillColor("#999").text("Bu rapor Uyum Panosu ekraninin olusturuldugu andaki durumunu yansitir.", { align: "center" });
 
@@ -136,6 +167,22 @@ export function buildComplianceReportCsv(data: ComplianceReportData): string {
   for (const a of data.alarms) {
     lines.push(
       ["Acik Alarm", SEVERITY_LABEL_TR[a.severity] ?? a.severity, a.message, "", "", "", fmtDateTime(a.created_at)].map(csvEscape).join(",")
+    );
+  }
+
+  for (const v of data.variance) {
+    lines.push(
+      [
+        "Yakit Sapma/Stok Mutabakati",
+        FUEL_LABEL_TR[v.fuelType] ?? v.fuelType,
+        `Olcum: ${v.readingCount}, Toplam sapma: ${v.totalVarianceLiters.toFixed(2)} L, Toplam akis: ${v.totalThroughputLiters.toFixed(2)} L, Net: %${v.netVariancePct.toFixed(2)}`,
+        "",
+        fmtDate(v.lastMeasuredAt),
+        "",
+        "",
+      ]
+        .map(csvEscape)
+        .join(",")
     );
   }
 

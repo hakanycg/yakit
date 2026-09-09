@@ -67,9 +67,10 @@ export default function ComplianceDashboard() {
       <div className="toolbar">
         <h2 style={{ margin: 0 }}>Uyum Panosu</h2>
         <div className="spacer" />
-        {/* Denetci ziyaretinde bu ekrani goturebilmek icin: yeni bir veri kaynagi
-            eklemez, ekranin aldigi ayni 3 sorguyu (bkz. complianceReportService.ts)
-            tek belgede birlestirir. */}
+        {/* Denetci ziyaretinde tek belgede goturebilmek icin: bu ekranin sorgularina
+            ek olarak yakit sapma ozetini de (TS 12820 madde 4.2.7.4.9 - Yakit Sapma
+            Takibi sayfasinda gosterilir, burada degil) rapora dahil eder
+            (bkz. complianceReportService.ts). */}
         <a href={appendStationParam("/api/safety-compliance/report.pdf")}>
           <button type="button">PDF İndir</button>
         </a>

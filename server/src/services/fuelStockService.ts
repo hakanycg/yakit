@@ -26,11 +26,21 @@ export class DuplicateDeliveryRefError extends FuelStockError {
 
 export const FUEL_TYPES: FuelType[] = ["benzin", "motorin", "lpg"];
 
-export type TankStatus = "ok" | "low" | "critical";
+/**
+ * TS 12820 madde 4.2 tasma emniyeti: depolama tanki asiri doldurulmamalidir. Dusuk
+ * stok esiginin simetrigi - kapasiteye oranli sabit yuzdeler (istasyona gore
+ * degismez, mevcut dusuk stok esiginin aksine kullanici tarafindan ayarlanamaz).
+ */
+export const OVERFILL_WARN_PCT = 0.9;
+export const OVERFILL_CRITICAL_PCT = 0.95;
+
+export type TankStatus = "ok" | "low" | "critical" | "high" | "overfill";
 
 export function tankStatus(t: FuelTankRow): TankStatus {
   if (t.current_liters <= t.low_stock_threshold_liters) return "critical";
   if (t.current_liters <= t.low_stock_threshold_liters * 1.5) return "low";
+  if (t.capacity_liters > 0 && t.current_liters >= t.capacity_liters * OVERFILL_CRITICAL_PCT) return "overfill";
+  if (t.capacity_liters > 0 && t.current_liters >= t.capacity_liters * OVERFILL_WARN_PCT) return "high";
   return "ok";
 }
 
@@ -256,6 +266,7 @@ export function addStock(
   }
 
   resolveLowStockAlarmIfRecovered(stationId, fuelType, newLevel, tank.low_stock_threshold_liters, actor);
+  syncOverfillAlarm(stationId, fuelType, newLevel, tank.capacity_liters, actor);
 
   broadcastTanks(stationId);
   return { tank: getTank(stationId, fuelType), overflow, variance };
@@ -299,6 +310,9 @@ export function deductAvailable(stationId: number, fuelType: FuelType, desiredLi
   if (newLevel <= tank.low_stock_threshold_liters) {
     raiseLowStockAlarmIfNeeded(stationId, fuelType, newLevel);
   }
+  // Satis sirasinda seviye yalnizca DUSER, hic yukselmez - burada raise gerekmez, sadece
+  // asama asama satildikca tasma alarminin cozulmesi gerekebilir (ör. teslimattan hemen sonra).
+  resolveOverfillAlarmIfRecovered(stationId, fuelType, newLevel, tank.capacity_liters, null);
 
   broadcastTanks(stationId);
   // Tank siniri asilmadiysa TAM (yuvarlanmamis) miktar dondurulur: aksi halde
@@ -362,6 +376,7 @@ export function adjustStock(
   } else {
     resolveLowStockAlarmIfRecovered(stationId, fuelType, clamped, tank.low_stock_threshold_liters, actor);
   }
+  syncOverfillAlarm(stationId, fuelType, clamped, tank.capacity_liters, actor);
 
   broadcastTanks(stationId);
   return getTank(stationId, fuelType);
@@ -603,4 +618,56 @@ function resolveLowStockAlarmIfRecovered(stationId: number, fuelType: FuelType, 
     .prepare("UPDATE alarms SET status = 'resolved', resolved_by = ?, resolved_at = ? WHERE station_id = ? AND type = ? AND status != 'resolved'")
     .run(actor?.id ?? null, now, stationId, lowStockAlarmType(fuelType));
   if (result.changes > 0) broadcastAlarms(stationId);
+}
+
+function overfillAlarmType(fuelType: FuelType): string {
+  return `overfill_${fuelType}`;
+}
+
+/** Dusuk stok alarminin simetrigi (bkz. raiseLowStockAlarmIfNeeded) - TS 12820 madde 4.2 tasma emniyeti. */
+function raiseOverfillAlarmIfNeeded(stationId: number, fuelType: FuelType, level: number, capacityLiters: number): void {
+  if (capacityLiters <= 0) return;
+  const pct = level / capacityLiters;
+  if (pct < OVERFILL_WARN_PCT) return;
+
+  const critical = pct >= OVERFILL_CRITICAL_PCT;
+  const message = critical
+    ? `${FUEL_LABELS[fuelType]} tanki TASMA sinirinda (%${Math.round(pct * 100)} dolu). Doldurmayi hemen durdurun (TS 12820 madde 4.2).`
+    : `${FUEL_LABELS[fuelType]} tanki %${Math.round(pct * 100)} doluluga ulasti, tasma riskine yaklasiliyor (TS 12820 madde 4.2).`;
+
+  const existing = db
+    .prepare<[number, string], { id: number; message: string }>(
+      "SELECT id, message FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1"
+    )
+    .get(stationId, overfillAlarmType(fuelType));
+
+  if (existing) {
+    // Uyaridan kritige gectiginde (dusuk stok alarmindaki "dusuk"->"bitti" guncellemesiyle
+    // ayni mantik) mesaj/onem bayat kalmasin.
+    if (critical && existing.message !== message) {
+      db.prepare("UPDATE alarms SET message = ?, severity = 'critical' WHERE id = ?").run(message, existing.id);
+      broadcastAlarms(stationId);
+    }
+    return;
+  }
+
+  createAlarm({ stationId, type: overfillAlarmType(fuelType), severity: critical ? "critical" : "warning", message });
+}
+
+function resolveOverfillAlarmIfRecovered(stationId: number, fuelType: FuelType, level: number, capacityLiters: number, actor: UserRow | null): void {
+  if (capacityLiters <= 0 || level / capacityLiters >= OVERFILL_WARN_PCT) return;
+  const now = new Date().toISOString();
+  const result = db
+    .prepare("UPDATE alarms SET status = 'resolved', resolved_by = ?, resolved_at = ? WHERE station_id = ? AND type = ? AND status != 'resolved'")
+    .run(actor?.id ?? null, now, stationId, overfillAlarmType(fuelType));
+  if (result.changes > 0) broadcastAlarms(stationId);
+}
+
+/** addStock/adjustStock'un yeni seviyeden sonra cagirdigi ortak senkron - iki durumu da (uyar/coz) tek yerde tutar. */
+function syncOverfillAlarm(stationId: number, fuelType: FuelType, level: number, capacityLiters: number, actor: UserRow | null): void {
+  if (capacityLiters > 0 && level / capacityLiters >= OVERFILL_WARN_PCT) {
+    raiseOverfillAlarmIfNeeded(stationId, fuelType, level, capacityLiters);
+  } else {
+    resolveOverfillAlarmIfRecovered(stationId, fuelType, level, capacityLiters, actor);
+  }
 }

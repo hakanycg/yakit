@@ -793,6 +793,9 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .tank-gauge-critical-zone {
   position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px dashed rgba(239,68,68,0.55);
 }
+.tank-gauge-overfill-zone {
+  position: absolute; left: 0; right: 0; top: 0; border-bottom: 1px dashed rgba(245,158,11,0.65);
+}
 .tank-stats { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.55rem; }
 .tank-stat-row { display: flex; align-items: baseline; justify-content: space-between; }
 .tank-stat-row .k { color: var(--text-dim); font-size: var(--fs-sm); }
