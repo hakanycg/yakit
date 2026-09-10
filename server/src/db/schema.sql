@@ -37,6 +37,11 @@ CREATE TABLE IF NOT EXISTS stations (
   longitude REAL,
   active INTEGER NOT NULL DEFAULT 1,
   sync_token TEXT,                     -- istasyon ajaninin /api/sync/* uclarinda kimlik dogrulamasi icin (bkz. syncService.ts)
+  -- TS 12820 madde 4.12: bu istasyonda bulunmasi gereken yangin sondurucu sayisi ve
+  -- konumlari - Emniyet Uyum Takvimi'ndeki "fire_extinguisher" kalemi yalnizca kontrol
+  -- TARIHINI takip eder, sayi/konum bilgisi ayrica burada saklanir.
+  fire_extinguisher_required_count INTEGER,
+  fire_extinguisher_locations TEXT,
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 -- sync_token indeksi burada DEGIL, db/index.ts'deki applyMigrations()'da olusturuluyor:

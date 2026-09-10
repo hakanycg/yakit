@@ -41,6 +41,11 @@ interface ComplianceRecord {
   createdAt: string;
 }
 
+interface FireExtinguisherRequirement {
+  requiredCount: number | null;
+  locations: string | null;
+}
+
 const STATUS_BADGE: Record<ComplianceStatus["status"], string> = {
   valid: "resolved",
   expiring: "warning",
@@ -60,14 +65,19 @@ export default function SafetyCompliance() {
   const [items, setItems] = useState<ComplianceItemMeta[]>([]);
   const [statuses, setStatuses] = useState<ComplianceStatus[]>([]);
   const [target, setTarget] = useState<ComplianceItemMeta | null>(null);
+  const [extinguisherRequirement, setExtinguisherRequirement] = useState<FireExtinguisherRequirement | null>(null);
+  const [editingRequirement, setEditingRequirement] = useState(false);
 
   function load() {
     if (stationId === null) return;
     api
-      .get<{ items: ComplianceItemMeta[]; status: ComplianceStatus[] }>("/api/safety-compliance")
+      .get<{ items: ComplianceItemMeta[]; status: ComplianceStatus[]; fireExtinguisherRequirement: FireExtinguisherRequirement }>(
+        "/api/safety-compliance"
+      )
       .then((res) => {
         setItems(res.items);
         setStatuses(res.status);
+        setExtinguisherRequirement(res.fireExtinguisherRequirement);
       });
   }
   useEffect(load, [stationId]);
@@ -107,7 +117,20 @@ export default function SafetyCompliance() {
                 <p className="hint-text">Henüz kayıt girilmemiş.</p>
               )}
 
+              {item.type === "fire_extinguisher" && (
+                <p className="hint-text">
+                  {extinguisherRequirement?.requiredCount != null
+                    ? `Gerekli sayı: ${extinguisherRequirement.requiredCount}${
+                        extinguisherRequirement.locations ? ` · Konum: ${extinguisherRequirement.locations}` : ""
+                      }`
+                    : "Gerekli söndürücü sayısı/konumu henüz girilmemiş."}
+                </p>
+              )}
+
               <div className="toolbar" style={{ marginTop: "0.5rem" }}>
+                {item.type === "fire_extinguisher" && (
+                  <button onClick={() => setEditingRequirement(true)}>Sayı/Konum Düzenle</button>
+                )}
                 <div className="spacer" />
                 <button onClick={() => setTarget(item)}>Kayıt Gir / Geçmiş</button>
               </div>
@@ -122,6 +145,16 @@ export default function SafetyCompliance() {
           item={target}
           onClose={() => {
             setTarget(null);
+            load();
+          }}
+        />
+      )}
+
+      {editingRequirement && (
+        <FireExtinguisherRequirementDialog
+          requirement={extinguisherRequirement}
+          onClose={() => {
+            setEditingRequirement(false);
             load();
           }}
         />
@@ -260,6 +293,79 @@ function ComplianceDialog({ item, onClose }: { item: ComplianceItemMeta; onClose
         <div className="spacer" />
         <button type="button" onClick={onClose}>Kapat</button>
       </div>
+    </Modal>
+  );
+}
+
+function FireExtinguisherRequirementDialog({
+  requirement,
+  onClose,
+}: {
+  requirement: FireExtinguisherRequirement | null;
+  onClose: () => void;
+}) {
+  const [requiredCount, setRequiredCount] = useState(
+    requirement?.requiredCount != null ? String(requirement.requiredCount) : ""
+  );
+  const [locations, setLocations] = useState(requirement?.locations ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setError(null);
+    try {
+      await api.patch("/api/safety-compliance/fire-extinguisher-requirement", {
+        requiredCount: requiredCount.trim() ? Number(requiredCount) : null,
+        locations: locations.trim() || null,
+      });
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Kaydedilemedi.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal>
+      <h3>Yangın Söndürücü Sayısı/Konumu</h3>
+      <p className="hint-text" style={{ marginTop: 0 }}>
+        TS 12820 madde 4.12 — bu istasyonda bulunması gereken söndürücü sayısı ve konumları. Yangın emniyet planınıza
+        göre girin; kontrol kayıtlarından bağımsızdır.
+      </p>
+
+      <form onSubmit={submit}>
+        <label htmlFor="fe-count">Gerekli söndürücü sayısı</label>
+        <input
+          id="fe-count"
+          type="number"
+          min={0}
+          max={1000}
+          value={requiredCount}
+          onChange={(e) => setRequiredCount(e.target.value)}
+        />
+
+        <label htmlFor="fe-locations">Konumlar (opsiyonel)</label>
+        <input
+          id="fe-locations"
+          value={locations}
+          onChange={(e) => setLocations(e.target.value)}
+          maxLength={500}
+          placeholder="ör. Ofis girişi, pompa 1-2 arası, tank sahası"
+        />
+
+        {error && <p className="error-text">{error}</p>}
+
+        <div className="toolbar" style={{ marginTop: "0.75rem" }}>
+          <div className="spacer" />
+          <button type="button" onClick={onClose}>Vazgeç</button>
+          <button type="submit" className="primary" disabled={saving}>
+            {saving ? "Kaydediliyor..." : "Kaydet"}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 }

@@ -90,6 +90,14 @@ export function buildComplianceReportPdf(data: ComplianceReportData): Promise<Bu
     for (const c of data.compliance) {
       tableRow([c.label, c.standardClause, STATUS_LABEL_TR[c.status] ?? c.status, fmtDate(c.lastCompletedAt), fmtDate(c.nextDueAt)], complianceWidths);
     }
+    if (data.station.fire_extinguisher_required_count !== null) {
+      doc.moveDown(0.3);
+      doc.font("Helvetica").fontSize(9).fillColor("#555").text(
+        `Gerekli sondurucu sayisi (madde 4.12): ${data.station.fire_extinguisher_required_count}${
+          data.station.fire_extinguisher_locations ? ` — Konumlar: ${data.station.fire_extinguisher_locations}` : ""
+        }`
+      );
+    }
 
     // --- Pompa Kalibrasyon / Damga ---
     sectionTitle("Pompa Kalibrasyon / Damga");
@@ -150,6 +158,21 @@ export function buildComplianceReportCsv(data: ComplianceReportData): string {
   for (const c of data.compliance) {
     lines.push(
       ["Emniyet Uyum Takvimi", c.label, c.standardClause, STATUS_LABEL_TR[c.status] ?? c.status, fmtDate(c.lastCompletedAt), fmtDate(c.nextDueAt), ""]
+        .map(csvEscape)
+        .join(",")
+    );
+  }
+  if (data.station.fire_extinguisher_required_count !== null) {
+    lines.push(
+      [
+        "Emniyet Uyum Takvimi",
+        "Gerekli sondurucu sayisi/konumu",
+        "TS 12820 madde 4.12",
+        String(data.station.fire_extinguisher_required_count),
+        "",
+        "",
+        data.station.fire_extinguisher_locations ?? "",
+      ]
         .map(csvEscape)
         .join(",")
     );

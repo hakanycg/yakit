@@ -188,6 +188,12 @@ export function applyMigrations(): void {
   ensureColumn("loyalty_accounts", "contact_email", "TEXT");
   ensureColumn("loyalty_accounts", "contact_phone", "TEXT");
 
+  // Yangin sondurucu sayisi/konumu (TS 12820 madde 4.12) - Emniyet Uyum Takvimi'ndeki
+  // "fire_extinguisher" kalemi simdiye kadar yalnizca kontrol TARIHINI takip ediyordu;
+  // kac adet olmasi gerektigi ve nerede bulunduklari hicbir yerde kayitli degildi.
+  ensureColumn("stations", "fire_extinguisher_required_count", "INTEGER");
+  ensureColumn("stations", "fire_extinguisher_locations", "TEXT");
+
   backfillNormalizedPlates();
 }
 

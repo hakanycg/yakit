@@ -22,6 +22,9 @@ export interface StationRow {
   longitude: number | null;
   active: 0 | 1;
   sync_token: string | null;
+  /** TS 12820 madde 4.12 - bu istasyonda bulunmasi gereken yangin sondurucu sayisi/konumlari. */
+  fire_extinguisher_required_count: number | null;
+  fire_extinguisher_locations: string | null;
   created_at: string;
 }
 

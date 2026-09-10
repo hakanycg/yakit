@@ -6,9 +6,11 @@ import {
   SAFETY_COMPLIANCE_ITEMS,
   SafetyComplianceError,
   checkExpiringCompliance,
+  getFireExtinguisherRequirement,
   getStationComplianceStatus,
   listCompliance,
   recordCompliance,
+  setFireExtinguisherRequirement,
 } from "./safetyComplianceService.js";
 
 let station: StationRow;
@@ -172,5 +174,34 @@ describe("uyum taramasi", () => {
 
     expect(activeAlarms("safety_compliance_fire_extinguisher")).toHaveLength(1);
     expect(activeAlarms("safety_compliance_cathodic_protection")).toHaveLength(0);
+  });
+});
+
+describe("yangin sondurucu sayisi/konumu - TS 12820 madde 4.12", () => {
+  it("varsayilan olarak bos (null) doner", () => {
+    expect(getFireExtinguisherRequirement(station.id)).toEqual({ requiredCount: null, locations: null });
+  });
+
+  it("sayi/konum kaydedilir ve okunabilir", () => {
+    const result = setFireExtinguisherRequirement(station.id, { requiredCount: 4, locations: "Ofis girisi, pompa 1-2 arasi" });
+    expect(result).toEqual({ requiredCount: 4, locations: "Ofis girisi, pompa 1-2 arasi" });
+    expect(getFireExtinguisherRequirement(station.id)).toEqual(result);
+  });
+
+  it("baska istasyonun degerini etkilemez", () => {
+    const other = createTestStation();
+    setFireExtinguisherRequirement(station.id, { requiredCount: 4, locations: "A" });
+    expect(getFireExtinguisherRequirement(other.id)).toEqual({ requiredCount: null, locations: null });
+  });
+
+  it("negatif veya ondalikli sayi reddedilir", () => {
+    expect(() => setFireExtinguisherRequirement(station.id, { requiredCount: -1, locations: null })).toThrow(SafetyComplianceError);
+    expect(() => setFireExtinguisherRequirement(station.id, { requiredCount: 2.5, locations: null })).toThrow(SafetyComplianceError);
+  });
+
+  it("null gecilirse temizler", () => {
+    setFireExtinguisherRequirement(station.id, { requiredCount: 4, locations: "A" });
+    setFireExtinguisherRequirement(station.id, { requiredCount: null, locations: null });
+    expect(getFireExtinguisherRequirement(station.id)).toEqual({ requiredCount: null, locations: null });
   });
 });
