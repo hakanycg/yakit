@@ -7,6 +7,7 @@ import { recordAudit } from "../services/auditService.js";
 import { buildAccountingExport } from "../services/accountingExportService.js";
 import { getPeriodComparison } from "../services/periodComparisonService.js";
 import { getChurnRiskCustomers } from "../services/customerChurnService.js";
+import { getOperatorAnomalyReport } from "../services/operatorAnomalyService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 import { csvEscape } from "../utils/csv.js";
 
@@ -342,6 +343,14 @@ router.get("/customer-churn", validateQuery(churnQuerySchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof churnQuerySchema> }).validatedQuery;
   const customers = getChurnRiskCustomers(stationId, q);
   res.json({ customers });
+});
+
+/** Personel bazli indirim/iptal anomali raporu - bkz. operatorAnomalyService.ts. */
+router.get("/operator-anomaly", validateQuery(rangeSchema), (req, res) => {
+  const stationId = req.stationId!;
+  const q = (req as unknown as { validatedQuery: z.infer<typeof rangeSchema> }).validatedQuery;
+  const operators = getOperatorAnomalyReport(stationId, q.from, q.to);
+  res.json({ operators });
 });
 
 export { router as reportsRouter };

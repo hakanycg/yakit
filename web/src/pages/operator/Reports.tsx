@@ -355,6 +355,77 @@ function ChurnRiskCard({ stationId }: { stationId: number }) {
   );
 }
 
+interface OperatorAnomalyRow {
+  userId: number;
+  username: string;
+  totalCount: number;
+  cancelledCount: number;
+  cancelRatePct: number;
+  discountedCount: number;
+  discountRatePct: number;
+  totalDiscountAmount: number;
+  isCancelRateAnomaly: boolean;
+  isDiscountRateAnomaly: boolean;
+}
+
+/** Personel bazli indirim/iptal orani karsilastirmasi - istasyon ortalamasinin belirgin uzerinde olanlar isaretlenir. */
+function OperatorAnomalyCard({ range, stationId }: { range: string; stationId: number }) {
+  const [rows, setRows] = useState<OperatorAnomalyRow[] | null>(null);
+
+  useEffect(() => {
+    setRows(null);
+    api.get<{ operators: OperatorAnomalyRow[] }>(`/api/reports/operator-anomaly?${range}`).then((res) => setRows(res.operators));
+  }, [range, stationId]);
+
+  return (
+    <div className="card">
+      <h3>Personel İndirim/İptal Karşılaştırması</h3>
+      <p className="hint-text">
+        Her personelin iptal ve indirim oranı istasyon ortalamasıyla kıyaslanır. İşaretli satırlar bir usulsüzlük
+        kanıtı değildir, yerinde incelemeyi hak eden bir sapmadır.
+      </p>
+      {!rows ? (
+        <p className="hint-text">Yükleniyor...</p>
+      ) : rows.length === 0 ? (
+        <p className="hint-text">Seçilen aralıkta personel işlemi yok.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Personel</th>
+                <th className="numeric">Toplam İşlem</th>
+                <th className="numeric">İptal Oranı</th>
+                <th className="numeric">İndirim Oranı</th>
+                <th className="numeric">Toplam İndirim</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.userId}>
+                  <td>{r.username}</td>
+                  <td className="numeric">{r.totalCount}</td>
+                  <td className="numeric">
+                    <span className={r.isCancelRateAnomaly ? "badge critical" : ""}>
+                      %{r.cancelRatePct.toFixed(1)} ({r.cancelledCount})
+                    </span>
+                  </td>
+                  <td className="numeric">
+                    <span className={r.isDiscountRateAnomaly ? "badge critical" : ""}>
+                      %{r.discountRatePct.toFixed(1)} ({r.discountedCount})
+                    </span>
+                  </td>
+                  <td className="numeric">{formatCurrency(r.totalDiscountAmount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Reports() {
   const stationId = useEffectiveStationId();
   const [tab, setTab] = useState<Tab>("sales");
@@ -474,6 +545,7 @@ function SalesReport({ range, from, to, stationId }: { range: string; from: stri
 
       <PeriodComparisonCard stationId={stationId} />
       <ChurnRiskCard stationId={stationId} />
+      <OperatorAnomalyCard range={range} stationId={stationId} />
 
       <div className="card">
         <h3>Yakıt Tipine Göre</h3>
