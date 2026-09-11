@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/index.js";
 import { createTestStation, createTestUser } from "../test/dbFixture.js";
+import { logger } from "../utils/logger.js";
 import type { UserRow } from "../db/types.js";
 
 const sendFcmMessageMock = vi.hoisted(() => vi.fn());
@@ -50,6 +51,32 @@ describe("registerDeviceToken / unregisterDeviceToken", () => {
     const rows = db.prepare("SELECT * FROM device_push_tokens WHERE token = ?").all("shared-device-token") as { user_id: number }[];
     expect(rows).toHaveLength(1);
     expect(rows[0]!.user_id).toBe(other.id);
+  });
+
+  it("token baska bir kullaniciya devredildiginde izlenebilir olsun diye uyari loglar", () => {
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => undefined as never);
+    const other = createTestUser(user.station_id, "operator");
+
+    registerDeviceToken(user.id, "device-devir", "android");
+    expect(warnSpy).not.toHaveBeenCalled(); // ilk kayitta devir yok
+
+    registerDeviceToken(other.id, "device-devir", "android");
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ previousUserId: user.id, newUserId: other.id }),
+      expect.stringContaining("devredildi")
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it("ayni kullanici kendi token'ini tekrar kaydederse (devir degil) uyari loglamaz", () => {
+    const warnSpy = vi.spyOn(logger, "warn").mockImplementation(() => undefined as never);
+
+    registerDeviceToken(user.id, "device-tekrar", "android");
+    registerDeviceToken(user.id, "device-tekrar", "android");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
   });
 });
 
