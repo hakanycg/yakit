@@ -339,6 +339,7 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
 
 .menu-toggle { display: none; }
 .sidebar-overlay { display: none; }
+.sidebar-close-btn { display: none; }
 
 @media (max-width: 860px) {
   .app-shell { position: relative; }
@@ -351,6 +352,11 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
   }
   .sidebar.open { transform: translateX(0); }
+  /* Karartilmis alana dokunarak kapatma gizli bir davranis - gorunur bir X
+     olmadan bazi kullanicilar menuyu kapatip sayfaya donmenin yolunu bulamiyor. */
+  .sidebar-close-btn {
+    display: inline-flex; position: absolute; top: 0.85rem; right: 0.85rem; z-index: 1;
+  }
   .sidebar-overlay {
     display: block; position: fixed; inset: 0; z-index: 35;
     background: rgba(0, 0, 0, 0.55);
@@ -792,6 +798,9 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 .tank-gauge-mark { position: absolute; left: 0; right: 0; height: 1px; background: rgba(255,255,255,0.12); }
 .tank-gauge-critical-zone {
   position: absolute; left: 0; right: 0; bottom: 0; border-top: 1px dashed rgba(239,68,68,0.55);
+}
+.tank-gauge-overfill-zone {
+  position: absolute; left: 0; right: 0; top: 0; border-bottom: 1px dashed rgba(245,158,11,0.65);
 }
 .tank-stats { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.55rem; }
 .tank-stat-row { display: flex; align-items: baseline; justify-content: space-between; }

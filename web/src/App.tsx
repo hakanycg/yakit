@@ -44,6 +44,7 @@ const MarketingCampaigns = lazy(() => import("./pages/operator/MarketingCampaign
 const PumpTotalizers = lazy(() => import("./pages/operator/PumpTotalizers"));
 const Reconciliation = lazy(() => import("./pages/operator/Reconciliation"));
 const SupportRequests = lazy(() => import("./pages/operator/SupportRequests"));
+const ReleaseNotes = lazy(() => import("./pages/operator/ReleaseNotes"));
 const DiscountCodes = lazy(() => import("./pages/admin/DiscountCodes"));
 const FleetAccounts = lazy(() => import("./pages/admin/FleetAccounts"));
 const FleetReceivables = lazy(() => import("./pages/admin/FleetReceivables"));
@@ -94,6 +95,7 @@ export default function App() {
             {/* Destek talepleri sahada calisan kisinin isi: musteri pompada takildiginda
                 ona ilk ulasan operatordur. */}
             <Route path="/operator/destek" element={<SupportRequests />} />
+            <Route path="/operator/yenilikler" element={<ReleaseNotes />} />
 
             {/* Hesap sayfalari - sidebar'in en altindaki hesap kartinin acilir menusunden ulasilir. */}
             <Route path="/operator/hesabim" element={<Navigate to="/operator/hesabim/sifre" replace />} />

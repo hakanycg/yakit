@@ -275,6 +275,53 @@ describe("handleLatePaymentAfterCancellation (iyzico basarili sonucu, biz zaman 
     expect(alarms[0]!.severity).toBe("critical");
     expect(alarms[0]!.message).toContain("DOGRUDAN BIR TAHSILAT");
   });
+
+  it("alarm mesajinda GERCEK tahsil edilen tutari gosterir, iptalin sifirladigi total_amount'u degil", async () => {
+    // Iptal total_amount'u 0'a sifirlar (bkz. "cancelling a transaction..." testleri) - bu
+    // regresyon, alarm mesajinin o sifirlanmis degeri ("0.00 TL") gostermesiydi.
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34LATE03",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    cancelPendingTransaction(transaction.id, accessToken, "test - zaman asimi simulasyonu");
+    const cancelled = db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(transaction.id)!;
+    expect(cancelled.total_amount).toBe(0);
+
+    await handleLatePaymentAfterCancellation(cancelled, "fake-payment-id");
+
+    const alarm = db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+      .get(cancelled.station_id, "late_payment_after_cancel")!;
+    // 10 L * 44.5 TL/L (fixture fiyati) = 445.00 TL
+    expect(alarm.message).toContain("445.00 TL");
+    expect(alarm.message).not.toContain("0.00 TL");
+  });
+
+  it("amountMode 'amount' icin requested_amount uzerinden dogru tutari gosterir", async () => {
+    const { pumpId } = setUpStationForTransactions();
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34LATE04",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "amount",
+      requestedAmount: 250,
+    });
+    cancelPendingTransaction(transaction.id, accessToken, "test - zaman asimi simulasyonu");
+    const cancelled = db.prepare<[number], TransactionRow>("SELECT * FROM transactions WHERE id = ?").get(transaction.id)!;
+
+    await handleLatePaymentAfterCancellation(cancelled, "fake-payment-id");
+
+    const alarm = db
+      .prepare<[number, string], AlarmRow>("SELECT * FROM alarms WHERE station_id = ? AND type = ?")
+      .get(cancelled.station_id, "late_payment_after_cancel")!;
+    expect(alarm.message).toContain("250.00 TL");
+  });
 });
 
 describe("cancelling a transaction with zero dispensed liters resets total_amount to 0", () => {

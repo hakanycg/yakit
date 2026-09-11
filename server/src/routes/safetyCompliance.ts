@@ -6,10 +6,12 @@ import { recordAudit } from "../services/auditService.js";
 import {
   SAFETY_COMPLIANCE_ITEMS,
   SafetyComplianceError,
+  getFireExtinguisherRequirement,
   getStationComplianceStatus,
   listCompliance,
   recordCompliance,
   serializeComplianceRecord,
+  setFireExtinguisherRequirement,
   type SafetyComplianceItemType,
 } from "../services/safetyComplianceService.js";
 import { buildComplianceReportCsv, buildComplianceReportData, buildComplianceReportPdf } from "../services/complianceReportService.js";
@@ -22,8 +24,42 @@ router.use(requireAuth, attachStationScope, requireStationSelected, csrfProtecti
 const ITEM_TYPES = SAFETY_COMPLIANCE_ITEMS.map((i) => i.type) as [SafetyComplianceItemType, ...SafetyComplianceItemType[]];
 
 router.get("/", (req, res) => {
-  res.json({ items: SAFETY_COMPLIANCE_ITEMS, status: getStationComplianceStatus(req.stationId!) });
+  res.json({
+    items: SAFETY_COMPLIANCE_ITEMS,
+    status: getStationComplianceStatus(req.stationId!),
+    fireExtinguisherRequirement: getFireExtinguisherRequirement(req.stationId!),
+  });
 });
+
+const fireExtinguisherRequirementSchema = z.object({
+  requiredCount: z.number().int().min(0).max(1000).nullable(),
+  locations: z.string().trim().max(500).nullable(),
+});
+
+router.patch(
+  "/fire-extinguisher-requirement",
+  requireRole("super_admin", "tenant_admin", "admin"),
+  validateBody(fireExtinguisherRequirementSchema),
+  (req, res) => {
+    const body = req.body as z.infer<typeof fireExtinguisherRequirementSchema>;
+    try {
+      const requirement = setFireExtinguisherRequirement(req.stationId!, body);
+      recordAudit({
+        user: req.user!,
+        action: "fire_extinguisher_requirement_updated",
+        entityType: "station",
+        entityId: req.stationId!,
+        details: body,
+        ip: req.ip,
+        stationId: req.stationId,
+      });
+      res.json({ fireExtinguisherRequirement: requirement });
+    } catch (err) {
+      if (err instanceof SafetyComplianceError) return void res.status(err.status).json({ error: err.message });
+      throw err;
+    }
+  }
+);
 
 /**
  * Uyum Panosu'nun (Emniyet Uyum Takvimi + pompa kalibrasyon/damga + acik alarmlar)

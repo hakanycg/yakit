@@ -88,6 +88,12 @@ function upsertBalance(stationId: number, plate: string, newBalance: number): vo
  * listelenmedigi icin mevcut deger korunur) - hesap yoksa 0 puanla olusturulur.
  * Musteri rizayi geri cekerse (consent=false) de AYNI yoldan cagrilir - acik
  * secim her iki yonde de yazilmalidir.
+ *
+ * contactEmail/contactPhone icin COALESCE kullanilir: musteri bir sonraki ziyarette
+ * yalnizca TEK kanali girerse (ör. sadece telefon, e-posta kutusunu bos birakirse),
+ * diger kanal null gecilmis olur - bu, o kanaldan RIZANIN GERI CEKILDIGI anlamina
+ * gelmez, sadece o ziyarette girilmedigi anlamina gelir. Onceden kaydedilmis kanal
+ * bu yuzden SILINMEZ, yalnizca musteri YENI bir deger girdiginde guncellenir.
  */
 export function setMarketingConsent(
   stationId: number,
@@ -102,8 +108,8 @@ export function setMarketingConsent(
      VALUES (?, ?, 0, ?, ?, ?, ?)
      ON CONFLICT(station_id, plate) DO UPDATE SET
        marketing_consent = excluded.marketing_consent,
-       contact_email = excluded.contact_email,
-       contact_phone = excluded.contact_phone,
+       contact_email = COALESCE(excluded.contact_email, loyalty_accounts.contact_email),
+       contact_phone = COALESCE(excluded.contact_phone, loyalty_accounts.contact_phone),
        updated_at = excluded.updated_at`
   ).run(stationId, normalized, consent ? 1 : 0, contactEmail, contactPhone, new Date().toISOString());
 }

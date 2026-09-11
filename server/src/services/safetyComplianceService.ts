@@ -1,5 +1,5 @@
 import { db } from "../db/index.js";
-import type { SafetyComplianceRecordRow, UserRow } from "../db/types.js";
+import type { SafetyComplianceRecordRow, StationRow, UserRow } from "../db/types.js";
 import { createAlarm } from "./alarmService.js";
 import { logger } from "../utils/logger.js";
 
@@ -72,6 +72,33 @@ export const SAFETY_COMPLIANCE_ITEMS = [
     type: "staff_safety_training",
     label: "Personel sağlık/emniyet/yangın eğitimi ve tahliye tatbikatı",
     standardClause: "TS 12820 madde 4.12.4",
+    defaultIntervalMonths: 12,
+    intervalIsFromStandard: false,
+  },
+  {
+    type: "dispenser_shutoff_valve",
+    label: "Dağıtım birimi otomatik kapama vanası testi",
+    standardClause: "TS 12820 madde 4.5.2.5",
+    defaultIntervalMonths: 12,
+    intervalIsFromStandard: true,
+  },
+  {
+    type: "remote_pump_leak_detector",
+    label: "Uzaktan pompalama sistemi kaçak dedektörü testi (varsa)",
+    standardClause: "TS 12820 madde 4.5.2.6",
+    defaultIntervalMonths: 12,
+    intervalIsFromStandard: true,
+  },
+  // Kendin-al (personelsiz) istasyonlarda yetkili merci tarafindan istenebilecek
+  // OPSIYONEL bir ek onlem - Faz 2 gecisine (bkz. #86) bagli, aktif olarak zorunlu
+  // degil, ama kurulmus bir sistem varsa periyodik testi ayni takvimde takip edilsin
+  // diye simdiden eklenir. Sinyal okuma tarafi zaten mevcut SafetySensorDriver'la
+  // (bkz. safetySensorDriver.ts, #89) ayni protokolsuz kuru-kontak deseniyle
+  // karsilanabilir - ayri bir surucu arayuzu GEREKMEZ.
+  {
+    type: "fixed_fire_suppression",
+    label: "Sabit yangın söndürme/otomatik algılama sistemi testi (varsa)",
+    standardClause: "TS 12820 madde 4.9.4.8",
     defaultIntervalMonths: 12,
     intervalIsFromStandard: false,
   },
@@ -265,4 +292,42 @@ export function serializeComplianceRecord(r: SafetyComplianceRecordRow) {
     note: r.note,
     createdAt: r.created_at,
   };
+}
+
+export interface FireExtinguisherRequirement {
+  requiredCount: number | null;
+  locations: string | null;
+}
+
+/**
+ * TS 12820 madde 4.12: bu istasyonda bulunmasi gereken yangin sondurucu sayisi/konumlari.
+ * "fire_extinguisher" kalemindeki kayitlardan AYRI tutulur - o kayitlar yalnizca kontrol
+ * TARIHINI izler, bu ise istasyonun kendi yangin emniyet planina gore SABIT bir gerekliliktir
+ * (yeni bir kontrol kaydi girildiginde degismez, yalnizca admin elle guncelledikce degisir).
+ */
+export function getFireExtinguisherRequirement(stationId: number): FireExtinguisherRequirement {
+  const row = db
+    .prepare<[number], Pick<StationRow, "fire_extinguisher_required_count" | "fire_extinguisher_locations">>(
+      "SELECT fire_extinguisher_required_count, fire_extinguisher_locations FROM stations WHERE id = ?"
+    )
+    .get(stationId);
+  return {
+    requiredCount: row?.fire_extinguisher_required_count ?? null,
+    locations: row?.fire_extinguisher_locations ?? null,
+  };
+}
+
+export function setFireExtinguisherRequirement(
+  stationId: number,
+  input: { requiredCount: number | null; locations: string | null }
+): FireExtinguisherRequirement {
+  if (input.requiredCount !== null && (!Number.isInteger(input.requiredCount) || input.requiredCount < 0)) {
+    throw new SafetyComplianceError("Sondurucu sayisi negatif olmayan bir tam sayi olmalidir.", 400);
+  }
+  db.prepare("UPDATE stations SET fire_extinguisher_required_count = ?, fire_extinguisher_locations = ? WHERE id = ?").run(
+    input.requiredCount,
+    input.locations,
+    stationId
+  );
+  return getFireExtinguisherRequirement(stationId);
 }

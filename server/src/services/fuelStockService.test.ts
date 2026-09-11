@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/index.js";
 import { createTestStation, createTestUser } from "../test/dbFixture.js";
+import { listAlarms } from "./alarmService.js";
 import type { StationRow, UserRow } from "../db/types.js";
 import {
   DuplicateDeliveryRefError,
@@ -11,6 +12,7 @@ import {
   getTotalFuelCost,
   listMovementsPaged,
   listTanks,
+  tankStatus,
 } from "./fuelStockService.js";
 
 describe("fuelStockService", () => {
@@ -86,6 +88,70 @@ describe("fuelStockService", () => {
 
   it("rejects a negative adjustment target", () => {
     expect(() => adjustStock(station.id, "benzin", -1, "Gecersiz", actor)).toThrow();
+  });
+
+  describe("tank tasma (overfill) alarmi - TS 12820 madde 4.2", () => {
+    // benzin tank kapasitesi fixture'da 10000 L.
+    it("%90 doluluga ulasinca uyari, %95'e ulasinca kritik alarm uretir", () => {
+      addStock(station.id, "benzin", 8999, { supplier: "A" }, actor);
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(0);
+
+      addStock(station.id, "benzin", 1, { supplier: "A" }, actor); // 9000 L = %90
+      const warning = listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin");
+      expect(warning).toHaveLength(1);
+      expect(warning[0]!.severity).toBe("warning");
+
+      addStock(station.id, "benzin", 500, { supplier: "A" }, actor); // 9500 L = %95
+      const critical = listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin");
+      expect(critical).toHaveLength(1);
+      expect(critical[0]!.severity).toBe("critical");
+    });
+
+    it("seviye %90'in altina dusunce alarmi cozer", () => {
+      addStock(station.id, "benzin", 9200, { supplier: "A" }, actor);
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(1);
+
+      deductAvailable(station.id, "benzin", 1000); // 8200 L = %82
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(0);
+    });
+
+    it("seviye kritikten uyari bandina dusunce alarm onemi de geri duser", () => {
+      addStock(station.id, "benzin", 9600, { supplier: "A" }, actor); // %96 = kritik
+      const critical = listAlarms(station.id, "active").find((a) => a.type === "overfill_benzin")!;
+      expect(critical.severity).toBe("critical");
+
+      deductAvailable(station.id, "benzin", 700); // 8900 L = %89 -> hala uyari bandinin ALTINDA, tam cozulmeli
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(0);
+    });
+
+    it("seviye kritikten sadece uyari bandina (90-95 arasi) dusunce alarm warning'e geri duser, kapanmaz", () => {
+      addStock(station.id, "benzin", 9600, { supplier: "A" }, actor); // %96 = kritik
+      const critical = listAlarms(station.id, "active").find((a) => a.type === "overfill_benzin")!;
+      expect(critical.severity).toBe("critical");
+      expect(critical.message).toContain("TASMA sinirinda");
+
+      deductAvailable(station.id, "benzin", 300); // 9300 L = %93 - hala uyari bandinda
+      const alarms = listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin");
+      expect(alarms).toHaveLength(1);
+      expect(alarms[0]!.severity).toBe("warning");
+      expect(alarms[0]!.message).not.toContain("TASMA sinirinda");
+    });
+
+    it("adjustStock ile de tasma alarmi tetiklenir/cozulur", () => {
+      adjustStock(station.id, "benzin", 9600, "Fiziksel olcum", actor);
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(1);
+
+      adjustStock(station.id, "benzin", 5000, "Duzeltme", actor);
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(0);
+    });
+
+    it("tankStatus %90 ve %95 esiklerinde high/overfill doner", () => {
+      const highTank = adjustStock(station.id, "benzin", 9000, "test", actor);
+      expect(tankStatus(highTank)).toBe("high");
+
+      const overfillTank = adjustStock(station.id, "benzin", 9500, "test", actor);
+      expect(tankStatus(overfillTank)).toBe("overfill");
+    });
   });
 
   it("listTanks returns all three fuel types for a station", () => {

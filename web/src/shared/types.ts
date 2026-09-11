@@ -114,7 +114,7 @@ export interface FuelPrice {
   inStock?: boolean;
 }
 
-export type TankStatus = "ok" | "low" | "critical";
+export type TankStatus = "ok" | "low" | "critical" | "high" | "overfill";
 
 export interface FuelTank {
   fuelType: FuelType;

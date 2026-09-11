@@ -430,6 +430,21 @@ export function getTransactionForIyzicoCallback(id: number, token: string): Tran
  * modunda), degilse (dogrudan tahsilat) personelin manuel iade yapmasi icin KRITIK bir alarm
  * dusurur - hicbir sekilde sessizce kaybolmaz.
  */
+/**
+ * Iptal SIRASINDA total_amount kasitli olarak 0'a sifirlanir (bkz. cancelPendingTransaction/
+ * reconcileStaleCreatedTransactions) - "odeme alinmadi, dagitim da olmadi" varsayimiyla o an
+ * dogrudur. handleLatePaymentAfterCancellation TAM OLARAK bu varsayimin yanlis ciktigi durumu
+ * ele alir (iyzico'da odeme GERCEKTEN basarili olmus), bu yuzden chargeAmount(t) burada hep
+ * 0 doner - musteriden GERCEKTE tahsil edilen tutari bulmak icin, iptalin sifirlamadigi
+ * alanlardan (requested_amount/requested_liters, discount_amount) islem OLUSTURULDUGUNDAKI
+ * tahmini tutar createTransaction'daki estimatedTotal ile AYNI formulle yeniden hesaplanir.
+ * (full_tank modu icin anlamli degildir - o dal zaten ayri, on-provizyon otomatik iptaliyle ele alinir.)
+ */
+function estimatedChargeBeforeCancellation(t: TransactionRow): number {
+  const estimatedTotal = t.amount_mode === "amount" ? (t.requested_amount ?? 0) : (t.requested_liters ?? 0) * t.price_per_liter;
+  return Math.max(0, Math.round((estimatedTotal - t.discount_amount) * 100) / 100);
+}
+
 export async function handleLatePaymentAfterCancellation(t: TransactionRow, paymentId: string | null): Promise<void> {
   const isPreAuth = t.amount_mode === "full_tank";
   let autoReversed = false;
@@ -444,7 +459,7 @@ export async function handleLatePaymentAfterCancellation(t: TransactionRow, paym
     }
   }
 
-  const amountText = `${chargeAmount(t).toFixed(2)} TL`;
+  const amountText = `${estimatedChargeBeforeCancellation(t).toFixed(2)} TL`;
   const message = isPreAuth
     ? autoReversed
       ? `Islem #${t.id} (Plaka ${t.plate}) zaman asimiyla iptal edildikten SONRA odeme iyzico'da basarili oldu - on-provizyon otomatik iptal edildi, musteriden para cekilmedi.`

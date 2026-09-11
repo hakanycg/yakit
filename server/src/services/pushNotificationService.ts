@@ -16,6 +16,16 @@ export function isPushNotificationEnabled(): boolean {
 }
 
 export function registerDeviceToken(userId: number, token: string, platform: string): void {
+  // Ayni token FARKLI bir kullaniciya devrediliyorsa (kasitli senaryo: paylasilan
+  // cihazda hesap degisimi, bkz. schema.sql yorumu) - ama bu ayni zamanda cihaz
+  // fiilen degismeden token'in baska bir yoldan ele gecirilip baska bir hesaba
+  // baglanmasiyla da olusabilir. Sunucu bu ikisini ayirt edemez (FCM SDK dogrulamasi
+  // istemci tarafinda) - en azindan IZLENEBILIR olsun diye loglanir.
+  const existing = db.prepare<[string], { user_id: number }>("SELECT user_id FROM device_push_tokens WHERE token = ?").get(token);
+  if (existing && existing.user_id !== userId) {
+    logger.warn({ previousUserId: existing.user_id, newUserId: userId }, "Push token baska bir kullaniciya devredildi.");
+  }
+
   db.prepare(
     `INSERT INTO device_push_tokens (user_id, token, platform) VALUES (?, ?, ?)
      ON CONFLICT(token) DO UPDATE SET user_id = excluded.user_id, platform = excluded.platform`

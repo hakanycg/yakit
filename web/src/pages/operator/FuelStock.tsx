@@ -15,8 +15,8 @@ import type {
   SupplierSummaryRow,
 } from "../../shared/types";
 
-const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Düşük", critical: "Kritik" };
-const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical" };
+const STATUS_LABEL: Record<string, string> = { ok: "Normal", low: "Düşük", critical: "Kritik", high: "Yüksek", overfill: "Taşma Riski" };
+const STATUS_BADGE: Record<string, string> = { ok: "resolved", low: "warning", critical: "critical", high: "warning", overfill: "critical" };
 const MOVEMENT_TYPE_LABEL: Record<string, string> = { delivery: "Teslimat", sale: "Satış", adjustment: "Düzeltme" };
 const MOVEMENT_PAGE_SIZE = 25;
 
@@ -316,6 +316,8 @@ function TankCard({ tank, deliveringOrder, onChanged }: { tank: FuelTank; delive
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const criticalZoneHeight = tank.capacityLiters > 0 ? (tank.lowStockThresholdLiters / tank.capacityLiters) * 100 : 0;
+  // Backend'deki OVERFILL_WARN_PCT (0.9) ile ayni sabit - TS 12820 madde 4.2 tasma emniyeti.
+  const overfillZoneHeight = 10;
 
   return (
     <div className="card tank-card">
@@ -334,6 +336,7 @@ function TankCard({ tank, deliveringOrder, onChanged }: { tank: FuelTank; delive
       <div className="tank-body">
         <div className="tank-gauge">
           <div className="tank-gauge-critical-zone" style={{ height: `${criticalZoneHeight}%` }} />
+          <div className="tank-gauge-overfill-zone" style={{ height: `${overfillZoneHeight}%` }} />
           <div className="tank-gauge-mark" style={{ bottom: "25%" }} />
           <div className="tank-gauge-mark" style={{ bottom: "50%" }} />
           <div className="tank-gauge-mark" style={{ bottom: "75%" }} />

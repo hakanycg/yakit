@@ -315,6 +315,9 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     db.prepare("DELETE FROM station_sync_events WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM station_sync_state WHERE station_id = ?").run(id);
     db.prepare("DELETE FROM station_kiosks WHERE station_id = ?").run(id);
+    // marketing_campaigns.station_id NOT NULL REFERENCES stations(id) - asagidaki
+    // DELETE FROM stations bundan once bu satirlar temizlenmezse FK ihlaliyle patlar.
+    db.prepare("DELETE FROM marketing_campaigns WHERE station_id = ?").run(id);
 
     // Istasyona bagli kullanici hesaplarini da kalici olarak sil (islem kaydi
     // olmadigi icin bu hesaplarin baska bir istasyona tasinmasi anlamsiz).
@@ -322,6 +325,10 @@ router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => 
     if (stationUsers.length > 0) {
       const userIds = stationUsers.map((u) => u.id);
       const placeholders = userIds.map(() => "?").join(",");
+      // device_push_tokens.user_id NOT NULL REFERENCES users(id) - asagidaki DELETE FROM
+      // users'tan once temizlenmezse, kullanici mobil push icin cihaz kaydetmisse FK
+      // ihlaliyle patlar (bkz. gorev #228).
+      db.prepare(`DELETE FROM device_push_tokens WHERE user_id IN (${placeholders})`).run(...userIds);
       db.prepare(`UPDATE audit_log SET user_id = NULL WHERE user_id IN (${placeholders})`).run(...userIds);
       db.prepare(`DELETE FROM users WHERE id IN (${placeholders})`).run(...userIds);
     }
