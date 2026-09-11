@@ -1,5 +1,7 @@
 import { db } from "../db/index.js";
 import type { ReleaseNoteRow, UserRow } from "../db/types.js";
+import { sendPushToUser } from "./pushNotificationService.js";
+import { enqueueWrite, registerWriteQueueHandler } from "./writeQueueService.js";
 
 /**
  * "Yenilikler" duyurulari - super_admin, platforma bir guncelleme yayina alindiginda
@@ -36,8 +38,23 @@ export function createReleaseNote(input: CreateReleaseNoteInput, actor: UserRow)
   const result = db
     .prepare("INSERT INTO release_notes (title, body, version, created_by) VALUES (?, ?, ?, ?)")
     .run(title, body, version, actor.id);
-  return db.prepare<[number], ReleaseNoteRow>("SELECT * FROM release_notes WHERE id = ?").get(result.lastInsertRowid as number)!;
+  const note = db.prepare<[number], ReleaseNoteRow>("SELECT * FROM release_notes WHERE id = ?").get(result.lastInsertRowid as number)!;
+
+  // Uygulamayi hic acmadan da haberi olsun diye ayrica mobil push (bkz. asagidaki
+  // write-queue handler'i) - istek BEKLEMEZ, kuyruk kaydi hemen (senkron) yazilir,
+  // fiili gonderim arka planda olur (alarmService.ts'teki kritik alarm push'uyla AYNI
+  // dayaniklilik ilkesi). "Yenilikler" TUM platforma ait oldugundan (bkz. dosya basi
+  // yorumu) alici tek bir istasyona degil, notify_push acik TUM aktif kullanicilaradir.
+  enqueueWrite("release_note_push", { title: note.title, body: note.body });
+
+  return note;
 }
+
+registerWriteQueueHandler("release_note_push", async (payload) => {
+  const { title, body } = payload as { title: string; body: string };
+  const recipients = db.prepare<[], { id: number }>("SELECT id FROM users WHERE active = 1 AND notify_push = 1").all();
+  await Promise.all(recipients.map((u) => sendPushToUser(u.id, `Yenilikler: ${title}`, body)));
+});
 
 export function listReleaseNotes(limit = 50): ReleaseNoteRow[] {
   return db.prepare<[number], ReleaseNoteRow>("SELECT * FROM release_notes ORDER BY id DESC LIMIT ?").all(limit);
