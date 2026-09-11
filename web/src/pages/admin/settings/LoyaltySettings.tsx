@@ -10,6 +10,8 @@ interface LoyaltyConfig {
   pointValueTry: number;
   tierSilverThreshold: number;
   tierGoldThreshold: number;
+  pointExpiryEnabled: boolean;
+  pointExpiryMonths: number;
 }
 
 export default function LoyaltySettings() {
@@ -19,6 +21,7 @@ export default function LoyaltySettings() {
   const [pointValueTry, setPointValueTry] = useState("");
   const [tierSilverThreshold, setTierSilverThreshold] = useState("");
   const [tierGoldThreshold, setTierGoldThreshold] = useState("");
+  const [pointExpiryMonths, setPointExpiryMonths] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -34,6 +37,7 @@ export default function LoyaltySettings() {
       setPointValueTry(String(res.config.pointValueTry));
       setTierSilverThreshold(String(res.config.tierSilverThreshold));
       setTierGoldThreshold(String(res.config.tierGoldThreshold));
+      setPointExpiryMonths(String(res.config.pointExpiryMonths));
     });
     api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => {
       if (res.fuelPrices.length === 0) return;
@@ -62,6 +66,9 @@ export default function LoyaltySettings() {
     parsedSilverThreshold >= 0 &&
     Number.isFinite(parsedGoldThreshold) &&
     parsedGoldThreshold > parsedSilverThreshold;
+
+  const parsedPointExpiryMonths = Number(pointExpiryMonths);
+  const validPointExpiryMonths = Number.isInteger(parsedPointExpiryMonths) && parsedPointExpiryMonths >= 1 && parsedPointExpiryMonths <= 120;
 
   async function update(patch: Partial<LoyaltyConfig>) {
     setSaving(true);
@@ -152,6 +159,33 @@ export default function LoyaltySettings() {
         </div>
         {!validTierThresholds && <p className="error-text">Altın eşiği, gümüş eşiğinden büyük olmalıdır.</p>}
 
+        <div className="card-head" style={{ marginTop: "1.5rem" }}>
+          <h4>Puan Geçerlilik Süresi</h4>
+          <StatusToggle
+            checked={config.pointExpiryEnabled}
+            disabled={saving}
+            onChange={() => update({ pointExpiryEnabled: !config.pointExpiryEnabled })}
+          />
+        </div>
+        <p className="hint-text card-desc">
+          Aktif olduğunda, belirtilen süre boyunca hiç hareket görmeyen hesapların puan BAKİYESİ sıfırlanır (yaşam
+          boyu kazanılan puan ve kademe etkilenmez). Bir dolum/kullanım hareketi süreyi sıfırdan başlatır.
+        </p>
+        <div className="field-grid">
+          <div>
+            <label>Geçerlilik süresi (ay)</label>
+            <input
+              type="number"
+              min={1}
+              max={120}
+              step={1}
+              value={pointExpiryMonths}
+              onChange={(e) => setPointExpiryMonths(e.target.value)}
+            />
+          </div>
+        </div>
+        {!validPointExpiryMonths && <p className="error-text">Süre 1 ile 120 ay arasında bir tam sayı olmalıdır.</p>}
+
         {error && <p className="error-text">{error}</p>}
         {savedMsg && <p className="success-text">{savedMsg}</p>}
 
@@ -159,13 +193,14 @@ export default function LoyaltySettings() {
           <div className="spacer" />
           <button
             className="primary"
-            disabled={saving || !validNumbers || !validTierThresholds}
+            disabled={saving || !validNumbers || !validTierThresholds || !validPointExpiryMonths}
             onClick={() =>
               update({
                 pointsPerLiter: Number(pointsPerLiter),
                 pointValueTry: Number(pointValueTry),
                 tierSilverThreshold: Number(tierSilverThreshold),
                 tierGoldThreshold: Number(tierGoldThreshold),
+                pointExpiryMonths: Number(pointExpiryMonths),
               })
             }
           >

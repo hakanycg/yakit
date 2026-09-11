@@ -644,7 +644,7 @@ CREATE TABLE IF NOT EXISTS loyalty_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),
   plate TEXT NOT NULL,
-  type TEXT NOT NULL,                  -- earn | redeem | refund | adjustment
+  type TEXT NOT NULL,                  -- earn | redeem | refund | adjustment | expire
   points REAL NOT NULL,                -- pozitif: bakiyeye eklenir, negatif: bakiyeden dusulur
   balance_after REAL NOT NULL,
   transaction_id INTEGER REFERENCES transactions(id),

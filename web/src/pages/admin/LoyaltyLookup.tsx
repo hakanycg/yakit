@@ -25,8 +25,20 @@ interface LoyaltyMovement {
   createdAt: string;
 }
 
-const MOVEMENT_TYPE_LABEL: Record<string, string> = { earn: "Kazanım", redeem: "Kullanım", refund: "İade", adjustment: "Manuel Düzeltme" };
-const MOVEMENT_TYPE_BADGE: Record<string, string> = { earn: "resolved", redeem: "warning", refund: "info", adjustment: "acknowledged" };
+const MOVEMENT_TYPE_LABEL: Record<string, string> = {
+  earn: "Kazanım",
+  redeem: "Kullanım",
+  refund: "İade",
+  adjustment: "Manuel Düzeltme",
+  expire: "Süre Doldu",
+};
+const MOVEMENT_TYPE_BADGE: Record<string, string> = {
+  earn: "resolved",
+  redeem: "warning",
+  refund: "info",
+  adjustment: "acknowledged",
+  expire: "critical",
+};
 
 export default function LoyaltyLookup() {
   const stationId = useEffectiveStationId();

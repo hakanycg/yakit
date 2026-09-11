@@ -203,7 +203,7 @@ export interface LoyaltyMovementRow {
   id: number;
   station_id: number;
   plate: string;
-  type: "earn" | "redeem" | "refund" | "adjustment";
+  type: "earn" | "redeem" | "refund" | "adjustment" | "expire";
   points: number;
   balance_after: number;
   transaction_id: number | null;
