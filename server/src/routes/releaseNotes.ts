@@ -38,6 +38,7 @@ router.post("/mark-seen", csrfProtection, (req, res) => {
 const createSchema = z.object({
   title: z.string().trim().min(1).max(200),
   body: z.string().trim().min(1).max(5000),
+  version: z.string().trim().max(50).optional(),
 });
 
 router.post("/", requireRole("super_admin"), csrfProtection, validateBody(createSchema), (req, res) => {

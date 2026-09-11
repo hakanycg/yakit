@@ -75,6 +75,7 @@ export interface ReleaseNoteRow {
   id: number;
   title: string;
   body: string;
+  version: string | null;
   created_by: number | null;
   created_at: string;
 }

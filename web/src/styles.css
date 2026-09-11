@@ -828,17 +828,34 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 
 .card-divider { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
 
-/* "Yenilikler" duyuru basligi (bkz. ReleaseNotesModal.tsx - girisken acilan
-   pencere - ve pages/operator/ReleaseNotes.tsx - kalici liste sayfasi) - baslik
-   solda, tarih (+ super_admin icin Sil butonu) sag ust kosede durur. Bu HER
-   genislikte (telefon dahil) boyle kalir: baslik min-width:0 ile gerektiginde
-   birden fazla satira sarar, tarih/buton grubu ise sabit genislikte sag ust
-   kosede sabit kalir - satiri asagi itip "alt alta" yigilma olmaz. */
-.release-note-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem 1rem; }
-.release-note-head h3, .release-note-head h4 { margin: 0; min-width: 0; flex: 1 1 auto; }
-.release-note-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; flex-shrink: 0; }
+/* "Yenilikler" duyuru karti (bkz. ReleaseNotesModal.tsx - girisken acilan pencere
+   - ve pages/operator/ReleaseNotes.tsx - kalici liste sayfasi). Tarih (+ super_admin
+   icin Sil butonu) SAG USTE FLOAT edilir - flex/grid ile yapilsaydi, satirin
+   yuksekligi bu grubun (genelde basliktan UZUN) yuksekligine esitlenir, kisa bir
+   baslikta metin bu uzun grubun ALTINA dusene kadar bosluk kalirdi. Float'ta
+   boyle bir "satir yuksekligi" yok - hem baslik (h3/h4) hem metin (.release-note-body)
+   AYNI akista, float'in etrafinda kendi satirlarinda sarar; boylece metin dogrudan
+   basligin bittigi yerden baslar, float'in kendi yuksekligi ne olursa olsun. Kart
+   (.release-note-item) overflow:hidden ile kendi float'ini icine alir, aksi halde
+   kartin alt kenari float bitmeden cizilip Sil butonunu disarida birakabilirdi. */
+.release-note-item { overflow: hidden; }
+.release-note-meta { float: right; margin-left: 1rem; margin-bottom: 0.4rem; display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; }
+.release-note-title { margin: 0; }
 .release-note-date { margin: 0; white-space: nowrap; }
 .release-note-body { white-space: pre-wrap; margin: 0.6rem 0 0; }
+.release-note-version {
+  display: inline-block;
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  vertical-align: middle;
+  white-space: nowrap;
+}
 
 /* Uzun aciklama metni. Kart tam genislige yayilinca satirlar 150+ karakter olur ve
    goz satir basini kaybeder; okunabilir olcu 65-75 karakterdir. Kart icindeki duz

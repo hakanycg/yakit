@@ -196,6 +196,7 @@ export function applyMigrations(): void {
 
   // "Yenilikler" duyurulari (bkz. release_notes, releaseNoteService.ts).
   ensureColumn("users", "last_seen_release_note_id", "INTEGER");
+  ensureColumn("release_notes", "version", "TEXT");
 
   backfillNormalizedPlates();
 }
