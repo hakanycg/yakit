@@ -211,6 +211,12 @@ export function applyMigrations(): void {
   // kademe kaybetmemeli) - bu yuzden yalnizca KAZANILAN (hic azalmayan) ayri bir sayac.
   ensureColumn("loyalty_accounts", "lifetime_points", "REAL NOT NULL DEFAULT 0");
 
+  // Filo hesabina bagli sabit anlasma indirimi (bkz. fleetService.computeFleetDiscount) -
+  // discount_codes ile AYNI percent/fixed deseni, ama musteri kod girmez: anlasma
+  // hesaba bagliysa filo odemesinde otomatik uygulanir.
+  ensureColumn("fleet_accounts", "discount_type", "TEXT");
+  ensureColumn("fleet_accounts", "discount_value", "REAL");
+
   backfillNormalizedPlates();
 }
 

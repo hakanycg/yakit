@@ -135,6 +135,45 @@ export function updateContact(stationId: number, id: number, input: UpdateFleetC
   return getAccountById(stationId, id);
 }
 
+export interface DiscountAgreement {
+  discountType: "percent" | "fixed" | null;
+  discountValue: number | null;
+}
+
+/**
+ * Filo hesabina bagli sabit anlasma indirimi - kurumsal musterilerle yapilan (ör.
+ * "litre basina 0.50 TL indirim" veya "%3 indirim") ticari anlasmayi kayit altina
+ * alir. discount_codes'taki percent/fixed deseniyle AYNI, ama musteri kod GIRMEZ:
+ * plaka filo hesabina bagliysa ve filo ile odeme yapiliyorsa otomatik uygulanir
+ * (bkz. transactionService.payWithFleetAccount, computeFleetDiscount).
+ */
+export function setDiscountAgreement(stationId: number, id: number, agreement: DiscountAgreement): FleetAccountRow {
+  getAccountById(stationId, id);
+  if (agreement.discountType !== null && (agreement.discountValue === null || agreement.discountValue <= 0)) {
+    throw new FleetError("Indirim tipi secildiyse gecerli bir tutar/oran girilmelidir.", 400);
+  }
+  if (agreement.discountType === "percent" && agreement.discountValue !== null && agreement.discountValue > 100) {
+    throw new FleetError("Yuzde indirim 100'den buyuk olamaz.", 400);
+  }
+  db.prepare("UPDATE fleet_accounts SET discount_type = ?, discount_value = ? WHERE id = ?").run(
+    agreement.discountType,
+    agreement.discountType === null ? null : agreement.discountValue,
+    id
+  );
+  return getAccountById(stationId, id);
+}
+
+/**
+ * Anlasma indirimini TL tutarina cevirir - discountService.validateCode'daki AYNI
+ * percent/fixed hesabi (bkz. o dosyanin basindaki yorum), farkli kaynak: kod yerine
+ * hesaba bagli sabit anlasma. totalAmount'i asamaz (Math.min ile sinirlanir).
+ */
+export function computeFleetDiscount(account: FleetAccountRow, totalAmount: number): number {
+  if (!account.discount_type || !account.discount_value || totalAmount <= 0) return 0;
+  const raw = account.discount_type === "percent" ? (totalAmount * account.discount_value) / 100 : account.discount_value;
+  return Math.round(Math.min(raw, totalAmount) * 100) / 100;
+}
+
 export function setAccountActive(stationId: number, id: number, active: boolean): FleetAccountRow {
   const result = db.prepare("UPDATE fleet_accounts SET active = ? WHERE id = ? AND station_id = ?").run(active ? 1 : 0, id, stationId);
   if (result.changes === 0) throw new FleetError("Filo hesabi bulunamadi.", 404);
@@ -355,6 +394,8 @@ export function serializeAccountAdmin(a: FleetAccountRow) {
     lowBalanceThreshold: a.low_balance_threshold,
     paymentTermDays: a.payment_term_days,
     overdueBlockDays: a.overdue_block_days,
+    discountType: a.discount_type,
+    discountValue: a.discount_value,
   };
 }
 

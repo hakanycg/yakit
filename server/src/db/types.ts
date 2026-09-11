@@ -356,6 +356,9 @@ export interface FleetAccountRow {
   overdue_block_days: number | null;
   created_at: string;
   created_by: number | null;
+  /** Anlasma indirimi (bkz. fleetService.computeFleetDiscount) - discount_codes ile ayni percent/fixed deseni. */
+  discount_type: "percent" | "fixed" | null;
+  discount_value: number | null;
 }
 
 export interface FleetPlateRow {

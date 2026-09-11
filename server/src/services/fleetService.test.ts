@@ -6,11 +6,13 @@ import {
   FleetError,
   addPlate,
   chargeAccount,
+  computeFleetDiscount,
   createAccount,
   getAccountForPlate,
   getAvailableAmount,
   getExpectedFuelTypeForPlate,
   getLastOdometerForPlate,
+  setDiscountAgreement,
   topUp,
   updateContact,
 } from "./fleetService.js";
@@ -199,6 +201,61 @@ describe("fleetService - last odometer for plate", () => {
     insertCompletedTransaction(otherStation.id, pumpId, "34ODO004", 30000, "2025-01-01T10:00:00.000Z");
 
     expect(getLastOdometerForPlate(station.id, "34ODO004")).toBeNull();
+  });
+});
+
+describe("fleetService - anlasma indirimi (computeFleetDiscount/setDiscountAgreement)", () => {
+  it("yuzde indirimi dogru hesaplar", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Yuzde Filo", billingType: "prepaid" }, admin);
+    const updated = setDiscountAgreement(station.id, account.id, { discountType: "percent", discountValue: 10 });
+
+    expect(computeFleetDiscount(updated, 1000)).toBe(100);
+  });
+
+  it("sabit TL indirimi totalAmount'i asamaz", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Sabit Filo", billingType: "prepaid" }, admin);
+    const updated = setDiscountAgreement(station.id, account.id, { discountType: "fixed", discountValue: 500 });
+
+    expect(computeFleetDiscount(updated, 300)).toBe(300);
+    expect(computeFleetDiscount(updated, 1000)).toBe(500);
+  });
+
+  it("anlasma tanimli degilse indirim sifirdir", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Anlasmasiz Filo", billingType: "prepaid" }, admin);
+
+    expect(computeFleetDiscount(account, 1000)).toBe(0);
+  });
+
+  it("gecersiz yuzde (>100) reddedilir", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Hatali Filo", billingType: "prepaid" }, admin);
+
+    expect(() => setDiscountAgreement(station.id, account.id, { discountType: "percent", discountValue: 150 })).toThrow(FleetError);
+  });
+
+  it("tip secilip deger girilmezse reddedilir", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Eksik Filo", billingType: "prepaid" }, admin);
+
+    expect(() => setDiscountAgreement(station.id, account.id, { discountType: "fixed", discountValue: null })).toThrow(FleetError);
+  });
+
+  it("null gonderilerek anlasma kaldirilabilir", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Iptal Filo", billingType: "prepaid" }, admin);
+    setDiscountAgreement(station.id, account.id, { discountType: "percent", discountValue: 5 });
+    const cleared = setDiscountAgreement(station.id, account.id, { discountType: null, discountValue: null });
+
+    expect(computeFleetDiscount(cleared, 1000)).toBe(0);
   });
 });
 

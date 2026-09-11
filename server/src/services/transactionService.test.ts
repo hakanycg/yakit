@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { db } from "../db/index.js";
 import type { AlarmRow, TransactionRow } from "../db/types.js";
 import { createTestFuelPrice, createTestPump, createTestStation, createTestUser, setTankStock } from "../test/dbFixture.js";
-import { createAccount as createFleetAccount, addPlate as addFleetPlate, topUp as topUpFleetAccount } from "./fleetService.js";
+import {
+  createAccount as createFleetAccount,
+  addPlate as addFleetPlate,
+  topUp as topUpFleetAccount,
+  setDiscountAgreement as setFleetDiscountAgreement,
+} from "./fleetService.js";
 import { clearDispenserDriverRegistry, setDispenserDriver, setDispenserDriverFor, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
 import { setAutomationDriver, noopAutomationDriver, type AutomationDriver, type AutomationSaleReport } from "./automationDriver.js";
 import { setWrongFuelMode } from "./wrongFuelSettingsService.js";
@@ -484,6 +489,53 @@ describe("payWithFleetAccount", () => {
 
     const account = db.prepare("SELECT balance FROM fleet_accounts WHERE id = ?").get(fleet.id) as { balance: number };
     expect(account.balance).toBe(1000);
+  });
+
+  it("hesaba bagli sabit anlasma indirimini otomatik uygular (yuzde)", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Anlasmali Filo", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34DISC01");
+    topUpFleetAccount(station.station_id, fleet.id, 1000, undefined, staff);
+    setFleetDiscountAgreement(station.station_id, fleet.id, { discountType: "percent", discountValue: 10 });
+
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34DISC01",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    const totalBefore = transaction.total_amount;
+    const updated = payWithFleetAccount(transaction.id, accessToken, fleet.id);
+
+    expect(updated.discount_amount).toBeCloseTo(totalBefore * 0.1, 2);
+    const account = db.prepare("SELECT balance FROM fleet_accounts WHERE id = ?").get(fleet.id) as { balance: number };
+    expect(account.balance).toBeCloseTo(1000 - (totalBefore - totalBefore * 0.1), 2);
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
+  it("indirimsiz filo hesabinda discount_amount degismez", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Anlasmasiz Filo", billingType: "prepaid" }, staff);
+    addFleetPlate(station.station_id, fleet.id, "34DISC02");
+    topUpFleetAccount(station.station_id, fleet.id, 1000, undefined, staff);
+
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34DISC02",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    const updated = payWithFleetAccount(transaction.id, accessToken, fleet.id);
+    expect(updated.discount_amount).toBe(0);
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
   });
 });
 

@@ -24,6 +24,8 @@ interface FleetAccount {
   lowBalanceThreshold: number | null;
   paymentTermDays: number | null;
   overdueBlockDays: number | null;
+  discountType: "percent" | "fixed" | null;
+  discountValue: number | null;
   createdAt: string;
   plates: FleetPlate[];
 }
@@ -489,6 +491,9 @@ function AccountDetailDialog({
   const [lowBalanceThreshold, setLowBalanceThreshold] = useState(account?.lowBalanceThreshold?.toString() ?? "");
   const [paymentTermDays, setPaymentTermDays] = useState(account?.paymentTermDays?.toString() ?? "");
   const [overdueBlockDays, setOverdueBlockDays] = useState(account?.overdueBlockDays?.toString() ?? "");
+  const [discountType, setDiscountType] = useState<"" | "percent" | "fixed">(account?.discountType ?? "");
+  const [discountValue, setDiscountValue] = useState(account?.discountValue?.toString() ?? "");
+  const [discountSaved, setDiscountSaved] = useState(false);
   const [contactSaved, setContactSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -668,6 +673,24 @@ function AccountDetailDialog({
     }
   }
 
+  async function saveDiscount() {
+    setBusy(true);
+    setError(null);
+    setDiscountSaved(false);
+    try {
+      await api.patch(`/api/fleet-accounts/${accountId}/discount`, {
+        discountType: discountType || null,
+        discountValue: discountType ? Number(discountValue) : null,
+      });
+      setDiscountSaved(true);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Anlaşma indirimi kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function submitTopUp() {
     if (!topUpAmount || Number(topUpAmount) <= 0) return;
     setBusy(true);
@@ -798,6 +821,42 @@ function AccountDetailDialog({
         {contactSaved && <span className="hint-text">Kaydedildi.</span>}
         <div className="spacer" />
         <button onClick={saveContact} disabled={busy}>İletişim Bilgilerini Kaydet</button>
+      </div>
+
+      <h4>Anlaşma İndirimi</h4>
+      <p className="hint-text">
+        Bu şirketle yapılan ticari anlaşma gereği, filo hesabından ödeme yapılan HER dolumda otomatik uygulanan
+        indirim - müşteri kod girmez. Kiosk'ta kullanılan indirim kodu/sadakat puanı varsa onun ÜZERİNE eklenir.
+      </p>
+      <div className="grid cols-2" style={{ alignItems: "start" }}>
+        <div>
+          <label>İndirim Tipi</label>
+          <select value={discountType} onChange={(e) => setDiscountType(e.target.value as "" | "percent" | "fixed")}>
+            <option value="">Yok</option>
+            <option value="percent">Yüzde (%)</option>
+            <option value="fixed">Sabit Tutar (TL)</option>
+          </select>
+        </div>
+        {discountType && (
+          <div>
+            <label>{discountType === "percent" ? "Yüzde" : "Tutar (TL)"}</label>
+            <input
+              type="number"
+              min={0}
+              max={discountType === "percent" ? 100 : undefined}
+              step={0.01}
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+            />
+          </div>
+        )}
+      </div>
+      <div className="toolbar" style={{ marginTop: "0.75rem" }}>
+        {discountSaved && <span className="hint-text">Kaydedildi.</span>}
+        <div className="spacer" />
+        <button onClick={saveDiscount} disabled={busy || (!!discountType && !discountValue)}>
+          Anlaşma İndirimini Kaydet
+        </button>
       </div>
 
       <h4>Dönem Faturası</h4>

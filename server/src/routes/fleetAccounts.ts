@@ -17,6 +17,7 @@ import {
   serializeMovement,
   serializePlate,
   setAccountActive,
+  setDiscountAgreement,
   topUp,
   updateContact,
 } from "../services/fleetService.js";
@@ -132,6 +133,33 @@ router.patch("/:id/contact", csrfProtection, validateBody(contactSchema), (req, 
     recordAudit({
       user: req.user!,
       action: "fleet_account_contact_updated",
+      entityType: "fleet_account",
+      entityId: id,
+      details: body,
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ account: serializeAccountAdmin(account) });
+  } catch (err) {
+    if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const discountAgreementSchema = z.object({
+  discountType: z.enum(["percent", "fixed"]).nullable(),
+  discountValue: z.number().positive().max(1000000).nullable(),
+});
+
+router.patch("/:id/discount", csrfProtection, validateBody(discountAgreementSchema), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) return void res.status(400).json({ error: "Gecersiz hesap kimligi." });
+  try {
+    const body = req.body as z.infer<typeof discountAgreementSchema>;
+    const account = setDiscountAgreement(req.stationId!, id, body);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_account_discount_updated",
       entityType: "fleet_account",
       entityId: id,
       details: body,

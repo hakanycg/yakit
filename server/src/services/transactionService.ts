@@ -18,6 +18,7 @@ import { validateCode, redeemCode, releaseCode } from "./discountService.js";
 import {
   FleetError,
   chargeAccount as chargeFleetAccount,
+  computeFleetDiscount,
   getAccountForPlate as getFleetAccountForPlate,
   getExpectedFuelTypeForPlate,
   refundChargeForTransaction as refundFleetChargeForTransaction,
@@ -389,8 +390,19 @@ export function payWithFleetAccount(
   const account = getFleetAccountForPlate(t.station_id, t.plate);
   if (!account || account.id !== fleetAccountId) throw new TransactionError("Bu plaka icin gecerli bir filo hesabi bulunamadi.", 403);
 
+  // Anlasma indirimi, kiosk'ta kod/puan indirimiyle AYNI alana (discount_amount) eklenir -
+  // boylece rapor/makbuz/CSV zaten bu alani okuyan her yer degisiklik gerekmeden dogru
+  // tutari gosterir. Kod+puan indirimi zaten uygulanmissa (musteri once onu girdiyse),
+  // anlasma indirimi orijinal total_amount uzerinden hesaplanip UZERINE eklenir - ikisi
+  // ayni faturada bir arada var olabilir, chargeAmount() toplamini asamaz.
+  const fleetDiscount = computeFleetDiscount(account, t.total_amount);
+  const effectiveTransaction =
+    fleetDiscount > 0
+      ? touch(id, { discount_amount: Math.round(Math.min(t.discount_amount + fleetDiscount, t.total_amount) * 100) / 100 })
+      : t;
+
   try {
-    chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(t), id);
+    chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(effectiveTransaction), id);
   } catch (err) {
     if (err instanceof FleetError) throw new TransactionError(err.message, err.status);
     throw err;
