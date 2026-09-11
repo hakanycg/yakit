@@ -24,7 +24,9 @@ import {
   listAccountsForPortalUser,
 } from "../services/fleetPortalService.js";
 import { listPlates, serializePlate } from "../services/fleetService.js";
-import { listInvoicesForAccount, serializeFleetInvoice } from "../services/fleetInvoiceService.js";
+import { FleetInvoiceError, getSentInvoiceForAccount, listInvoicesForAccount, serializeFleetInvoice } from "../services/fleetInvoiceService.js";
+import { buildFleetInvoicePdf } from "../services/fleetInvoicePdfService.js";
+import type { StationRow } from "../db/types.js";
 import { recordAudit } from "../services/auditService.js";
 import {
   TopupRequestError,
@@ -256,6 +258,33 @@ router.get("/accounts/:id/invoices", (req, res) => {
     // Saglayici hata mesaji musteriyi ilgilendirmez (ve ic ayrinti sizdirabilir).
     .map(({ errorMessage: _errorMessage, ...rest }) => rest);
   res.json({ invoices });
+});
+
+/** Tek bir donem faturasinin indirilebilir PDF gorunumu - bkz. fleetInvoicePdfService.ts. */
+router.get("/accounts/:id/invoices/:invoiceId/pdf", (req, res) => {
+  const accountId = accountIdFrom(req, req.fleetPortalUser!.id);
+  const invoiceId = Number(req.params.invoiceId);
+  if (!Number.isInteger(invoiceId) || invoiceId <= 0) throw new FleetPortalError("Fatura bulunamadi.", 404);
+
+  try {
+    const invoice = getSentInvoiceForAccount(accountId, invoiceId);
+    const account = accountForVerifiedAccess(accountId);
+    const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(invoice.station_id)!;
+
+    buildFleetInvoicePdf(invoice, account, station)
+      .then((pdf) => {
+        res.setHeader("Content-Type", "application/pdf");
+        res.setHeader("Content-Disposition", `attachment; filename="fatura-${invoice.provider_invoice_id ?? invoice.id}.pdf"`);
+        res.send(pdf);
+      })
+      .catch((err) => {
+        logger.error({ err, invoiceId, accountId }, "Filo fatura PDF'i olusturulamadi.");
+        res.status(500).json({ error: "Fatura PDF'i olusturulamadi." });
+      });
+  } catch (err) {
+    if (err instanceof FleetInvoiceError || err instanceof TopupRequestError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
 });
 
 /**

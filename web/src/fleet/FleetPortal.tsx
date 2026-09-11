@@ -516,6 +516,7 @@ function FleetDashboard({
                         <th>KDV</th>
                         <th>Toplam</th>
                         <th>Fatura no</th>
+                        <th></th>
                       </tr>
                     </thead>
                     <tbody>
@@ -545,6 +546,11 @@ function FleetDashboard({
                           </td>
                           <td className="hint-text">
                             <code>{i.providerInvoiceId ?? "—"}</code>
+                          </td>
+                          <td>
+                            <a href={`/api/fleet-portal/accounts/${accountId}/invoices/${i.id}/pdf`}>
+                              <button type="button">PDF İndir</button>
+                            </a>
                           </td>
                         </tr>
                       ))}
