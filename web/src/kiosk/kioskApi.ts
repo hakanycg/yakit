@@ -125,4 +125,7 @@ export interface FleetAccountSummary {
   availableAmount: number | null;
   active: boolean;
   createdAt: string;
+  /** Bu plakanin km girilerek tamamlanmis en son dolumundaki km okumasi - kiosk'ta
+      girilen degeri dogrulamak icin (bkz. PaymentStep.tsx FleetChoicePanel). */
+  lastOdometerKm: number | null;
 }

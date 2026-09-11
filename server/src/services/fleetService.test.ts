@@ -10,6 +10,7 @@ import {
   getAccountForPlate,
   getAvailableAmount,
   getExpectedFuelTypeForPlate,
+  getLastOdometerForPlate,
   topUp,
   updateContact,
 } from "./fleetService.js";
@@ -156,6 +157,48 @@ describe("fleetService - plate lookup", () => {
     expect(getAccountForPlate(station.id, "34 ABC 123")?.id).toBe(account.id);
     expect(getAccountForPlate(otherStation.id, "34 ABC 123")).toBeNull();
     expect(getAccountForPlate(station.id, "06 XYZ 999")).toBeNull();
+  });
+});
+
+describe("fleetService - last odometer for plate", () => {
+  function insertCompletedTransaction(stationId: number, pumpId: number, plate: string, odometerKm: number | null, completedAt: string): void {
+    db.prepare(
+      `INSERT INTO transactions
+         (station_id, pump_id, plate, fuel_type, amount_mode, price_per_liter, total_amount, dispensed_liters, status, odometer_km, kiosk_access_token, created_at, completed_at)
+       VALUES (?, ?, ?, 'benzin', 'amount', 44.5, 100, 10, 'completed', ?, ?, ?, ?)`
+    ).run(stationId, pumpId, plate, odometerKm, `tok-${plate}-${Math.random()}`, completedAt, completedAt);
+  }
+
+  it("en son km girilen tamamlanmis dolumun km degerini doner", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+    insertCompletedTransaction(station.id, pumpId, "34ODO001", 10000, "2025-01-01T10:00:00.000Z");
+    insertCompletedTransaction(station.id, pumpId, "34ODO001", 10500, "2025-01-10T10:00:00.000Z");
+
+    expect(getLastOdometerForPlate(station.id, "34ODO001")).toBe(10500);
+  });
+
+  it("km girilmeyen dolumlari yok sayar", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+    insertCompletedTransaction(station.id, pumpId, "34ODO002", 20000, "2025-01-01T10:00:00.000Z");
+    insertCompletedTransaction(station.id, pumpId, "34ODO002", null, "2025-01-10T10:00:00.000Z");
+
+    expect(getLastOdometerForPlate(station.id, "34ODO002")).toBe(20000);
+  });
+
+  it("hic km kaydi yoksa null doner", () => {
+    const station = createTestStation();
+    expect(getLastOdometerForPlate(station.id, "34ODO003")).toBeNull();
+  });
+
+  it("baska bir istasyonun ayni plakali kaydini karistirmaz", () => {
+    const station = createTestStation();
+    const otherStation = createTestStation();
+    const pumpId = createTestPump(otherStation.id);
+    insertCompletedTransaction(otherStation.id, pumpId, "34ODO004", 30000, "2025-01-01T10:00:00.000Z");
+
+    expect(getLastOdometerForPlate(station.id, "34ODO004")).toBeNull();
   });
 });
 

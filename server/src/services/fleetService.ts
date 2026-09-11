@@ -57,6 +57,24 @@ export function getExpectedFuelTypeForPlate(stationId: number, plate: string): F
   return row?.expected_fuel_type ?? null;
 }
 
+/**
+ * Bu plakanin bu istasyonda km girilerek tamamlanmis en SON dolumundaki km okumasi
+ * (bkz. kiosk/steps/PaymentStep.tsx FleetChoicePanel) - soforun kiosk'a yanlislikla
+ * eksik/fazla haneli bir sayi girmesini (ör. 123456 yerine 12345) yakalamak icin.
+ * Sert bir engelleme DEGIL - bu bir UYARI: gercek bir arac degisimi/km sayaci
+ * degisimi de ayni belirtiyi verir, o yuzden odemeyi durdurmaz.
+ */
+export function getLastOdometerForPlate(stationId: number, plate: string): number | null {
+  const row = db
+    .prepare<[number, string], { odometer_km: number }>(
+      `SELECT odometer_km FROM transactions
+       WHERE station_id = ? AND plate = ? AND status = 'completed' AND odometer_km IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1`
+    )
+    .get(stationId, normalizePlate(plate));
+  return row?.odometer_km ?? null;
+}
+
 export interface CreateFleetAccountInput {
   companyName: string;
   vkn?: string;

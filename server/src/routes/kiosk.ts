@@ -27,6 +27,7 @@ import { DiscountError, validateCode } from "../services/discountService.js";
 import {
   getAccountForPlate as getFleetAccountForPlate,
   getExpectedFuelTypeForPlate,
+  getLastOdometerForPlate,
   serializeAccount as serializeFleetAccount,
 } from "../services/fleetService.js";
 import { getWrongFuelMode } from "../services/wrongFuelSettingsService.js";
@@ -362,7 +363,8 @@ router.get("/fleet-account", (req, res) => {
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   const account = getFleetAccountForPlate(parsed.data.stationId, parsed.data.plate);
-  res.json({ account: account ? serializeFleetAccount(account) : null });
+  const lastOdometerKm = account ? getLastOdometerForPlate(parsed.data.stationId, parsed.data.plate) : null;
+  res.json({ account: account ? { ...serializeFleetAccount(account), lastOdometerKm } : null });
 });
 
 const payFleetSchema = z.object({

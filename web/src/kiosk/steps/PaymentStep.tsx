@@ -164,6 +164,21 @@ function FleetChoicePanel({
   const [error, setError] = useState<string | null>(null);
   const [odometer, setOdometer] = useState("");
 
+  // Sofor km'yi elle yazarken bir haneyi eksik/fazla girebilir (123456 yerine 12345
+  // ya da 1234560) - bu, tuketim analizinin (fleetConsumptionService.ts) L/100km
+  // hesabini anlamsiz bir sayiya cevirir. UYARIDIR, engelleme DEGIL: gercek bir arac
+  // degisimi ya da km sayaci degisimi de ayni belirtiyi verir, odemeyi durdurmamali.
+  const MAX_PLAUSIBLE_KM_JUMP = 5000;
+  const odometerValue = odometer.trim() === "" ? null : Number(odometer);
+  const odometerWarning =
+    odometerValue !== null && account.lastOdometerKm !== null
+      ? odometerValue < account.lastOdometerKm
+        ? t("payment.odometerWarningLower", { last: account.lastOdometerKm })
+        : odometerValue - account.lastOdometerKm > MAX_PLAUSIBLE_KM_JUMP
+          ? t("payment.odometerWarningJump", { last: account.lastOdometerKm })
+          : null
+      : null;
+
   async function payWithFleet() {
     setSubmitting(true);
     setError(null);
@@ -218,6 +233,7 @@ function FleetChoicePanel({
           ltr
         />
         <p className="hint-text" style={{ marginBottom: 0 }}>{t("payment.odometerHint")}</p>
+        {odometerWarning && <p className="error-text" style={{ marginBottom: 0 }}>{odometerWarning}</p>}
       </div>
 
       {error && <p className="error-text">{error}</p>}
