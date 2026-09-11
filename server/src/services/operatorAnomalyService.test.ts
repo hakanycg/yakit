@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/index.js";
 import { createTestPump, createTestStation, createTestUser } from "../test/dbFixture.js";
-import type { StationRow, UserRow } from "../db/types.js";
+import type { StationRow } from "../db/types.js";
 import { getOperatorAnomalyReport } from "./operatorAnomalyService.js";
 
 let station: StationRow;
