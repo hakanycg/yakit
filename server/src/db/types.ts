@@ -67,6 +67,16 @@ export interface UserRow {
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
+  /** "Yenilikler" duyurularinda kullanicinin en son gordugu release_notes.id - NULL: hic kontrol edilmedi. */
+  last_seen_release_note_id: number | null;
+}
+
+export interface ReleaseNoteRow {
+  id: number;
+  title: string;
+  body: string;
+  created_by: number | null;
+  created_at: string;
 }
 
 export interface RoleRow {

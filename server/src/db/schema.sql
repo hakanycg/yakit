@@ -100,7 +100,11 @@ CREATE TABLE IF NOT EXISTS users (
   totp_pending_secret TEXT,            -- kurulum sirasinda uretilen, henuz dogrulanmamis sir
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
-  last_login_at TEXT
+  last_login_at TEXT,
+  -- "Yenilikler" duyurularinda (bkz. release_notes) kullanicinin en son gordugu kaydin id'si.
+  -- NULL: hic kontrol edilmedi - ilk kontrolde gecmisi gostermek yerine o ana kadarki en
+  -- son duyuruya "yakalanmis" sayilir (bkz. releaseNoteService.ts).
+  last_seen_release_note_id INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_users_station ON users(station_id);
 -- idx_users_reset_token, reset_token_hash kolonu eski veritabanlarinda applyMigrations()
@@ -1248,6 +1252,18 @@ CREATE TABLE IF NOT EXISTS marketing_campaigns (
   sent_at TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_marketing_campaigns_station ON marketing_campaigns(station_id, created_at);
+
+-- "Yenilikler" duyurulari - platforma bir guncelleme geldiginde super_admin'in yazdigi,
+-- TUM kullanicilara (istasyon/kiraci farki gozetmeksizin) gosterilen bilgilendirme
+-- metinleri (bkz. releaseNoteService.ts). Istasyona/kiraciya OZGU degildir - station_id
+-- yoktur, bilerek boyle: guncelleme zaten tum sisteme birden yayina aliniyor.
+CREATE TABLE IF NOT EXISTS release_notes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+);
 
 -- Bu semadan once olusturulmus istasyonlar icin varsayilan tank kayitlarini
 -- olusturur. Idempotent'tir (INSERT OR IGNORE + PRIMARY KEY), her baslangicta

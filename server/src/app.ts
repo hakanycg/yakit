@@ -50,6 +50,7 @@ import { safetyComplianceRouter } from "./routes/safetyCompliance.js";
 import { intercomRecordingsRouter } from "./routes/intercomRecordings.js";
 import { pushTokensRouter } from "./routes/pushTokens.js";
 import { marketingCampaignsRouter } from "./routes/marketingCampaigns.js";
+import { releaseNotesRouter } from "./routes/releaseNotes.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Uretimde web/ ayri bir Vite dev sunucusunda degil, derlenmis statik dosyalar
@@ -165,6 +166,7 @@ export function createApp() {
   app.use("/api/intercom-recordings", intercomRecordingsRouter);
   app.use("/api/push-tokens", pushTokensRouter);
   app.use("/api/marketing-campaigns", marketingCampaignsRouter);
+  app.use("/api/release-notes", releaseNotesRouter);
 
   app.use("/api", notFoundHandler);
 

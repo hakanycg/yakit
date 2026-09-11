@@ -194,6 +194,9 @@ export function applyMigrations(): void {
   ensureColumn("stations", "fire_extinguisher_required_count", "INTEGER");
   ensureColumn("stations", "fire_extinguisher_locations", "TEXT");
 
+  // "Yenilikler" duyurulari (bkz. release_notes, releaseNoteService.ts).
+  ensureColumn("users", "last_seen_release_note_id", "INTEGER");
+
   backfillNormalizedPlates();
 }
 

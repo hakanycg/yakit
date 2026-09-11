@@ -6,6 +6,7 @@ import StationSwitcher from "./StationSwitcher";
 import { useCriticalAlarmNotifications } from "./useCriticalAlarmNotifications";
 import { useMobilePush } from "./useMobilePush";
 import IncomingIntercomCall from "./IncomingIntercomCall";
+import ReleaseNotesModal from "./ReleaseNotesModal";
 import { useIdleLogout } from "./useIdleLogout";
 import { useThemePreference } from "./useThemePreference";
 import { initials } from "./format";
@@ -221,6 +222,7 @@ export default function AppLayout() {
   return (
     <div className="app-shell">
       <IncomingIntercomCall />
+      <ReleaseNotesModal enabled={!!user} />
       {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar${menuOpen ? " open" : ""}`}>
         <StationSwitcher />
@@ -255,6 +257,7 @@ export default function AppLayout() {
               arkasinda durmamali. */}
           <NavLink to="/operator/alarmlar">Alarm Merkezi</NavLink>
           <SidebarSubmenu label="Saha" pages={FIELD_PAGES} onNavigate={closeMenu} />
+          <NavLink to="/operator/yenilikler">Yenilikler</NavLink>
 
           {isStationAdmin && (
             <>
