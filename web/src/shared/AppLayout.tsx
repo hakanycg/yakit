@@ -10,7 +10,7 @@ import ReleaseNotesModal from "./ReleaseNotesModal";
 import { useIdleLogout } from "./useIdleLogout";
 import { useThemePreference } from "./useThemePreference";
 import { initials } from "./format";
-import { MenuIcon, MoonIcon, SunIcon } from "./icons";
+import { CloseIcon, MenuIcon, MoonIcon, SunIcon } from "./icons";
 
 const ROLE_LABEL: Record<string, string> = {
   super_admin: "Platform Yöneticisi",
@@ -225,6 +225,13 @@ export default function AppLayout() {
       <ReleaseNotesModal enabled={!!user} />
       {menuOpen && <div className="sidebar-overlay" onClick={() => setMenuOpen(false)} />}
       <aside className={`sidebar${menuOpen ? " open" : ""}`}>
+        {/* Mobilde menu tam ekrana yakin acildigindan (bkz. styles.css .sidebar
+            media query) altindaki sayfa sadece karartilmis bosluga dokunularak
+            kapatilabiliyordu - gorunur bir "kapat" isareti olmadigi icin bazi
+            kullanicilar menuyu nasil kapatacagini bulamiyordu. */}
+        <button type="button" className="sidebar-close-btn icon-btn" onClick={closeMenu} aria-label="Menüyü kapat">
+          <CloseIcon />
+        </button>
         <StationSwitcher />
         <nav onClick={() => setMenuOpen(false)}>
           {isSuperAdmin && (

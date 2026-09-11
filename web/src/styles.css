@@ -339,6 +339,7 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
 
 .menu-toggle { display: none; }
 .sidebar-overlay { display: none; }
+.sidebar-close-btn { display: none; }
 
 @media (max-width: 860px) {
   .app-shell { position: relative; }
@@ -351,6 +352,11 @@ label { display: block; margin: 0.75rem 0 0.3rem; font-size: var(--fs-sm); color
     box-shadow: 8px 0 24px rgba(0, 0, 0, 0.45);
   }
   .sidebar.open { transform: translateX(0); }
+  /* Karartilmis alana dokunarak kapatma gizli bir davranis - gorunur bir X
+     olmadan bazi kullanicilar menuyu kapatip sayfaya donmenin yolunu bulamiyor. */
+  .sidebar-close-btn {
+    display: inline-flex; position: absolute; top: 0.85rem; right: 0.85rem; z-index: 1;
+  }
   .sidebar-overlay {
     display: block; position: fixed; inset: 0; z-index: 35;
     background: rgba(0, 0, 0, 0.55);
