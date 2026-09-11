@@ -198,6 +198,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Sesli yönlendirmeyi aç",
     "voice.toggleOffLabel": "Sesli yönlendirmeyi kapat",
+    "a11y.toggleOnLabel": "Büyük yazı / yüksek kontrast modunu aç",
+    "a11y.toggleOffLabel": "Büyük yazı / yüksek kontrast modunu kapat",
     "voice.enabledAnnouncement": "Sesli yönlendirme açıldı.",
     "voice.paymentStep": "Ödeme ekranı.",
     "voice.dispenseStep": "Dolum yapılıyor, lütfen bekleyin.",
@@ -439,6 +441,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Turn on voice guidance",
     "voice.toggleOffLabel": "Turn off voice guidance",
+    "a11y.toggleOnLabel": "Turn on large text / high contrast mode",
+    "a11y.toggleOffLabel": "Turn off large text / high contrast mode",
     "voice.enabledAnnouncement": "Voice guidance enabled.",
     "voice.paymentStep": "Payment screen.",
     "voice.dispenseStep": "Dispensing fuel, please wait.",
@@ -680,6 +684,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Включить голосовое сопровождение",
     "voice.toggleOffLabel": "Выключить голосовое сопровождение",
+    "a11y.toggleOnLabel": "Включить крупный текст / высокий контраст",
+    "a11y.toggleOffLabel": "Выключить крупный текст / высокий контраст",
     "voice.enabledAnnouncement": "Голосовое сопровождение включено.",
     "voice.paymentStep": "Экран оплаты.",
     "voice.dispenseStep": "Идёт заправка, пожалуйста, подождите.",
@@ -921,6 +927,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Sprachführung einschalten",
     "voice.toggleOffLabel": "Sprachführung ausschalten",
+    "a11y.toggleOnLabel": "Großschrift / hohen Kontrast einschalten",
+    "a11y.toggleOffLabel": "Großschrift / hohen Kontrast ausschalten",
     "voice.enabledAnnouncement": "Sprachführung aktiviert.",
     "voice.paymentStep": "Zahlungsbildschirm.",
     "voice.dispenseStep": "Betankung läuft, bitte warten.",
@@ -1162,6 +1170,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "تشغيل الإرشاد الصوتي",
     "voice.toggleOffLabel": "إيقاف الإرشاد الصوتي",
+    "a11y.toggleOnLabel": "تشغيل وضع النص الكبير / التباين العالي",
+    "a11y.toggleOffLabel": "إيقاف وضع النص الكبير / التباين العالي",
     "voice.enabledAnnouncement": "تم تفعيل الإرشاد الصوتي.",
     "voice.paymentStep": "شاشة الدفع.",
     "voice.dispenseStep": "جارٍ التعبئة، يرجى الانتظار.",
@@ -1236,11 +1246,16 @@ interface KioskLangState {
   setLang: (l: KioskLang) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
   locale: string;
+  /** Buyuk yazi/yuksek kontrast modu - gorme guclugu cekenler icin, dil secimiyle ayni
+      kalicilik/kapsam mantigina sahip: tum kiosk akisi boyunca gecerli, cihazda saklanir. */
+  a11y: boolean;
+  setA11y: (v: boolean) => void;
 }
 
 const KioskLangContext = createContext<KioskLangState | null>(null);
 
 const STORAGE_KEY = "kiosk_lang";
+const A11Y_STORAGE_KEY = "kiosk_a11y";
 
 export function KioskLangProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<KioskLang>(() => {
@@ -1252,12 +1267,30 @@ export function KioskLangProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const [a11y, setA11yState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(A11Y_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
   function setLang(l: KioskLang) {
     setLangState(l);
     try {
       localStorage.setItem(STORAGE_KEY, l);
     } catch {
       // localStorage erisilemez olabilir (ozel gezinti vb.) - dil secimi bu oturumda gecerli kalir.
+    }
+  }
+
+  function setA11y(v: boolean) {
+    setA11yState(v);
+    try {
+      if (v) localStorage.setItem(A11Y_STORAGE_KEY, "1");
+      else localStorage.removeItem(A11Y_STORAGE_KEY);
+    } catch {
+      // localStorage erisilemez olabilir (ozel gezinti vb.) - secim bu oturumda gecerli kalir.
     }
   }
 
@@ -1274,7 +1307,7 @@ export function KioskLangProvider({ children }: { children: ReactNode }) {
   const LOCALES: Record<KioskLang, string> = { tr: "tr-TR", en: "en-US", ru: "ru-RU", de: "de-DE", ar: "ar-SA" };
   const locale = LOCALES[lang];
 
-  return <KioskLangContext.Provider value={{ lang, setLang, t, locale }}>{children}</KioskLangContext.Provider>;
+  return <KioskLangContext.Provider value={{ lang, setLang, t, locale, a11y, setA11y }}>{children}</KioskLangContext.Provider>;
 }
 
 export function useKioskLang(): KioskLangState {
