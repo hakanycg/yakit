@@ -115,6 +115,28 @@ describe("fuelStockService", () => {
       expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(0);
     });
 
+    it("seviye kritikten uyari bandina dusunce alarm onemi de geri duser", () => {
+      addStock(station.id, "benzin", 9600, { supplier: "A" }, actor); // %96 = kritik
+      const critical = listAlarms(station.id, "active").find((a) => a.type === "overfill_benzin")!;
+      expect(critical.severity).toBe("critical");
+
+      deductAvailable(station.id, "benzin", 700); // 8900 L = %89 -> hala uyari bandinin ALTINDA, tam cozulmeli
+      expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(0);
+    });
+
+    it("seviye kritikten sadece uyari bandina (90-95 arasi) dusunce alarm warning'e geri duser, kapanmaz", () => {
+      addStock(station.id, "benzin", 9600, { supplier: "A" }, actor); // %96 = kritik
+      const critical = listAlarms(station.id, "active").find((a) => a.type === "overfill_benzin")!;
+      expect(critical.severity).toBe("critical");
+      expect(critical.message).toContain("TASMA sinirinda");
+
+      deductAvailable(station.id, "benzin", 300); // 9300 L = %93 - hala uyari bandinda
+      const alarms = listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin");
+      expect(alarms).toHaveLength(1);
+      expect(alarms[0]!.severity).toBe("warning");
+      expect(alarms[0]!.message).not.toContain("TASMA sinirinda");
+    });
+
     it("adjustStock ile de tasma alarmi tetiklenir/cozulur", () => {
       adjustStock(station.id, "benzin", 9600, "Fiziksel olcum", actor);
       expect(listAlarms(station.id, "active").filter((a) => a.type === "overfill_benzin")).toHaveLength(1);

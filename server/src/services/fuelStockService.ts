@@ -310,9 +310,10 @@ export function deductAvailable(stationId: number, fuelType: FuelType, desiredLi
   if (newLevel <= tank.low_stock_threshold_liters) {
     raiseLowStockAlarmIfNeeded(stationId, fuelType, newLevel);
   }
-  // Satis sirasinda seviye yalnizca DUSER, hic yukselmez - burada raise gerekmez, sadece
-  // asama asama satildikca tasma alarminin cozulmesi gerekebilir (ör. teslimattan hemen sonra).
-  resolveOverfillAlarmIfRecovered(stationId, fuelType, newLevel, tank.capacity_liters, null);
+  // Satis sirasinda seviye yalnizca DUSER, hic yukselmez - ama teslimattan hemen sonraki
+  // satislarda seviye kritik bandan sadece uyari bandina inebilir; syncOverfillAlarm bu
+  // durumda alarmi TAMAMEN kapatmak yerine onemini warning'e geri duserir (bkz. gorev #227).
+  syncOverfillAlarm(stationId, fuelType, newLevel, tank.capacity_liters, null);
 
   broadcastTanks(stationId);
   // Tank siniri asilmadiysa TAM (yuvarlanmamis) miktar dondurulur: aksi halde
@@ -635,17 +636,20 @@ function raiseOverfillAlarmIfNeeded(stationId: number, fuelType: FuelType, level
     ? `${FUEL_LABELS[fuelType]} tanki TASMA sinirinda (%${Math.round(pct * 100)} dolu). Doldurmayi hemen durdurun (TS 12820 madde 4.2).`
     : `${FUEL_LABELS[fuelType]} tanki %${Math.round(pct * 100)} doluluga ulasti, tasma riskine yaklasiliyor (TS 12820 madde 4.2).`;
 
+  const severity = critical ? "critical" : "warning";
   const existing = db
-    .prepare<[number, string], { id: number; message: string }>(
-      "SELECT id, message FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1"
+    .prepare<[number, string], { id: number; message: string; severity: string }>(
+      "SELECT id, message, severity FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1"
     )
     .get(stationId, overfillAlarmType(fuelType));
 
   if (existing) {
-    // Uyaridan kritige gectiginde (dusuk stok alarmindaki "dusuk"->"bitti" guncellemesiyle
-    // ayni mantik) mesaj/onem bayat kalmasin.
-    if (critical && existing.message !== message) {
-      db.prepare("UPDATE alarms SET message = ?, severity = 'critical' WHERE id = ?").run(message, existing.id);
+    // Seviye dalgalanip kritik<->uyari arasinda gidip gelebilir (ör. teslimatla %95'i
+    // asip satisla tekrar %92'ye dusmesi) - onem HER IKI yonde de guncel tutulmali,
+    // sadece kritige yukselirken degil (dusuk stok alarmindaki "dusuk"->"bitti"
+    // guncellemesiyle ayni ilke).
+    if (existing.message !== message || existing.severity !== severity) {
+      db.prepare("UPDATE alarms SET message = ?, severity = ? WHERE id = ?").run(message, severity, existing.id);
       broadcastAlarms(stationId);
     }
     return;

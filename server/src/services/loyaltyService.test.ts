@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { StationRow, UserRow } from "../db/types.js";
 import { createTestPump, createTestStation, createTestTransaction, createTestUser } from "../test/dbFixture.js";
+import { db } from "../db/index.js";
 import {
   LoyaltyError,
   adjustPoints,
@@ -10,6 +11,7 @@ import {
   redeemPoints,
   refundPoints,
   setLoyaltyConfig,
+  setMarketingConsent,
 } from "./loyaltyService.js";
 
 /**
@@ -137,5 +139,29 @@ describe("hareket defteri", () => {
     // Defterdeki puan toplami her zaman guncel bakiyeye esit olmali.
     const sum = movements.reduce((n, m) => n + m.points, 0);
     expect(sum).toBe(getBalance(station.id, "34ABC123"));
+  });
+});
+
+describe("kampanya rizasi - iletisim kanali (bkz. gorev #229)", () => {
+  function contactInfo(plate: string): { contact_email: string | null; contact_phone: string | null } {
+    return db
+      .prepare<[number, string], { contact_email: string | null; contact_phone: string | null }>(
+        "SELECT contact_email, contact_phone FROM loyalty_accounts WHERE station_id = ? AND plate = ?"
+      )
+      .get(station.id, plate)!;
+  }
+
+  it("bir sonraki ziyarette yalnizca telefon girilirse, once kaydedilen e-posta SILINMEZ", () => {
+    setMarketingConsent(station.id, "34XYZ01", true, "musteri@example.com", null);
+    expect(contactInfo("34XYZ01")).toEqual({ contact_email: "musteri@example.com", contact_phone: null });
+
+    setMarketingConsent(station.id, "34XYZ01", true, null, "+905551234567");
+    expect(contactInfo("34XYZ01")).toEqual({ contact_email: "musteri@example.com", contact_phone: "+905551234567" });
+  });
+
+  it("yeni bir deger girilirse eskisinin yerine gecer (silinmez ama guncellenir)", () => {
+    setMarketingConsent(station.id, "34XYZ02", true, "eski@example.com", null);
+    setMarketingConsent(station.id, "34XYZ02", true, "yeni@example.com", null);
+    expect(contactInfo("34XYZ02")).toEqual({ contact_email: "yeni@example.com", contact_phone: null });
   });
 });
