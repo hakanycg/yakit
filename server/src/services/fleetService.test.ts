@@ -6,13 +6,16 @@ import {
   FleetError,
   addPlate,
   chargeAccount,
+  checkPlateSpendingLimit,
   computeFleetDiscount,
   createAccount,
   getAccountForPlate,
   getAvailableAmount,
   getExpectedFuelTypeForPlate,
   getLastOdometerForPlate,
+  getMonthlySpendingForPlate,
   setDiscountAgreement,
+  setPlateSpendingLimit,
   topUp,
   updateContact,
 } from "./fleetService.js";
@@ -256,6 +259,110 @@ describe("fleetService - anlasma indirimi (computeFleetDiscount/setDiscountAgree
     const cleared = setDiscountAgreement(station.id, account.id, { discountType: null, discountValue: null });
 
     expect(computeFleetDiscount(cleared, 1000)).toBe(0);
+  });
+});
+
+describe("fleetService - arac bazinda aylik harcama limiti", () => {
+  function insertFleetCharge(stationId: number, pumpId: number, plate: string, totalAmount: number, discountAmount: number, completedAt: string): void {
+    db.prepare(
+      `INSERT INTO transactions
+         (station_id, pump_id, plate, fuel_type, amount_mode, price_per_liter, total_amount, discount_amount, dispensed_liters, status, payment_method, kiosk_access_token, created_at, completed_at)
+       VALUES (?, ?, ?, 'benzin', 'amount', 44.5, ?, ?, 10, 'completed', 'fleet', ?, ?, ?)`
+    ).run(stationId, pumpId, plate, totalAmount, discountAmount, `tok-${plate}-${Math.random()}`, completedAt, completedAt);
+  }
+
+  it("limit tanimli degilse harcama kontrolu her zaman gecer", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Limitsiz Filo", billingType: "prepaid" }, admin);
+    addPlate(station.id, account.id, "34LIM001");
+
+    expect(() => checkPlateSpendingLimit(station.id, "34LIM001", 1_000_000)).not.toThrow();
+  });
+
+  it("bu ayki harcama + yeni islem limiti asarsa reddeder", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Limitli Filo", billingType: "prepaid" }, admin);
+    const plate = addPlate(station.id, account.id, "34LIM002");
+    setPlateSpendingLimit(station.id, account.id, plate.id, 1000);
+
+    const now = new Date();
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 15)).toISOString();
+    insertFleetCharge(station.id, pumpId, "34LIM002", 800, 0, thisMonth);
+
+    expect(getMonthlySpendingForPlate(station.id, "34LIM002")).toBe(800);
+    expect(() => checkPlateSpendingLimit(station.id, "34LIM002", 100)).not.toThrow();
+    expect(() => checkPlateSpendingLimit(station.id, "34LIM002", 300)).toThrow(FleetError);
+  });
+
+  it("indirim dusulmus NET tutar uzerinden hesaplar", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Indirimli Filo", billingType: "prepaid" }, admin);
+    const plate = addPlate(station.id, account.id, "34LIM003");
+    setPlateSpendingLimit(station.id, account.id, plate.id, 1000);
+
+    const now = new Date();
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 10)).toISOString();
+    insertFleetCharge(station.id, pumpId, "34LIM003", 1000, 200, thisMonth); // net 800
+
+    expect(getMonthlySpendingForPlate(station.id, "34LIM003")).toBe(800);
+  });
+
+  it("gecen ayin harcamasini bu aya SAYMAZ", () => {
+    const station = createTestStation();
+    const pumpId = createTestPump(station.id);
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Gecen Ay Filo", billingType: "prepaid" }, admin);
+    const plate = addPlate(station.id, account.id, "34LIM004");
+    setPlateSpendingLimit(station.id, account.id, plate.id, 500);
+
+    const now = new Date();
+    const lastMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 15)).toISOString();
+    insertFleetCharge(station.id, pumpId, "34LIM004", 5000, 0, lastMonth);
+
+    expect(getMonthlySpendingForPlate(station.id, "34LIM004")).toBe(0);
+    expect(() => checkPlateSpendingLimit(station.id, "34LIM004", 500)).not.toThrow();
+  });
+
+  it("baska bir istasyonun ayni plakali harcamasini karistirmaz", () => {
+    const station = createTestStation();
+    const otherStation = createTestStation();
+    const otherPumpId = createTestPump(otherStation.id);
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Kendi Filom", billingType: "prepaid" }, admin);
+    const plate = addPlate(station.id, account.id, "34LIM005");
+    setPlateSpendingLimit(station.id, account.id, plate.id, 100);
+
+    const now = new Date();
+    const thisMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 5)).toISOString();
+    insertFleetCharge(otherStation.id, otherPumpId, "34LIM005", 5000, 0, thisMonth);
+
+    expect(getMonthlySpendingForPlate(station.id, "34LIM005")).toBe(0);
+  });
+
+  it("negatif/sifir limit reddedilir", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Hatali Limit Filo", billingType: "prepaid" }, admin);
+    const plate = addPlate(station.id, account.id, "34LIM006");
+
+    expect(() => setPlateSpendingLimit(station.id, account.id, plate.id, 0)).toThrow(FleetError);
+    expect(() => setPlateSpendingLimit(station.id, account.id, plate.id, -50)).toThrow(FleetError);
+  });
+
+  it("null gonderilerek limit kaldirilabilir", () => {
+    const station = createTestStation();
+    const admin = createTestUser(station.id, "admin");
+    const account = createAccount(station.id, { companyName: "Kaldirilan Limit Filo", billingType: "prepaid" }, admin);
+    const plate = addPlate(station.id, account.id, "34LIM007");
+    setPlateSpendingLimit(station.id, account.id, plate.id, 100);
+    setPlateSpendingLimit(station.id, account.id, plate.id, null);
+
+    expect(() => checkPlateSpendingLimit(station.id, "34LIM007", 1_000_000)).not.toThrow();
   });
 });
 

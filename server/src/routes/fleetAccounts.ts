@@ -18,6 +18,7 @@ import {
   serializePlate,
   setAccountActive,
   setDiscountAgreement,
+  setPlateSpendingLimit,
   topUp,
   updateContact,
 } from "../services/fleetService.js";
@@ -54,7 +55,11 @@ const router = Router();
 router.use(requireAuth, requireRole("super_admin", "tenant_admin", "admin"), attachStationScope, requireStationSelected);
 
 router.get("/", (req, res) => {
-  const accounts = listAccounts(req.stationId!).map((a) => ({ ...serializeAccountAdmin(a), plates: listPlates(a.id).map(serializePlate) }));
+  const stationId = req.stationId!;
+  const accounts = listAccounts(stationId).map((a) => ({
+    ...serializeAccountAdmin(a),
+    plates: listPlates(a.id).map((p) => serializePlate(p, stationId)),
+  }));
   res.json({ accounts });
 });
 
@@ -223,6 +228,31 @@ router.delete("/:id/plates/:plateId", csrfProtection, (req, res) => {
     removePlate(req.stationId!, id, plateId);
     recordAudit({ user: req.user!, action: "fleet_plate_removed", entityType: "fleet_account", entityId: id, ip: req.ip, stationId: req.stationId });
     res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
+    throw err;
+  }
+});
+
+const spendingLimitSchema = z.object({ monthlySpendingLimitTry: z.number().positive().max(10000000).nullable() });
+
+router.patch("/:id/plates/:plateId/spending-limit", csrfProtection, validateBody(spendingLimitSchema), (req, res) => {
+  const id = Number(req.params.id);
+  const plateId = Number(req.params.plateId);
+  if (!Number.isInteger(id) || !Number.isInteger(plateId)) return void res.status(400).json({ error: "Gecersiz kimlik." });
+  try {
+    const { monthlySpendingLimitTry } = req.body as z.infer<typeof spendingLimitSchema>;
+    const row = setPlateSpendingLimit(req.stationId!, id, plateId, monthlySpendingLimitTry);
+    recordAudit({
+      user: req.user!,
+      action: "fleet_plate_spending_limit_updated",
+      entityType: "fleet_account",
+      entityId: id,
+      details: { plateId, monthlySpendingLimitTry },
+      ip: req.ip,
+      stationId: req.stationId,
+    });
+    res.json({ plate: serializePlate(row, req.stationId!) });
   } catch (err) {
     if (err instanceof FleetError) return void res.status(err.status).json({ error: err.message });
     throw err;

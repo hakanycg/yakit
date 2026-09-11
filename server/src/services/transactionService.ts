@@ -18,6 +18,7 @@ import { validateCode, redeemCode, releaseCode } from "./discountService.js";
 import {
   FleetError,
   chargeAccount as chargeFleetAccount,
+  checkPlateSpendingLimit,
   computeFleetDiscount,
   getAccountForPlate as getFleetAccountForPlate,
   getExpectedFuelTypeForPlate,
@@ -402,6 +403,10 @@ export function payWithFleetAccount(
       : t;
 
   try {
+    // Arac bazinda aylik harcama limiti, hesabin GENEL bakiyesinden/kredi limitinden
+    // AYRI bir koruma - hesap yeterli olsa bile tek bir arac/sofor o ayki payini
+    // asinca reddedilir (bkz. fleetService.checkPlateSpendingLimit).
+    checkPlateSpendingLimit(t.station_id, t.plate, chargeAmount(effectiveTransaction));
     chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(effectiveTransaction), id);
   } catch (err) {
     if (err instanceof FleetError) throw new TransactionError(err.message, err.status);

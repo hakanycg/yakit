@@ -199,6 +199,62 @@ export function removePlate(stationId: number, accountId: number, plateId: numbe
   if (result.changes === 0) throw new FleetError("Plaka bulunamadi.", 404);
 }
 
+/**
+ * Arac bazinda aylik harcama limiti - filo hesabinin GENEL bakiyesinden/kredi
+ * limitinden AYRI bir koruma: hesabin kendisi yeterli bakiyeye/limite sahip olsa
+ * bile, TEK bir arac/sofor o ayki payini asinca reddedilir. Boylece bir aracin
+ * (ör. calinmis/kotuye kullanilan bir kart/plaka) butun filo bakiyesini tuketmesi
+ * onlenir - diger araclarin o ay hala yakit alabilmesini garantiler.
+ */
+export function setPlateSpendingLimit(stationId: number, accountId: number, plateId: number, monthlyLimitTry: number | null): FleetPlateRow {
+  getAccountById(stationId, accountId);
+  if (monthlyLimitTry !== null && monthlyLimitTry <= 0) throw new FleetError("Harcama limiti pozitif bir tutar olmalidir.", 400);
+  const result = db
+    .prepare("UPDATE fleet_plates SET monthly_spending_limit_try = ? WHERE id = ? AND fleet_account_id = ?")
+    .run(monthlyLimitTry, plateId, accountId);
+  if (result.changes === 0) throw new FleetError("Plaka bulunamadi.", 404);
+  return db.prepare<[number], FleetPlateRow>("SELECT * FROM fleet_plates WHERE id = ?").get(plateId)!;
+}
+
+function startOfCurrentMonthIso(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+/** Bu plakanin, ICINDE bulunulan takvim ayinda filo hesabindan tahsil edilmis toplam tutari (indirim dusulmus, net tahsilat). */
+export function getMonthlySpendingForPlate(stationId: number, plate: string): number {
+  const row = db
+    .prepare<[number, string, string], { total: number | null }>(
+      `SELECT SUM(total_amount - discount_amount) as total FROM transactions
+       WHERE station_id = ? AND plate = ? AND payment_method = 'fleet' AND status = 'completed' AND created_at >= ?`
+    )
+    .get(stationId, normalizePlate(plate), startOfCurrentMonthIso());
+  return Math.round((row?.total ?? 0) * 100) / 100;
+}
+
+/**
+ * Bu plakanin ayni ay icinde, EKLENECEK tutarla birlikte kendi limitini asip
+ * asmayacagini kontrol eder. Limit tanimli degilse (NULL) her zaman gecer.
+ */
+export function checkPlateSpendingLimit(stationId: number, plate: string, additionalAmount: number): void {
+  const plateRow = db
+    .prepare<[number, string], FleetPlateRow>(
+      `SELECT fp.* FROM fleet_plates fp
+       JOIN fleet_accounts fa ON fa.id = fp.fleet_account_id
+       WHERE fa.station_id = ? AND fp.plate = ?`
+    )
+    .get(stationId, normalizePlate(plate));
+  if (!plateRow || plateRow.monthly_spending_limit_try === null) return;
+
+  const spentSoFar = getMonthlySpendingForPlate(stationId, plate);
+  if (spentSoFar + additionalAmount > plateRow.monthly_spending_limit_try + 0.005) {
+    throw new FleetError(
+      `Bu aracin aylik harcama limiti (${plateRow.monthly_spending_limit_try.toFixed(2)} TL) bu islemle asilacak. Bu ay simdiye kadar ${spentSoFar.toFixed(2)} TL harcanmis.`,
+      409
+    );
+  }
+}
+
 function insertMovement(params: {
   accountId: number;
   type: FleetMovementRow["type"];
@@ -399,8 +455,17 @@ export function serializeAccountAdmin(a: FleetAccountRow) {
   };
 }
 
-export function serializePlate(p: FleetPlateRow) {
-  return { id: p.id, plate: p.plate, expectedFuelType: p.expected_fuel_type, createdAt: p.created_at };
+export function serializePlate(p: FleetPlateRow, stationId?: number) {
+  return {
+    id: p.id,
+    plate: p.plate,
+    expectedFuelType: p.expected_fuel_type,
+    createdAt: p.created_at,
+    monthlySpendingLimitTry: p.monthly_spending_limit_try,
+    // Yalnizca istasyon biliniyorsa hesaplanir (admin panelindeki plaka listesi) - kiosk'un
+    // filo secimi gibi baska cagiranlar bu ek sorguyu ODEMEZ.
+    monthlySpentTry: stationId !== undefined ? getMonthlySpendingForPlate(stationId, p.plate) : undefined,
+  };
 }
 
 export function serializeMovement(m: FleetMovementRow & { username?: string | null }) {

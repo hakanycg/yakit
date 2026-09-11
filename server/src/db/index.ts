@@ -217,6 +217,11 @@ export function applyMigrations(): void {
   ensureColumn("fleet_accounts", "discount_type", "TEXT");
   ensureColumn("fleet_accounts", "discount_value", "REAL");
 
+  // Arac bazinda aylik harcama limiti (bkz. fleetService.checkPlateSpendingLimit) - filo
+  // hesabinin GENEL bakiyesinden/kredi limitinden AYRI: tek bir soforun/aracin hesabin
+  // tamamini tuketmesini onlemek icin. NULL = limitsiz (varsayilan).
+  ensureColumn("fleet_plates", "monthly_spending_limit_try", "REAL");
+
   backfillNormalizedPlates();
 }
 

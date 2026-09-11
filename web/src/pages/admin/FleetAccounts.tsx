@@ -8,6 +8,8 @@ interface FleetPlate {
   plate: string;
   expectedFuelType: "benzin" | "motorin" | "lpg" | null;
   createdAt: string;
+  monthlySpendingLimitTry: number | null;
+  monthlySpentTry?: number;
 }
 
 interface FleetAccount {
@@ -652,6 +654,37 @@ function AccountDetailDialog({
     }
   }
 
+  /**
+   * Arac bazinda aylik harcama limiti - hesabin GENEL bakiyesinden AYRI bir koruma,
+   * tek bir arac/sofor hesabin tamamini tuketmesin diye. Diger plaka alanlarina gore
+   * cok daha nadir degistirilecegi icin (kurulumda bir kez, sonra nadiren) ayri bir
+   * form yerine window.prompt kullanildi - bkz. Stations.tsx deleteStation'daki ayni tercih.
+   */
+  async function editSpendingLimit(plate: FleetPlate) {
+    const input = window.prompt(
+      `${plate.plate} icin aylik harcama limiti (TL). Bos birakip Tamam'a basarsaniz limit kaldirilir.`,
+      plate.monthlySpendingLimitTry?.toString() ?? ""
+    );
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (trimmed !== "" && (Number.isNaN(Number(trimmed)) || Number(trimmed) <= 0)) {
+      setError("Geçerli bir tutar girin (0'dan büyük) veya kaldırmak için boş bırakın.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/api/fleet-accounts/${accountId}/plates/${plate.id}/spending-limit`, {
+        monthlySpendingLimitTry: trimmed === "" ? null : Number(trimmed),
+      });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Harcama limiti kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveContact() {
     setBusy(true);
     setError(null);
@@ -747,6 +780,20 @@ function AccountDetailDialog({
               <li key={p.id} className="plate-chip">
                 <span dir="ltr">{p.plate}</span>
                 {p.expectedFuelType && <span className="hint-text">({FUEL_LABEL[p.expectedFuelType]})</span>}
+                <button
+                  type="button"
+                  onClick={() => editSpendingLimit(p)}
+                  disabled={busy}
+                  aria-label={`${p.plate} için aylık harcama limitini düzenle`}
+                  title={
+                    p.monthlySpendingLimitTry !== null
+                      ? `Aylık limit: ${formatCurrency(p.monthlySpendingLimitTry)}${p.monthlySpentTry !== undefined ? ` · bu ay: ${formatCurrency(p.monthlySpentTry)}` : ""}`
+                      : "Aylık harcama limiti belirle"
+                  }
+                  className="ghost btn-sm"
+                >
+                  {p.monthlySpendingLimitTry !== null ? `⛽ ${formatCurrency(p.monthlySpendingLimitTry)}` : "⛽ Limit"}
+                </button>
                 <button
                   type="button"
                   onClick={() => removePlate(p.id)}

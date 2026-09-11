@@ -7,6 +7,7 @@ import {
   addPlate as addFleetPlate,
   topUp as topUpFleetAccount,
   setDiscountAgreement as setFleetDiscountAgreement,
+  setPlateSpendingLimit as setFleetPlateSpendingLimit,
 } from "./fleetService.js";
 import { clearDispenserDriverRegistry, setDispenserDriver, setDispenserDriverFor, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
 import { setAutomationDriver, noopAutomationDriver, type AutomationDriver, type AutomationSaleReport } from "./automationDriver.js";
@@ -515,6 +516,29 @@ describe("payWithFleetAccount", () => {
     const account = db.prepare("SELECT balance FROM fleet_accounts WHERE id = ?").get(fleet.id) as { balance: number };
     expect(account.balance).toBeCloseTo(1000 - (totalBefore - totalBefore * 0.1), 2);
     emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
+  it("arac bazinda aylik harcama limitini asan odeme reddedilir - hesap bakiyesi yeterli olsa bile", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Limitli Filo", billingType: "prepaid" }, staff);
+    const plate = addFleetPlate(station.station_id, fleet.id, "34LIMTX1");
+    topUpFleetAccount(station.station_id, fleet.id, 100000, undefined, staff);
+    setFleetPlateSpendingLimit(station.station_id, fleet.id, plate.id, 50); // dolumdan cok daha dusuk bir limit
+
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34LIMTX1",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    expect(() => payWithFleetAccount(transaction.id, accessToken, fleet.id)).toThrow();
+
+    const account = db.prepare("SELECT balance FROM fleet_accounts WHERE id = ?").get(fleet.id) as { balance: number };
+    expect(account.balance).toBe(100000); // reddedilen odeme bakiyeden hic dusmemis olmali
   });
 
   it("indirimsiz filo hesabinda discount_amount degismez", () => {

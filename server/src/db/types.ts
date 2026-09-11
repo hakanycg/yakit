@@ -367,6 +367,8 @@ export interface FleetPlateRow {
   plate: string;
   expected_fuel_type: FuelType | null;
   created_at: string;
+  /** Bu aracin filo hesabindan aylik en fazla bu kadar TL harcayabilecegi sinir. NULL = limitsiz. */
+  monthly_spending_limit_try: number | null;
 }
 
 export interface FleetMovementRow {
