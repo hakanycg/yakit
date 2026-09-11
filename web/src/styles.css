@@ -828,6 +828,21 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
 
 .card-divider { margin-top: 1.1rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
 
+/* "Yenilikler" duyuru basligi (bkz. ReleaseNotesModal.tsx, pages/operator/
+   ReleaseNotes.tsx) - baslik solda, tarih (+ super_admin icin Sil butonu) sag ust
+   kosede durur. Genis ekranda ayni satirda yan yana, dar ekranda (bkz. asagidaki
+   480px medya sorgusu) alt alta yigilir - boylece baslik HER ZAMAN tarihin
+   ustunde kalir, telefonda da tarih/buton genislige tasmaz. */
+.release-note-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem 1rem; flex-wrap: wrap; }
+.release-note-head h3, .release-note-head h4 { margin: 0; min-width: 0; flex: 1 1 auto; }
+.release-note-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 0.4rem; flex-shrink: 0; }
+.release-note-date { margin: 0; white-space: nowrap; }
+.release-note-body { white-space: pre-wrap; margin: 0.6rem 0 0; }
+@media (max-width: 480px) {
+  .release-note-head { flex-direction: column; align-items: flex-start; }
+  .release-note-meta { flex-direction: row; align-items: center; justify-content: space-between; width: 100%; }
+}
+
 /* Uzun aciklama metni. Kart tam genislige yayilinca satirlar 150+ karakter olur ve
    goz satir basini kaybeder; okunabilir olcu 65-75 karakterdir. Kart icindeki duz
    paragraflar bu olcuyu kendiliginden alir; .prose ise kart disindaki metinler icin. */

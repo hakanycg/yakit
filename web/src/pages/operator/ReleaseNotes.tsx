@@ -85,14 +85,16 @@ export default function ReleaseNotes() {
 
       {notes.map((note) => (
         <div className="card" key={note.id}>
-          <div className="card-head">
-            <h3 style={{ margin: 0 }}>{note.title}</h3>
-            {isSuperAdmin && (
-              <button type="button" onClick={() => void remove(note.id)}>Sil</button>
-            )}
+          <div className="release-note-head">
+            <h3>{note.title}</h3>
+            <div className="release-note-meta">
+              <span className="release-note-date hint-text">{formatDateTime(note.createdAt)}</span>
+              {isSuperAdmin && (
+                <button type="button" onClick={() => void remove(note.id)}>Sil</button>
+              )}
+            </div>
           </div>
-          <p className="hint-text" style={{ margin: "0.25rem 0 0.75rem" }}>{formatDateTime(note.createdAt)}</p>
-          <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{note.body}</p>
+          <p className="release-note-body">{note.body}</p>
         </div>
       ))}
       {notes.length === 0 && <p className="hint-text">Henüz bir duyuru yok.</p>}

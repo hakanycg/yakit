@@ -48,9 +48,11 @@ export default function ReleaseNotesModal({ enabled }: { enabled: boolean }) {
         <h3 style={{ marginTop: 0 }}>Yenilikler</h3>
         {notes.map((note, i) => (
           <div key={note.id} style={{ marginTop: i === 0 ? 0 : "1.25rem", paddingTop: i === 0 ? 0 : "1.25rem", borderTop: i === 0 ? undefined : "1px solid var(--border)" }}>
-            <h4 style={{ margin: "0 0 0.25rem" }}>{note.title}</h4>
-            <p className="hint-text" style={{ margin: "0 0 0.5rem" }}>{formatDateTime(note.createdAt)}</p>
-            <p style={{ whiteSpace: "pre-wrap", margin: 0 }}>{note.body}</p>
+            <div className="release-note-head">
+              <h4>{note.title}</h4>
+              <span className="release-note-date hint-text">{formatDateTime(note.createdAt)}</span>
+            </div>
+            <p className="release-note-body">{note.body}</p>
           </div>
         ))}
         <div className="toolbar" style={{ marginTop: "1.25rem" }}>
