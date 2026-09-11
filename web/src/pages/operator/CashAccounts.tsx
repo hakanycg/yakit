@@ -28,6 +28,87 @@ interface Movement {
   createdAt: string;
 }
 
+interface CashFlowDayPoint {
+  date: string;
+  expectedInflow: number;
+  expectedOutflow: number;
+  projectedBalance: number;
+}
+
+interface CashFlowForecast {
+  startingBalance: number;
+  immediateSupplierDebt: number;
+  days: CashFlowDayPoint[];
+}
+
+function formatShortDate(iso: string): string {
+  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short" }).format(new Date(`${iso}T00:00:00`));
+}
+
+/** Onumuzdeki gunler icin beklenen nakit pozisyonu - mevcut bakiye + filo alacaklari (vade tarihinde) - guncel tedarikci borcu. */
+function CashFlowForecastCard() {
+  const [forecast, setForecast] = useState<CashFlowForecast | null>(null);
+
+  useEffect(() => {
+    api.get<CashFlowForecast>("/api/cash-accounts/forecast?horizonDays=30").then(setForecast);
+  }, []);
+
+  if (!forecast) {
+    return (
+      <div className="card" style={{ marginBottom: "1rem" }}>
+        <h3>Nakit Akışı Tahmini</h3>
+        <p className="hint-text">Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  const { days } = forecast;
+  const width = 600;
+  const height = 140;
+  const pad = 10;
+  const values = days.map((d) => d.projectedBalance);
+  const minVal = Math.min(0, ...values);
+  const maxVal = Math.max(1, ...values);
+  const range = Math.max(maxVal - minVal, 1);
+  const stepX = (width - pad * 2) / Math.max(days.length - 1, 1);
+  const toY = (v: number) => height - pad - ((v - minVal) / range) * (height - pad * 2);
+  const linePoints = days.map((d, i) => `${pad + i * stepX},${toY(d.projectedBalance)}`).join(" ");
+  const zeroY = toY(0);
+  const lastDay = days[days.length - 1];
+  const willGoNegative = values.some((v) => v < 0);
+
+  return (
+    <div className="card" style={{ marginBottom: "1rem" }}>
+      <div className="toolbar" style={{ marginBottom: "0.4rem" }}>
+        <h3 style={{ margin: 0 }}>Nakit Akışı Tahmini</h3>
+        <div className="spacer" />
+        <span className="hint-text">
+          Bugün: {formatCurrency(forecast.startingBalance)}
+          {forecast.immediateSupplierDebt > 0 && ` · Tedarikçi borcu: −${formatCurrency(forecast.immediateSupplierDebt)}`}
+        </span>
+      </div>
+      <p className="hint-text">
+        Mevcut bakiye + faturalanmış filo alacaklarının vade tarihi − güncel tedarikçi borcu (vadesi tanımlı olmadığı için bugüne
+        yerleştirilir). Vadesiz/iletilmemiş faturalar ve nakit dışı kalemler dahil değildir.
+      </p>
+      {willGoNegative && (
+        <p className="hint-text" style={{ color: "var(--danger)", fontWeight: 600 }}>
+          Önümüzdeki {days.length} gün içinde bakiyenin negatife düşmesi bekleniyor.
+        </p>
+      )}
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "140px", display: "block" }} preserveAspectRatio="none">
+        {minVal < 0 && <line x1={pad} y1={zeroY} x2={width - pad} y2={zeroY} stroke="var(--border)" strokeDasharray="4 4" />}
+        <polyline points={linePoints} fill="none" stroke={willGoNegative ? "var(--danger)" : "var(--accent-2)"} strokeWidth="2" />
+      </svg>
+      <div className="toolbar hint-text" style={{ marginTop: "0.4rem" }}>
+        <span>{formatShortDate(days[0]!.date)}</span>
+        <div className="spacer" />
+        {lastDay && <span>{formatShortDate(lastDay.date)}: {formatCurrency(lastDay.projectedBalance)}</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function CashAccounts() {
   const stationId = useEffectiveStationId();
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -147,6 +228,8 @@ export default function CashAccounts() {
           </button>
         </div>
       )}
+
+      {accounts.length > 0 && <CashFlowForecastCard />}
 
       <div className="card">
         <div className="toolbar" style={{ marginBottom: "0.75rem" }}>

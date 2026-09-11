@@ -297,6 +297,64 @@ function PeriodComparisonCard({ stationId }: { stationId: number }) {
   );
 }
 
+interface ChurnRiskCustomer {
+  plate: string;
+  visitCount: number;
+  lastVisitAt: string;
+  daysSinceLastVisit: number;
+}
+
+/** Perakende musteri kaybi (churn) riski - duzenli gelip uzun suredir gelmeyen musteriler. */
+function ChurnRiskCard({ stationId }: { stationId: number }) {
+  const [customers, setCustomers] = useState<ChurnRiskCustomer[] | null>(null);
+
+  useEffect(() => {
+    setCustomers(null);
+    api
+      .get<{ customers: ChurnRiskCustomer[] }>("/api/reports/customer-churn?minVisits=3&inactiveDays=30&lookbackDays=365")
+      .then((res) => setCustomers(res.customers));
+  }, [stationId]);
+
+  return (
+    <div className="card">
+      <h3>Kayıp Riski Taşıyan Müşteriler</h3>
+      <p className="hint-text">
+        Son 1 yılda en az 3 kez gelmiş ama son 30 gündür hiç uğramamış plakalar - filo hesapları hariç.
+      </p>
+      {!customers ? (
+        <p className="hint-text">Yükleniyor...</p>
+      ) : customers.length === 0 ? (
+        <p className="hint-text">Şu an risk taşıyan düzenli müşteri yok.</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Plaka</th>
+                <th className="numeric">Ziyaret Sayısı</th>
+                <th>Son Ziyaret</th>
+                <th className="numeric">Kaç Gündür Yok</th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.slice(0, 20).map((c) => (
+                <tr key={c.plate}>
+                  <td><code>{c.plate}</code></td>
+                  <td className="numeric">{c.visitCount}</td>
+                  <td>{formatDateTime(c.lastVisitAt)}</td>
+                  <td className="numeric">
+                    <span className="badge warning">{c.daysSinceLastVisit} gün</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Reports() {
   const stationId = useEffectiveStationId();
   const [tab, setTab] = useState<Tab>("sales");
@@ -415,6 +473,7 @@ function SalesReport({ range, from, to, stationId }: { range: string; from: stri
       </div>
 
       <PeriodComparisonCard stationId={stationId} />
+      <ChurnRiskCard stationId={stationId} />
 
       <div className="card">
         <h3>Yakıt Tipine Göre</h3>

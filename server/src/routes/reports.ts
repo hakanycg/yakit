@@ -6,6 +6,7 @@ import { validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { buildAccountingExport } from "../services/accountingExportService.js";
 import { getPeriodComparison } from "../services/periodComparisonService.js";
+import { getChurnRiskCustomers } from "../services/customerChurnService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 import { csvEscape } from "../utils/csv.js";
 
@@ -327,6 +328,20 @@ router.get("/period-comparison", validateQuery(periodComparisonSchema), (req, re
   const q = (req as unknown as { validatedQuery: z.infer<typeof periodComparisonSchema> }).validatedQuery;
   const result = getPeriodComparison(stationId, q.currentFrom, q.currentTo, q.previousFrom, q.previousTo);
   res.json(result);
+});
+
+const churnQuerySchema = z.object({
+  minVisits: z.coerce.number().int().positive().max(1000).optional(),
+  inactiveDays: z.coerce.number().int().positive().max(3650).optional(),
+  lookbackDays: z.coerce.number().int().positive().max(3650).optional(),
+});
+
+/** Perakende musteri kaybi (churn) riski - bkz. customerChurnService.ts. */
+router.get("/customer-churn", validateQuery(churnQuerySchema), (req, res) => {
+  const stationId = req.stationId!;
+  const q = (req as unknown as { validatedQuery: z.infer<typeof churnQuerySchema> }).validatedQuery;
+  const customers = getChurnRiskCustomers(stationId, q);
+  res.json({ customers });
 });
 
 export { router as reportsRouter };
