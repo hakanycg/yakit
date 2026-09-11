@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FuelPrice } from "../../shared/types";
+import type { FuelPrice, FuelType } from "../../shared/types";
 import { formatCurrency } from "../../shared/format";
 import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
@@ -40,6 +40,8 @@ export default function AmountStep({
   const [codeError, setCodeError] = useState<string | null>(null);
   const [codeChecking, setCodeChecking] = useState(false);
 
+  const [campaigns, setCampaigns] = useState<{ code: string; type: "percent" | "fixed"; value: number; fuelType: FuelType | null }[]>([]);
+
   useEffect(() => {
     if (!plate) return;
     kioskApi
@@ -48,19 +50,28 @@ export default function AmountStep({
       .catch(() => setLoyalty(null));
   }, [stationId, plate]);
 
+  useEffect(() => {
+    kioskApi
+      .getActiveCampaigns(stationId)
+      .then((res) => setCampaigns(res.campaigns))
+      .catch(() => setCampaigns([]));
+  }, [stationId]);
+
   const baseTotal = mode === "amount" ? Number(amount) || 0 : mode === "liters" ? (Number(liters) || 0) * price.pricePerLiter : 0;
   const loyaltyDiscount = useLoyalty && loyalty ? loyalty.valueTry : 0;
   const codeDiscount = appliedCode?.discountAmount ?? 0;
   const estimatedCharge = Math.max(0, baseTotal - loyaltyDiscount - codeDiscount);
   const showDiscounts = mode !== "full_tank" && baseTotal > 0;
 
-  async function applyCode() {
+  async function applyCode(code?: string) {
+    const target = (code ?? codeInput).trim();
     setCodeError(null);
-    if (!codeInput.trim()) return;
+    if (!target) return;
     setCodeChecking(true);
     try {
-      const res = await kioskApi.previewDiscountCode(stationId, codeInput.trim(), price.fuelType, baseTotal);
-      setAppliedCode({ code: codeInput.trim().toUpperCase(), discountAmount: res.discountAmount });
+      const res = await kioskApi.previewDiscountCode(stationId, target, price.fuelType, baseTotal);
+      setCodeInput(target.toUpperCase());
+      setAppliedCode({ code: target.toUpperCase(), discountAmount: res.discountAmount });
     } catch (err) {
       setAppliedCode(null);
       setCodeError(err instanceof ApiError ? err.message : t("error.codeInvalid"));
@@ -155,6 +166,37 @@ export default function AmountStep({
             </label>
           )}
 
+          {campaigns.filter((c) => !c.fuelType || c.fuelType === price.fuelType).length > 0 && (
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label>{t("amount.activeCampaignsTitle")}</label>
+              <div className="option-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+                {campaigns
+                  .filter((c) => !c.fuelType || c.fuelType === price.fuelType)
+                  .map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      className={`option-btn ${appliedCode?.code === c.code ? "selected" : ""}`}
+                      disabled={codeChecking}
+                      onClick={() => applyCode(c.code)}
+                    >
+                      <strong>{c.code}</strong>
+                      <br />
+                      {c.type === "percent"
+                        ? t("amount.campaignPercentOff", { value: c.value })
+                        : t("amount.campaignFixedOff", { value: formatCurrency(c.value, locale) })}
+                      {c.fuelType && (
+                        <>
+                          <br />
+                          <small>{t("amount.campaignFuelRestricted", { fuel: t(`fuel.${c.fuelType}`) })}</small>
+                        </>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
           <label>{t("amount.discountCodeLabel")}</label>
           <div className="toolbar" style={{ margin: 0 }}>
             <KioskInput
@@ -169,7 +211,7 @@ export default function AmountStep({
               maxLength={24}
               ltr
             />
-            <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={applyCode}>
+            <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={() => applyCode()}>
               {codeChecking ? t("amount.checkingCode") : t("amount.applyCode")}
             </button>
           </div>
