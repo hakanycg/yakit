@@ -71,6 +71,14 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.scanButton": "LPR ile Otomatik Tara",
     "plate.continue": "Devam Et",
     "plate.lprNote": "Not: Bu ortamda fiziksel kamera donanımı bulunmadığından LPR taraması simüle edilmektedir.",
+    "plate.loyaltyCheckButton": "Sadakat Puanımı Sorgula",
+    "plate.loyaltyChecking": "Sorgulanıyor...",
+    "plate.loyaltyResult": "{points} puanınız var ({value} değerinde)",
+    "plate.loyaltyDisabled": "Bu istasyonda sadakat programı aktif değil.",
+    "plate.loyaltyError": "Puan sorgulanamadı, lütfen tekrar deneyin.",
+    "plate.referrerLabel": "Sizi kim yönlendirdi? (opsiyonel)",
+    "plate.referrerPlaceholder": "Yönlendiren plaka",
+    "plate.referrerHint": "Bir arkadaşınızın plakasını yazarsanız, ilk dolumunuzu tamamladığınızda ikinize de bonus puan tanımlanır.",
     "action.back": "Geri",
 
     "pump.title": "Pompa Seçin",
@@ -98,6 +106,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedTotal": "Tahmini tutar: {amount}",
     "amount.fullTankHint": "Depo dolum sensörü algılandığında otomatik olarak durdurulur. Maksimum tutar tahmini önceden gösterilir.",
     "amount.useLoyalty": "Sadakat puanlarımı kullan ({points} puan = {value} indirim)",
+    "loyalty.tier.bronze": "Bronz Üye",
+    "loyalty.tier.silver": "Gümüş Üye",
+    "loyalty.tier.gold": "Altın Üye",
     "amount.discountCodeLabel": "İndirim Kodu (opsiyonel)",
     "amount.discountCodePlaceholder": "örn: YAZ2026",
     "amount.checkingCode": "Kontrol ediliyor...",
@@ -107,6 +118,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedCharge": "Ödenecek tahmini tutar: {amount}",
     "amount.invalidAmount": "Geçerli bir tutar giriniz.",
     "amount.invalidLiters": "Geçerli bir litre miktarı giriniz.",
+    "amount.activeCampaignsTitle": "Aktif Kampanyalar",
+    "amount.campaignPercentOff": "%{value} indirim",
+    "amount.campaignFixedOff": "{value} indirim",
+    "amount.campaignFuelRestricted": "Sadece {fuel}",
+    "amount.useCampaign": "Kullan",
     "action.continue": "Devam Et",
 
     "payment.iyzicoTitle": "Güvenli Ödeme (iyzico)",
@@ -117,6 +133,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.odometerLabel": "Kilometre (opsiyonel)",
     "payment.odometerPlaceholder": "ör. 184320",
     "payment.odometerHint": "Şirketiniz araç başına yakıt tüketimini görebilsin diye. Boş bırakabilirsiniz.",
+    "payment.odometerWarningLower": "Girilen km, son kayıtlı km'den ({last} km) düşük görünüyor. Kontrol eder misiniz?",
+    "payment.odometerWarningJump": "Girilen km, son kayıtlı km'ye ({last} km) göre çok büyük bir sıçrama gösteriyor. Kontrol eder misiniz?",
     "payment.cancel": "İşlemi İptal Et",
     "payment.unavailableTitle": "Kart ödemesi şu an alınamıyor",
     "payment.unavailableBody": "Bu istasyonda kart ödemesi geçici olarak kullanılamıyor. Lütfen istasyon görevlisine haber verin veya daha sonra tekrar deneyin.",
@@ -138,6 +156,10 @@ const DICTS: Record<KioskLang, Dict> = {
     "dispense.amountLabel": "Dolum Miktarı",
     "dispense.currentTotalLabel": "Anlık Tutar",
     "dispense.waitNote": "Lütfen bekleyin, dolum tamamlanınca işlem otomatik olarak sonuçlanacaktır. Durum: {status}",
+    "dispense.etaLabel": "Tahmini Kalan Süre",
+    "dispense.etaSeconds": "~{seconds} sn",
+    "dispense.etaMinutes": "~{minutes} dk {seconds} sn",
+    "dispense.etaCalculating": "Hesaplanıyor...",
 
     "receipt.failedTitle": "İşlem Tamamlanamadı",
     "receipt.completedTitle": "İşlem Tamamlandı",
@@ -159,6 +181,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "receipt.printTitle": "Yakıt Fişi",
     "receipt.print": "Fişi Yazdır",
     "receipt.printerFaultNote": "Yazıcıda bir arıza tespit edildi, fiş yazdırılamadı. Aşağıdan e-posta veya SMS ile makbuzunuzu alabilirsiniz.",
+    "receipt.qrHint": "Dijital makbuzunuzu telefonunuzdan görüntülemek için kodu okutun.",
+    "receipt.qrAlt": "Dijital makbuz QR kodu",
     "receipt.restart": "Yeni İşlem Başlat",
     "receipt.sendReceiptTitle": "Makbuzu Gönder",
     "receipt.marketingConsentLabel": "Kampanya ve fırsatlardan e-posta/SMS ile haberdar olmak istiyorum.",
@@ -184,6 +208,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Sesli yönlendirmeyi aç",
     "voice.toggleOffLabel": "Sesli yönlendirmeyi kapat",
+    "a11y.toggleOnLabel": "Büyük yazı / yüksek kontrast modunu aç",
+    "a11y.toggleOffLabel": "Büyük yazı / yüksek kontrast modunu kapat",
     "voice.enabledAnnouncement": "Sesli yönlendirme açıldı.",
     "voice.paymentStep": "Ödeme ekranı.",
     "voice.dispenseStep": "Dolum yapılıyor, lütfen bekleyin.",
@@ -298,6 +324,14 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.scanButton": "Auto-Scan with LPR",
     "plate.continue": "Continue",
     "plate.lprNote": "Note: LPR scanning is simulated in this environment since no physical camera hardware is present.",
+    "plate.loyaltyCheckButton": "Check My Loyalty Points",
+    "plate.loyaltyChecking": "Checking...",
+    "plate.loyaltyResult": "You have {points} points (worth {value})",
+    "plate.loyaltyDisabled": "The loyalty program is not active at this station.",
+    "plate.loyaltyError": "Could not check points, please try again.",
+    "plate.referrerLabel": "Who referred you? (optional)",
+    "plate.referrerPlaceholder": "Referrer's plate",
+    "plate.referrerHint": "Enter a friend's plate and you'll both get bonus points once you complete your first fill-up.",
     "action.back": "Back",
 
     "pump.title": "Select a Pump",
@@ -325,6 +359,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedTotal": "Estimated total: {amount}",
     "amount.fullTankHint": "Filling stops automatically when the tank-full sensor is triggered. A maximum estimated amount is shown beforehand.",
     "amount.useLoyalty": "Use my loyalty points ({points} pts = {value} discount)",
+    "loyalty.tier.bronze": "Bronze Member",
+    "loyalty.tier.silver": "Silver Member",
+    "loyalty.tier.gold": "Gold Member",
     "amount.discountCodeLabel": "Discount Code (optional)",
     "amount.discountCodePlaceholder": "e.g. SUMMER2026",
     "amount.checkingCode": "Checking...",
@@ -334,6 +371,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedCharge": "Estimated amount due: {amount}",
     "amount.invalidAmount": "Please enter a valid amount.",
     "amount.invalidLiters": "Please enter a valid liter amount.",
+    "amount.activeCampaignsTitle": "Active Campaigns",
+    "amount.campaignPercentOff": "{value}% off",
+    "amount.campaignFixedOff": "{value} off",
+    "amount.campaignFuelRestricted": "{fuel} only",
+    "amount.useCampaign": "Use",
     "action.continue": "Continue",
 
     "payment.iyzicoTitle": "Secure Payment (iyzico)",
@@ -344,6 +386,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.odometerLabel": "Odometer (optional)",
     "payment.odometerPlaceholder": "e.g. 184320",
     "payment.odometerHint": "So your company can see fuel consumption per vehicle. You may leave it blank.",
+    "payment.odometerWarningLower": "The entered mileage looks lower than the last recorded value ({last} km). Please double-check.",
+    "payment.odometerWarningJump": "The entered mileage is a very large jump from the last recorded value ({last} km). Please double-check.",
     "payment.cancel": "Cancel Transaction",
     "payment.unavailableTitle": "Card payment is currently unavailable",
     "payment.unavailableBody": "Card payment is temporarily unavailable at this station. Please notify a station attendant or try again later.",
@@ -365,6 +409,10 @@ const DICTS: Record<KioskLang, Dict> = {
     "dispense.amountLabel": "Amount Dispensed",
     "dispense.currentTotalLabel": "Current Total",
     "dispense.waitNote": "Please wait, the transaction will finish automatically once filling completes. Status: {status}",
+    "dispense.etaLabel": "Estimated Time Remaining",
+    "dispense.etaSeconds": "~{seconds}s",
+    "dispense.etaMinutes": "~{minutes}m {seconds}s",
+    "dispense.etaCalculating": "Calculating...",
 
     "receipt.failedTitle": "Transaction Failed",
     "receipt.completedTitle": "Transaction Complete",
@@ -386,6 +434,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "receipt.printTitle": "Fuel Receipt",
     "receipt.print": "Print Receipt",
     "receipt.printerFaultNote": "A printer fault was detected, the receipt could not be printed. You can get your receipt by email or SMS below.",
+    "receipt.qrHint": "Scan the code to view your digital receipt on your phone.",
+    "receipt.qrAlt": "Digital receipt QR code",
     "receipt.restart": "Start New Transaction",
     "receipt.sendReceiptTitle": "Send Receipt",
     "receipt.marketingConsentLabel": "I want to receive offers and campaigns by email/SMS.",
@@ -411,6 +461,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Turn on voice guidance",
     "voice.toggleOffLabel": "Turn off voice guidance",
+    "a11y.toggleOnLabel": "Turn on large text / high contrast mode",
+    "a11y.toggleOffLabel": "Turn off large text / high contrast mode",
     "voice.enabledAnnouncement": "Voice guidance enabled.",
     "voice.paymentStep": "Payment screen.",
     "voice.dispenseStep": "Dispensing fuel, please wait.",
@@ -525,6 +577,14 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.scanButton": "Автоскан (LPR)",
     "plate.continue": "Продолжить",
     "plate.lprNote": "Примечание: в этой среде нет физической камеры, поэтому сканирование LPR симулируется.",
+    "plate.loyaltyCheckButton": "Проверить баллы лояльности",
+    "plate.loyaltyChecking": "Проверка...",
+    "plate.loyaltyResult": "У вас {points} баллов (на сумму {value})",
+    "plate.loyaltyDisabled": "Программа лояльности на этой станции не активна.",
+    "plate.loyaltyError": "Не удалось проверить баллы, попробуйте снова.",
+    "plate.referrerLabel": "Кто вас пригласил? (необязательно)",
+    "plate.referrerPlaceholder": "Номер пригласившего",
+    "plate.referrerHint": "Введите номер друга, и вы оба получите бонусные баллы после завершения вашей первой заправки.",
     "action.back": "Назад",
 
     "pump.title": "Выберите колонку",
@@ -552,6 +612,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedTotal": "Примерная сумма: {amount}",
     "amount.fullTankHint": "Заправка автоматически остановится при срабатывании датчика полного бака. Максимальная предполагаемая сумма показана заранее.",
     "amount.useLoyalty": "Использовать баллы лояльности ({points} баллов = скидка {value})",
+    "loyalty.tier.bronze": "Бронзовый участник",
+    "loyalty.tier.silver": "Серебряный участник",
+    "loyalty.tier.gold": "Золотой участник",
     "amount.discountCodeLabel": "Промокод (необязательно)",
     "amount.discountCodePlaceholder": "напр.: YAZ2026",
     "amount.checkingCode": "Проверка...",
@@ -561,6 +624,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedCharge": "Примерная сумма к оплате: {amount}",
     "amount.invalidAmount": "Введите корректную сумму.",
     "amount.invalidLiters": "Введите корректное количество литров.",
+    "amount.activeCampaignsTitle": "Активные акции",
+    "amount.campaignPercentOff": "скидка {value}%",
+    "amount.campaignFixedOff": "скидка {value}",
+    "amount.campaignFuelRestricted": "только {fuel}",
+    "amount.useCampaign": "Использовать",
     "action.continue": "Продолжить",
 
     "payment.iyzicoTitle": "Безопасная оплата (iyzico)",
@@ -571,6 +639,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.odometerLabel": "Пробег (необязательно)",
     "payment.odometerPlaceholder": "напр. 184320",
     "payment.odometerHint": "Чтобы ваша компания видела расход топлива по каждой машине. Можно не заполнять.",
+    "payment.odometerWarningLower": "Введённый пробег меньше последнего зафиксированного значения ({last} км). Проверьте, пожалуйста.",
+    "payment.odometerWarningJump": "Введённый пробег сильно отличается от последнего зафиксированного значения ({last} км). Проверьте, пожалуйста.",
     "payment.cancel": "Отменить транзакцию",
     "payment.unavailableTitle": "Оплата картой сейчас недоступна",
     "payment.unavailableBody": "Оплата картой на этой станции временно недоступна. Сообщите сотруднику станции или повторите попытку позже.",
@@ -592,6 +662,10 @@ const DICTS: Record<KioskLang, Dict> = {
     "dispense.amountLabel": "Заправлено",
     "dispense.currentTotalLabel": "Текущая сумма",
     "dispense.waitNote": "Пожалуйста, подождите, транзакция завершится автоматически по окончании заправки. Статус: {status}",
+    "dispense.etaLabel": "Оставшееся время",
+    "dispense.etaSeconds": "~{seconds} сек",
+    "dispense.etaMinutes": "~{minutes} мин {seconds} сек",
+    "dispense.etaCalculating": "Вычисление...",
 
     "receipt.failedTitle": "Транзакция не завершена",
     "receipt.completedTitle": "Транзакция завершена",
@@ -613,6 +687,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "receipt.printTitle": "Топливный чек",
     "receipt.print": "Распечатать чек",
     "receipt.printerFaultNote": "Обнаружена неисправность принтера, чек не может быть напечатан. Вы можете получить квитанцию по электронной почте или SMS ниже.",
+    "receipt.qrHint": "Отсканируйте код, чтобы посмотреть цифровую квитанцию на телефоне.",
+    "receipt.qrAlt": "QR-код цифровой квитанции",
     "receipt.restart": "Начать новую транзакцию",
     "receipt.sendReceiptTitle": "Отправить чек",
     "receipt.marketingConsentLabel": "Хочу получать акции и предложения по email/SMS.",
@@ -638,6 +714,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Включить голосовое сопровождение",
     "voice.toggleOffLabel": "Выключить голосовое сопровождение",
+    "a11y.toggleOnLabel": "Включить крупный текст / высокий контраст",
+    "a11y.toggleOffLabel": "Выключить крупный текст / высокий контраст",
     "voice.enabledAnnouncement": "Голосовое сопровождение включено.",
     "voice.paymentStep": "Экран оплаты.",
     "voice.dispenseStep": "Идёт заправка, пожалуйста, подождите.",
@@ -752,6 +830,14 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.scanButton": "Automatisch mit LPR scannen",
     "plate.continue": "Weiter",
     "plate.lprNote": "Hinweis: Da in dieser Umgebung keine physische Kamera vorhanden ist, wird der LPR-Scan simuliert.",
+    "plate.loyaltyCheckButton": "Treuepunkte abfragen",
+    "plate.loyaltyChecking": "Wird geprüft...",
+    "plate.loyaltyResult": "Sie haben {points} Punkte (im Wert von {value})",
+    "plate.loyaltyDisabled": "Das Treueprogramm ist an dieser Station nicht aktiv.",
+    "plate.loyaltyError": "Punkte konnten nicht abgefragt werden, bitte erneut versuchen.",
+    "plate.referrerLabel": "Wer hat Sie geworben? (optional)",
+    "plate.referrerPlaceholder": "Kennzeichen des Werbenden",
+    "plate.referrerHint": "Geben Sie das Kennzeichen eines Freundes ein - nach Ihrer ersten abgeschlossenen Betankung erhalten Sie beide Bonuspunkte.",
     "action.back": "Zurück",
 
     "pump.title": "Zapfsäule auswählen",
@@ -779,6 +865,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedTotal": "Geschätzter Betrag: {amount}",
     "amount.fullTankHint": "Die Betankung stoppt automatisch, sobald der Volltank-Sensor auslöst. Ein geschätzter Höchstbetrag wird vorab angezeigt.",
     "amount.useLoyalty": "Treuepunkte verwenden ({points} Punkte = {value} Rabatt)",
+    "loyalty.tier.bronze": "Bronze-Mitglied",
+    "loyalty.tier.silver": "Silber-Mitglied",
+    "loyalty.tier.gold": "Gold-Mitglied",
     "amount.discountCodeLabel": "Rabattcode (optional)",
     "amount.discountCodePlaceholder": "z. B. YAZ2026",
     "amount.checkingCode": "Wird geprüft...",
@@ -788,6 +877,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedCharge": "Voraussichtlich fälliger Betrag: {amount}",
     "amount.invalidAmount": "Bitte geben Sie einen gültigen Betrag ein.",
     "amount.invalidLiters": "Bitte geben Sie eine gültige Litermenge ein.",
+    "amount.activeCampaignsTitle": "Aktive Kampagnen",
+    "amount.campaignPercentOff": "{value}% Rabatt",
+    "amount.campaignFixedOff": "{value} Rabatt",
+    "amount.campaignFuelRestricted": "Nur {fuel}",
+    "amount.useCampaign": "Verwenden",
     "action.continue": "Weiter",
 
     "payment.iyzicoTitle": "Sichere Zahlung (iyzico)",
@@ -798,6 +892,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.odometerLabel": "Kilometerstand (optional)",
     "payment.odometerPlaceholder": "z. B. 184320",
     "payment.odometerHint": "Damit Ihr Unternehmen den Verbrauch je Fahrzeug sehen kann. Kann leer bleiben.",
+    "payment.odometerWarningLower": "Der eingegebene Kilometerstand liegt unter dem zuletzt erfassten Wert ({last} km). Bitte prüfen.",
+    "payment.odometerWarningJump": "Der eingegebene Kilometerstand weicht stark vom zuletzt erfassten Wert ({last} km) ab. Bitte prüfen.",
     "payment.cancel": "Transaktion abbrechen",
     "payment.unavailableTitle": "Kartenzahlung derzeit nicht möglich",
     "payment.unavailableBody": "Die Kartenzahlung ist an dieser Station vorübergehend nicht verfügbar. Bitte informieren Sie das Stationspersonal oder versuchen Sie es später erneut.",
@@ -819,6 +915,10 @@ const DICTS: Record<KioskLang, Dict> = {
     "dispense.amountLabel": "Getankte Menge",
     "dispense.currentTotalLabel": "Aktueller Betrag",
     "dispense.waitNote": "Bitte warten Sie, die Transaktion wird nach Abschluss der Betankung automatisch beendet. Status: {status}",
+    "dispense.etaLabel": "Geschätzte Restzeit",
+    "dispense.etaSeconds": "~{seconds} s",
+    "dispense.etaMinutes": "~{minutes} min {seconds} s",
+    "dispense.etaCalculating": "Wird berechnet...",
 
     "receipt.failedTitle": "Transaktion nicht abgeschlossen",
     "receipt.completedTitle": "Transaktion abgeschlossen",
@@ -840,6 +940,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "receipt.printTitle": "Tankquittung",
     "receipt.print": "Beleg drucken",
     "receipt.printerFaultNote": "Ein Druckerfehler wurde festgestellt, der Beleg konnte nicht gedruckt werden. Sie können Ihre Quittung unten per E-Mail oder SMS erhalten.",
+    "receipt.qrHint": "Scannen Sie den Code, um Ihre digitale Quittung auf dem Handy anzuzeigen.",
+    "receipt.qrAlt": "QR-Code der digitalen Quittung",
     "receipt.restart": "Neue Transaktion starten",
     "receipt.sendReceiptTitle": "Beleg senden",
     "receipt.marketingConsentLabel": "Ich möchte per E-Mail/SMS über Angebote und Aktionen informiert werden.",
@@ -865,6 +967,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "Sprachführung einschalten",
     "voice.toggleOffLabel": "Sprachführung ausschalten",
+    "a11y.toggleOnLabel": "Großschrift / hohen Kontrast einschalten",
+    "a11y.toggleOffLabel": "Großschrift / hohen Kontrast ausschalten",
     "voice.enabledAnnouncement": "Sprachführung aktiviert.",
     "voice.paymentStep": "Zahlungsbildschirm.",
     "voice.dispenseStep": "Betankung läuft, bitte warten.",
@@ -979,6 +1083,14 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.scanButton": "مسح تلقائي بالتعرف على اللوحات",
     "plate.continue": "متابعة",
     "plate.lprNote": "ملاحظة: نظرًا لعدم وجود كاميرا فعلية في هذه البيئة، يتم محاكاة مسح اللوحات.",
+    "plate.loyaltyCheckButton": "الاستعلام عن نقاط الولاء",
+    "plate.loyaltyChecking": "جارٍ الاستعلام...",
+    "plate.loyaltyResult": "لديك {points} نقطة (بقيمة {value})",
+    "plate.loyaltyDisabled": "برنامج الولاء غير مفعّل في هذه المحطة.",
+    "plate.loyaltyError": "تعذر الاستعلام عن النقاط، يرجى المحاولة مرة أخرى.",
+    "plate.referrerLabel": "من أحالك إلينا؟ (اختياري)",
+    "plate.referrerPlaceholder": "لوحة من أحالك",
+    "plate.referrerHint": "أدخل لوحة صديقك، وستحصلان كلاكما على نقاط مكافأة بعد إتمام أول عملية تعبئة لك.",
     "action.back": "رجوع",
 
     "pump.title": "اختر المضخة",
@@ -1006,6 +1118,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedTotal": "المبلغ التقديري: {amount}",
     "amount.fullTankHint": "تتوقف التعبئة تلقائيًا عند تفعيل مستشعر امتلاء الخزان. يُعرض الحد الأقصى التقديري للمبلغ مسبقًا.",
     "amount.useLoyalty": "استخدام نقاط الولاء ({points} نقطة = خصم {value})",
+    "loyalty.tier.bronze": "عضو برونزي",
+    "loyalty.tier.silver": "عضو فضي",
+    "loyalty.tier.gold": "عضو ذهبي",
     "amount.discountCodeLabel": "رمز الخصم (اختياري)",
     "amount.discountCodePlaceholder": "مثال: YAZ2026",
     "amount.checkingCode": "جارٍ التحقق...",
@@ -1015,6 +1130,11 @@ const DICTS: Record<KioskLang, Dict> = {
     "amount.estimatedCharge": "المبلغ التقديري المستحق: {amount}",
     "amount.invalidAmount": "يرجى إدخال مبلغ صحيح.",
     "amount.invalidLiters": "يرجى إدخال عدد لترات صحيح.",
+    "amount.activeCampaignsTitle": "الحملات النشطة",
+    "amount.campaignPercentOff": "خصم {value}%",
+    "amount.campaignFixedOff": "خصم {value}",
+    "amount.campaignFuelRestricted": "فقط {fuel}",
+    "amount.useCampaign": "استخدام",
     "action.continue": "متابعة",
 
     "payment.iyzicoTitle": "دفع آمن (iyzico)",
@@ -1025,6 +1145,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "payment.odometerLabel": "عداد المسافة (اختياري)",
     "payment.odometerPlaceholder": "مثال 184320",
     "payment.odometerHint": "لكي ترى شركتك استهلاك الوقود لكل مركبة. يمكنك تركه فارغًا.",
+    "payment.odometerWarningLower": "الكيلومترات المدخلة أقل من آخر قيمة مسجلة ({last} كم). يرجى التحقق.",
+    "payment.odometerWarningJump": "الكيلومترات المدخلة تختلف بشكل كبير عن آخر قيمة مسجلة ({last} كم). يرجى التحقق.",
     "payment.cancel": "إلغاء العملية",
     "payment.unavailableTitle": "الدفع بالبطاقة غير متاح حاليًا",
     "payment.unavailableBody": "الدفع بالبطاقة غير متاح مؤقتًا في هذه المحطة. يرجى إبلاغ موظف المحطة أو المحاولة لاحقًا.",
@@ -1046,6 +1168,10 @@ const DICTS: Record<KioskLang, Dict> = {
     "dispense.amountLabel": "الكمية المعبأة",
     "dispense.currentTotalLabel": "المبلغ الحالي",
     "dispense.waitNote": "يرجى الانتظار، ستنتهي العملية تلقائيًا عند اكتمال التعبئة. الحالة: {status}",
+    "dispense.etaLabel": "الوقت المتبقي المقدر",
+    "dispense.etaSeconds": "~{seconds} ثانية",
+    "dispense.etaMinutes": "~{minutes} د {seconds} ث",
+    "dispense.etaCalculating": "جارٍ الحساب...",
 
     "receipt.failedTitle": "لم تكتمل العملية",
     "receipt.completedTitle": "اكتملت العملية",
@@ -1067,6 +1193,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "receipt.printTitle": "إيصال الوقود",
     "receipt.print": "طباعة الإيصال",
     "receipt.printerFaultNote": "تم اكتشاف عطل في الطابعة، لم يتم طباعة الإيصال. يمكنك الحصول على إيصالك عبر البريد الإلكتروني أو الرسائل النصية أدناه.",
+    "receipt.qrHint": "امسح الرمز لعرض إيصالك الرقمي على هاتفك.",
+    "receipt.qrAlt": "رمز QR للإيصال الرقمي",
     "receipt.restart": "بدء عملية جديدة",
     "receipt.sendReceiptTitle": "إرسال الإيصال",
     "receipt.marketingConsentLabel": "أرغب في تلقي العروض والحملات عبر البريد الإلكتروني/الرسائل النصية.",
@@ -1092,6 +1220,8 @@ const DICTS: Record<KioskLang, Dict> = {
 
     "voice.toggleOnLabel": "تشغيل الإرشاد الصوتي",
     "voice.toggleOffLabel": "إيقاف الإرشاد الصوتي",
+    "a11y.toggleOnLabel": "تشغيل وضع النص الكبير / التباين العالي",
+    "a11y.toggleOffLabel": "إيقاف وضع النص الكبير / التباين العالي",
     "voice.enabledAnnouncement": "تم تفعيل الإرشاد الصوتي.",
     "voice.paymentStep": "شاشة الدفع.",
     "voice.dispenseStep": "جارٍ التعبئة، يرجى الانتظار.",
@@ -1166,11 +1296,16 @@ interface KioskLangState {
   setLang: (l: KioskLang) => void;
   t: (key: string, vars?: Record<string, string | number>) => string;
   locale: string;
+  /** Buyuk yazi/yuksek kontrast modu - gorme guclugu cekenler icin, dil secimiyle ayni
+      kalicilik/kapsam mantigina sahip: tum kiosk akisi boyunca gecerli, cihazda saklanir. */
+  a11y: boolean;
+  setA11y: (v: boolean) => void;
 }
 
 const KioskLangContext = createContext<KioskLangState | null>(null);
 
 const STORAGE_KEY = "kiosk_lang";
+const A11Y_STORAGE_KEY = "kiosk_a11y";
 
 export function KioskLangProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<KioskLang>(() => {
@@ -1182,12 +1317,30 @@ export function KioskLangProvider({ children }: { children: ReactNode }) {
     }
   });
 
+  const [a11y, setA11yState] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem(A11Y_STORAGE_KEY) === "1";
+    } catch {
+      return false;
+    }
+  });
+
   function setLang(l: KioskLang) {
     setLangState(l);
     try {
       localStorage.setItem(STORAGE_KEY, l);
     } catch {
       // localStorage erisilemez olabilir (ozel gezinti vb.) - dil secimi bu oturumda gecerli kalir.
+    }
+  }
+
+  function setA11y(v: boolean) {
+    setA11yState(v);
+    try {
+      if (v) localStorage.setItem(A11Y_STORAGE_KEY, "1");
+      else localStorage.removeItem(A11Y_STORAGE_KEY);
+    } catch {
+      // localStorage erisilemez olabilir (ozel gezinti vb.) - secim bu oturumda gecerli kalir.
     }
   }
 
@@ -1204,7 +1357,7 @@ export function KioskLangProvider({ children }: { children: ReactNode }) {
   const LOCALES: Record<KioskLang, string> = { tr: "tr-TR", en: "en-US", ru: "ru-RU", de: "de-DE", ar: "ar-SA" };
   const locale = LOCALES[lang];
 
-  return <KioskLangContext.Provider value={{ lang, setLang, t, locale }}>{children}</KioskLangContext.Provider>;
+  return <KioskLangContext.Provider value={{ lang, setLang, t, locale, a11y, setA11y }}>{children}</KioskLangContext.Provider>;
 }
 
 export function useKioskLang(): KioskLangState {

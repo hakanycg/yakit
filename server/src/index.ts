@@ -15,6 +15,7 @@ import { checkOfflineStations } from "./services/syncService.js";
 import { checkOfflineKiosks } from "./services/kioskFleetService.js";
 import { sweepAlarmEscalations } from "./services/alarmEscalationService.js";
 import { sweepDataRetention } from "./services/dataRetentionService.js";
+import { expireOldPoints } from "./services/loyaltyService.js";
 import { checkExpiringSeals } from "./services/pumpCalibrationService.js";
 import { checkExpiringCompliance } from "./services/safetyComplianceService.js";
 import { sweepCallRecordings } from "./services/callRecordingService.js";
@@ -144,6 +145,21 @@ const retentionInterval = setInterval(
   24 * 60 * 60 * 1000
 );
 retentionInterval.unref();
+
+// Sadakat puani gecerlilik suresi: hareketsiz kalan hesaplarin bakiyesini sifirlar. KVKK
+// saklama taramasindan (retentionInterval) BILEREK AYRI tutulur - ikisi farkli saatler ve
+// farkli amaclar tasir (bkz. loyaltyService.ts expireOldPoints yorumu). Gunde bir yeterlidir.
+const loyaltyPointExpiryInterval = setInterval(
+  () => {
+    try {
+      expireOldPoints();
+    } catch (err) {
+      logger.error({ err }, "Sadakat puani gecerlilik suresi taramasi basarisiz.");
+    }
+  },
+  24 * 60 * 60 * 1000
+);
+loyaltyPointExpiryInterval.unref();
 
 // Cevaplanmayan kritik alarmlari hatirlatir/yukseltir. Dakikada bir calisir: guvenlik
 // kaynakli alarmlarin (yangin/gaz) hatirlatma esigi 3 dakikadir ve daha seyrek bir tarama

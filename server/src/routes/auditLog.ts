@@ -4,7 +4,7 @@ import { db } from "../db/index.js";
 import type { AuditLogRow } from "../db/types.js";
 import { attachStationScope, requireAuth, requireRole } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
-import { recordAudit } from "../services/auditService.js";
+import { recordAudit, verifyAuditChain } from "../services/auditService.js";
 
 const router = Router();
 router.use(requireAuth, requireRole("super_admin"), attachStationScope);
@@ -113,6 +113,18 @@ router.get("/", validateQuery(listSchema), (req, res) => {
       createdAt: r.created_at,
     })),
   });
+});
+
+/** Denetim kaydi hash-zincirinin butunlugunu dogrular (bkz. auditService.verifyAuditChain). */
+router.get("/verify", (req, res) => {
+  const result = verifyAuditChain();
+  recordAudit({
+    user: req.user!,
+    action: "audit_log_chain_verified",
+    details: { ok: result.ok, checkedCount: result.checkedCount, brokenAtId: result.brokenAtId },
+    ip: req.ip,
+  });
+  res.json(result);
 });
 
 export { router as auditLogRouter };

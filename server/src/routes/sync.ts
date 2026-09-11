@@ -4,7 +4,8 @@ import { z } from "zod";
 import { validateBody } from "../middleware/validate.js";
 import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
 import { recordAudit } from "../services/auditService.js";
-import { verifyTotpCode } from "../utils/totp.js";
+import { db } from "../db/index.js";
+import { matchTotpCounter } from "../utils/totp.js";
 import {
   ensureSyncToken,
   getStationBySyncToken,
@@ -94,10 +95,12 @@ router.post(
     const user = req.user!;
     if (user.totp_enabled) {
       const { code } = req.body as z.infer<typeof rotateTokenSchema>;
-      if (!code || !user.totp_secret || !verifyTotpCode(user.totp_secret, code)) {
+      const matchedCounter = code && user.totp_secret ? matchTotpCounter(user.totp_secret, code) : null;
+      if (matchedCounter === null || (user.totp_last_used_counter !== null && matchedCounter <= user.totp_last_used_counter)) {
         res.status(401).json({ error: "Gecerli bir dogrulama kodu gerekli.", requiresTotp: true });
         return;
       }
+      db.prepare("UPDATE users SET totp_last_used_counter = ? WHERE id = ?").run(matchedCounter, user.id);
     }
 
     const token = rotateSyncToken(req.stationId!);

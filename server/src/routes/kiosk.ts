@@ -22,11 +22,12 @@ import { sendReceipt } from "../services/receiptService.js";
 import { initializeCheckoutForm, retrieveCheckoutForm, IyzicoError } from "../services/iyzicoService.js";
 import { isIyzicoReady } from "../services/paymentSettingsService.js";
 import { getAvailableLiters } from "../services/fuelStockService.js";
-import { getBalance as getLoyaltyBalance, getLoyaltyConfig } from "../services/loyaltyService.js";
+import { getBalance as getLoyaltyBalance, getLifetimePoints as getLoyaltyLifetimePoints, getLoyaltyConfig, getTier as getLoyaltyTier } from "../services/loyaltyService.js";
 import { DiscountError, validateCode } from "../services/discountService.js";
 import {
   getAccountForPlate as getFleetAccountForPlate,
   getExpectedFuelTypeForPlate,
+  getLastOdometerForPlate,
   serializeAccount as serializeFleetAccount,
 } from "../services/fleetService.js";
 import { getWrongFuelMode } from "../services/wrongFuelSettingsService.js";
@@ -195,6 +196,9 @@ router.get("/station/:slug", (req, res) => {
     // Istasyonun kendi iletisim numarasi: kiosk yardim ekraninda musteriye
     // aranacak numara olarak gosterilir.
     contactPhone: station.contact_phone ?? null,
+    // Referral programi acik mi - kiosk plaka adiminda "beni kim yonlendirdi" alanini
+    // yalnizca bu true iken gosterir (bkz. referralService.ts).
+    referralEnabled: getLoyaltyConfig(station.id).referralEnabled,
   });
 });
 
@@ -219,9 +223,10 @@ router.get("/loyalty/balance", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
-  const { enabled, pointValueTry } = getLoyaltyConfig(parsed.data.stationId);
-  const points = enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
-  res.json({ enabled, points, valueTry: Math.round(points * pointValueTry * 100) / 100 });
+  const config = getLoyaltyConfig(parsed.data.stationId);
+  const points = config.enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
+  const tier = config.enabled ? getLoyaltyTier(getLoyaltyLifetimePoints(parsed.data.stationId, parsed.data.plate), config) : null;
+  res.json({ enabled: config.enabled, points, valueTry: Math.round(points * config.pointValueTry * 100) / 100, tier });
 });
 
 router.get("/plate/last-fuel-type", (req, res) => {
@@ -310,6 +315,7 @@ const createSchema = z.object({
   requestedLiters: z.number().positive().max(300).optional(),
   discountCode: z.string().trim().min(1).max(30).optional(),
   redeemPoints: z.number().positive().max(1000000).optional(),
+  referrerPlate: z.string().regex(plateRegex, "Gecersiz plaka formati.").optional(),
 });
 
 router.post("/transactions", validateBody(createSchema), (req, res) => {
@@ -362,7 +368,8 @@ router.get("/fleet-account", (req, res) => {
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
   const account = getFleetAccountForPlate(parsed.data.stationId, parsed.data.plate);
-  res.json({ account: account ? serializeFleetAccount(account) : null });
+  const lastOdometerKm = account ? getLastOdometerForPlate(parsed.data.stationId, parsed.data.plate) : null;
+  res.json({ account: account ? { ...serializeFleetAccount(account), lastOdometerKm } : null });
 });
 
 const payFleetSchema = z.object({

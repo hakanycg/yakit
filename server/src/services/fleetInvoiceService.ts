@@ -405,6 +405,22 @@ export async function retryFleetInvoice(stationId: number, accountId: number, in
   return sendInvoice(invoiceId);
 }
 
+/**
+ * Portal musterisinin TEK bir faturayi indirebilmesi icin (PDF). Kapsam kontrolu burada
+ * yapilir: fatura BASKA bir hesaba aitse veya henuz GONDERILMEMISSE (pending/failed),
+ * yok sayilir - /accounts/:id/invoices listesindeki AYNI filtre (yalnizca 'sent').
+ * Boylece musteri, listede hic gormedigi bir faturanin id'sini tahmin ederek
+ * (ör. /invoices/1/pdf, /invoices/2/pdf...) baska bir hesabin ya da henuz kesilmemis bir
+ * faturanin verisine erisemez.
+ */
+export function getSentInvoiceForAccount(accountId: number, invoiceId: number): FleetInvoiceRow {
+  const invoice = db.prepare<[number], FleetInvoiceRow>("SELECT * FROM fleet_invoices WHERE id = ?").get(invoiceId);
+  if (!invoice || invoice.fleet_account_id !== accountId || invoice.status !== "sent") {
+    throw new FleetInvoiceError("Fatura bulunamadi.", 404);
+  }
+  return invoice;
+}
+
 export function serializeFleetInvoice(i: FleetInvoiceRow) {
   return {
     id: i.id,

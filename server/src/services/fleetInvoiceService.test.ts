@@ -8,6 +8,7 @@ import {
   FleetInvoiceError,
   createPeriodInvoice,
   getInvoiceDraft,
+  getSentInvoiceForAccount,
   listFleetInvoices,
   retryFleetInvoice,
 } from "./fleetInvoiceService.js";
@@ -286,5 +287,38 @@ describe("fatura anlik goruntusu", () => {
     expect(listFleetInvoices(station.id, accountId).find((i) => i.id === invoice.id)!.payable_amount).toBe(1000);
     // Iade siradaki faturaya (eksi bakiyeli) hareket olarak kalir.
     expect(getInvoiceDraft(station.id, accountId).movementCount).toBe(1);
+  });
+});
+
+describe("portal icin gonderilmis fatura erisimi (bkz. gorev #252 - PDF indirme)", () => {
+  it("gonderilmis (sent) bir faturayi hesabin kendisi icin doner", async () => {
+    addFill({ plate: "34ABC01", liters: 20, amount: 1000, at: "2026-08-10T09:00:00.000Z" });
+    const invoice = await createPeriodInvoice(station.id, accountId, actor);
+    expect(invoice.status).toBe("sent");
+
+    const fetched = getSentInvoiceForAccount(accountId, invoice.id);
+    expect(fetched.id).toBe(invoice.id);
+  });
+
+  it("baska bir hesabin faturasi icin 'bulunamadi' hatasi firlatir (IDOR korumasi)", async () => {
+    addFill({ plate: "34ABC01", liters: 20, amount: 1000, at: "2026-08-10T09:00:00.000Z" });
+    const invoice = await createPeriodInvoice(station.id, accountId, actor);
+    const otherAccount = createAccount(station.id, { companyName: "Baska", billingType: "postpaid", vkn: "1" }, actor).id;
+
+    expect(() => getSentInvoiceForAccount(otherAccount, invoice.id)).toThrow(FleetInvoiceError);
+    expect(() => getSentInvoiceForAccount(otherAccount, invoice.id)).toThrow(/bulunamadi/);
+  });
+
+  it("henuz gonderilmemis (pending/failed) bir fatura musteriye gosterilmez", async () => {
+    // Saglayici basarisiz cevap versin - fatura 'failed' durumunda kalir.
+    mockProvider({ Success: false, ErrorMessage: "saglayici hatasi" });
+    addFill({ plate: "34ABC01", liters: 20, amount: 1000, at: "2026-08-10T09:00:00.000Z" });
+    const invoice = await createPeriodInvoice(station.id, accountId, actor);
+    expect(invoice.status).toBe("failed");
+    expect(() => getSentInvoiceForAccount(accountId, invoice.id)).toThrow(/bulunamadi/);
+  });
+
+  it("olmayan bir fatura id'si icin 'bulunamadi' hatasi firlatir", () => {
+    expect(() => getSentInvoiceForAccount(accountId, 999999)).toThrow(/bulunamadi/);
   });
 });

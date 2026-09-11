@@ -8,6 +8,8 @@ interface FleetPlate {
   plate: string;
   expectedFuelType: "benzin" | "motorin" | "lpg" | null;
   createdAt: string;
+  monthlySpendingLimitTry: number | null;
+  monthlySpentTry?: number;
 }
 
 interface FleetAccount {
@@ -24,6 +26,8 @@ interface FleetAccount {
   lowBalanceThreshold: number | null;
   paymentTermDays: number | null;
   overdueBlockDays: number | null;
+  discountType: "percent" | "fixed" | null;
+  discountValue: number | null;
   createdAt: string;
   plates: FleetPlate[];
 }
@@ -489,6 +493,9 @@ function AccountDetailDialog({
   const [lowBalanceThreshold, setLowBalanceThreshold] = useState(account?.lowBalanceThreshold?.toString() ?? "");
   const [paymentTermDays, setPaymentTermDays] = useState(account?.paymentTermDays?.toString() ?? "");
   const [overdueBlockDays, setOverdueBlockDays] = useState(account?.overdueBlockDays?.toString() ?? "");
+  const [discountType, setDiscountType] = useState<"" | "percent" | "fixed">(account?.discountType ?? "");
+  const [discountValue, setDiscountValue] = useState(account?.discountValue?.toString() ?? "");
+  const [discountSaved, setDiscountSaved] = useState(false);
   const [contactSaved, setContactSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -647,6 +654,37 @@ function AccountDetailDialog({
     }
   }
 
+  /**
+   * Arac bazinda aylik harcama limiti - hesabin GENEL bakiyesinden AYRI bir koruma,
+   * tek bir arac/sofor hesabin tamamini tuketmesin diye. Diger plaka alanlarina gore
+   * cok daha nadir degistirilecegi icin (kurulumda bir kez, sonra nadiren) ayri bir
+   * form yerine window.prompt kullanildi - bkz. Stations.tsx deleteStation'daki ayni tercih.
+   */
+  async function editSpendingLimit(plate: FleetPlate) {
+    const input = window.prompt(
+      `${plate.plate} icin aylik harcama limiti (TL). Bos birakip Tamam'a basarsaniz limit kaldirilir.`,
+      plate.monthlySpendingLimitTry?.toString() ?? ""
+    );
+    if (input === null) return;
+    const trimmed = input.trim();
+    if (trimmed !== "" && (Number.isNaN(Number(trimmed)) || Number(trimmed) <= 0)) {
+      setError("Geçerli bir tutar girin (0'dan büyük) veya kaldırmak için boş bırakın.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await api.patch(`/api/fleet-accounts/${accountId}/plates/${plate.id}/spending-limit`, {
+        monthlySpendingLimitTry: trimmed === "" ? null : Number(trimmed),
+      });
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Harcama limiti kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function saveContact() {
     setBusy(true);
     setError(null);
@@ -663,6 +701,24 @@ function AccountDetailDialog({
       onChanged();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "İletişim bilgileri kaydedilemedi.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveDiscount() {
+    setBusy(true);
+    setError(null);
+    setDiscountSaved(false);
+    try {
+      await api.patch(`/api/fleet-accounts/${accountId}/discount`, {
+        discountType: discountType || null,
+        discountValue: discountType ? Number(discountValue) : null,
+      });
+      setDiscountSaved(true);
+      onChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Anlaşma indirimi kaydedilemedi.");
     } finally {
       setBusy(false);
     }
@@ -724,6 +780,20 @@ function AccountDetailDialog({
               <li key={p.id} className="plate-chip">
                 <span dir="ltr">{p.plate}</span>
                 {p.expectedFuelType && <span className="hint-text">({FUEL_LABEL[p.expectedFuelType]})</span>}
+                <button
+                  type="button"
+                  onClick={() => editSpendingLimit(p)}
+                  disabled={busy}
+                  aria-label={`${p.plate} için aylık harcama limitini düzenle`}
+                  title={
+                    p.monthlySpendingLimitTry !== null
+                      ? `Aylık limit: ${formatCurrency(p.monthlySpendingLimitTry)}${p.monthlySpentTry !== undefined ? ` · bu ay: ${formatCurrency(p.monthlySpentTry)}` : ""}`
+                      : "Aylık harcama limiti belirle"
+                  }
+                  className="ghost btn-sm"
+                >
+                  {p.monthlySpendingLimitTry !== null ? `⛽ ${formatCurrency(p.monthlySpendingLimitTry)}` : "⛽ Limit"}
+                </button>
                 <button
                   type="button"
                   onClick={() => removePlate(p.id)}
@@ -798,6 +868,42 @@ function AccountDetailDialog({
         {contactSaved && <span className="hint-text">Kaydedildi.</span>}
         <div className="spacer" />
         <button onClick={saveContact} disabled={busy}>İletişim Bilgilerini Kaydet</button>
+      </div>
+
+      <h4>Anlaşma İndirimi</h4>
+      <p className="hint-text">
+        Bu şirketle yapılan ticari anlaşma gereği, filo hesabından ödeme yapılan HER dolumda otomatik uygulanan
+        indirim - müşteri kod girmez. Kiosk'ta kullanılan indirim kodu/sadakat puanı varsa onun ÜZERİNE eklenir.
+      </p>
+      <div className="grid cols-2" style={{ alignItems: "start" }}>
+        <div>
+          <label>İndirim Tipi</label>
+          <select value={discountType} onChange={(e) => setDiscountType(e.target.value as "" | "percent" | "fixed")}>
+            <option value="">Yok</option>
+            <option value="percent">Yüzde (%)</option>
+            <option value="fixed">Sabit Tutar (TL)</option>
+          </select>
+        </div>
+        {discountType && (
+          <div>
+            <label>{discountType === "percent" ? "Yüzde" : "Tutar (TL)"}</label>
+            <input
+              type="number"
+              min={0}
+              max={discountType === "percent" ? 100 : undefined}
+              step={0.01}
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+            />
+          </div>
+        )}
+      </div>
+      <div className="toolbar" style={{ marginTop: "0.75rem" }}>
+        {discountSaved && <span className="hint-text">Kaydedildi.</span>}
+        <div className="spacer" />
+        <button onClick={saveDiscount} disabled={busy || (!!discountType && !discountValue)}>
+          Anlaşma İndirimini Kaydet
+        </button>
       </div>
 
       <h4>Dönem Faturası</h4>

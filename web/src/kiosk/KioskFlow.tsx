@@ -44,7 +44,7 @@ export default function KioskFlow() {
 }
 
 function KioskFlowInner() {
-  const { t, lang, locale } = useKioskLang();
+  const { t, lang, locale, a11y } = useKioskLang();
   const dir = RTL_LANGS.includes(lang) ? "rtl" : "ltr";
   const { slug } = useParams<{ slug: string }>();
   const [station, setStation] = useState<StationResponse | null>(null);
@@ -52,6 +52,7 @@ function KioskFlowInner() {
   const [step, setStep] = useState<Step>("welcome");
   const [plate, setPlate] = useState("");
   const [plateSource, setPlateSource] = useState<"manual" | "lpr">("manual");
+  const [referrerPlate, setReferrerPlate] = useState<string | undefined>(undefined);
   const [pump, setPump] = useState<Pump | null>(null);
   const [fuelType, setFuelType] = useState<FuelType | null>(null);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
@@ -64,6 +65,19 @@ function KioskFlowInner() {
   // olur (bkz. useDayNightMode.ts). Istasyon yuklenene kadar konum bilinmedigi icin
   // hook o ana kadar saat tabanli yedege duser.
   const dayNightMode = useDayNightMode(station?.station ?? null);
+
+  // Kiosk tipografisi rem tabanli oldugu icin buyuk-yazi modunu tek noktadan olceklemenin
+  // en guvenilir yolu kok font-size'i degistirmek - CSS degiskenleriyle (--k-* renk
+  // tokenlari gibi) tek tek yeniden yazmak duzinelerce kurali kirilgan hale getirirdi.
+  // Etki yalnizca bu bilesen bagliyken surer; kapanista onceki deger geri yuklenir.
+  useEffect(() => {
+    const root = document.documentElement;
+    const prev = root.style.fontSize;
+    if (a11y) root.style.fontSize = "125%";
+    return () => {
+      root.style.fontSize = prev;
+    };
+  }, [a11y]);
 
   const loadStation = useCallback(() => {
     if (!slug) return;
@@ -317,6 +331,7 @@ function KioskFlowInner() {
         requestedLiters: selection.mode === "liters" ? selection.liters : undefined,
         discountCode: selection.mode !== "full_tank" ? selection.discountCode : undefined,
         redeemPoints: selection.mode !== "full_tank" ? selection.redeemPoints : undefined,
+        referrerPlate,
       });
       setTransaction(res.transaction);
       setAccessToken(res.accessToken);
@@ -329,7 +344,7 @@ function KioskFlowInner() {
 
   if (loadError) {
     return (
-      <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
+      <div className="kiosk-shell" data-kiosk-mode={dayNightMode} data-kiosk-a11y={a11y ? "true" : undefined} dir={dir}>
         <div className="kiosk-card">
           <LanguageSwitcher />
           <h2>{t("stationNotFound.title")}</h2>
@@ -342,7 +357,7 @@ function KioskFlowInner() {
 
   if (!station) {
     return (
-      <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
+      <div className="kiosk-shell" data-kiosk-mode={dayNightMode} data-kiosk-a11y={a11y ? "true" : undefined} dir={dir}>
         <div className="kiosk-card">
           <LanguageSwitcher />
           {t("loading")}
@@ -371,7 +386,7 @@ function KioskFlowInner() {
     step === "welcome" ? -1 : stepOrder.indexOf(step === "creating" ? "amount" : step === "iyzico-wait" ? "payment" : step);
 
   return (
-    <div className="kiosk-shell" data-kiosk-mode={dayNightMode} dir={dir}>
+    <div className="kiosk-shell" data-kiosk-mode={dayNightMode} data-kiosk-a11y={a11y ? "true" : undefined} dir={dir}>
       <div className="kiosk-card">
         {/* Karsilama ekraninin kendi buyuk dil secim karti var (bkz. WelcomeStep) - ayni
             ekranda kucuk kose anahtarini ve henuz hicbir seyin baslamadigi adim cubugunu
@@ -400,9 +415,12 @@ function KioskFlowInner() {
 
         {step === "plate" && (
           <PlateStep
-            onNext={(p, source) => {
+            stationId={station.station.id}
+            referralEnabled={station.referralEnabled}
+            onNext={(p, source, referrer) => {
               setPlate(p);
               setPlateSource(source);
+              setReferrerPlate(referrer);
               if (boundPump) {
                 setPump(boundPump);
                 setStep("fuel");

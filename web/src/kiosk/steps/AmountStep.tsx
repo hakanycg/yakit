@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FuelPrice } from "../../shared/types";
+import type { FuelPrice, FuelType } from "../../shared/types";
 import { formatCurrency } from "../../shared/format";
 import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
@@ -32,13 +32,15 @@ export default function AmountStep({
   const [liters, setLiters] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
 
-  const [loyalty, setLoyalty] = useState<{ enabled: boolean; points: number; valueTry: number } | null>(null);
+  const [loyalty, setLoyalty] = useState<{ enabled: boolean; points: number; valueTry: number; tier: "bronze" | "silver" | "gold" | null } | null>(null);
   const [useLoyalty, setUseLoyalty] = useState(false);
 
   const [codeInput, setCodeInput] = useState("");
   const [appliedCode, setAppliedCode] = useState<{ code: string; discountAmount: number } | null>(null);
   const [codeError, setCodeError] = useState<string | null>(null);
   const [codeChecking, setCodeChecking] = useState(false);
+
+  const [campaigns, setCampaigns] = useState<{ code: string; type: "percent" | "fixed"; value: number; fuelType: FuelType | null }[]>([]);
 
   useEffect(() => {
     if (!plate) return;
@@ -48,19 +50,28 @@ export default function AmountStep({
       .catch(() => setLoyalty(null));
   }, [stationId, plate]);
 
+  useEffect(() => {
+    kioskApi
+      .getActiveCampaigns(stationId)
+      .then((res) => setCampaigns(res.campaigns))
+      .catch(() => setCampaigns([]));
+  }, [stationId]);
+
   const baseTotal = mode === "amount" ? Number(amount) || 0 : mode === "liters" ? (Number(liters) || 0) * price.pricePerLiter : 0;
   const loyaltyDiscount = useLoyalty && loyalty ? loyalty.valueTry : 0;
   const codeDiscount = appliedCode?.discountAmount ?? 0;
   const estimatedCharge = Math.max(0, baseTotal - loyaltyDiscount - codeDiscount);
   const showDiscounts = mode !== "full_tank" && baseTotal > 0;
 
-  async function applyCode() {
+  async function applyCode(code?: string) {
+    const target = (code ?? codeInput).trim();
     setCodeError(null);
-    if (!codeInput.trim()) return;
+    if (!target) return;
     setCodeChecking(true);
     try {
-      const res = await kioskApi.previewDiscountCode(stationId, codeInput.trim(), price.fuelType, baseTotal);
-      setAppliedCode({ code: codeInput.trim().toUpperCase(), discountAmount: res.discountAmount });
+      const res = await kioskApi.previewDiscountCode(stationId, target, price.fuelType, baseTotal);
+      setCodeInput(target.toUpperCase());
+      setAppliedCode({ code: target.toUpperCase(), discountAmount: res.discountAmount });
     } catch (err) {
       setAppliedCode(null);
       setCodeError(err instanceof ApiError ? err.message : t("error.codeInvalid"));
@@ -148,11 +159,45 @@ export default function AmountStep({
 
       {showDiscounts && (
         <div className="kiosk-card" style={{ marginTop: "1rem", padding: "0.75rem" }}>
+          {loyalty?.enabled && loyalty.tier && (
+            <p className="hint-text" style={{ marginTop: 0 }}>{t(`loyalty.tier.${loyalty.tier}`)}</p>
+          )}
           {loyalty?.enabled && loyalty.points > 0 && (
             <label className="check" style={{ marginBottom: "0.5rem" }}>
               <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />
               {t("amount.useLoyalty", { points: loyalty.points, value: formatCurrency(loyalty.valueTry, locale) })}
             </label>
+          )}
+
+          {campaigns.filter((c) => !c.fuelType || c.fuelType === price.fuelType).length > 0 && (
+            <div style={{ marginBottom: "0.75rem" }}>
+              <label>{t("amount.activeCampaignsTitle")}</label>
+              <div className="option-grid" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))" }}>
+                {campaigns
+                  .filter((c) => !c.fuelType || c.fuelType === price.fuelType)
+                  .map((c) => (
+                    <button
+                      key={c.code}
+                      type="button"
+                      className={`option-btn ${appliedCode?.code === c.code ? "selected" : ""}`}
+                      disabled={codeChecking}
+                      onClick={() => applyCode(c.code)}
+                    >
+                      <strong>{c.code}</strong>
+                      <br />
+                      {c.type === "percent"
+                        ? t("amount.campaignPercentOff", { value: c.value })
+                        : t("amount.campaignFixedOff", { value: formatCurrency(c.value, locale) })}
+                      {c.fuelType && (
+                        <>
+                          <br />
+                          <small>{t("amount.campaignFuelRestricted", { fuel: t(`fuel.${c.fuelType}`) })}</small>
+                        </>
+                      )}
+                    </button>
+                  ))}
+              </div>
+            </div>
           )}
 
           <label>{t("amount.discountCodeLabel")}</label>
@@ -169,7 +214,7 @@ export default function AmountStep({
               maxLength={24}
               ltr
             />
-            <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={applyCode}>
+            <button type="button" disabled={codeChecking || !codeInput.trim()} onClick={() => applyCode()}>
               {codeChecking ? t("amount.checkingCode") : t("amount.applyCode")}
             </button>
           </div>

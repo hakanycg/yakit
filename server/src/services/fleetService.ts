@@ -57,6 +57,24 @@ export function getExpectedFuelTypeForPlate(stationId: number, plate: string): F
   return row?.expected_fuel_type ?? null;
 }
 
+/**
+ * Bu plakanin bu istasyonda km girilerek tamamlanmis en SON dolumundaki km okumasi
+ * (bkz. kiosk/steps/PaymentStep.tsx FleetChoicePanel) - soforun kiosk'a yanlislikla
+ * eksik/fazla haneli bir sayi girmesini (ör. 123456 yerine 12345) yakalamak icin.
+ * Sert bir engelleme DEGIL - bu bir UYARI: gercek bir arac degisimi/km sayaci
+ * degisimi de ayni belirtiyi verir, o yuzden odemeyi durdurmaz.
+ */
+export function getLastOdometerForPlate(stationId: number, plate: string): number | null {
+  const row = db
+    .prepare<[number, string], { odometer_km: number }>(
+      `SELECT odometer_km FROM transactions
+       WHERE station_id = ? AND plate = ? AND status = 'completed' AND odometer_km IS NOT NULL
+       ORDER BY completed_at DESC LIMIT 1`
+    )
+    .get(stationId, normalizePlate(plate));
+  return row?.odometer_km ?? null;
+}
+
 export interface CreateFleetAccountInput {
   companyName: string;
   vkn?: string;
@@ -117,6 +135,45 @@ export function updateContact(stationId: number, id: number, input: UpdateFleetC
   return getAccountById(stationId, id);
 }
 
+export interface DiscountAgreement {
+  discountType: "percent" | "fixed" | null;
+  discountValue: number | null;
+}
+
+/**
+ * Filo hesabina bagli sabit anlasma indirimi - kurumsal musterilerle yapilan (ör.
+ * "litre basina 0.50 TL indirim" veya "%3 indirim") ticari anlasmayi kayit altina
+ * alir. discount_codes'taki percent/fixed deseniyle AYNI, ama musteri kod GIRMEZ:
+ * plaka filo hesabina bagliysa ve filo ile odeme yapiliyorsa otomatik uygulanir
+ * (bkz. transactionService.payWithFleetAccount, computeFleetDiscount).
+ */
+export function setDiscountAgreement(stationId: number, id: number, agreement: DiscountAgreement): FleetAccountRow {
+  getAccountById(stationId, id);
+  if (agreement.discountType !== null && (agreement.discountValue === null || agreement.discountValue <= 0)) {
+    throw new FleetError("Indirim tipi secildiyse gecerli bir tutar/oran girilmelidir.", 400);
+  }
+  if (agreement.discountType === "percent" && agreement.discountValue !== null && agreement.discountValue > 100) {
+    throw new FleetError("Yuzde indirim 100'den buyuk olamaz.", 400);
+  }
+  db.prepare("UPDATE fleet_accounts SET discount_type = ?, discount_value = ? WHERE id = ?").run(
+    agreement.discountType,
+    agreement.discountType === null ? null : agreement.discountValue,
+    id
+  );
+  return getAccountById(stationId, id);
+}
+
+/**
+ * Anlasma indirimini TL tutarina cevirir - discountService.validateCode'daki AYNI
+ * percent/fixed hesabi (bkz. o dosyanin basindaki yorum), farkli kaynak: kod yerine
+ * hesaba bagli sabit anlasma. totalAmount'i asamaz (Math.min ile sinirlanir).
+ */
+export function computeFleetDiscount(account: FleetAccountRow, totalAmount: number): number {
+  if (!account.discount_type || !account.discount_value || totalAmount <= 0) return 0;
+  const raw = account.discount_type === "percent" ? (totalAmount * account.discount_value) / 100 : account.discount_value;
+  return Math.round(Math.min(raw, totalAmount) * 100) / 100;
+}
+
 export function setAccountActive(stationId: number, id: number, active: boolean): FleetAccountRow {
   const result = db.prepare("UPDATE fleet_accounts SET active = ? WHERE id = ? AND station_id = ?").run(active ? 1 : 0, id, stationId);
   if (result.changes === 0) throw new FleetError("Filo hesabi bulunamadi.", 404);
@@ -140,6 +197,62 @@ export function removePlate(stationId: number, accountId: number, plateId: numbe
   getAccountById(stationId, accountId);
   const result = db.prepare("DELETE FROM fleet_plates WHERE id = ? AND fleet_account_id = ?").run(plateId, accountId);
   if (result.changes === 0) throw new FleetError("Plaka bulunamadi.", 404);
+}
+
+/**
+ * Arac bazinda aylik harcama limiti - filo hesabinin GENEL bakiyesinden/kredi
+ * limitinden AYRI bir koruma: hesabin kendisi yeterli bakiyeye/limite sahip olsa
+ * bile, TEK bir arac/sofor o ayki payini asinca reddedilir. Boylece bir aracin
+ * (ör. calinmis/kotuye kullanilan bir kart/plaka) butun filo bakiyesini tuketmesi
+ * onlenir - diger araclarin o ay hala yakit alabilmesini garantiler.
+ */
+export function setPlateSpendingLimit(stationId: number, accountId: number, plateId: number, monthlyLimitTry: number | null): FleetPlateRow {
+  getAccountById(stationId, accountId);
+  if (monthlyLimitTry !== null && monthlyLimitTry <= 0) throw new FleetError("Harcama limiti pozitif bir tutar olmalidir.", 400);
+  const result = db
+    .prepare("UPDATE fleet_plates SET monthly_spending_limit_try = ? WHERE id = ? AND fleet_account_id = ?")
+    .run(monthlyLimitTry, plateId, accountId);
+  if (result.changes === 0) throw new FleetError("Plaka bulunamadi.", 404);
+  return db.prepare<[number], FleetPlateRow>("SELECT * FROM fleet_plates WHERE id = ?").get(plateId)!;
+}
+
+function startOfCurrentMonthIso(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString();
+}
+
+/** Bu plakanin, ICINDE bulunulan takvim ayinda filo hesabindan tahsil edilmis toplam tutari (indirim dusulmus, net tahsilat). */
+export function getMonthlySpendingForPlate(stationId: number, plate: string): number {
+  const row = db
+    .prepare<[number, string, string], { total: number | null }>(
+      `SELECT SUM(total_amount - discount_amount) as total FROM transactions
+       WHERE station_id = ? AND plate = ? AND payment_method = 'fleet' AND status = 'completed' AND created_at >= ?`
+    )
+    .get(stationId, normalizePlate(plate), startOfCurrentMonthIso());
+  return Math.round((row?.total ?? 0) * 100) / 100;
+}
+
+/**
+ * Bu plakanin ayni ay icinde, EKLENECEK tutarla birlikte kendi limitini asip
+ * asmayacagini kontrol eder. Limit tanimli degilse (NULL) her zaman gecer.
+ */
+export function checkPlateSpendingLimit(stationId: number, plate: string, additionalAmount: number): void {
+  const plateRow = db
+    .prepare<[number, string], FleetPlateRow>(
+      `SELECT fp.* FROM fleet_plates fp
+       JOIN fleet_accounts fa ON fa.id = fp.fleet_account_id
+       WHERE fa.station_id = ? AND fp.plate = ?`
+    )
+    .get(stationId, normalizePlate(plate));
+  if (!plateRow || plateRow.monthly_spending_limit_try === null) return;
+
+  const spentSoFar = getMonthlySpendingForPlate(stationId, plate);
+  if (spentSoFar + additionalAmount > plateRow.monthly_spending_limit_try + 0.005) {
+    throw new FleetError(
+      `Bu aracin aylik harcama limiti (${plateRow.monthly_spending_limit_try.toFixed(2)} TL) bu islemle asilacak. Bu ay simdiye kadar ${spentSoFar.toFixed(2)} TL harcanmis.`,
+      409
+    );
+  }
 }
 
 function insertMovement(params: {
@@ -337,11 +450,22 @@ export function serializeAccountAdmin(a: FleetAccountRow) {
     lowBalanceThreshold: a.low_balance_threshold,
     paymentTermDays: a.payment_term_days,
     overdueBlockDays: a.overdue_block_days,
+    discountType: a.discount_type,
+    discountValue: a.discount_value,
   };
 }
 
-export function serializePlate(p: FleetPlateRow) {
-  return { id: p.id, plate: p.plate, expectedFuelType: p.expected_fuel_type, createdAt: p.created_at };
+export function serializePlate(p: FleetPlateRow, stationId?: number) {
+  return {
+    id: p.id,
+    plate: p.plate,
+    expectedFuelType: p.expected_fuel_type,
+    createdAt: p.created_at,
+    monthlySpendingLimitTry: p.monthly_spending_limit_try,
+    // Yalnizca istasyon biliniyorsa hesaplanir (admin panelindeki plaka listesi) - kiosk'un
+    // filo secimi gibi baska cagiranlar bu ek sorguyu ODEMEZ.
+    monthlySpentTry: stationId !== undefined ? getMonthlySpendingForPlate(stationId, p.plate) : undefined,
+  };
 }
 
 export function serializeMovement(m: FleetMovementRow & { username?: string | null }) {

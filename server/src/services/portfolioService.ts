@@ -253,3 +253,76 @@ export function getPortfolioReport(scope: PortfolioScope, from: string, to: stri
   if (isDateRollupCovered(from)) return getPortfolioReportFast(scope, from, to);
   return getPortfolioReportLive(scope, from, to);
 }
+
+/**
+ * Istasyonlar arasi buyume/verimlilik siralamasi (bkz. arastirma bulgusu: konsolide
+ * rapor sadece MUTLAK ciroya gore siraliyor - dagitim sirketi yoneticisi icin asil
+ * degerli olan "en cok BUYUYEN/gerileyen istasyon" ve pompa basina normalize edilmis
+ * verimlilik). getPortfolioReport'u IKI kez (guncel + onceki esit uzunluktaki donem)
+ * cagirip ustune pompa sayisini ekler - rollup hizli/yedek yol ayrimina DOKUNMAZ,
+ * onun uzerine ince bir katman.
+ */
+export interface StationGrowthRow {
+  stationId: number;
+  stationName: string;
+  stationCode: string | null;
+  active: number;
+  currentRevenue: number;
+  previousRevenue: number;
+  /** previous=0 ve current=0 ise 0; previous=0 ve current>0 ise tanimsiz (null). */
+  growthPct: number | null;
+  pumpCount: number;
+  /** Pompa basina guncel donem cirosu - pompasi olmayan istasyon icin null. */
+  revenuePerPump: number | null;
+  /** Islem basina ortalama tutar (guncel donem) - hic islemi olmayan istasyon icin null. */
+  revenuePerTransaction: number | null;
+}
+
+function pctChangeOrNull(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return round2(((current - previous) / previous) * 100);
+}
+
+function getPumpCountsByStation(): Map<number, number> {
+  const rows = db.prepare<[], { station_id: number; count: number }>("SELECT station_id, COUNT(*) as count FROM pumps GROUP BY station_id").all();
+  return new Map(rows.map((r) => [r.station_id, r.count]));
+}
+
+export function getStationGrowthReport(
+  scope: PortfolioScope,
+  currentFrom: string,
+  currentTo: string,
+  previousFrom: string,
+  previousTo: string
+): StationGrowthRow[] {
+  const current = getPortfolioReport(scope, currentFrom, currentTo);
+  const previous = getPortfolioReport(scope, previousFrom, previousTo);
+  const previousByStation = new Map(previous.stations.map((s) => [s.stationId, s]));
+  const pumpCounts = getPumpCountsByStation();
+
+  const rows: StationGrowthRow[] = current.stations.map((s) => {
+    const previousRevenue = previousByStation.get(s.stationId)?.revenue ?? 0;
+    const pumpCount = pumpCounts.get(s.stationId) ?? 0;
+    return {
+      stationId: s.stationId,
+      stationName: s.stationName,
+      stationCode: s.stationCode,
+      active: s.active,
+      currentRevenue: s.revenue,
+      previousRevenue,
+      growthPct: pctChangeOrNull(s.revenue, previousRevenue),
+      pumpCount,
+      revenuePerPump: pumpCount > 0 ? round2(s.revenue / pumpCount) : null,
+      revenuePerTransaction: s.transactionCount > 0 ? round2(s.revenue / s.transactionCount) : null,
+    };
+  });
+
+  // En cok buyuyenden en cok gerileyene - tanimsiz (null) buyume en sona atilir
+  // (yeni acilan/onceki donemde hic satisi olmayan istasyonlar siralamayi bozmasin diye).
+  return rows.sort((a, b) => {
+    if (a.growthPct === null && b.growthPct === null) return b.currentRevenue - a.currentRevenue;
+    if (a.growthPct === null) return 1;
+    if (b.growthPct === null) return -1;
+    return b.growthPct - a.growthPct;
+  });
+}

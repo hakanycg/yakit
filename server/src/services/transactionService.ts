@@ -18,11 +18,14 @@ import { validateCode, redeemCode, releaseCode } from "./discountService.js";
 import {
   FleetError,
   chargeAccount as chargeFleetAccount,
+  checkPlateSpendingLimit,
+  computeFleetDiscount,
   getAccountForPlate as getFleetAccountForPlate,
   getExpectedFuelTypeForPlate,
   refundChargeForTransaction as refundFleetChargeForTransaction,
 } from "./fleetService.js";
 import { getWrongFuelMode } from "./wrongFuelSettingsService.js";
+import { completeReferral, tryRegisterReferral } from "./referralService.js";
 
 const DISPENSE_TICK_MS = 500;
 
@@ -103,6 +106,8 @@ export interface CreateTransactionInput {
   requestedLiters?: number;
   discountCode?: string;
   redeemPoints?: number;
+  /** Musteriyi bu istasyona getiren mevcut musterinin plakasi (bkz. referralService.ts) - opsiyonel. */
+  referrerPlate?: string;
 }
 
 /** Islem "created" durumundayken (odeme hic alinmadan) iptal/basarisiz olursa, rezerve edilmis
@@ -215,6 +220,10 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
   setPumpStatus(pump.id, "reserved", { currentTransactionId: transaction.id });
   broadcastTransaction(transaction);
   checkPlateFrequencyAnomaly(pump.station_id, normalizedPlate, pump.id);
+  // Referral kaydi: musterinin asil amacini (yakit almak) hicbir sekilde riske atmamasi
+  // icin islem BASARIYLA olusturulduktan SONRA, best-effort olarak denenir (bkz.
+  // tryRegisterReferral - hata firlatmaz, uygun degilse sessizce yoksayar).
+  if (input.referrerPlate) tryRegisterReferral(pump.station_id, input.referrerPlate, normalizedPlate);
   return { transaction, accessToken };
 }
 
@@ -389,8 +398,23 @@ export function payWithFleetAccount(
   const account = getFleetAccountForPlate(t.station_id, t.plate);
   if (!account || account.id !== fleetAccountId) throw new TransactionError("Bu plaka icin gecerli bir filo hesabi bulunamadi.", 403);
 
+  // Anlasma indirimi, kiosk'ta kod/puan indirimiyle AYNI alana (discount_amount) eklenir -
+  // boylece rapor/makbuz/CSV zaten bu alani okuyan her yer degisiklik gerekmeden dogru
+  // tutari gosterir. Kod+puan indirimi zaten uygulanmissa (musteri once onu girdiyse),
+  // anlasma indirimi orijinal total_amount uzerinden hesaplanip UZERINE eklenir - ikisi
+  // ayni faturada bir arada var olabilir, chargeAmount() toplamini asamaz.
+  const fleetDiscount = computeFleetDiscount(account, t.total_amount);
+  const effectiveTransaction =
+    fleetDiscount > 0
+      ? touch(id, { discount_amount: Math.round(Math.min(t.discount_amount + fleetDiscount, t.total_amount) * 100) / 100 })
+      : t;
+
   try {
-    chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(t), id);
+    // Arac bazinda aylik harcama limiti, hesabin GENEL bakiyesinden/kredi limitinden
+    // AYRI bir koruma - hesap yeterli olsa bile tek bir arac/sofor o ayki payini
+    // asinca reddedilir (bkz. fleetService.checkPlateSpendingLimit).
+    checkPlateSpendingLimit(t.station_id, t.plate, chargeAmount(effectiveTransaction));
+    chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(effectiveTransaction), id);
   } catch (err) {
     if (err instanceof FleetError) throw new TransactionError(err.message, err.status);
     throw err;
@@ -528,6 +552,7 @@ function startDispensing(id: number): void {
     clearInterval(interval);
     activeDispensers.delete(id);
     const pointsEarned = earnPoints(current.station_id, current.plate, nextLiters, id);
+    completeReferral(current.station_id, current.plate, id);
     const completed = touch(id, {
       dispensed_liters: nextLiters,
       total_amount: Math.round(nextAmount * 100) / 100,

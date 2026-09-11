@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import { formatCurrency, formatDateTime, formatLiters } from "../../shared/format";
 import { kioskApi } from "../kioskApi";
 import { ApiError } from "../../shared/api";
@@ -65,6 +66,19 @@ export default function ReceiptStep({
   }
 
   const [printerFault, setPrinterFault] = useState(false);
+
+  // Musterinin kagit fisi kaybetmesi/atmasi durumunda makbuza tekrar erisebilecegi
+  // dijital bir yol: fisin kendi kiosk_access_token'ini gomen bir link, mevcut
+  // GET /api/kiosk/transactions/:id ucunu (bkz. ReceiptSender'in kullandigi ayni
+  // accessToken) sunucu tarafinda YENI hicbir sey acmadan yeniden kullanir.
+  const [receiptQr, setReceiptQr] = useState<string | null>(null);
+  useEffect(() => {
+    if (failed || !accessToken) return;
+    const url = `${window.location.origin}/makbuz/${transaction.id}?token=${encodeURIComponent(accessToken)}`;
+    QRCode.toDataURL(url, { margin: 1, width: 176 })
+      .then(setReceiptQr)
+      .catch(() => setReceiptQr(null));
+  }, [failed, accessToken, transaction.id]);
 
   async function printReceipt() {
     const result = await tryPrintViaAgent({
@@ -139,6 +153,13 @@ export default function ReceiptStep({
 
           <button style={{ marginTop: "0.5rem" }} onClick={printReceipt}>{t("receipt.print")}</button>
           {printerFault && <p className="error-text">{t("receipt.printerFaultNote")}</p>}
+
+          {receiptQr && (
+            <div className="kiosk-card" style={{ textAlign: "center", maxWidth: 260, margin: "1rem auto" }}>
+              <p className="hint-text" style={{ marginTop: 0 }}>{t("receipt.qrHint")}</p>
+              <img src={receiptQr} alt={t("receipt.qrAlt")} width={176} height={176} style={{ display: "block", margin: "0 auto" }} />
+            </div>
+          )}
 
           {accessToken && <ReceiptSender transactionId={transaction.id} accessToken={accessToken} />}
         </>

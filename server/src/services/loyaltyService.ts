@@ -2,6 +2,8 @@ import { db } from "../db/index.js";
 import type { LoyaltyAccountRow, LoyaltyMovementRow, UserRow } from "../db/types.js";
 import { getSetting, setSetting } from "./settingsStore.js";
 import { normalizePlate } from "../utils/plate.js";
+import { recordAudit } from "./auditService.js";
+import { logger } from "../utils/logger.js";
 
 export class LoyaltyError extends Error {
   constructor(
@@ -12,22 +14,62 @@ export class LoyaltyError extends Error {
   }
 }
 
+export type LoyaltyTier = "bronze" | "silver" | "gold";
+
 export interface LoyaltyConfig {
   enabled: boolean;
   pointsPerLiter: number;
   pointValueTry: number;
+  /** Bu kademeye ulasmak icin gereken YASAM BOYU kazanilan puan (bkz. getTier). */
+  tierSilverThreshold: number;
+  tierGoldThreshold: number;
+  /** Puan gecerlilik suresi (bkz. expireOldPoints) - varsayilan KAPALI. */
+  pointExpiryEnabled: boolean;
+  pointExpiryMonths: number;
+  /** Referral (yonlendirme) programi (bkz. referralService.ts) - varsayilan KAPALI. */
+  referralEnabled: boolean;
+  /** Yonlendiren musteriye (referrer) verilen bonus puan. */
+  referralBonusPoints: number;
+  /** Yonlendirilen YENI musteriye (referred) verilen "hos geldin" bonus puani. */
+  referralRefereeBonusPoints: number;
 }
 
-const DEFAULT_CONFIG: LoyaltyConfig = { enabled: false, pointsPerLiter: 1, pointValueTry: 0.1 };
+const DEFAULT_CONFIG: LoyaltyConfig = {
+  enabled: false,
+  pointsPerLiter: 1,
+  pointValueTry: 0.1,
+  tierSilverThreshold: 500,
+  tierGoldThreshold: 2000,
+  pointExpiryEnabled: false,
+  pointExpiryMonths: 12,
+  referralEnabled: false,
+  referralBonusPoints: 100,
+  referralRefereeBonusPoints: 50,
+};
 
 export function getLoyaltyConfig(stationId: number): LoyaltyConfig {
   const enabled = getSetting(stationId, "loyalty_enabled");
   const pointsPerLiter = getSetting(stationId, "loyalty_points_per_liter");
   const pointValueTry = getSetting(stationId, "loyalty_point_value_try");
+  const tierSilverThreshold = getSetting(stationId, "loyalty_tier_silver_threshold");
+  const tierGoldThreshold = getSetting(stationId, "loyalty_tier_gold_threshold");
+  const pointExpiryEnabled = getSetting(stationId, "loyalty_point_expiry_enabled");
+  const pointExpiryMonths = getSetting(stationId, "loyalty_point_expiry_months");
+  const referralEnabled = getSetting(stationId, "loyalty_referral_enabled");
+  const referralBonusPoints = getSetting(stationId, "loyalty_referral_bonus_points");
+  const referralRefereeBonusPoints = getSetting(stationId, "loyalty_referral_referee_bonus_points");
   return {
     enabled: enabled !== null ? enabled === "true" : DEFAULT_CONFIG.enabled,
     pointsPerLiter: pointsPerLiter !== null ? Number(pointsPerLiter) : DEFAULT_CONFIG.pointsPerLiter,
     pointValueTry: pointValueTry !== null ? Number(pointValueTry) : DEFAULT_CONFIG.pointValueTry,
+    tierSilverThreshold: tierSilverThreshold !== null ? Number(tierSilverThreshold) : DEFAULT_CONFIG.tierSilverThreshold,
+    tierGoldThreshold: tierGoldThreshold !== null ? Number(tierGoldThreshold) : DEFAULT_CONFIG.tierGoldThreshold,
+    pointExpiryEnabled: pointExpiryEnabled !== null ? pointExpiryEnabled === "true" : DEFAULT_CONFIG.pointExpiryEnabled,
+    pointExpiryMonths: pointExpiryMonths !== null ? Number(pointExpiryMonths) : DEFAULT_CONFIG.pointExpiryMonths,
+    referralEnabled: referralEnabled !== null ? referralEnabled === "true" : DEFAULT_CONFIG.referralEnabled,
+    referralBonusPoints: referralBonusPoints !== null ? Number(referralBonusPoints) : DEFAULT_CONFIG.referralBonusPoints,
+    referralRefereeBonusPoints:
+      referralRefereeBonusPoints !== null ? Number(referralRefereeBonusPoints) : DEFAULT_CONFIG.referralRefereeBonusPoints,
   };
 }
 
@@ -35,7 +77,26 @@ export function setLoyaltyConfig(stationId: number, config: Partial<LoyaltyConfi
   if (config.enabled !== undefined) setSetting(stationId, "loyalty_enabled", String(config.enabled), actor);
   if (config.pointsPerLiter !== undefined) setSetting(stationId, "loyalty_points_per_liter", String(config.pointsPerLiter), actor);
   if (config.pointValueTry !== undefined) setSetting(stationId, "loyalty_point_value_try", String(config.pointValueTry), actor);
+  if (config.tierSilverThreshold !== undefined) setSetting(stationId, "loyalty_tier_silver_threshold", String(config.tierSilverThreshold), actor);
+  if (config.tierGoldThreshold !== undefined) setSetting(stationId, "loyalty_tier_gold_threshold", String(config.tierGoldThreshold), actor);
+  if (config.pointExpiryEnabled !== undefined) setSetting(stationId, "loyalty_point_expiry_enabled", String(config.pointExpiryEnabled), actor);
+  if (config.pointExpiryMonths !== undefined) setSetting(stationId, "loyalty_point_expiry_months", String(config.pointExpiryMonths), actor);
+  if (config.referralEnabled !== undefined) setSetting(stationId, "loyalty_referral_enabled", String(config.referralEnabled), actor);
+  if (config.referralBonusPoints !== undefined) setSetting(stationId, "loyalty_referral_bonus_points", String(config.referralBonusPoints), actor);
+  if (config.referralRefereeBonusPoints !== undefined)
+    setSetting(stationId, "loyalty_referral_referee_bonus_points", String(config.referralRefereeBonusPoints), actor);
   return getLoyaltyConfig(stationId);
+}
+
+/**
+ * Kademe, MEVCUT bakiyeye degil YASAM BOYU KAZANILAN puana gore belirlenir (bkz.
+ * loyalty_accounts.lifetime_points) - aksi halde puanini harcayan (ör. indirim icin
+ * kullanan) sadik bir musteri kademe kaybederdi, ki bu tam tersi bir tesvik yaratirdi.
+ */
+export function getTier(lifetimePoints: number, config: Pick<LoyaltyConfig, "tierSilverThreshold" | "tierGoldThreshold">): LoyaltyTier {
+  if (lifetimePoints >= config.tierGoldThreshold) return "gold";
+  if (lifetimePoints >= config.tierSilverThreshold) return "silver";
+  return "bronze";
 }
 
 function getAccount(stationId: number, plate: string): LoyaltyAccountRow | undefined {
@@ -46,6 +107,10 @@ function getAccount(stationId: number, plate: string): LoyaltyAccountRow | undef
 
 export function getBalance(stationId: number, plate: string): number {
   return getAccount(stationId, plate)?.points ?? 0;
+}
+
+export function getLifetimePoints(stationId: number, plate: string): number {
+  return getAccount(stationId, plate)?.lifetime_points ?? 0;
 }
 
 function insertMovement(params: {
@@ -79,6 +144,43 @@ function upsertBalance(stationId: number, plate: string, newBalance: number): vo
     `INSERT INTO loyalty_accounts (station_id, plate, points, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(station_id, plate) DO UPDATE SET points = excluded.points, updated_at = excluded.updated_at`
   ).run(stationId, plate, rounded, new Date().toISOString());
+}
+
+/**
+ * Yalnizca musterinin GERCEKTEN KAZANDIGI puan (earnPoints, awardBonusPoints) tarafindan
+ * cagrilir - redeem/refund/adjustment kademeyi etkilemez.
+ */
+function incrementLifetimePoints(stationId: number, plate: string, delta: number): void {
+  db.prepare("UPDATE loyalty_accounts SET lifetime_points = lifetime_points + ? WHERE station_id = ? AND plate = ?").run(
+    delta,
+    stationId,
+    plate
+  );
+}
+
+/**
+ * Litre dolumuna bagli olmayan bir "kazanim" ekler (ör. referral bonusu). earnPoints ile
+ * ayni ilkeyi izler: bakiyeye eklenir VE yasam boyu puana (kademe) sayilir - musteriye
+ * gercekten teslim edilen bir deger oldugu icin normal kazanimdan farkli davranmasi icin
+ * bir gerekce yok.
+ */
+export function awardBonusPoints(
+  stationId: number,
+  plate: string,
+  points: number,
+  type: Exclude<LoyaltyMovementRow["type"], "earn" | "redeem" | "refund" | "adjustment" | "expire">,
+  note: string,
+  transactionId?: number | null
+): number {
+  if (points <= 0) return 0;
+  const normalized = normalizePlate(plate);
+  const rounded = Math.round(points * 100) / 100;
+  const current = getBalance(stationId, normalized);
+  const newBalance = current + rounded;
+  upsertBalance(stationId, normalized, newBalance);
+  incrementLifetimePoints(stationId, normalized, rounded);
+  insertMovement({ stationId, plate: normalized, type, points: rounded, balanceAfter: newBalance, transactionId: transactionId ?? null, note });
+  return rounded;
 }
 
 /**
@@ -159,6 +261,7 @@ export function earnPoints(stationId: number, plate: string, dispensedLiters: nu
   const current = getBalance(stationId, normalized);
   const newBalance = current + earned;
   upsertBalance(stationId, normalized, newBalance);
+  incrementLifetimePoints(stationId, normalized, earned);
   insertMovement({ stationId, plate: normalized, type: "earn", points: earned, balanceAfter: newBalance, transactionId });
   return earned;
 }
@@ -195,7 +298,92 @@ export function listMovements(stationId: number, filters: { plate?: string; limi
 }
 
 export function serializeAccount(stationId: number, plate: string) {
-  return { plate: normalizePlate(plate), points: getBalance(stationId, plate) };
+  const lifetimePoints = getLifetimePoints(stationId, plate);
+  const tier = getTier(lifetimePoints, getLoyaltyConfig(stationId));
+  return { plate: normalizePlate(plate), points: getBalance(stationId, plate), lifetimePoints, tier };
+}
+
+export interface PointExpiryResult {
+  stationId: number;
+  cutoff: string;
+  accountsExpired: number;
+  pointsExpired: number;
+}
+
+/**
+ * Uzun sure hareketsiz kalan hesaplarin puan BAKIYESINI sifirlar - lifetime_points'e
+ * (kademeye) DOKUNMAZ, cunku bu bir "cezalandirma" degil, kullanilmayan bir hakkin
+ * suresinin dolmasidir; musteri gecmiste kazandigi kademeyi kaybetmemelidir.
+ *
+ * KRITIK: loyalty_accounts.updated_at KASITLI OLARAK guncellenmez. Bu alan ayrica
+ * dataRetentionService.ts'teki KVKK atil-hesap silme suresinin de saatidir (bkz.
+ * sweepStation). upsertBalance() kullanilsaydi, her puan gecerlilik suresi dolumu
+ * o saati sifirlar ve KVKK silme suresini SONSUZA KADAR ERTELERDI - iki ayri
+ * mevzuat/is kuralinin birbirine sizmasi olurdu. Bu yuzden dogrudan, dar kapsamli
+ * bir UPDATE kullanilir.
+ */
+function expireStationPoints(stationId: number, cutoff: string): { accountsExpired: number; pointsExpired: number } {
+  const stale = db
+    .prepare<[number, string], LoyaltyAccountRow>(
+      "SELECT * FROM loyalty_accounts WHERE station_id = ? AND points > 0 AND updated_at < ?"
+    )
+    .all(stationId, cutoff);
+
+  let pointsExpired = 0;
+  for (const account of stale) {
+    db.prepare("UPDATE loyalty_accounts SET points = 0 WHERE station_id = ? AND plate = ?").run(stationId, account.plate);
+    insertMovement({
+      stationId,
+      plate: account.plate,
+      type: "expire",
+      points: -account.points,
+      balanceAfter: 0,
+      note: `Puan gecerlilik suresi doldu (${cutoff.slice(0, 10)} oncesi hareketsiz).`,
+    });
+    pointsExpired += account.points;
+  }
+
+  return { accountsExpired: stale.length, pointsExpired: Math.round(pointsExpired * 100) / 100 };
+}
+
+/**
+ * Tum aktif istasyonlar icin calisir (bkz. index.ts, sweepDataRetention ile ayni desen).
+ * Yalnizca sadakat programi AKTIF ve puan gecerlilik suresi AYRICA acik olan istasyonlarda
+ * calisir - varsayilan KAPALI, cunku mevcut musterilerin puanini sessizce sifirlayan bir
+ * surecin, istasyon bilinçli olarak acmadan kendiliginden baslamasi dogru olmaz.
+ */
+export function expireOldPoints(now = new Date()): PointExpiryResult[] {
+  const stations = db.prepare<[], { id: number }>("SELECT id FROM stations WHERE active = 1").all();
+  const results: PointExpiryResult[] = [];
+
+  for (const station of stations) {
+    try {
+      const config = getLoyaltyConfig(station.id);
+      if (!config.enabled || !config.pointExpiryEnabled) continue;
+
+      const cutoffDate = new Date(now);
+      cutoffDate.setMonth(cutoffDate.getMonth() - config.pointExpiryMonths);
+      const cutoff = cutoffDate.toISOString();
+
+      const { accountsExpired, pointsExpired } = db.transaction(() => expireStationPoints(station.id, cutoff))();
+      if (accountsExpired === 0) continue;
+
+      results.push({ stationId: station.id, cutoff, accountsExpired, pointsExpired });
+      logger.info({ stationId: station.id, cutoff, accountsExpired, pointsExpired }, "Sadakat puani gecerlilik suresi uygulandi.");
+      recordAudit({
+        user: null,
+        actorType: "system",
+        actorLabel: "Puan gecerlilik suresi isi",
+        action: "loyalty_points_expired",
+        details: { cutoff, accountsExpired, pointsExpired },
+        stationId: station.id,
+      });
+    } catch (err) {
+      logger.error({ err, stationId: station.id }, "Sadakat puani gecerlilik suresi uygulanamadi.");
+    }
+  }
+
+  return results;
 }
 
 export function serializeMovement(m: LoyaltyMovementRow & { username?: string | null }) {

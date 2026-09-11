@@ -198,6 +198,30 @@ export function applyMigrations(): void {
   ensureColumn("users", "last_seen_release_note_id", "INTEGER");
   ensureColumn("release_notes", "version", "TEXT");
 
+  // TOTP replay koruması: ayni 30sn penceredeki bir kodun tekrar kullanilmasini
+  // engellemek icin son basariyla eslesen HOTP sayacini tutar (bkz. utils/totp.ts).
+  ensureColumn("users", "totp_last_used_counter", "INTEGER");
+
+  // Denetim kaydi hash-chain (tahrif tespiti) - bkz. auditService.ts basindaki yorum.
+  ensureColumn("audit_log", "prev_hash", "TEXT");
+  ensureColumn("audit_log", "hash", "TEXT");
+
+  // Sadakat kademesi (bronz/gumus/altin) - bkz. loyaltyService.ts getTier(). points
+  // KULLANILDIKCA azalir, kademe icin uygun degildir (puanini harcayan sadik musteri
+  // kademe kaybetmemeli) - bu yuzden yalnizca KAZANILAN (hic azalmayan) ayri bir sayac.
+  ensureColumn("loyalty_accounts", "lifetime_points", "REAL NOT NULL DEFAULT 0");
+
+  // Filo hesabina bagli sabit anlasma indirimi (bkz. fleetService.computeFleetDiscount) -
+  // discount_codes ile AYNI percent/fixed deseni, ama musteri kod girmez: anlasma
+  // hesaba bagliysa filo odemesinde otomatik uygulanir.
+  ensureColumn("fleet_accounts", "discount_type", "TEXT");
+  ensureColumn("fleet_accounts", "discount_value", "REAL");
+
+  // Arac bazinda aylik harcama limiti (bkz. fleetService.checkPlateSpendingLimit) - filo
+  // hesabinin GENEL bakiyesinden/kredi limitinden AYRI: tek bir soforun/aracin hesabin
+  // tamamini tuketmesini onlemek icin. NULL = limitsiz (varsayilan).
+  ensureColumn("fleet_plates", "monthly_spending_limit_try", "REAL");
+
   backfillNormalizedPlates();
 }
 

@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS users (
   totp_secret TEXT,                    -- etkin 2FA sirri (base32); enable edilene kadar NULL
   totp_enabled INTEGER NOT NULL DEFAULT 0,
   totp_pending_secret TEXT,            -- kurulum sirasinda uretilen, henuz dogrulanmamis sir
+  totp_last_used_counter INTEGER,      -- son basarili girisin HOTP sayaci (replay koruması - bkz. utils/totp.ts)
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
   last_login_at TEXT,
@@ -272,7 +273,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
   details TEXT,                        -- JSON
   ip_address TEXT,
   user_agent TEXT,
-  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  prev_hash TEXT,                      -- bir onceki (canli tablodaki) kaydin hash'i - tahrif tespiti (bkz. auditService.verifyAuditChain)
+  hash TEXT                            -- bu kaydin kendi alanlari + prev_hash uzerinden sha256'si
 );
 CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at);
 CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id);
@@ -641,7 +644,7 @@ CREATE TABLE IF NOT EXISTS loyalty_movements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),
   plate TEXT NOT NULL,
-  type TEXT NOT NULL,                  -- earn | redeem | refund | adjustment
+  type TEXT NOT NULL,                  -- earn | redeem | refund | adjustment | expire
   points REAL NOT NULL,                -- pozitif: bakiyeye eklenir, negatif: bakiyeden dusulur
   balance_after REAL NOT NULL,
   transaction_id INTEGER REFERENCES transactions(id),
@@ -650,6 +653,26 @@ CREATE TABLE IF NOT EXISTS loyalty_movements (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_loyalty_movements_station_plate ON loyalty_movements(station_id, plate, created_at);
+
+-- Bir mevcut musterinin (referrer) yeni bir musteriyi (referred) getirmesi. referred_plate
+-- istasyon basina EN FAZLA BIR kez yer alabilir (UNIQUE) - ayni plaka tekrar tekrar
+-- "referans edilerek" bonus cikartilamaz. status: pending (kayit olusturuldu, henuz
+-- odul verilmedi) -> completed (referred plakanin ilk basarili dolumu tamamlandi, iki
+-- tarafa da bonus puan verildi).
+CREATE TABLE IF NOT EXISTS loyalty_referrals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  referrer_plate TEXT NOT NULL,
+  referred_plate TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | completed
+  referrer_bonus_points REAL,
+  referred_bonus_points REAL,
+  transaction_id INTEGER REFERENCES transactions(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  completed_at TEXT,
+  UNIQUE(station_id, referred_plate)
+);
+CREATE INDEX IF NOT EXISTS idx_loyalty_referrals_referrer ON loyalty_referrals(station_id, referrer_plate);
 
 CREATE TABLE IF NOT EXISTS discount_codes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1230,6 +1253,20 @@ CREATE TABLE IF NOT EXISTS device_push_tokens (
   created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 );
 CREATE INDEX IF NOT EXISTS idx_device_push_tokens_user ON device_push_tokens(user_id);
+
+-- Bir kullanicinin daha once basariyla giris yaptigi IP adresleri (bkz.
+-- loginSecurityService.ts) - hesaba daha once GORULMEMIS bir IP'den giris yapildiginda
+-- kullaniciyi bilgilendirmek icin. sessions tablosu bunun icin YETERLI DEGIL: oturumlar
+-- suresi dolunca/cikis yapilinca silinir, yani gecmis IP GECMISI kaybolur - donen (ve
+-- gercekte taniyan) bir cihaz bu yuzden "yeni" sanilabilirdi.
+CREATE TABLE IF NOT EXISTS known_login_ips (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  ip_address TEXT NOT NULL,
+  user_agent TEXT,
+  first_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  last_seen_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  PRIMARY KEY (user_id, ip_address)
+);
 
 -- Toplu pazarlama/kampanya bildirimi (bkz. marketingCampaignService.ts). YASAL NOT:
 -- bu tablo yalnizca istasyonun KENDI KVKK riza kaydini (loyalty_accounts.marketing_consent)

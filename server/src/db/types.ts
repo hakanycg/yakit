@@ -64,6 +64,7 @@ export interface UserRow {
   totp_secret: string | null;
   totp_enabled: 0 | 1;
   totp_pending_secret: string | null;
+  totp_last_used_counter: number | null;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
@@ -195,19 +196,33 @@ export interface LoyaltyAccountRow {
   contact_email: string | null;
   contact_phone: string | null;
   updated_at: string;
+  lifetime_points: number;
 }
 
 export interface LoyaltyMovementRow {
   id: number;
   station_id: number;
   plate: string;
-  type: "earn" | "redeem" | "refund" | "adjustment";
+  type: "earn" | "redeem" | "refund" | "adjustment" | "expire" | "referral";
   points: number;
   balance_after: number;
   transaction_id: number | null;
   note: string | null;
   user_id: number | null;
   created_at: string;
+}
+
+export interface LoyaltyReferralRow {
+  id: number;
+  station_id: number;
+  referrer_plate: string;
+  referred_plate: string;
+  status: "pending" | "completed";
+  referrer_bonus_points: number | null;
+  referred_bonus_points: number | null;
+  transaction_id: number | null;
+  created_at: string;
+  completed_at: string | null;
 }
 
 export interface DiscountCodeRow {
@@ -354,6 +369,9 @@ export interface FleetAccountRow {
   overdue_block_days: number | null;
   created_at: string;
   created_by: number | null;
+  /** Anlasma indirimi (bkz. fleetService.computeFleetDiscount) - discount_codes ile ayni percent/fixed deseni. */
+  discount_type: "percent" | "fixed" | null;
+  discount_value: number | null;
 }
 
 export interface FleetPlateRow {
@@ -362,6 +380,8 @@ export interface FleetPlateRow {
   plate: string;
   expected_fuel_type: FuelType | null;
   created_at: string;
+  /** Bu aracin filo hesabindan aylik en fazla bu kadar TL harcayabilecegi sinir. NULL = limitsiz. */
+  monthly_spending_limit_try: number | null;
 }
 
 export interface FleetMovementRow {
@@ -525,6 +545,8 @@ export interface AuditLogRow {
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;
+  prev_hash: string | null;
+  hash: string | null;
 }
 
 export interface FuelPriceRow {

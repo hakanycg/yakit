@@ -997,6 +997,41 @@ tr.table-total td.hint-text-cell { color: var(--text-dim); font-weight: 400; fon
     radial-gradient(circle at 15% 0%, rgba(91,155,240,0.08), transparent 45%),
     var(--k-bg);
 }
+/* Buyuk yazi/yuksek kontrast modu (bkz. kiosk/WelcomeStep.tsx AccessibilityToggle).
+   Gorme guclugu cekenler ya da gunes isigi altinda okumakta zorlanan musteriler icin -
+   gunduz/gece degiskeninden bagimsiz, ikisinin uzerine binerek calisir; bu yuzden hem
+   cikinti (attribute-only) hem de gece ile birlesik (mode+a11y) secici tanimlanir.
+   Punto buyutme CSS degil, KioskFlow.tsx'te document.documentElement.style.fontSize
+   ile yapilir (kiosk tipografisi rem tabanli oldugu icin tek noktadan olcekleniyor). */
+.kiosk-shell[data-kiosk-a11y="true"] {
+  --k-text: #000000;
+  --k-dim: #101820;
+  --k-card-border: #000000;
+  --k-accent: #0b4fa8;
+  --k-accent-2: #0f5132;
+  --k-opt-sel-bg: #dce8fb;
+  --k-shadow: none;
+}
+.kiosk-shell[data-kiosk-mode="night"][data-kiosk-a11y="true"] {
+  --k-text: #ffffff;
+  --k-dim: #f4f6f9;
+  --k-card-border: #ffffff;
+  --k-accent: #9dc6ff;
+  --k-accent-2: #4ade80;
+  --k-opt-sel-bg: #253449;
+}
+.kiosk-shell[data-kiosk-a11y="true"] .kiosk-card,
+.kiosk-shell[data-kiosk-a11y="true"] .option-btn,
+.kiosk-shell[data-kiosk-a11y="true"] .kb-key,
+.kiosk-shell[data-kiosk-a11y="true"] .kiosk-keyboard,
+.kiosk-shell[data-kiosk-a11y="true"] .kiosk-lang-switcher,
+.kiosk-shell[data-kiosk-a11y="true"] button {
+  border-width: 2px;
+}
+.kiosk-shell[data-kiosk-a11y="true"] .option-btn,
+.kiosk-shell[data-kiosk-a11y="true"] .kb-key {
+  font-weight: 700;
+}
 .kiosk-card {
   width: min(720px, 100%);
   background: var(--k-card);

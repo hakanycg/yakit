@@ -5,6 +5,8 @@ import type { RoleName, RoleRow, UserRow } from "../db/types.js";
 import { db } from "../db/index.js";
 import { env } from "../config.js";
 import { safeCompare } from "../utils/safeCompare.js";
+import { verifyPassword } from "../utils/password.js";
+import { matchTotpCounter } from "../utils/totp.js";
 
 export const SESSION_COOKIE = "yakit_sid";
 export const CSRF_COOKIE = "yakit_csrf";
@@ -182,6 +184,38 @@ export function requireStationSelected(req: Request, res: Response, next: NextFu
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 /** Cift-gonderim (double-submit) CSRF korumasi: state degistiren istekler icin header token dogrulanir. */
+/**
+ * Geri alinamaz super_admin islemleri (ör. istasyon silme) icin ek dogrulama - calinmis/acik
+ * birakilmis bir oturumun tek basina bu tur islemleri yapabilmesini engeller. 2FA acik
+ * hesaplarda GUNCEL bir TOTP kodu (replay korumali - bkz. utils/totp.ts), acik degilse
+ * mevcut sifrenin tekrar girilmesi istenir (ayni ilke: /2fa/disable). requireAuth'tan
+ * SONRA, csrfProtection'dan ONCE (veya sonra, sirasi onemli degil) zincire eklenir.
+ */
+export function requireStepUpAuth(req: Request, res: Response, next: NextFunction): void {
+  const user = req.user!;
+  const body = req.body as { stepUpPassword?: unknown; stepUpTotpCode?: unknown };
+
+  if (user.totp_enabled) {
+    const code = typeof body.stepUpTotpCode === "string" ? body.stepUpTotpCode : undefined;
+    const matchedCounter = code && user.totp_secret ? matchTotpCounter(user.totp_secret, code) : null;
+    if (matchedCounter === null || (user.totp_last_used_counter !== null && matchedCounter <= user.totp_last_used_counter)) {
+      res.status(401).json({ error: "Bu islem icin guncel bir dogrulama kodu gerekli.", requiresStepUp: "totp" });
+      return;
+    }
+    db.prepare("UPDATE users SET totp_last_used_counter = ? WHERE id = ?").run(matchedCounter, user.id);
+  } else {
+    const password = typeof body.stepUpPassword === "string" ? body.stepUpPassword : undefined;
+    const ok =
+      !!password &&
+      verifyPassword(password, { hash: user.password_hash, salt: user.password_salt, iterations: user.password_iterations });
+    if (!ok) {
+      res.status(401).json({ error: "Bu islem icin sifrenizi tekrar girmeniz gerekli.", requiresStepUp: "password" });
+      return;
+    }
+  }
+  next();
+}
+
 export function csrfProtection(req: Request, res: Response, next: NextFunction): void {
   if (SAFE_METHODS.has(req.method)) return next();
   if (!req.user) return next(); // requireAuth zaten 401 dondurecek

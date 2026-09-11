@@ -6,12 +6,17 @@ import { formatDateTime } from "../../shared/format";
 interface LoyaltyAccount {
   plate: string;
   points: number;
+  lifetimePoints: number;
+  tier: "bronze" | "silver" | "gold";
 }
+
+const TIER_LABEL: Record<string, string> = { bronze: "Bronz", silver: "Gümüş", gold: "Altın" };
+const TIER_BADGE: Record<string, string> = { bronze: "", silver: "info", gold: "resolved" };
 
 interface LoyaltyMovement {
   id: number;
   plate: string;
-  type: "earn" | "redeem" | "refund" | "adjustment";
+  type: "earn" | "redeem" | "refund" | "adjustment" | "expire" | "referral";
   points: number;
   balanceAfter: number;
   transactionId: number | null;
@@ -20,8 +25,22 @@ interface LoyaltyMovement {
   createdAt: string;
 }
 
-const MOVEMENT_TYPE_LABEL: Record<string, string> = { earn: "Kazanım", redeem: "Kullanım", refund: "İade", adjustment: "Manuel Düzeltme" };
-const MOVEMENT_TYPE_BADGE: Record<string, string> = { earn: "resolved", redeem: "warning", refund: "info", adjustment: "acknowledged" };
+const MOVEMENT_TYPE_LABEL: Record<string, string> = {
+  earn: "Kazanım",
+  redeem: "Kullanım",
+  refund: "İade",
+  adjustment: "Manuel Düzeltme",
+  expire: "Süre Doldu",
+  referral: "Referans Bonusu",
+};
+const MOVEMENT_TYPE_BADGE: Record<string, string> = {
+  earn: "resolved",
+  redeem: "warning",
+  refund: "info",
+  adjustment: "acknowledged",
+  expire: "critical",
+  referral: "resolved",
+};
 
 export default function LoyaltyLookup() {
   const stationId = useEffectiveStationId();
@@ -130,10 +149,12 @@ export default function LoyaltyLookup() {
             <div className="card-divider">
               <div className="toolbar" style={{ alignItems: "baseline" }}>
                 <span className="hint-text">Plaka: {account.plate}</span>
+                <span className={`badge ${TIER_BADGE[account.tier] ?? ""}`}>{TIER_LABEL[account.tier] ?? account.tier}</span>
                 <div className="spacer" />
                 <div className="stat" style={{ alignItems: "flex-end" }}>
                   <span className="label">Güncel Bakiye</span>
                   <span className="value">{account.points} puan</span>
+                  <span className="hint-text">Yaşam boyu: {account.lifetimePoints} puan</span>
                 </div>
               </div>
 

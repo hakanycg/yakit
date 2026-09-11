@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildOtpauthUri, generateTotpCode, generateTotpSecret, verifyTotpCode } from "./totp.js";
+import { buildOtpauthUri, generateTotpCode, generateTotpSecret, matchTotpCounter, verifyTotpCode } from "./totp.js";
 
 describe("totp", () => {
   it("matches the RFC 6238 test vector (secret='12345678901234567890', t=59s -> 287082)", () => {
@@ -44,6 +44,25 @@ describe("totp", () => {
     const a = generateTotpSecret();
     const b = generateTotpSecret();
     expect(a).not.toBe(b);
+  });
+
+  it("matchTotpCounter returns the matched HOTP counter (or null)", () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const code = generateTotpCode(secret, now);
+    const expectedCounter = Math.floor(now / 1000 / 30);
+    expect(matchTotpCounter(secret, code, now)).toBe(expectedCounter);
+    expect(matchTotpCounter(secret, "000000", now)).toBeNull();
+  });
+
+  it("matchTotpCounter: replay - the SAME code re-submitted in the same window matches the SAME counter (caller must reject <= lastUsedCounter)", () => {
+    const secret = generateTotpSecret();
+    const now = Date.now();
+    const code = generateTotpCode(secret, now);
+    const firstMatch = matchTotpCounter(secret, code, now);
+    const secondMatch = matchTotpCounter(secret, code, now + 5_000); // ayni 30sn adiminda tekrar deneme
+    expect(firstMatch).not.toBeNull();
+    expect(secondMatch).toBe(firstMatch);
   });
 
   it("builds an otpauth:// URI containing the secret and issuer", () => {

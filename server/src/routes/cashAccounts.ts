@@ -16,6 +16,7 @@ import {
   serializeMovement,
   updateAccount,
 } from "../services/cashAccountService.js";
+import { getCashFlowForecast } from "../services/cashFlowForecastService.js";
 import { csvEscape } from "../utils/csv.js";
 
 const router = Router();
@@ -28,6 +29,14 @@ const dateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Tarih YYYY-MM-DD bic
 
 router.get("/", (req, res) => {
   res.json({ accounts: listAccountsWithBalance(req.stationId!) });
+});
+
+const forecastQuerySchema = z.object({ horizonDays: z.coerce.number().int().positive().max(180).optional() });
+
+/** Nakit akisi tahmini - bkz. cashFlowForecastService.ts. */
+router.get("/forecast", validateQuery(forecastQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof forecastQuerySchema> }).validatedQuery;
+  res.json(getCashFlowForecast(req.stationId!, q.horizonDays ?? 30));
 });
 
 const createAccountSchema = z.object({
