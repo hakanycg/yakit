@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/index.js";
 import type { StationRow } from "../db/types.js";
 import { createTestPump, createTestStation, createTestTenant } from "../test/dbFixture.js";
-import { getPortfolioReport } from "./portfolioService.js";
+import { getPortfolioReport, getStationGrowthReport } from "./portfolioService.js";
 import { businessDayExpr } from "../utils/businessDay.js";
 import { refreshRollups } from "./rollupService.js";
 
@@ -271,5 +271,54 @@ describe("getPortfolioReport - sorgu plani", () => {
     expect(detail).toContain("idx_transactions_station_business_day");
     // "SCAN" = tam tablo taramasi. Bu sorgu icin asla gorulmemeli.
     expect(detail).not.toMatch(/\bSCAN\b/);
+  });
+});
+
+describe("getStationGrowthReport", () => {
+  it("en cok buyuyenden en cok gerileyene siralar ve yuzde degisimi hesaplar", () => {
+    // Onceki ay (Temmuz): A=1000, B=1000.
+    addSale({ station: stationA, at: "2026-07-10T09:00:00.000Z", amount: 1000 });
+    addSale({ station: stationB, at: "2026-07-10T09:00:00.000Z", amount: 1000 });
+    // Guncel ay (Agustos): A=2000 (%100 artis), B=500 (%50 azalis).
+    addSale({ station: stationA, at: "2026-08-10T09:00:00.000Z", amount: 2000 });
+    addSale({ station: stationB, at: "2026-08-10T09:00:00.000Z", amount: 500 });
+
+    const rows = getStationGrowthReport({ tenantId: tenant.id }, "2026-08-01", "2026-08-31", "2026-07-01", "2026-07-31");
+
+    expect(rows[0]!.stationId).toBe(stationA.id);
+    expect(rows[0]!.growthPct).toBe(100);
+    expect(rows[1]!.stationId).toBe(stationB.id);
+    expect(rows[1]!.growthPct).toBe(-50);
+  });
+
+  it("pompa basina ciroyu (revenuePerPump) dogru hesaplar", () => {
+    // stationA'da bu testte 2 pompa var (addSale her cagrida yeni bir pompa yaratir).
+    addSale({ station: stationA, at: "2026-08-10T09:00:00.000Z", amount: 600 });
+    addSale({ station: stationA, at: "2026-08-11T09:00:00.000Z", amount: 400 });
+
+    const rows = getStationGrowthReport({ tenantId: tenant.id }, "2026-08-01", "2026-08-31", "2026-07-01", "2026-07-31");
+    const a = rows.find((r) => r.stationId === stationA.id)!;
+
+    expect(a.pumpCount).toBe(2);
+    expect(a.revenuePerPump).toBe(500); // (600+400)/2
+  });
+
+  it("onceki donemde hic satisi olmayan (yeni) istasyon icin growthPct null'dur ve siralamanin SONUNA duser", () => {
+    addSale({ station: stationA, at: "2026-07-10T09:00:00.000Z", amount: 100 });
+    addSale({ station: stationA, at: "2026-08-10T09:00:00.000Z", amount: 100 }); // %0 buyume
+    addSale({ station: stationB, at: "2026-08-10T09:00:00.000Z", amount: 5000 }); // onceki donem 0, guncel 5000 -> null
+
+    const rows = getStationGrowthReport({ tenantId: tenant.id }, "2026-08-01", "2026-08-31", "2026-07-01", "2026-07-31");
+
+    const b = rows.find((r) => r.stationId === stationB.id)!;
+    expect(b.growthPct).toBeNull();
+    expect(rows[rows.length - 1]!.stationId).toBe(stationB.id);
+  });
+
+  it("hicbir donemde satisi olmayan istasyon icin growthPct 0'dir", () => {
+    const rows = getStationGrowthReport({ tenantId: tenant.id }, "2026-08-01", "2026-08-31", "2026-07-01", "2026-07-31");
+    const a = rows.find((r) => r.stationId === stationA.id)!;
+    expect(a.growthPct).toBe(0);
+    expect(a.revenuePerPump).toBeNull();
   });
 });

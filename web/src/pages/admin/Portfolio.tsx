@@ -135,6 +135,8 @@ export default function Portfolio() {
         />
       </div>
 
+      <GrowthRankingCard />
+
       <div className="card">
         <table>
           <thead>
@@ -207,6 +209,123 @@ export default function Portfolio() {
         </table>
       </div>
       <Pagination page={page} pageCount={Math.max(Math.ceil(total / PAGE_SIZE), 1)} onChange={setPage} />
+    </div>
+  );
+}
+
+interface StationGrowthRow {
+  stationId: number;
+  stationName: string;
+  stationCode: string | null;
+  active: number;
+  currentRevenue: number;
+  previousRevenue: number;
+  growthPct: number | null;
+  pumpCount: number;
+  revenuePerPump: number | null;
+  revenuePerTransaction: number | null;
+}
+
+type GrowthPreset = "month" | "year";
+
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function growthRangeFor(preset: GrowthPreset): { currentFrom: string; currentTo: string; previousFrom: string; previousTo: string } {
+  const now = new Date();
+  if (preset === "month") {
+    return {
+      currentFrom: isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))),
+      currentTo: isoDate(now),
+      previousFrom: isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1))),
+      previousTo: isoDate(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0))),
+    };
+  }
+  return {
+    currentFrom: isoDate(new Date(Date.UTC(now.getUTCFullYear(), 0, 1))),
+    currentTo: isoDate(now),
+    previousFrom: isoDate(new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1))),
+    previousTo: isoDate(new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate()))),
+  };
+}
+
+/** Istasyonlar arasi buyume/verimlilik siralamasi - mutlak ciro yerine normalize edilmis metrikler. */
+function GrowthRankingCard() {
+  const [preset, setPreset] = useState<GrowthPreset>("month");
+  const [rows, setRows] = useState<StationGrowthRow[] | null>(null);
+
+  useEffect(() => {
+    setRows(null);
+    const r = growthRangeFor(preset);
+    const qs = `currentFrom=${r.currentFrom}&currentTo=${r.currentTo}&previousFrom=${r.previousFrom}&previousTo=${r.previousTo}`;
+    api.get<{ stations: StationGrowthRow[] }>(`/api/portfolio/growth?${qs}`).then((res) => setRows(res.stations));
+  }, [preset]);
+
+  return (
+    <div className="card">
+      <div className="toolbar" style={{ marginBottom: "0.5rem" }}>
+        <h3 style={{ margin: 0 }}>Büyüme / Verimlilik Sıralaması</h3>
+        <div className="spacer" />
+        <div className="segmented" role="group" aria-label="Karşılaştırma dönemi">
+          <button type="button" className={preset === "month" ? "active" : ""} aria-pressed={preset === "month"} onClick={() => setPreset("month")}>
+            Bu Ay / Geçen Ay
+          </button>
+          <button type="button" className={preset === "year" ? "active" : ""} aria-pressed={preset === "year"} onClick={() => setPreset("year")}>
+            Bu Yıl / Geçen Yıl
+          </button>
+        </div>
+      </div>
+      <p className="hint-text">
+        Mutlak ciro yerine normalize edilmiş metrikler: önceki döneme göre büyüme % ve pompa başına ciro.
+      </p>
+      {!rows ? (
+        <p className="hint-text">Yükleniyor...</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>İstasyon</th>
+                <th className="numeric">Güncel Ciro</th>
+                <th className="numeric">Önceki Ciro</th>
+                <th className="numeric">Büyüme</th>
+                <th className="numeric">Pompa/Ciro</th>
+                <th className="numeric">İşlem/Ciro</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.stationId}>
+                  <td>
+                    <strong>{r.stationName}</strong>
+                    {r.active === 0 && <span className="hint-text"> · pasif</span>}
+                  </td>
+                  <td className="numeric">{formatCurrency(r.currentRevenue)}</td>
+                  <td className="numeric">{formatCurrency(r.previousRevenue)}</td>
+                  <td className="numeric">
+                    {r.growthPct === null ? (
+                      <span className="hint-text">yeni</span>
+                    ) : (
+                      <span style={{ color: r.growthPct > 0 ? "var(--accent-2)" : r.growthPct < 0 ? "var(--danger)" : undefined, fontWeight: 600 }}>
+                        {r.growthPct > 0 ? "+" : ""}
+                        {r.growthPct.toFixed(1)}%
+                      </span>
+                    )}
+                  </td>
+                  <td className="numeric">{r.revenuePerPump === null ? <span className="hint-text">—</span> : formatCurrency(r.revenuePerPump)}</td>
+                  <td className="numeric">{r.revenuePerTransaction === null ? <span className="hint-text">—</span> : formatCurrency(r.revenuePerTransaction)}</td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="hint-text">Henüz istasyon yok.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

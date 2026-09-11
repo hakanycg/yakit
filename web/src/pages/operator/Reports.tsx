@@ -96,6 +96,207 @@ function fillDays(byDay: Array<{ day: string; count: number; revenue: number }>,
   return result;
 }
 
+/** fillDays'teki AYNI tarih listeleme mantigi, ama sadece gun anahtarlari (deger tasimaz). */
+function enumerateDays(from: string, to: string): string[] {
+  const result: string[] = [];
+  const start = new Date(`${from}T00:00:00Z`);
+  const end = new Date(`${to}T00:00:00Z`);
+  for (let d = start; d <= end && result.length < 120; d.setUTCDate(d.getUTCDate() + 1)) {
+    result.push(d.toISOString().slice(0, 10));
+  }
+  return result;
+}
+
+interface FuelTrendRow {
+  day: string;
+  fuelType: string;
+  count: number;
+  revenue: number;
+  liters: number;
+}
+
+const FUEL_TREND_COLOR: Record<string, string> = { benzin: "#22c55e", motorin: "#3aa0ff", lpg: "#f59e0b" };
+
+/** Yakit turu bazinda zaman serisi - "motorin satisi son 30 gunde nasil gitti" sorusuna cevap. */
+function FuelTypeTrendChart({ range, from, to }: { range: string; from: string; to: string }) {
+  const [rows, setRows] = useState<FuelTrendRow[] | null>(null);
+
+  useEffect(() => {
+    setRows(null);
+    api.get<{ rows: FuelTrendRow[] }>(`/api/reports/fuel-type-trend?${range}`).then((res) => setRows(res.rows));
+  }, [range]);
+
+  if (!rows) {
+    return (
+      <div className="card">
+        <h3>Yakıt Türüne Göre Trend</h3>
+        <p className="hint-text">Yükleniyor...</p>
+      </div>
+    );
+  }
+
+  const days = enumerateDays(from, to);
+  const fuelTypes = Array.from(new Set(rows.map((r) => r.fuelType))).sort();
+
+  if (days.length < 2 || fuelTypes.length === 0) {
+    return (
+      <div className="card">
+        <h3>Yakıt Türüne Göre Trend</h3>
+        <p className="hint-text">Grafik için yeterli veri yok (en az 2 günlük satış gerekiyor).</p>
+      </div>
+    );
+  }
+
+  const byKey = new Map(rows.map((r) => [`${r.day}|${r.fuelType}`, r]));
+  const series = fuelTypes.map((fuelType) => ({
+    fuelType,
+    points: days.map((day) => byKey.get(`${day}|${fuelType}`)?.liters ?? 0),
+  }));
+
+  const width = 600;
+  const height = 160;
+  const pad = 10;
+  const maxVal = Math.max(1, ...series.flatMap((s) => s.points));
+  const stepX = (width - pad * 2) / Math.max(days.length - 1, 1);
+  const toPoints = (points: number[]) =>
+    points.map((v, i) => `${pad + i * stepX},${height - pad - (v / maxVal) * (height - pad * 2)}`).join(" ");
+
+  return (
+    <div className="card">
+      <div className="toolbar" style={{ marginBottom: "0.4rem" }}>
+        <h3 style={{ margin: 0 }}>Yakıt Türüne Göre Trend</h3>
+        <div className="spacer" />
+        {fuelTypes.map((ft) => (
+          <span key={ft} className="hint-text" style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", marginLeft: "0.75rem" }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: FUEL_TREND_COLOR[ft] ?? "var(--text-dim)", display: "inline-block" }} />
+            {FUEL_LABEL[ft as keyof typeof FUEL_LABEL] ?? ft}
+          </span>
+        ))}
+      </div>
+      <svg viewBox={`0 0 ${width} ${height}`} style={{ width: "100%", height: "160px", display: "block" }} preserveAspectRatio="none">
+        {series.map((s) => (
+          <polyline key={s.fuelType} points={toPoints(s.points)} fill="none" stroke={FUEL_TREND_COLOR[s.fuelType] ?? "var(--text-dim)"} strokeWidth="2" />
+        ))}
+      </svg>
+      <div className="toolbar hint-text" style={{ marginTop: "0.4rem" }}>
+        <span>{formatDayLabel(days[0]!)}</span>
+        <div className="spacer" />
+        <span>{formatDayLabel(days[days.length - 1]!)}</span>
+      </div>
+      <p className="hint-text" style={{ marginTop: "0.4rem", marginBottom: 0 }}>Dikey eksen: günlük satılan litre.</p>
+    </div>
+  );
+}
+
+interface PeriodComparisonResponse {
+  current: { from: string; to: string; revenue: number; liters: number; transactionCount: number; grossProfit: number; grossMarginPct: number | null };
+  previous: { from: string; to: string; revenue: number; liters: number; transactionCount: number; grossProfit: number; grossMarginPct: number | null };
+  changePct: { revenue: number | null; liters: number | null; transactionCount: number | null; grossProfit: number | null };
+}
+
+type ComparisonPreset = "month" | "year";
+
+/** YYYY-MM-DD bicimine cevirir (Date.toISOString().slice(0,10) ile ayni). */
+function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** Bu ay/gecen ay ya da bu yil/gecen yil icin dort tarihi (guncel baslangic/bitis, onceki baslangic/bitis) hesaplar. */
+function comparisonRangeFor(preset: ComparisonPreset): { currentFrom: string; currentTo: string; previousFrom: string; previousTo: string } {
+  const now = new Date();
+  if (preset === "month") {
+    const currentFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const currentTo = now;
+    const previousFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+    const previousTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 0));
+    return { currentFrom: isoDate(currentFrom), currentTo: isoDate(currentTo), previousFrom: isoDate(previousFrom), previousTo: isoDate(previousTo) };
+  }
+  const currentFrom = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+  const currentTo = now;
+  const previousFrom = new Date(Date.UTC(now.getUTCFullYear() - 1, 0, 1));
+  const previousTo = new Date(Date.UTC(now.getUTCFullYear() - 1, now.getUTCMonth(), now.getUTCDate()));
+  return { currentFrom: isoDate(currentFrom), currentTo: isoDate(currentTo), previousFrom: isoDate(previousFrom), previousTo: isoDate(previousTo) };
+}
+
+function changeBadge(pct: number | null) {
+  if (pct === null) return <span className="hint-text">-</span>;
+  const color = pct > 0 ? "var(--accent-2)" : pct < 0 ? "var(--danger)" : undefined;
+  const sign = pct > 0 ? "+" : "";
+  return <span style={{ color, fontWeight: 600 }}>{sign}{pct.toFixed(1)}%</span>;
+}
+
+/** Donemsel karsilastirma: bu ay/gecen ay ya da bu yil/gecen yil - ciro/litre/islem/kar karsilastirmasi. */
+function PeriodComparisonCard({ stationId }: { stationId: number }) {
+  const [preset, setPreset] = useState<ComparisonPreset>("month");
+  const [data, setData] = useState<PeriodComparisonResponse | null>(null);
+
+  useEffect(() => {
+    setData(null);
+    const r = comparisonRangeFor(preset);
+    const qs = `currentFrom=${r.currentFrom}&currentTo=${r.currentTo}&previousFrom=${r.previousFrom}&previousTo=${r.previousTo}`;
+    api.get<PeriodComparisonResponse>(`/api/reports/period-comparison?${qs}`).then(setData);
+  }, [preset, stationId]);
+
+  return (
+    <div className="card">
+      <div className="toolbar" style={{ marginBottom: "0.5rem" }}>
+        <h3 style={{ margin: 0 }}>Dönemsel Karşılaştırma</h3>
+        <div className="spacer" />
+        <div className="segmented" role="group" aria-label="Karşılaştırma dönemi">
+          <button type="button" className={preset === "month" ? "active" : ""} aria-pressed={preset === "month"} onClick={() => setPreset("month")}>
+            Bu Ay / Geçen Ay
+          </button>
+          <button type="button" className={preset === "year" ? "active" : ""} aria-pressed={preset === "year"} onClick={() => setPreset("year")}>
+            Bu Yıl / Geçen Yıl
+          </button>
+        </div>
+      </div>
+      {!data ? (
+        <p className="hint-text">Yükleniyor...</p>
+      ) : (
+        <div className="table-scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Metrik</th>
+                <th className="numeric">Güncel Dönem</th>
+                <th className="numeric">Önceki Dönem</th>
+                <th className="numeric">Değişim</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Ciro</td>
+                <td className="numeric">{formatCurrency(data.current.revenue)}</td>
+                <td className="numeric">{formatCurrency(data.previous.revenue)}</td>
+                <td className="numeric">{changeBadge(data.changePct.revenue)}</td>
+              </tr>
+              <tr>
+                <td>Litre</td>
+                <td className="numeric">{data.current.liters.toFixed(1)} L</td>
+                <td className="numeric">{data.previous.liters.toFixed(1)} L</td>
+                <td className="numeric">{changeBadge(data.changePct.liters)}</td>
+              </tr>
+              <tr>
+                <td>İşlem Sayısı</td>
+                <td className="numeric">{data.current.transactionCount}</td>
+                <td className="numeric">{data.previous.transactionCount}</td>
+                <td className="numeric">{changeBadge(data.changePct.transactionCount)}</td>
+              </tr>
+              <tr>
+                <td>Brüt Kâr</td>
+                <td className="numeric">{formatCurrency(data.current.grossProfit)}</td>
+                <td className="numeric">{formatCurrency(data.previous.grossProfit)}</td>
+                <td className="numeric">{changeBadge(data.changePct.grossProfit)}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Reports() {
   const stationId = useEffectiveStationId();
   const [tab, setTab] = useState<Tab>("sales");
@@ -212,6 +413,8 @@ function SalesReport({ range, from, to, stationId }: { range: string; from: stri
           </span>
         </div>
       </div>
+
+      <PeriodComparisonCard stationId={stationId} />
 
       <div className="card">
         <h3>Yakıt Tipine Göre</h3>
@@ -350,6 +553,8 @@ function SalesReport({ range, from, to, stationId }: { range: string; from: stri
           </div>
         )}
       </div>
+
+      <FuelTypeTrendChart range={range} from={from} to={to} />
 
       <div className="card">
         <h3>Yoğun Saatler</h3>

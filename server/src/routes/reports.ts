@@ -5,6 +5,7 @@ import { attachStationScope, requireAuth, requireRole, requireStationSelected } 
 import { validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
 import { buildAccountingExport } from "../services/accountingExportService.js";
+import { getPeriodComparison } from "../services/periodComparisonService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 import { csvEscape } from "../utils/csv.js";
 
@@ -286,5 +287,46 @@ router.get(
     res.send("﻿" + lines.join("\n"));
   }
 );
+
+/**
+ * Yakit turu bazinda zaman serisi trend grafigi (bkz. arastirma bulgusu: /summary'deki
+ * byFuelType tek donemlik toplam, byDay yakit turu ayrimi yapmiyor - "motorin satisi son
+ * 30 gunde nasil gitti" sorusuna grafik verilemiyordu). GROUP BY day, fuel_type ile
+ * ikisini birlestirir.
+ */
+router.get("/fuel-type-trend", validateQuery(rangeSchema), (req, res) => {
+  const stationId = req.stationId!;
+  const q = (req as unknown as { validatedQuery: z.infer<typeof rangeSchema> }).validatedQuery;
+  const range = rangeClause(q);
+
+  const rows = db
+    .prepare(
+      `SELECT substr(created_at, 1, 10) as day,
+              fuel_type as fuelType,
+              COUNT(*) as count,
+              COALESCE(SUM(MAX(0, total_amount - discount_amount)), 0) as revenue,
+              COALESCE(SUM(dispensed_liters), 0) as liters
+       FROM transactions WHERE station_id = ? AND status = 'completed'${range.sql}
+       GROUP BY day, fuel_type ORDER BY day ASC LIMIT 2700`
+    )
+    .all(stationId, ...range.params) as Array<{ day: string; fuelType: string; count: number; revenue: number; liters: number }>;
+
+  res.json({ rows });
+});
+
+const periodComparisonSchema = z.object({
+  currentFrom: dateSchema,
+  currentTo: dateSchema,
+  previousFrom: dateSchema,
+  previousTo: dateSchema,
+});
+
+/** Donemsel karsilastirma (ör. bu ay / gecen ay) - bkz. periodComparisonService.ts. */
+router.get("/period-comparison", validateQuery(periodComparisonSchema), (req, res) => {
+  const stationId = req.stationId!;
+  const q = (req as unknown as { validatedQuery: z.infer<typeof periodComparisonSchema> }).validatedQuery;
+  const result = getPeriodComparison(stationId, q.currentFrom, q.currentTo, q.previousFrom, q.previousTo);
+  res.json(result);
+});
 
 export { router as reportsRouter };

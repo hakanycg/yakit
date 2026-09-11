@@ -3,7 +3,7 @@ import { z } from "zod";
 import { requireAuth, requireRole } from "../middleware/auth.js";
 import { validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
-import { getPortfolioReport } from "../services/portfolioService.js";
+import { getPortfolioReport, getStationGrowthReport } from "../services/portfolioService.js";
 import { businessDateDaysAgo, currentBusinessDate } from "../utils/businessDay.js";
 import { csvEscape } from "../utils/csv.js";
 
@@ -108,6 +108,26 @@ router.get("/export.csv", validateQuery(querySchema), (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", `attachment; filename="konsolide-rapor-${from}_${to}.csv"`);
   res.send("﻿" + lines.join("\n"));
+});
+
+const growthQuerySchema = z.object({
+  currentFrom: dateSchema,
+  currentTo: dateSchema,
+  previousFrom: dateSchema,
+  previousTo: dateSchema,
+});
+
+/** Istasyonlar arasi buyume/verimlilik siralamasi - bkz. portfolioService.getStationGrowthReport. */
+router.get("/growth", validateQuery(growthQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof growthQuerySchema> }).validatedQuery;
+  const rows = getStationGrowthReport(
+    { tenantId: req.user!.tenant_id },
+    q.currentFrom,
+    q.currentTo,
+    q.previousFrom,
+    q.previousTo
+  );
+  res.json({ stations: rows });
 });
 
 export const portfolioRouter = router;
