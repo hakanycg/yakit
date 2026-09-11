@@ -654,6 +654,26 @@ CREATE TABLE IF NOT EXISTS loyalty_movements (
 );
 CREATE INDEX IF NOT EXISTS idx_loyalty_movements_station_plate ON loyalty_movements(station_id, plate, created_at);
 
+-- Bir mevcut musterinin (referrer) yeni bir musteriyi (referred) getirmesi. referred_plate
+-- istasyon basina EN FAZLA BIR kez yer alabilir (UNIQUE) - ayni plaka tekrar tekrar
+-- "referans edilerek" bonus cikartilamaz. status: pending (kayit olusturuldu, henuz
+-- odul verilmedi) -> completed (referred plakanin ilk basarili dolumu tamamlandi, iki
+-- tarafa da bonus puan verildi).
+CREATE TABLE IF NOT EXISTS loyalty_referrals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  referrer_plate TEXT NOT NULL,
+  referred_plate TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending | completed
+  referrer_bonus_points REAL,
+  referred_bonus_points REAL,
+  transaction_id INTEGER REFERENCES transactions(id),
+  created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+  completed_at TEXT,
+  UNIQUE(station_id, referred_plate)
+);
+CREATE INDEX IF NOT EXISTS idx_loyalty_referrals_referrer ON loyalty_referrals(station_id, referrer_plate);
+
 CREATE TABLE IF NOT EXISTS discount_codes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   station_id INTEGER NOT NULL REFERENCES stations(id),

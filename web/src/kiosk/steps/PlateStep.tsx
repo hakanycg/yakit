@@ -7,9 +7,18 @@ import { ApiError } from "../../shared/api";
 
 const SAMPLE_PLATES = ["06 ABC 123", "34 XY 4567", "35 CDE 89", "16 FGH 12", "42 KL 456"];
 
-export default function PlateStep({ stationId, onNext }: { stationId: number; onNext: (plate: string, source: "manual" | "lpr") => void }) {
+export default function PlateStep({
+  stationId,
+  referralEnabled,
+  onNext,
+}: {
+  stationId: number;
+  referralEnabled: boolean;
+  onNext: (plate: string, source: "manual" | "lpr", referrerPlate?: string) => void;
+}) {
   const { t, locale } = useKioskLang();
   const [plate, setPlate] = useState("");
+  const [referrerPlate, setReferrerPlate] = useState("");
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +73,8 @@ export default function PlateStep({ stationId, onNext }: { stationId: number; on
       setError(t("plate.invalid"));
       return;
     }
-    onNext(normalized, "manual");
+    const normalizedReferrer = referrerPlate.toUpperCase().trim();
+    onNext(normalized, "manual", normalizedReferrer || undefined);
   }
 
   return (
@@ -90,6 +100,24 @@ export default function PlateStep({ stationId, onNext }: { stationId: number; on
         style={{ fontSize: "1.3rem", textAlign: "center", letterSpacing: "0.1em" }}
       />
       {error && <p className="error-text">{error}</p>}
+
+      {referralEnabled && (
+        <div style={{ marginTop: "0.75rem" }}>
+          <label>{t("plate.referrerLabel")}</label>
+          <KioskInput
+            layout="plate"
+            value={referrerPlate}
+            onChange={(next) => setReferrerPlate(next.toUpperCase())}
+            placeholder={t("plate.referrerPlaceholder")}
+            maxLength={12}
+            ltr
+            style={{ fontSize: "1rem", textAlign: "center", letterSpacing: "0.08em" }}
+          />
+          <p className="hint-text" style={{ marginTop: "0.25rem" }}>
+            {t("plate.referrerHint")}
+          </p>
+        </div>
+      )}
 
       <div className="kiosk-actions">
         <button onClick={scan} disabled={scanning}>

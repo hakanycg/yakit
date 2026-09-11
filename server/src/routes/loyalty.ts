@@ -12,6 +12,7 @@ import {
   serializeMovement,
   setLoyaltyConfig,
 } from "../services/loyaltyService.js";
+import { listReferrals, serializeReferral } from "../services/referralService.js";
 
 const router = Router();
 // Sadakat programi yalnizca istasyon yoneticisine (admin) ve platform yoneticisine
@@ -30,6 +31,9 @@ const configSchema = z.object({
   tierGoldThreshold: z.number().min(0).max(1000000).optional(),
   pointExpiryEnabled: z.boolean().optional(),
   pointExpiryMonths: z.number().int().min(1).max(120).optional(),
+  referralEnabled: z.boolean().optional(),
+  referralBonusPoints: z.number().min(0).max(1000000).optional(),
+  referralRefereeBonusPoints: z.number().min(0).max(1000000).optional(),
 });
 
 router.patch("/config", csrfProtection, validateBody(configSchema), (req, res) => {
@@ -52,6 +56,17 @@ router.get("/movements", validateQuery(movementsQuerySchema), (req, res) => {
 
 router.get("/accounts/:plate", (req, res) => {
   res.json({ account: serializeAccount(req.stationId!, req.params.plate ?? "") });
+});
+
+const referralsQuerySchema = z.object({
+  plate: z.string().max(15).optional(),
+  limit: z.coerce.number().int().positive().max(1000).optional(),
+});
+
+router.get("/referrals", validateQuery(referralsQuerySchema), (req, res) => {
+  const q = (req as unknown as { validatedQuery: z.infer<typeof referralsQuerySchema> }).validatedQuery;
+  const rows = listReferrals(req.stationId!, q);
+  res.json({ referrals: rows.map(serializeReferral) });
 });
 
 const adjustSchema = z.object({

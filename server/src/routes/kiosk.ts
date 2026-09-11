@@ -196,6 +196,9 @@ router.get("/station/:slug", (req, res) => {
     // Istasyonun kendi iletisim numarasi: kiosk yardim ekraninda musteriye
     // aranacak numara olarak gosterilir.
     contactPhone: station.contact_phone ?? null,
+    // Referral programi acik mi - kiosk plaka adiminda "beni kim yonlendirdi" alanini
+    // yalnizca bu true iken gosterir (bkz. referralService.ts).
+    referralEnabled: getLoyaltyConfig(station.id).referralEnabled,
   });
 });
 
@@ -312,6 +315,7 @@ const createSchema = z.object({
   requestedLiters: z.number().positive().max(300).optional(),
   discountCode: z.string().trim().min(1).max(30).optional(),
   redeemPoints: z.number().positive().max(1000000).optional(),
+  referrerPlate: z.string().regex(plateRegex, "Gecersiz plaka formati.").optional(),
 });
 
 router.post("/transactions", validateBody(createSchema), (req, res) => {

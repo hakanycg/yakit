@@ -203,13 +203,26 @@ export interface LoyaltyMovementRow {
   id: number;
   station_id: number;
   plate: string;
-  type: "earn" | "redeem" | "refund" | "adjustment" | "expire";
+  type: "earn" | "redeem" | "refund" | "adjustment" | "expire" | "referral";
   points: number;
   balance_after: number;
   transaction_id: number | null;
   note: string | null;
   user_id: number | null;
   created_at: string;
+}
+
+export interface LoyaltyReferralRow {
+  id: number;
+  station_id: number;
+  referrer_plate: string;
+  referred_plate: string;
+  status: "pending" | "completed";
+  referrer_bonus_points: number | null;
+  referred_bonus_points: number | null;
+  transaction_id: number | null;
+  created_at: string;
+  completed_at: string | null;
 }
 
 export interface DiscountCodeRow {

@@ -26,6 +26,12 @@ export interface LoyaltyConfig {
   /** Puan gecerlilik suresi (bkz. expireOldPoints) - varsayilan KAPALI. */
   pointExpiryEnabled: boolean;
   pointExpiryMonths: number;
+  /** Referral (yonlendirme) programi (bkz. referralService.ts) - varsayilan KAPALI. */
+  referralEnabled: boolean;
+  /** Yonlendiren musteriye (referrer) verilen bonus puan. */
+  referralBonusPoints: number;
+  /** Yonlendirilen YENI musteriye (referred) verilen "hos geldin" bonus puani. */
+  referralRefereeBonusPoints: number;
 }
 
 const DEFAULT_CONFIG: LoyaltyConfig = {
@@ -36,6 +42,9 @@ const DEFAULT_CONFIG: LoyaltyConfig = {
   tierGoldThreshold: 2000,
   pointExpiryEnabled: false,
   pointExpiryMonths: 12,
+  referralEnabled: false,
+  referralBonusPoints: 100,
+  referralRefereeBonusPoints: 50,
 };
 
 export function getLoyaltyConfig(stationId: number): LoyaltyConfig {
@@ -46,6 +55,9 @@ export function getLoyaltyConfig(stationId: number): LoyaltyConfig {
   const tierGoldThreshold = getSetting(stationId, "loyalty_tier_gold_threshold");
   const pointExpiryEnabled = getSetting(stationId, "loyalty_point_expiry_enabled");
   const pointExpiryMonths = getSetting(stationId, "loyalty_point_expiry_months");
+  const referralEnabled = getSetting(stationId, "loyalty_referral_enabled");
+  const referralBonusPoints = getSetting(stationId, "loyalty_referral_bonus_points");
+  const referralRefereeBonusPoints = getSetting(stationId, "loyalty_referral_referee_bonus_points");
   return {
     enabled: enabled !== null ? enabled === "true" : DEFAULT_CONFIG.enabled,
     pointsPerLiter: pointsPerLiter !== null ? Number(pointsPerLiter) : DEFAULT_CONFIG.pointsPerLiter,
@@ -54,6 +66,10 @@ export function getLoyaltyConfig(stationId: number): LoyaltyConfig {
     tierGoldThreshold: tierGoldThreshold !== null ? Number(tierGoldThreshold) : DEFAULT_CONFIG.tierGoldThreshold,
     pointExpiryEnabled: pointExpiryEnabled !== null ? pointExpiryEnabled === "true" : DEFAULT_CONFIG.pointExpiryEnabled,
     pointExpiryMonths: pointExpiryMonths !== null ? Number(pointExpiryMonths) : DEFAULT_CONFIG.pointExpiryMonths,
+    referralEnabled: referralEnabled !== null ? referralEnabled === "true" : DEFAULT_CONFIG.referralEnabled,
+    referralBonusPoints: referralBonusPoints !== null ? Number(referralBonusPoints) : DEFAULT_CONFIG.referralBonusPoints,
+    referralRefereeBonusPoints:
+      referralRefereeBonusPoints !== null ? Number(referralRefereeBonusPoints) : DEFAULT_CONFIG.referralRefereeBonusPoints,
   };
 }
 
@@ -65,6 +81,10 @@ export function setLoyaltyConfig(stationId: number, config: Partial<LoyaltyConfi
   if (config.tierGoldThreshold !== undefined) setSetting(stationId, "loyalty_tier_gold_threshold", String(config.tierGoldThreshold), actor);
   if (config.pointExpiryEnabled !== undefined) setSetting(stationId, "loyalty_point_expiry_enabled", String(config.pointExpiryEnabled), actor);
   if (config.pointExpiryMonths !== undefined) setSetting(stationId, "loyalty_point_expiry_months", String(config.pointExpiryMonths), actor);
+  if (config.referralEnabled !== undefined) setSetting(stationId, "loyalty_referral_enabled", String(config.referralEnabled), actor);
+  if (config.referralBonusPoints !== undefined) setSetting(stationId, "loyalty_referral_bonus_points", String(config.referralBonusPoints), actor);
+  if (config.referralRefereeBonusPoints !== undefined)
+    setSetting(stationId, "loyalty_referral_referee_bonus_points", String(config.referralRefereeBonusPoints), actor);
   return getLoyaltyConfig(stationId);
 }
 
@@ -126,13 +146,41 @@ function upsertBalance(stationId: number, plate: string, newBalance: number): vo
   ).run(stationId, plate, rounded, new Date().toISOString());
 }
 
-/** Yalnizca earnPoints tarafindan cagrilir - redeem/refund/adjustment kademeyi etkilemez. */
+/**
+ * Yalnizca musterinin GERCEKTEN KAZANDIGI puan (earnPoints, awardBonusPoints) tarafindan
+ * cagrilir - redeem/refund/adjustment kademeyi etkilemez.
+ */
 function incrementLifetimePoints(stationId: number, plate: string, delta: number): void {
   db.prepare("UPDATE loyalty_accounts SET lifetime_points = lifetime_points + ? WHERE station_id = ? AND plate = ?").run(
     delta,
     stationId,
     plate
   );
+}
+
+/**
+ * Litre dolumuna bagli olmayan bir "kazanim" ekler (ör. referral bonusu). earnPoints ile
+ * ayni ilkeyi izler: bakiyeye eklenir VE yasam boyu puana (kademe) sayilir - musteriye
+ * gercekten teslim edilen bir deger oldugu icin normal kazanimdan farkli davranmasi icin
+ * bir gerekce yok.
+ */
+export function awardBonusPoints(
+  stationId: number,
+  plate: string,
+  points: number,
+  type: Exclude<LoyaltyMovementRow["type"], "earn" | "redeem" | "refund" | "adjustment" | "expire">,
+  note: string,
+  transactionId?: number | null
+): number {
+  if (points <= 0) return 0;
+  const normalized = normalizePlate(plate);
+  const rounded = Math.round(points * 100) / 100;
+  const current = getBalance(stationId, normalized);
+  const newBalance = current + rounded;
+  upsertBalance(stationId, normalized, newBalance);
+  incrementLifetimePoints(stationId, normalized, rounded);
+  insertMovement({ stationId, plate: normalized, type, points: rounded, balanceAfter: newBalance, transactionId: transactionId ?? null, note });
+  return rounded;
 }
 
 /**

@@ -52,6 +52,7 @@ function KioskFlowInner() {
   const [step, setStep] = useState<Step>("welcome");
   const [plate, setPlate] = useState("");
   const [plateSource, setPlateSource] = useState<"manual" | "lpr">("manual");
+  const [referrerPlate, setReferrerPlate] = useState<string | undefined>(undefined);
   const [pump, setPump] = useState<Pump | null>(null);
   const [fuelType, setFuelType] = useState<FuelType | null>(null);
   const [transaction, setTransaction] = useState<Transaction | null>(null);
@@ -330,6 +331,7 @@ function KioskFlowInner() {
         requestedLiters: selection.mode === "liters" ? selection.liters : undefined,
         discountCode: selection.mode !== "full_tank" ? selection.discountCode : undefined,
         redeemPoints: selection.mode !== "full_tank" ? selection.redeemPoints : undefined,
+        referrerPlate,
       });
       setTransaction(res.transaction);
       setAccessToken(res.accessToken);
@@ -414,9 +416,11 @@ function KioskFlowInner() {
         {step === "plate" && (
           <PlateStep
             stationId={station.station.id}
-            onNext={(p, source) => {
+            referralEnabled={station.referralEnabled}
+            onNext={(p, source, referrer) => {
               setPlate(p);
               setPlateSource(source);
+              setReferrerPlate(referrer);
               if (boundPump) {
                 setPump(boundPump);
                 setStep("fuel");

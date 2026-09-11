@@ -25,6 +25,7 @@ import {
   refundChargeForTransaction as refundFleetChargeForTransaction,
 } from "./fleetService.js";
 import { getWrongFuelMode } from "./wrongFuelSettingsService.js";
+import { completeReferral, tryRegisterReferral } from "./referralService.js";
 
 const DISPENSE_TICK_MS = 500;
 
@@ -105,6 +106,8 @@ export interface CreateTransactionInput {
   requestedLiters?: number;
   discountCode?: string;
   redeemPoints?: number;
+  /** Musteriyi bu istasyona getiren mevcut musterinin plakasi (bkz. referralService.ts) - opsiyonel. */
+  referrerPlate?: string;
 }
 
 /** Islem "created" durumundayken (odeme hic alinmadan) iptal/basarisiz olursa, rezerve edilmis
@@ -217,6 +220,10 @@ export function createTransaction(input: CreateTransactionInput): { transaction:
   setPumpStatus(pump.id, "reserved", { currentTransactionId: transaction.id });
   broadcastTransaction(transaction);
   checkPlateFrequencyAnomaly(pump.station_id, normalizedPlate, pump.id);
+  // Referral kaydi: musterinin asil amacini (yakit almak) hicbir sekilde riske atmamasi
+  // icin islem BASARIYLA olusturulduktan SONRA, best-effort olarak denenir (bkz.
+  // tryRegisterReferral - hata firlatmaz, uygun degilse sessizce yoksayar).
+  if (input.referrerPlate) tryRegisterReferral(pump.station_id, input.referrerPlate, normalizedPlate);
   return { transaction, accessToken };
 }
 
@@ -545,6 +552,7 @@ function startDispensing(id: number): void {
     clearInterval(interval);
     activeDispensers.delete(id);
     const pointsEarned = earnPoints(current.station_id, current.plate, nextLiters, id);
+    completeReferral(current.station_id, current.plate, id);
     const completed = touch(id, {
       dispensed_liters: nextLiters,
       total_amount: Math.round(nextAmount * 100) / 100,

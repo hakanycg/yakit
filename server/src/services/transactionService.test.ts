@@ -12,6 +12,7 @@ import {
 import { clearDispenserDriverRegistry, setDispenserDriver, setDispenserDriverFor, simulatedDispenserDriver, type DispenserDriver } from "./dispenserDriver.js";
 import { setAutomationDriver, noopAutomationDriver, type AutomationDriver, type AutomationSaleReport } from "./automationDriver.js";
 import { setWrongFuelMode } from "./wrongFuelSettingsService.js";
+import { getBalance as getLoyaltyBalance, setLoyaltyConfig } from "./loyaltyService.js";
 import {
   cancelPendingTransaction,
   chargeAmount,
@@ -236,6 +237,69 @@ describe("AutomationDriver entegrasyonu (IOS - gercek donanim/vendor karari bekl
     expect(completedReports).toHaveLength(1);
     expect(completedReports[0]!.transactionId).toBe(transaction.id);
     expect(completedReports[0]!.liters).toBeCloseTo(5);
+  });
+});
+
+describe("Referral programi entegrasyonu (bkz. referralService.ts)", () => {
+  afterEach(() => {
+    setDispenserDriver(simulatedDispenserDriver);
+    vi.useRealTimers();
+  });
+
+  // Gercek simulasyon suruculu bir dolumun tamamlanmasini beklemek testi gereksiz
+  // yavaslatir - AutomationDriver testindeki ayni desen: tek tick'te biten bir surucu.
+  const instantDriver: DispenserDriver = {
+    pickFullTankTargetLiters: () => null,
+    tick: () => ({ liters: 5, nozzleStopped: true }),
+    estimateMaxFullTankLiters: () => 60,
+  };
+
+  it("createTransaction'a verilen referrerPlate, dolum TAMAMLANINCA her iki tarafa da bonus puan kazandirir", async () => {
+    const { pumpId } = setUpStationForTransactions();
+    const staff = createTestUser(null, "admin");
+    const station = db.prepare<[number], { station_id: number }>("SELECT station_id FROM pumps WHERE id = ?").get(pumpId)!.station_id;
+    setLoyaltyConfig(station, { enabled: true, referralEnabled: true, referralBonusPoints: 100, referralRefereeBonusPoints: 50 }, staff);
+    setDispenserDriver(instantDriver);
+
+    vi.useFakeTimers();
+    const { transaction } = createTransaction({
+      pumpId,
+      plate: "34RFI001",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 5,
+      referrerPlate: "34RFI000",
+    });
+    payOk(transaction.id);
+    await vi.advanceTimersByTimeAsync(600);
+
+    expect(getLoyaltyBalance(station, "34RFI000")).toBe(100); // referrer bonusu
+    // 50 referral bonusu + 5L x 1 puan/litre (varsayilan pointsPerLiter) normal kazanim = 55
+    expect(getLoyaltyBalance(station, "34RFI001")).toBe(55);
+  });
+
+  it("referrerPlate verilmemisse islem normal akar, hicbir referral kaydi olusmaz", async () => {
+    const { pumpId } = setUpStationForTransactions();
+    const staff = createTestUser(null, "admin");
+    const station = db.prepare<[number], { station_id: number }>("SELECT station_id FROM pumps WHERE id = ?").get(pumpId)!.station_id;
+    setLoyaltyConfig(station, { enabled: true, referralEnabled: true, referralBonusPoints: 100 }, staff);
+    setDispenserDriver(instantDriver);
+
+    vi.useFakeTimers();
+    const { transaction } = createTransaction({
+      pumpId,
+      plate: "34RFI002",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 5,
+    });
+    payOk(transaction.id);
+    await vi.advanceTimersByTimeAsync(600);
+
+    const referrals = db.prepare<[number], { c: number }>("SELECT COUNT(*) as c FROM loyalty_referrals WHERE station_id = ?").get(station)!;
+    expect(referrals.c).toBe(0);
   });
 });
 

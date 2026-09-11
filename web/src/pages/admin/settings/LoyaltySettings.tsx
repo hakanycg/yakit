@@ -12,6 +12,9 @@ interface LoyaltyConfig {
   tierGoldThreshold: number;
   pointExpiryEnabled: boolean;
   pointExpiryMonths: number;
+  referralEnabled: boolean;
+  referralBonusPoints: number;
+  referralRefereeBonusPoints: number;
 }
 
 export default function LoyaltySettings() {
@@ -22,6 +25,8 @@ export default function LoyaltySettings() {
   const [tierSilverThreshold, setTierSilverThreshold] = useState("");
   const [tierGoldThreshold, setTierGoldThreshold] = useState("");
   const [pointExpiryMonths, setPointExpiryMonths] = useState("");
+  const [referralBonusPoints, setReferralBonusPoints] = useState("");
+  const [referralRefereeBonusPoints, setReferralRefereeBonusPoints] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -38,6 +43,8 @@ export default function LoyaltySettings() {
       setTierSilverThreshold(String(res.config.tierSilverThreshold));
       setTierGoldThreshold(String(res.config.tierGoldThreshold));
       setPointExpiryMonths(String(res.config.pointExpiryMonths));
+      setReferralBonusPoints(String(res.config.referralBonusPoints));
+      setReferralRefereeBonusPoints(String(res.config.referralRefereeBonusPoints));
     });
     api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => {
       if (res.fuelPrices.length === 0) return;
@@ -69,6 +76,14 @@ export default function LoyaltySettings() {
 
   const parsedPointExpiryMonths = Number(pointExpiryMonths);
   const validPointExpiryMonths = Number.isInteger(parsedPointExpiryMonths) && parsedPointExpiryMonths >= 1 && parsedPointExpiryMonths <= 120;
+
+  const parsedReferralBonusPoints = Number(referralBonusPoints);
+  const parsedReferralRefereeBonusPoints = Number(referralRefereeBonusPoints);
+  const validReferralPoints =
+    Number.isFinite(parsedReferralBonusPoints) &&
+    parsedReferralBonusPoints >= 0 &&
+    Number.isFinite(parsedReferralRefereeBonusPoints) &&
+    parsedReferralRefereeBonusPoints >= 0;
 
   async function update(patch: Partial<LoyaltyConfig>) {
     setSaving(true);
@@ -186,6 +201,43 @@ export default function LoyaltySettings() {
         </div>
         {!validPointExpiryMonths && <p className="error-text">Süre 1 ile 120 ay arasında bir tam sayı olmalıdır.</p>}
 
+        <div className="card-head" style={{ marginTop: "1.5rem" }}>
+          <h4>Referral (Yönlendirme) Programı</h4>
+          <StatusToggle
+            checked={config.referralEnabled}
+            disabled={saving}
+            onChange={() => update({ referralEnabled: !config.referralEnabled })}
+          />
+        </div>
+        <p className="hint-text card-desc">
+          Aktif olduğunda, kiosk'ta plaka girerken müşteri opsiyonel olarak kendisini yönlendiren bir arkadaşının
+          plakasını girebilir. Yönlendirilen (yeni) müşteri bu istasyondaki İLK dolumunu tamamladığında hem
+          yönlendiren hem de yönlendirilen taraf bonus puan kazanır. Bir plaka yalnızca bir kez yönlendirilebilir.
+        </p>
+        <div className="field-grid">
+          <div>
+            <label>Yönlendirene (referrer) verilen bonus puan</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={referralBonusPoints}
+              onChange={(e) => setReferralBonusPoints(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Yönlendirilen yeni müşteriye verilen "hoş geldin" bonus puanı</label>
+            <input
+              type="number"
+              min={0}
+              step={1}
+              value={referralRefereeBonusPoints}
+              onChange={(e) => setReferralRefereeBonusPoints(e.target.value)}
+            />
+          </div>
+        </div>
+        {!validReferralPoints && <p className="error-text">Bonus puan değerleri 0 veya daha büyük olmalıdır.</p>}
+
         {error && <p className="error-text">{error}</p>}
         {savedMsg && <p className="success-text">{savedMsg}</p>}
 
@@ -193,7 +245,7 @@ export default function LoyaltySettings() {
           <div className="spacer" />
           <button
             className="primary"
-            disabled={saving || !validNumbers || !validTierThresholds || !validPointExpiryMonths}
+            disabled={saving || !validNumbers || !validTierThresholds || !validPointExpiryMonths || !validReferralPoints}
             onClick={() =>
               update({
                 pointsPerLiter: Number(pointsPerLiter),
@@ -201,6 +253,8 @@ export default function LoyaltySettings() {
                 tierSilverThreshold: Number(tierSilverThreshold),
                 tierGoldThreshold: Number(tierGoldThreshold),
                 pointExpiryMonths: Number(pointExpiryMonths),
+                referralBonusPoints: Number(referralBonusPoints),
+                referralRefereeBonusPoints: Number(referralRefereeBonusPoints),
               })
             }
           >

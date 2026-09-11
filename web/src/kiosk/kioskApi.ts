@@ -13,6 +13,8 @@ export interface StationResponse {
   boundPumpId: number | null;
   /** Isletmenin telefonu; yardim ekraninda musteriye gosterilir. */
   contactPhone: string | null;
+  /** Referral (yonlendirme) programi acik mi - PlateStep'teki opsiyonel alani gosterir/gizler. */
+  referralEnabled: boolean;
 }
 
 export const kioskApi = {
@@ -51,6 +53,7 @@ export const kioskApi = {
     requestedLiters?: number;
     discountCode?: string;
     redeemPoints?: number;
+    referrerPlate?: string;
   }) => api.post<{ transaction: Transaction; accessToken: string }>("/api/kiosk/transactions", input),
 
   getLoyaltyBalance: (stationId: number, plate: string) =>

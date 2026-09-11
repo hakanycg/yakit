@@ -76,6 +76,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.loyaltyResult": "{points} puanınız var ({value} değerinde)",
     "plate.loyaltyDisabled": "Bu istasyonda sadakat programı aktif değil.",
     "plate.loyaltyError": "Puan sorgulanamadı, lütfen tekrar deneyin.",
+    "plate.referrerLabel": "Sizi kim yönlendirdi? (opsiyonel)",
+    "plate.referrerPlaceholder": "Yönlendiren plaka",
+    "plate.referrerHint": "Bir arkadaşınızın plakasını yazarsanız, ilk dolumunuzu tamamladığınızda ikinize de bonus puan tanımlanır.",
     "action.back": "Geri",
 
     "pump.title": "Pompa Seçin",
@@ -326,6 +329,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.loyaltyResult": "You have {points} points (worth {value})",
     "plate.loyaltyDisabled": "The loyalty program is not active at this station.",
     "plate.loyaltyError": "Could not check points, please try again.",
+    "plate.referrerLabel": "Who referred you? (optional)",
+    "plate.referrerPlaceholder": "Referrer's plate",
+    "plate.referrerHint": "Enter a friend's plate and you'll both get bonus points once you complete your first fill-up.",
     "action.back": "Back",
 
     "pump.title": "Select a Pump",
@@ -576,6 +582,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.loyaltyResult": "У вас {points} баллов (на сумму {value})",
     "plate.loyaltyDisabled": "Программа лояльности на этой станции не активна.",
     "plate.loyaltyError": "Не удалось проверить баллы, попробуйте снова.",
+    "plate.referrerLabel": "Кто вас пригласил? (необязательно)",
+    "plate.referrerPlaceholder": "Номер пригласившего",
+    "plate.referrerHint": "Введите номер друга, и вы оба получите бонусные баллы после завершения вашей первой заправки.",
     "action.back": "Назад",
 
     "pump.title": "Выберите колонку",
@@ -826,6 +835,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.loyaltyResult": "Sie haben {points} Punkte (im Wert von {value})",
     "plate.loyaltyDisabled": "Das Treueprogramm ist an dieser Station nicht aktiv.",
     "plate.loyaltyError": "Punkte konnten nicht abgefragt werden, bitte erneut versuchen.",
+    "plate.referrerLabel": "Wer hat Sie geworben? (optional)",
+    "plate.referrerPlaceholder": "Kennzeichen des Werbenden",
+    "plate.referrerHint": "Geben Sie das Kennzeichen eines Freundes ein - nach Ihrer ersten abgeschlossenen Betankung erhalten Sie beide Bonuspunkte.",
     "action.back": "Zurück",
 
     "pump.title": "Zapfsäule auswählen",
@@ -1076,6 +1088,9 @@ const DICTS: Record<KioskLang, Dict> = {
     "plate.loyaltyResult": "لديك {points} نقطة (بقيمة {value})",
     "plate.loyaltyDisabled": "برنامج الولاء غير مفعّل في هذه المحطة.",
     "plate.loyaltyError": "تعذر الاستعلام عن النقاط، يرجى المحاولة مرة أخرى.",
+    "plate.referrerLabel": "من أحالك إلينا؟ (اختياري)",
+    "plate.referrerPlaceholder": "لوحة من أحالك",
+    "plate.referrerHint": "أدخل لوحة صديقك، وستحصلان كلاكما على نقاط مكافأة بعد إتمام أول عملية تعبئة لك.",
     "action.back": "رجوع",
 
     "pump.title": "اختر المضخة",

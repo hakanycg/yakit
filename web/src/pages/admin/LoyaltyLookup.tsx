@@ -16,7 +16,7 @@ const TIER_BADGE: Record<string, string> = { bronze: "", silver: "info", gold: "
 interface LoyaltyMovement {
   id: number;
   plate: string;
-  type: "earn" | "redeem" | "refund" | "adjustment";
+  type: "earn" | "redeem" | "refund" | "adjustment" | "expire" | "referral";
   points: number;
   balanceAfter: number;
   transactionId: number | null;
@@ -31,6 +31,7 @@ const MOVEMENT_TYPE_LABEL: Record<string, string> = {
   refund: "İade",
   adjustment: "Manuel Düzeltme",
   expire: "Süre Doldu",
+  referral: "Referans Bonusu",
 };
 const MOVEMENT_TYPE_BADGE: Record<string, string> = {
   earn: "resolved",
@@ -38,6 +39,7 @@ const MOVEMENT_TYPE_BADGE: Record<string, string> = {
   refund: "info",
   adjustment: "acknowledged",
   expire: "critical",
+  referral: "resolved",
 };
 
 export default function LoyaltyLookup() {
