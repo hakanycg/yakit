@@ -18,6 +18,7 @@ import { RequireRole } from "./shared/RequireRole";
  */
 const FleetPortal = lazy(() => import("./fleet/FleetPortal"));
 const TankerTrackingPage = lazy(() => import("./tanker/TankerTrackingPage"));
+const DigitalReceiptPage = lazy(() => import("./receipt/DigitalReceiptPage"));
 const Dashboard = lazy(() => import("./pages/operator/Dashboard"));
 const Pumps = lazy(() => import("./pages/operator/Pumps"));
 const Transactions = lazy(() => import("./pages/operator/Transactions"));
@@ -79,6 +80,9 @@ export default function App() {
         {/* Tanker canli konum takibi: SMS ile gelen, token korumali, girissiz link
             (bkz. tanker/TankerTrackingPage.tsx, server/src/routes/tankerTracking.ts). */}
         <Route path="/tanker-takip/:orderId" element={<TankerTrackingPage />} />
+        {/* Dijital makbuz: kiosk fisindeki QR koddan acilan, token korumali girissiz sayfa
+            (bkz. kiosk/steps/ReceiptStep.tsx, receipt/DigitalReceiptPage.tsx). */}
+        <Route path="/makbuz/:id" element={<DigitalReceiptPage />} />
         <Route path="/giris" element={<Login />} />
         <Route path="/sifremi-unuttum" element={<ForgotPassword />} />
         <Route path="/sifre-sifirla" element={<ResetPassword />} />
