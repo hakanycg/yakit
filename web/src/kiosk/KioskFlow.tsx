@@ -400,6 +400,7 @@ function KioskFlowInner() {
 
         {step === "plate" && (
           <PlateStep
+            stationId={station.station.id}
             onNext={(p, source) => {
               setPlate(p);
               setPlateSource(source);
