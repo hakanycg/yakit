@@ -3,7 +3,7 @@ import { z } from "zod";
 import { db } from "../db/index.js";
 import type { RoleRow, UserRow } from "../db/types.js";
 import { hashPassword, validatePasswordPolicy, verifyPassword } from "../utils/password.js";
-import { buildOtpauthUri, generateQrDataUrl, generateTotpSecret, verifyTotpCode } from "../utils/totp.js";
+import { buildOtpauthUri, generateQrDataUrl, generateTotpSecret, matchTotpCounter, verifyTotpCode } from "../utils/totp.js";
 import {
   createSession,
   destroyOtherSessionsForUser,
@@ -15,6 +15,7 @@ import {
 import { recordAudit } from "../services/auditService.js";
 import { PasswordResetError, requestPasswordReset, resetPasswordWithToken } from "../services/passwordResetService.js";
 import { createTotpChallenge, deleteTotpChallenge, peekTotpChallenge, registerFailedTotpAttempt } from "../services/totpChallengeService.js";
+import { recordLoginAndNotifyIfNewIp } from "../services/loginSecurityService.js";
 import { validateBody } from "../middleware/validate.js";
 import { loginRateLimit, passwordResetRateLimit } from "../middleware/rateLimit.js";
 import { clearSessionCookies, csrfProtection, requireAuth, setSessionCookies } from "../middleware/auth.js";
@@ -101,6 +102,7 @@ router.post("/login", loginRateLimit, validateBody(loginSchema), (req, res) => {
 
   const role = db.prepare<[number], RoleRow>("SELECT * FROM roles WHERE id = ?").get(user.role_id)!;
   recordAudit({ user, action: "login_success", ip });
+  recordLoginAndNotifyIfNewIp(user, ip, req.headers["user-agent"]);
 
   res.json({ user: loginResponseUser(user, role) });
 });
@@ -123,7 +125,11 @@ router.post("/login/totp", loginRateLimit, validateBody(totpLoginSchema), (req, 
     return;
   }
 
-  if (!verifyTotpCode(user.totp_secret, code)) {
+  // Replay korumasi: matchTotpCounter eslesen HOTP sayacini doner - ayni (veya daha eski)
+  // sayacin tekrar sunulmasi (ör. koda gizlice erisen biri tarafindan) reddedilir, boylece
+  // ayni 30sn pencerede/toleransta bir kod yalnizca BIR kez basariyla kullanilabilir.
+  const matchedCounter = matchTotpCounter(user.totp_secret, code);
+  if (matchedCounter === null || (user.totp_last_used_counter !== null && matchedCounter <= user.totp_last_used_counter)) {
     const hasMoreAttempts = registerFailedTotpAttempt(challengeToken);
     recordAudit({ user, action: "login_totp_failed", ip });
     res.status(401).json({
@@ -131,6 +137,7 @@ router.post("/login/totp", loginRateLimit, validateBody(totpLoginSchema), (req, 
     });
     return;
   }
+  db.prepare("UPDATE users SET totp_last_used_counter = ? WHERE id = ?").run(matchedCounter, user.id);
 
   deleteTotpChallenge(challengeToken);
   const { token, csrfToken } = createSession(user, ip, req.headers["user-agent"]);
@@ -138,6 +145,7 @@ router.post("/login/totp", loginRateLimit, validateBody(totpLoginSchema), (req, 
 
   const role = db.prepare<[number], RoleRow>("SELECT * FROM roles WHERE id = ?").get(user.role_id)!;
   recordAudit({ user, action: "login_success", details: { totp: true }, ip });
+  recordLoginAndNotifyIfNewIp(user, ip, req.headers["user-agent"]);
 
   res.json({ user: loginResponseUser(user, role) });
 });

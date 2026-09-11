@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../shared/api";
+import { useAuth } from "../../shared/AuthContext";
 import { formatDateTime } from "../../shared/format";
 import { useCurrentStationId } from "../../shared/useCurrentStation";
 import { useEscapeKey } from "../../shared/useEscapeKey";
@@ -150,6 +151,7 @@ function StationDetailDialog({
   onSwitchTo: () => void;
 }) {
   const [error, setError] = useState<string | null>(null);
+  const { user } = useAuth();
 
   useEscapeKey(onClose);
 
@@ -161,9 +163,18 @@ function StationDetailDialog({
   async function deleteStation() {
     const userWarning = (s.userCount ?? 0) > 0 ? ` Bu istasyona bağlı ${s.userCount} kullanıcı hesabı da kalıcı olarak silinecek.` : "";
     if (!confirm(`"${s.name}" istasyonunu kalıcı olarak silmek istediğinize emin misiniz?${userWarning} Bu işlem geri alınamaz.`)) return;
+
+    // Geri alinamaz bir islem - calinmis/acik birakilmis bir oturumun tek basina
+    // yapabilmesini engellemek icin ek dogrulama istenir (bkz. middleware/auth.ts
+    // requireStepUpAuth): 2FA acik hesaplarda guncel bir kod, kapaliysa mevcut sifre.
+    const stepUp = user?.totpEnabled
+      ? { stepUpTotpCode: window.prompt("Bu geri alınamaz işlem için güncel 2FA doğrulama kodunuzu girin:") }
+      : { stepUpPassword: window.prompt("Bu geri alınamaz işlem için şifrenizi tekrar girin:") };
+    if (!stepUp.stepUpTotpCode && !stepUp.stepUpPassword) return;
+
     setError(null);
     try {
-      await api.delete(`/api/stations/${s.id}`);
+      await api.delete(`/api/stations/${s.id}`, stepUp);
       onDeleted();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "İstasyon silinemedi.");

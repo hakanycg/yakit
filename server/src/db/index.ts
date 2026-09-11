@@ -198,6 +198,14 @@ export function applyMigrations(): void {
   ensureColumn("users", "last_seen_release_note_id", "INTEGER");
   ensureColumn("release_notes", "version", "TEXT");
 
+  // TOTP replay koruması: ayni 30sn penceredeki bir kodun tekrar kullanilmasini
+  // engellemek icin son basariyla eslesen HOTP sayacini tutar (bkz. utils/totp.ts).
+  ensureColumn("users", "totp_last_used_counter", "INTEGER");
+
+  // Denetim kaydi hash-chain (tahrif tespiti) - bkz. auditService.ts basindaki yorum.
+  ensureColumn("audit_log", "prev_hash", "TEXT");
+  ensureColumn("audit_log", "hash", "TEXT");
+
   backfillNormalizedPlates();
 }
 

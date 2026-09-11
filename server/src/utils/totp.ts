@@ -82,15 +82,25 @@ export function generateTotpCode(base32Secret: string, timeMs = Date.now()): str
  * tolerans taninir. Sabit-zamanli karsilastirma kullanilir (zamanlama sizintisini onlemek icin).
  */
 export function verifyTotpCode(base32Secret: string, code: string, timeMs = Date.now(), window = 1): boolean {
+  return matchTotpCounter(base32Secret, code, timeMs, window) !== null;
+}
+
+/**
+ * verifyTotpCode ile AYNI dogrulamayi yapar, ama eslesen HOTP sayacini da doner (eslesme
+ * yoksa null). Replay korumasi (bkz. lastUsedCounter <= matchedCounter kontrolu, routes/auth.ts
+ * ve routes/sync.ts) icin gerekli - salt boolean sonuc, ayni kodun ayni pencerede tekrar
+ * kullanilip kullanilmadigini ayirt edemez.
+ */
+export function matchTotpCounter(base32Secret: string, code: string, timeMs = Date.now(), window = 1): number | null {
   const normalized = code.trim();
-  if (!/^\d{6}$/.test(normalized)) return false;
+  if (!/^\d{6}$/.test(normalized)) return null;
   const secretBuf = base32Decode(base32Secret);
   const counter = Math.floor(timeMs / 1000 / STEP_SECONDS);
   const candidateBuf = Buffer.from(normalized);
 
   for (let errorWindow = -window; errorWindow <= window; errorWindow++) {
     const expected = hotp(secretBuf, counter + errorWindow);
-    if (timingSafeEqual(Buffer.from(expected), candidateBuf)) return true;
+    if (timingSafeEqual(Buffer.from(expected), candidateBuf)) return counter + errorWindow;
   }
-  return false;
+  return null;
 }

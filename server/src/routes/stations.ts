@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db/index.js";
 import type { StationKioskRow, StationRow, UserRow } from "../db/types.js";
-import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected } from "../middleware/auth.js";
+import { attachStationScope, csrfProtection, requireAuth, requireRole, requireStationSelected, requireStepUpAuth } from "../middleware/auth.js";
 import { requireStationAccess, stationScopeFilter } from "../middleware/tenantScope.js";
 import { validateBody, validateQuery } from "../middleware/validate.js";
 import { recordAudit } from "../services/auditService.js";
@@ -289,7 +289,7 @@ router.patch("/:id", requireRole("super_admin", "tenant_admin"), csrfProtection,
   res.json({ station: serializeStation(updated) });
 });
 
-router.delete("/:id", requireRole("super_admin"), csrfProtection, (req, res) => {
+router.delete("/:id", requireRole("super_admin"), csrfProtection, requireStepUpAuth, (req, res) => {
   const id = Number(req.params.id);
   const station = db.prepare<[number], StationRow>("SELECT * FROM stations WHERE id = ?").get(id);
   if (!station) return void res.status(404).json({ error: "Istasyon bulunamadi." });

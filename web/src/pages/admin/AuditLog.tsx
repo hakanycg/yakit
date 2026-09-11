@@ -82,6 +82,12 @@ function AuditDetails({ details }: { details: unknown }) {
   );
 }
 
+interface ChainVerification {
+  ok: boolean;
+  checkedCount: number;
+  brokenAtId: number | null;
+}
+
 export default function AuditLog() {
   const stationId = useEffectiveStationId();
   const [entries, setEntries] = useState<AuditEntry[]>([]);
@@ -90,6 +96,8 @@ export default function AuditLog() {
   const [entityIdFilter, setEntityIdFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [verification, setVerification] = useState<ChainVerification | null>(null);
+  const [verifying, setVerifying] = useState(false);
   // null = "tum istasyonlar" (yalnizca super_admin gorebilir, bkz. routes/auditLog.ts) -
   // sayfanin KENDI secimidir, uygulamanin geneli icin secili olan istasyondan BAGIMSIZDIR
   // (bkz. api.ts'teki { unscoped: true } - sidebar'daki sabit karti etkilemez).
@@ -110,9 +118,35 @@ export default function AuditLog() {
       .then((res) => setEntries(res.entries));
   }, [actionFilter, entityTypeFilter, entityIdFilter, dateFrom, dateTo, stationFilter, stationId]);
 
+  async function verifyChain() {
+    setVerifying(true);
+    try {
+      const result = await api.get<ChainVerification>("/api/audit-log/verify");
+      setVerification(result);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
   return (
     <div>
       <h2>Audit Log</h2>
+      <div className="toolbar">
+        <button type="button" onClick={() => void verifyChain()} disabled={verifying}>
+          {verifying ? "Doğrulanıyor..." : "Bütünlüğü Doğrula"}
+        </button>
+        {verification && (
+          verification.ok ? (
+            <span className="badge resolved">
+              Zincir sağlam ({verification.checkedCount} kayıt kontrol edildi)
+            </span>
+          ) : (
+            <span className="badge critical">
+              Tahrif tespit edildi - kayıt #{verification.brokenAtId} civarında zincir kırık
+            </span>
+          )
+        )}
+      </div>
       <div className="toolbar">
         <input
           placeholder="Eylem ile filtrele (örn: login_success)"

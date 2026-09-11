@@ -86,6 +86,12 @@ const envSchema = z.object({
   // sifreleme otomatik calisir. Ayri bir anahtar rotasyonu isteniyorsa
   // `openssl rand -hex 32` ile ayarlanabilir.
   SETTINGS_ENCRYPTION_KEY: optionalString(),
+  // Anahtar rotasyonu icin BIR SONRAKI surum (bkz. utils/secretsCrypto.ts - "v2").
+  // Bos birakildiginda sifreleme SETTINGS_ENCRYPTION_KEY/SESSION_SECRET'tan turemeye
+  // devam eder (yeni bir zorunlu degisken DEGIL); gercek bir rotasyon istendiginde
+  // `openssl rand -hex 32` ile buraya YENI bir deger yazilip rotateEncryptedSecrets()
+  // calistirilir - o andan sonra tum sirlar bu yeni anahtarla korunur.
+  SETTINGS_ENCRYPTION_KEY_V2: optionalString(),
 });
 
 const parsed = envSchema.safeParse(process.env);

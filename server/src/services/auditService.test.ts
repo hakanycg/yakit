@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { db } from "../db/index.js";
 import type { StationRow, UserRow } from "../db/types.js";
 import { createTestStation, createTestUser } from "../test/dbFixture.js";
-import { recordAudit } from "./auditService.js";
+import { recordAudit, verifyAuditChain } from "./auditService.js";
 
 /**
  * Denetim kaydi "kim, ne zaman, nereden, hangi yetkiyle" sorusunun tek cevabidir;
@@ -115,5 +115,63 @@ describe("denetim kaydi icerigi", () => {
   it("IP adresi kaydedilir", () => {
     recordAudit({ user: staff, action: "test_ip", ip: "203.0.113.9", stationId: station.id });
     expect(lastAudit("test_ip").ip_address).toBe("203.0.113.9");
+  });
+});
+
+/**
+ * Hash-chain (tahrif tespiti - bkz. auditService.ts basindaki yorum). audit_log tum test
+ * dosyalari arasinda PAYLASILAN global bir tablo oldugundan (bkz. yukaridaki testlerin
+ * kendi action adiyla filtreleme deseni), butunluk testleri de BASKA hicbir testin
+ * yapmadigi bir seyi (tabloyu KASITLI olarak bozmayi) yalnizca KENDI ekledigi satira
+ * uygular - boylece paralel calisan diger test dosyalarini etkilemez/onlardan etkilenmez.
+ */
+describe("denetim kaydi hash-chain (tahrif tespiti)", () => {
+  it("her kayit 64 haneli hex hash/prev_hash ile saklanir", () => {
+    recordAudit({ user: staff, action: "test_chain_fields", stationId: station.id });
+    const row = lastAudit("test_chain_fields") as AuditRow & { hash: string; prev_hash: string };
+    expect(row.hash).toMatch(/^[0-9a-f]{64}$/);
+    expect(row.prev_hash).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("ardisik iki kayit zincirlenir: ikincinin prev_hash'i birincinin hash'idir", () => {
+    recordAudit({ user: staff, action: "test_chain_link_a", stationId: station.id });
+    recordAudit({ user: staff, action: "test_chain_link_b", stationId: station.id });
+    const a = lastAudit("test_chain_link_a") as AuditRow & { hash: string };
+    const b = lastAudit("test_chain_link_b") as AuditRow & { prev_hash: string };
+    // Ikisi arasina baska bir test dosyasindan bir kayit sikismis olsa bile (global tablo),
+    // b MUTLAKA a'dan SONRA eklendigi icin b.prev_hash zincirde a.hash'ten sonraki
+    // (belki araya giren) bir hash olur - dogrudan esitlik yerine zincirin kirilmadigini
+    // verifyAuditChain uzerinden dogrulamak daha saglam olurdu, ama pratikte iki
+    // recordAudit cagrisi arasinda (await yok, tek is parcaciginda) baska JS calisamaz.
+    expect(b.prev_hash).toBe(a.hash);
+  });
+
+  it("bir kaydin alani sonradan degistirilirse verifyAuditChain tahrifi tespit eder", () => {
+    recordAudit({ user: staff, action: "test_chain_tamper", stationId: station.id });
+    const row = lastAudit("test_chain_tamper");
+
+    db.prepare("UPDATE audit_log SET action = 'tampered_action' WHERE id = ?").run(row.id);
+    try {
+      // sinceId=row.id: audit_log paralel calisan diger test dosyalariyla PAYLASILAN
+      // global bir tablo - tam tablo taramasi (sinceId verilmeden) o an baska bir
+      // surecin/is parcaciginin ekledigi ALAKASIZ kayitlari da isaret edebilir. Bu test
+      // yalnizca KENDI bozdugu kaydin tespit edildigini dogrular.
+      const result = verifyAuditChain(row.id);
+      expect(result.ok).toBe(false);
+      expect(result.brokenAtId).toBe(row.id);
+    } finally {
+      // Global tabloyu diger testler (ve bu dosyadaki sonraki testler) icin bozuk
+      // birakmamak icin geri al - tahrif SADECE bu testin kontrollu senaryosunda var olmali.
+      db.prepare("UPDATE audit_log SET action = ? WHERE id = ?").run(row.action, row.id);
+    }
+  });
+
+  it("tahrif yoksa zincir gecerli sayilir", () => {
+    recordAudit({ user: staff, action: "test_chain_valid", stationId: station.id });
+    const row = lastAudit("test_chain_valid");
+    // Ayni gerekce: sadece bu testin kendi kaydindan itibaren dogrulanir (bkz. yukaridaki test).
+    const result = verifyAuditChain(row.id);
+    expect(result.ok).toBe(true);
+    expect(result.checkedCount).toBeGreaterThan(0);
   });
 });

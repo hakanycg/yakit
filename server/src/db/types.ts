@@ -64,6 +64,7 @@ export interface UserRow {
   totp_secret: string | null;
   totp_enabled: 0 | 1;
   totp_pending_secret: string | null;
+  totp_last_used_counter: number | null;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;
@@ -525,6 +526,8 @@ export interface AuditLogRow {
   ip_address: string | null;
   user_agent: string | null;
   created_at: string;
+  prev_hash: string | null;
+  hash: string | null;
 }
 
 export interface FuelPriceRow {
