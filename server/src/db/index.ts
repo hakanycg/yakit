@@ -206,6 +206,11 @@ export function applyMigrations(): void {
   ensureColumn("audit_log", "prev_hash", "TEXT");
   ensureColumn("audit_log", "hash", "TEXT");
 
+  // Sadakat kademesi (bronz/gumus/altin) - bkz. loyaltyService.ts getTier(). points
+  // KULLANILDIKCA azalir, kademe icin uygun degildir (puanini harcayan sadik musteri
+  // kademe kaybetmemeli) - bu yuzden yalnizca KAZANILAN (hic azalmayan) ayri bir sayac.
+  ensureColumn("loyalty_accounts", "lifetime_points", "REAL NOT NULL DEFAULT 0");
+
   backfillNormalizedPlates();
 }
 

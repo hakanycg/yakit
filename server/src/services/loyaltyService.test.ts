@@ -7,9 +7,12 @@ import {
   adjustPoints,
   earnPoints,
   getBalance,
+  getLifetimePoints,
+  getTier,
   listMovements,
   redeemPoints,
   refundPoints,
+  serializeAccount,
   setLoyaltyConfig,
   setMarketingConsent,
 } from "./loyaltyService.js";
@@ -163,5 +166,42 @@ describe("kampanya rizasi - iletisim kanali (bkz. gorev #229)", () => {
     setMarketingConsent(station.id, "34XYZ02", true, "eski@example.com", null);
     setMarketingConsent(station.id, "34XYZ02", true, "yeni@example.com", null);
     expect(contactInfo("34XYZ02")).toEqual({ contact_email: "yeni@example.com", contact_phone: null });
+  });
+});
+
+describe("sadakat kademesi (bronz/gumus/altin)", () => {
+  it("getTier esik degerlerine gore dogru kademeyi doner", () => {
+    const config = { tierSilverThreshold: 500, tierGoldThreshold: 2000 };
+    expect(getTier(0, config)).toBe("bronze");
+    expect(getTier(499, config)).toBe("bronze");
+    expect(getTier(500, config)).toBe("silver");
+    expect(getTier(1999, config)).toBe("silver");
+    expect(getTier(2000, config)).toBe("gold");
+    expect(getTier(5000, config)).toBe("gold");
+  });
+
+  it("kademe MEVCUT bakiyeye degil YASAM BOYU kazanilan puana gore belirlenir - puan harcamak kademe dusurmez", () => {
+    setLoyaltyConfig(station.id, { tierSilverThreshold: 100, tierGoldThreshold: 1000 }, actor);
+    earnPoints(station.id, "34TIER01", 100, txn()); // 100L x 2 puan = 200 puan -> silver
+    expect(serializeAccount(station.id, "34TIER01").tier).toBe("silver");
+
+    redeemPoints(station.id, "34TIER01", 200, txn()); // bakiye 0'a duser
+    expect(getBalance(station.id, "34TIER01")).toBe(0);
+    expect(getLifetimePoints(station.id, "34TIER01")).toBe(200);
+    expect(serializeAccount(station.id, "34TIER01").tier).toBe("silver"); // kademe dusmedi
+  });
+
+  it("adjustPoints (manuel duzeltme) yasam boyu puani ETKILEMEZ", () => {
+    setLoyaltyConfig(station.id, { tierSilverThreshold: 100, tierGoldThreshold: 1000 }, actor);
+    earnPoints(station.id, "34TIER02", 100, txn()); // 200 puan kazanildi
+    adjustPoints(station.id, "34TIER02", 10000, "test - buyuk manuel ekleme", actor);
+
+    expect(getBalance(station.id, "34TIER02")).toBe(10000);
+    expect(getLifetimePoints(station.id, "34TIER02")).toBe(200); // manuel duzeltme kademeyi etkilemez
+  });
+
+  it("yeni bir plaka Bronz kademeyle baslar", () => {
+    expect(serializeAccount(station.id, "34TIER03").tier).toBe("bronze");
+    expect(serializeAccount(station.id, "34TIER03").lifetimePoints).toBe(0);
   });
 });

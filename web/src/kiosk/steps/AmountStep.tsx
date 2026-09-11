@@ -32,7 +32,7 @@ export default function AmountStep({
   const [liters, setLiters] = useState<number | "">("");
   const [error, setError] = useState<string | null>(null);
 
-  const [loyalty, setLoyalty] = useState<{ enabled: boolean; points: number; valueTry: number } | null>(null);
+  const [loyalty, setLoyalty] = useState<{ enabled: boolean; points: number; valueTry: number; tier: "bronze" | "silver" | "gold" | null } | null>(null);
   const [useLoyalty, setUseLoyalty] = useState(false);
 
   const [codeInput, setCodeInput] = useState("");
@@ -159,6 +159,9 @@ export default function AmountStep({
 
       {showDiscounts && (
         <div className="kiosk-card" style={{ marginTop: "1rem", padding: "0.75rem" }}>
+          {loyalty?.enabled && loyalty.tier && (
+            <p className="hint-text" style={{ marginTop: 0 }}>{t(`loyalty.tier.${loyalty.tier}`)}</p>
+          )}
           {loyalty?.enabled && loyalty.points > 0 && (
             <label className="check" style={{ marginBottom: "0.5rem" }}>
               <input type="checkbox" checked={useLoyalty} onChange={(e) => setUseLoyalty(e.target.checked)} />

@@ -196,6 +196,7 @@ export interface LoyaltyAccountRow {
   contact_email: string | null;
   contact_phone: string | null;
   updated_at: string;
+  lifetime_points: number;
 }
 
 export interface LoyaltyMovementRow {

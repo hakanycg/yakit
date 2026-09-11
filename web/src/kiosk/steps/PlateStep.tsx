@@ -18,7 +18,7 @@ export default function PlateStep({ stationId, onNext }: { stationId: number; on
   // SONRA) yapiliyordu, yani puanini gormek icin once pompa/yakit adimlarindan gecmek
   // gerekiyordu.
   const [loyaltyChecking, setLoyaltyChecking] = useState(false);
-  const [loyaltyResult, setLoyaltyResult] = useState<{ enabled: boolean; points: number; valueTry: number } | null>(null);
+  const [loyaltyResult, setLoyaltyResult] = useState<{ enabled: boolean; points: number; valueTry: number; tier: "bronze" | "silver" | "gold" | null } | null>(null);
   const [loyaltyError, setLoyaltyError] = useState<string | null>(null);
 
   async function checkLoyalty() {
@@ -111,6 +111,7 @@ export default function PlateStep({ stationId, onNext }: { stationId: number; on
           {loyaltyResult.enabled
             ? t("plate.loyaltyResult", { points: loyaltyResult.points, value: formatCurrency(loyaltyResult.valueTry, locale) })
             : t("plate.loyaltyDisabled")}
+          {loyaltyResult.enabled && loyaltyResult.tier && ` — ${t(`loyalty.tier.${loyaltyResult.tier}`)}`}
         </p>
       )}
 

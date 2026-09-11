@@ -12,22 +12,37 @@ export class LoyaltyError extends Error {
   }
 }
 
+export type LoyaltyTier = "bronze" | "silver" | "gold";
+
 export interface LoyaltyConfig {
   enabled: boolean;
   pointsPerLiter: number;
   pointValueTry: number;
+  /** Bu kademeye ulasmak icin gereken YASAM BOYU kazanilan puan (bkz. getTier). */
+  tierSilverThreshold: number;
+  tierGoldThreshold: number;
 }
 
-const DEFAULT_CONFIG: LoyaltyConfig = { enabled: false, pointsPerLiter: 1, pointValueTry: 0.1 };
+const DEFAULT_CONFIG: LoyaltyConfig = {
+  enabled: false,
+  pointsPerLiter: 1,
+  pointValueTry: 0.1,
+  tierSilverThreshold: 500,
+  tierGoldThreshold: 2000,
+};
 
 export function getLoyaltyConfig(stationId: number): LoyaltyConfig {
   const enabled = getSetting(stationId, "loyalty_enabled");
   const pointsPerLiter = getSetting(stationId, "loyalty_points_per_liter");
   const pointValueTry = getSetting(stationId, "loyalty_point_value_try");
+  const tierSilverThreshold = getSetting(stationId, "loyalty_tier_silver_threshold");
+  const tierGoldThreshold = getSetting(stationId, "loyalty_tier_gold_threshold");
   return {
     enabled: enabled !== null ? enabled === "true" : DEFAULT_CONFIG.enabled,
     pointsPerLiter: pointsPerLiter !== null ? Number(pointsPerLiter) : DEFAULT_CONFIG.pointsPerLiter,
     pointValueTry: pointValueTry !== null ? Number(pointValueTry) : DEFAULT_CONFIG.pointValueTry,
+    tierSilverThreshold: tierSilverThreshold !== null ? Number(tierSilverThreshold) : DEFAULT_CONFIG.tierSilverThreshold,
+    tierGoldThreshold: tierGoldThreshold !== null ? Number(tierGoldThreshold) : DEFAULT_CONFIG.tierGoldThreshold,
   };
 }
 
@@ -35,7 +50,20 @@ export function setLoyaltyConfig(stationId: number, config: Partial<LoyaltyConfi
   if (config.enabled !== undefined) setSetting(stationId, "loyalty_enabled", String(config.enabled), actor);
   if (config.pointsPerLiter !== undefined) setSetting(stationId, "loyalty_points_per_liter", String(config.pointsPerLiter), actor);
   if (config.pointValueTry !== undefined) setSetting(stationId, "loyalty_point_value_try", String(config.pointValueTry), actor);
+  if (config.tierSilverThreshold !== undefined) setSetting(stationId, "loyalty_tier_silver_threshold", String(config.tierSilverThreshold), actor);
+  if (config.tierGoldThreshold !== undefined) setSetting(stationId, "loyalty_tier_gold_threshold", String(config.tierGoldThreshold), actor);
   return getLoyaltyConfig(stationId);
+}
+
+/**
+ * Kademe, MEVCUT bakiyeye degil YASAM BOYU KAZANILAN puana gore belirlenir (bkz.
+ * loyalty_accounts.lifetime_points) - aksi halde puanini harcayan (ör. indirim icin
+ * kullanan) sadik bir musteri kademe kaybederdi, ki bu tam tersi bir tesvik yaratirdi.
+ */
+export function getTier(lifetimePoints: number, config: Pick<LoyaltyConfig, "tierSilverThreshold" | "tierGoldThreshold">): LoyaltyTier {
+  if (lifetimePoints >= config.tierGoldThreshold) return "gold";
+  if (lifetimePoints >= config.tierSilverThreshold) return "silver";
+  return "bronze";
 }
 
 function getAccount(stationId: number, plate: string): LoyaltyAccountRow | undefined {
@@ -46,6 +74,10 @@ function getAccount(stationId: number, plate: string): LoyaltyAccountRow | undef
 
 export function getBalance(stationId: number, plate: string): number {
   return getAccount(stationId, plate)?.points ?? 0;
+}
+
+export function getLifetimePoints(stationId: number, plate: string): number {
+  return getAccount(stationId, plate)?.lifetime_points ?? 0;
 }
 
 function insertMovement(params: {
@@ -79,6 +111,15 @@ function upsertBalance(stationId: number, plate: string, newBalance: number): vo
     `INSERT INTO loyalty_accounts (station_id, plate, points, updated_at) VALUES (?, ?, ?, ?)
      ON CONFLICT(station_id, plate) DO UPDATE SET points = excluded.points, updated_at = excluded.updated_at`
   ).run(stationId, plate, rounded, new Date().toISOString());
+}
+
+/** Yalnizca earnPoints tarafindan cagrilir - redeem/refund/adjustment kademeyi etkilemez. */
+function incrementLifetimePoints(stationId: number, plate: string, delta: number): void {
+  db.prepare("UPDATE loyalty_accounts SET lifetime_points = lifetime_points + ? WHERE station_id = ? AND plate = ?").run(
+    delta,
+    stationId,
+    plate
+  );
 }
 
 /**
@@ -159,6 +200,7 @@ export function earnPoints(stationId: number, plate: string, dispensedLiters: nu
   const current = getBalance(stationId, normalized);
   const newBalance = current + earned;
   upsertBalance(stationId, normalized, newBalance);
+  incrementLifetimePoints(stationId, normalized, earned);
   insertMovement({ stationId, plate: normalized, type: "earn", points: earned, balanceAfter: newBalance, transactionId });
   return earned;
 }
@@ -195,7 +237,9 @@ export function listMovements(stationId: number, filters: { plate?: string; limi
 }
 
 export function serializeAccount(stationId: number, plate: string) {
-  return { plate: normalizePlate(plate), points: getBalance(stationId, plate) };
+  const lifetimePoints = getLifetimePoints(stationId, plate);
+  const tier = getTier(lifetimePoints, getLoyaltyConfig(stationId));
+  return { plate: normalizePlate(plate), points: getBalance(stationId, plate), lifetimePoints, tier };
 }
 
 export function serializeMovement(m: LoyaltyMovementRow & { username?: string | null }) {

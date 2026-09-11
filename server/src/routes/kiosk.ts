@@ -22,7 +22,7 @@ import { sendReceipt } from "../services/receiptService.js";
 import { initializeCheckoutForm, retrieveCheckoutForm, IyzicoError } from "../services/iyzicoService.js";
 import { isIyzicoReady } from "../services/paymentSettingsService.js";
 import { getAvailableLiters } from "../services/fuelStockService.js";
-import { getBalance as getLoyaltyBalance, getLoyaltyConfig } from "../services/loyaltyService.js";
+import { getBalance as getLoyaltyBalance, getLifetimePoints as getLoyaltyLifetimePoints, getLoyaltyConfig, getTier as getLoyaltyTier } from "../services/loyaltyService.js";
 import { DiscountError, validateCode } from "../services/discountService.js";
 import {
   getAccountForPlate as getFleetAccountForPlate,
@@ -220,9 +220,10 @@ router.get("/loyalty/balance", (req, res) => {
   const parsed = loyaltyBalanceSchema.safeParse(req.query);
   if (!parsed.success) return void res.status(400).json({ error: "Gecersiz istek." });
   if (!requireKioskDevice(req, res, parsed.data.stationId)) return;
-  const { enabled, pointValueTry } = getLoyaltyConfig(parsed.data.stationId);
-  const points = enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
-  res.json({ enabled, points, valueTry: Math.round(points * pointValueTry * 100) / 100 });
+  const config = getLoyaltyConfig(parsed.data.stationId);
+  const points = config.enabled ? getLoyaltyBalance(parsed.data.stationId, parsed.data.plate) : 0;
+  const tier = config.enabled ? getLoyaltyTier(getLoyaltyLifetimePoints(parsed.data.stationId, parsed.data.plate), config) : null;
+  res.json({ enabled: config.enabled, points, valueTry: Math.round(points * config.pointValueTry * 100) / 100, tier });
 });
 
 router.get("/plate/last-fuel-type", (req, res) => {

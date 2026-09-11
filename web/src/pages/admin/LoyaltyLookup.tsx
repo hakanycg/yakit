@@ -6,7 +6,12 @@ import { formatDateTime } from "../../shared/format";
 interface LoyaltyAccount {
   plate: string;
   points: number;
+  lifetimePoints: number;
+  tier: "bronze" | "silver" | "gold";
 }
+
+const TIER_LABEL: Record<string, string> = { bronze: "Bronz", silver: "Gümüş", gold: "Altın" };
+const TIER_BADGE: Record<string, string> = { bronze: "", silver: "info", gold: "resolved" };
 
 interface LoyaltyMovement {
   id: number;
@@ -130,10 +135,12 @@ export default function LoyaltyLookup() {
             <div className="card-divider">
               <div className="toolbar" style={{ alignItems: "baseline" }}>
                 <span className="hint-text">Plaka: {account.plate}</span>
+                <span className={`badge ${TIER_BADGE[account.tier] ?? ""}`}>{TIER_LABEL[account.tier] ?? account.tier}</span>
                 <div className="spacer" />
                 <div className="stat" style={{ alignItems: "flex-end" }}>
                   <span className="label">Güncel Bakiye</span>
                   <span className="value">{account.points} puan</span>
+                  <span className="hint-text">Yaşam boyu: {account.lifetimePoints} puan</span>
                 </div>
               </div>
 

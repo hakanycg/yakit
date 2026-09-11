@@ -8,6 +8,8 @@ interface LoyaltyConfig {
   enabled: boolean;
   pointsPerLiter: number;
   pointValueTry: number;
+  tierSilverThreshold: number;
+  tierGoldThreshold: number;
 }
 
 export default function LoyaltySettings() {
@@ -15,6 +17,8 @@ export default function LoyaltySettings() {
   const [config, setConfig] = useState<LoyaltyConfig | null>(null);
   const [pointsPerLiter, setPointsPerLiter] = useState("");
   const [pointValueTry, setPointValueTry] = useState("");
+  const [tierSilverThreshold, setTierSilverThreshold] = useState("");
+  const [tierGoldThreshold, setTierGoldThreshold] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -28,6 +32,8 @@ export default function LoyaltySettings() {
       setConfig(res.config);
       setPointsPerLiter(String(res.config.pointsPerLiter));
       setPointValueTry(String(res.config.pointValueTry));
+      setTierSilverThreshold(String(res.config.tierSilverThreshold));
+      setTierGoldThreshold(String(res.config.tierGoldThreshold));
     });
     api.get<{ fuelPrices: FuelPrice[] }>("/api/settings/fuel-prices").then((res) => {
       if (res.fuelPrices.length === 0) return;
@@ -48,6 +54,14 @@ export default function LoyaltySettings() {
   // %10 ustu, akaryakit sektorunde hicbir sadakat programinin gercekci olarak
   // sunamayacagi bir oran - yanlislikla girilmis bir ondalik/birim hatasinin isaretidir.
   const HIGH_CASHBACK_WARNING_PCT = 10;
+
+  const parsedSilverThreshold = Number(tierSilverThreshold);
+  const parsedGoldThreshold = Number(tierGoldThreshold);
+  const validTierThresholds =
+    Number.isFinite(parsedSilverThreshold) &&
+    parsedSilverThreshold >= 0 &&
+    Number.isFinite(parsedGoldThreshold) &&
+    parsedGoldThreshold > parsedSilverThreshold;
 
   async function update(patch: Partial<LoyaltyConfig>) {
     setSaving(true);
@@ -121,6 +135,23 @@ export default function LoyaltySettings() {
           </p>
         )}
 
+        <h4 style={{ marginTop: "1.5rem" }}>Kademe Sistemi (Bronz / Gümüş / Altın)</h4>
+        <p className="hint-text card-desc">
+          Kademe, mevcut puan bakiyesine değil müşterinin YAŞAM BOYU kazandığı toplam puana göre belirlenir - böylece
+          puanını kullanan sadık bir müşteri kademe kaybetmez. Yeni müşteriler Bronz ile başlar.
+        </p>
+        <div className="field-grid">
+          <div>
+            <label>Gümüş kademe eşiği (yaşam boyu puan)</label>
+            <input type="number" min={0} step={1} value={tierSilverThreshold} onChange={(e) => setTierSilverThreshold(e.target.value)} />
+          </div>
+          <div>
+            <label>Altın kademe eşiği (yaşam boyu puan)</label>
+            <input type="number" min={0} step={1} value={tierGoldThreshold} onChange={(e) => setTierGoldThreshold(e.target.value)} />
+          </div>
+        </div>
+        {!validTierThresholds && <p className="error-text">Altın eşiği, gümüş eşiğinden büyük olmalıdır.</p>}
+
         {error && <p className="error-text">{error}</p>}
         {savedMsg && <p className="success-text">{savedMsg}</p>}
 
@@ -128,8 +159,15 @@ export default function LoyaltySettings() {
           <div className="spacer" />
           <button
             className="primary"
-            disabled={saving}
-            onClick={() => update({ pointsPerLiter: Number(pointsPerLiter), pointValueTry: Number(pointValueTry) })}
+            disabled={saving || !validNumbers || !validTierThresholds}
+            onClick={() =>
+              update({
+                pointsPerLiter: Number(pointsPerLiter),
+                pointValueTry: Number(pointValueTry),
+                tierSilverThreshold: Number(tierSilverThreshold),
+                tierGoldThreshold: Number(tierGoldThreshold),
+              })
+            }
           >
             Kaydet
           </button>

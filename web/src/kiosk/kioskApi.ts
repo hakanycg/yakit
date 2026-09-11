@@ -54,7 +54,7 @@ export const kioskApi = {
   }) => api.post<{ transaction: Transaction; accessToken: string }>("/api/kiosk/transactions", input),
 
   getLoyaltyBalance: (stationId: number, plate: string) =>
-    api.get<{ enabled: boolean; points: number; valueTry: number }>(
+    api.get<{ enabled: boolean; points: number; valueTry: number; tier: "bronze" | "silver" | "gold" | null }>(
       `/api/kiosk/loyalty/balance?stationId=${stationId}&plate=${encodeURIComponent(plate)}`
     ),
 

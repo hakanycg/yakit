@@ -26,6 +26,8 @@ const configSchema = z.object({
   enabled: z.boolean().optional(),
   pointsPerLiter: z.number().min(0).max(1000).optional(),
   pointValueTry: z.number().min(0).max(100).optional(),
+  tierSilverThreshold: z.number().min(0).max(1000000).optional(),
+  tierGoldThreshold: z.number().min(0).max(1000000).optional(),
 });
 
 router.patch("/config", csrfProtection, validateBody(configSchema), (req, res) => {
