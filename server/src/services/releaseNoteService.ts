@@ -23,15 +23,19 @@ export class ReleaseNoteError extends Error {
 export interface CreateReleaseNoteInput {
   title: string;
   body: string;
+  version?: string | null;
 }
 
 export function createReleaseNote(input: CreateReleaseNoteInput, actor: UserRow): ReleaseNoteRow {
   const title = input.title.trim();
   const body = input.body.trim();
+  const version = input.version?.trim() || null;
   if (!title) throw new ReleaseNoteError("Baslik zorunludur.", 400);
   if (!body) throw new ReleaseNoteError("Metin zorunludur.", 400);
 
-  const result = db.prepare("INSERT INTO release_notes (title, body, created_by) VALUES (?, ?, ?)").run(title, body, actor.id);
+  const result = db
+    .prepare("INSERT INTO release_notes (title, body, version, created_by) VALUES (?, ?, ?, ?)")
+    .run(title, body, version, actor.id);
   return db.prepare<[number], ReleaseNoteRow>("SELECT * FROM release_notes WHERE id = ?").get(result.lastInsertRowid as number)!;
 }
 
@@ -86,6 +90,7 @@ export function serializeReleaseNote(r: ReleaseNoteRow) {
     id: r.id,
     title: r.title,
     body: r.body,
+    version: r.version,
     createdAt: r.created_at,
   };
 }

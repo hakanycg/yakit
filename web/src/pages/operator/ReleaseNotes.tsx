@@ -7,6 +7,7 @@ interface ReleaseNote {
   id: number;
   title: string;
   body: string;
+  version: string | null;
   createdAt: string;
 }
 
@@ -22,6 +23,7 @@ export default function ReleaseNotes() {
   const [notes, setNotes] = useState<ReleaseNote[]>([]);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [version, setVersion] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,9 +41,10 @@ export default function ReleaseNotes() {
     setSaving(true);
     setError(null);
     try {
-      await api.post("/api/release-notes", { title, body });
+      await api.post("/api/release-notes", { title, body, version: version.trim() || undefined });
       setTitle("");
       setBody("");
+      setVersion("");
       load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Duyuru kaydedilemedi.");
@@ -68,6 +71,16 @@ export default function ReleaseNotes() {
             <label htmlFor="rn-title">Başlık</label>
             <input id="rn-title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={200} required />
 
+            <label htmlFor="rn-version" style={{ marginTop: "0.75rem", display: "block" }}>Versiyon (opsiyonel)</label>
+            <input
+              id="rn-version"
+              value={version}
+              onChange={(e) => setVersion(e.target.value)}
+              maxLength={50}
+              placeholder="ör. 1.4.2"
+              style={{ maxWidth: "200px" }}
+            />
+
             <label htmlFor="rn-body" style={{ marginTop: "0.75rem", display: "block" }}>Metin</label>
             <textarea id="rn-body" value={body} onChange={(e) => setBody(e.target.value)} maxLength={5000} rows={5} style={{ width: "100%" }} required />
 
@@ -84,16 +97,17 @@ export default function ReleaseNotes() {
       )}
 
       {notes.map((note) => (
-        <div className="card" key={note.id}>
-          <div className="release-note-head">
-            <h3>{note.title}</h3>
-            <div className="release-note-meta">
-              <span className="release-note-date hint-text">{formatDateTime(note.createdAt)}</span>
-              {isSuperAdmin && (
-                <button type="button" onClick={() => void remove(note.id)}>Sil</button>
-              )}
-            </div>
+        <div className="card release-note-item" key={note.id}>
+          <div className="release-note-meta">
+            <span className="release-note-date hint-text">{formatDateTime(note.createdAt)}</span>
+            {isSuperAdmin && (
+              <button type="button" onClick={() => void remove(note.id)}>Sil</button>
+            )}
           </div>
+          <h3 className="release-note-title">
+            {note.title}
+            {note.version && <span className="release-note-version">v{note.version}</span>}
+          </h3>
           <p className="release-note-body">{note.body}</p>
         </div>
       ))}

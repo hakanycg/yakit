@@ -31,6 +31,14 @@ describe("createReleaseNote", () => {
     expect(note.body).toBe("Aciklama");
     expect(note.created_by).toBe(admin.id);
   });
+
+  it("versiyon opsiyoneldir - verilmezse null, verilirse trim'lenmis haliyle kaydedilir", () => {
+    const withoutVersion = createReleaseNote({ title: "Baslik", body: "Metin" }, admin);
+    expect(withoutVersion.version).toBeNull();
+
+    const withVersion = createReleaseNote({ title: "Baslik", body: "Metin", version: "  1.4.2  " }, admin);
+    expect(withVersion.version).toBe("1.4.2");
+  });
 });
 
 describe("listReleaseNotes", () => {

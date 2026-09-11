@@ -6,6 +6,7 @@ interface ReleaseNote {
   id: number;
   title: string;
   body: string;
+  version: string | null;
   createdAt: string;
 }
 
@@ -47,11 +48,18 @@ export default function ReleaseNotesModal({ enabled }: { enabled: boolean }) {
       <div className="card" style={{ width: "min(560px, 92vw)", maxHeight: "85vh", overflowY: "auto" }}>
         <h3 style={{ marginTop: 0 }}>Yenilikler</h3>
         {notes.map((note, i) => (
-          <div key={note.id} style={{ marginTop: i === 0 ? 0 : "1.25rem", paddingTop: i === 0 ? 0 : "1.25rem", borderTop: i === 0 ? undefined : "1px solid var(--border)" }}>
-            <div className="release-note-head">
-              <h4>{note.title}</h4>
+          <div
+            key={note.id}
+            className="release-note-item"
+            style={{ marginTop: i === 0 ? 0 : "1.25rem", paddingTop: i === 0 ? 0 : "1.25rem", borderTop: i === 0 ? undefined : "1px solid var(--border)" }}
+          >
+            <div className="release-note-meta">
               <span className="release-note-date hint-text">{formatDateTime(note.createdAt)}</span>
             </div>
+            <h4 className="release-note-title">
+              {note.title}
+              {note.version && <span className="release-note-version">v{note.version}</span>}
+            </h4>
             <p className="release-note-body">{note.body}</p>
           </div>
         ))}
