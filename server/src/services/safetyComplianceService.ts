@@ -197,14 +197,29 @@ function statusFor(daysRemaining: number | null): SafetyComplianceStatus["status
   return daysRemaining <= DUE_WARNING_DAYS ? "expiring" : "valid";
 }
 
-/** Istasyondaki HER kalem icin en son kaydin durumu - hic kaydi olmayan kalemler de "unknown" olarak listelenir. */
+/**
+ * Istasyondaki HER kalem icin en son kaydin durumu - hic kaydi olmayan kalemler de
+ * "unknown" olarak listelenir.
+ *
+ * Kalem basina ayri bir sorgu YERINE istasyonun tum kayitlari TEK sorguda cekilir,
+ * en yeniden eskiye siralanir; her kalem tipinin ilk gordugu satir onun en son
+ * kaydidir. Bu fonksiyon checkExpiringCompliance ile TUM istasyonlar uzerinde
+ * dongude cagrildigindan (bkz. asagisi), kalem basina sorgu N istasyon x 9 kalem
+ * kadar cogalirdi.
+ */
 export function getStationComplianceStatus(stationId: number, now = Date.now()): SafetyComplianceStatus[] {
+  const records = db
+    .prepare<[number], SafetyComplianceRecordRow>(
+      "SELECT * FROM safety_compliance_records WHERE station_id = ? ORDER BY completed_at DESC, id DESC"
+    )
+    .all(stationId);
+  const latestByType = new Map<string, SafetyComplianceRecordRow>();
+  for (const r of records) {
+    if (!latestByType.has(r.item_type)) latestByType.set(r.item_type, r);
+  }
+
   return SAFETY_COMPLIANCE_ITEMS.map((meta) => {
-    const last = db
-      .prepare<[number, string], SafetyComplianceRecordRow>(
-        "SELECT * FROM safety_compliance_records WHERE station_id = ? AND item_type = ? ORDER BY completed_at DESC LIMIT 1"
-      )
-      .get(stationId, meta.type);
+    const last = latestByType.get(meta.type);
     const daysRemaining = last ? daysUntil(last.next_due_at, now) : null;
 
     return {
@@ -234,6 +249,34 @@ function resolveAlarmFor(stationId: number, itemType: string): void {
   }
 }
 
+const IN_CLAUSE_CHUNK = 500;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * TUM istasyonlardaki acik "safety_compliance_*" alarmlarini TEK sorguda (500'luk
+ * parcalar halinde) ceker - checkExpiringCompliance'in N istasyon x 9 kalem icin
+ * ayri ayri sorgu atmasi yerine.
+ */
+function activeComplianceAlarmsByStation(stationIds: number[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (const ids of chunk(stationIds, IN_CLAUSE_CHUNK)) {
+    if (ids.length === 0) continue;
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db
+      .prepare<Array<number | string>, { id: number; station_id: number; type: string }>(
+        `SELECT id, station_id, type FROM alarms WHERE station_id IN (${placeholders}) AND type LIKE ? AND status != 'resolved'`
+      )
+      .all(...ids, `${ALARM_TYPE_PREFIX}%`);
+    for (const row of rows) map.set(`${row.station_id}:${row.type}`, row.id);
+  }
+  return map;
+}
+
 /**
  * Suresi dolan/dolmak uzere olan emniyet kontrolleri icin alarm uretir (bkz. index.ts).
  *
@@ -245,20 +288,22 @@ function resolveAlarmFor(stationId: number, itemType: string): void {
 export function checkExpiringCompliance(now = Date.now()): { warned: number; expired: number } {
   const result = { warned: 0, expired: 0 };
   const stations = db.prepare<[], { id: number }>("SELECT id FROM stations WHERE active = 1").all();
+  const alarmsByKey = activeComplianceAlarmsByStation(stations.map((s) => s.id));
 
   for (const station of stations) {
     for (const status of getStationComplianceStatus(station.id, now)) {
+      const key = `${station.id}:${alarmType(status.itemType)}`;
+      const existingId = alarmsByKey.get(key);
+
       if (status.status === "valid" || status.status === "unknown") {
-        resolveAlarmFor(station.id, status.itemType);
+        if (existingId !== undefined) {
+          db.prepare("UPDATE alarms SET status = 'resolved', resolved_at = ? WHERE id = ?").run(new Date(now).toISOString(), existingId);
+          alarmsByKey.delete(key);
+        }
         continue;
       }
 
-      const existing = db
-        .prepare<[number, string], { id: number }>(
-          "SELECT id FROM alarms WHERE station_id = ? AND type = ? AND status != 'resolved' LIMIT 1"
-        )
-        .get(station.id, alarmType(status.itemType));
-      if (existing) continue;
+      if (existingId !== undefined) continue;
 
       const expired = status.status === "expired";
       try {

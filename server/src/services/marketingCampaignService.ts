@@ -1,5 +1,5 @@
 import { db } from "../db/index.js";
-import { sendEmail, sendSms } from "./notificationService.js";
+import { sendEmail, sendSms, type SendResult } from "./notificationService.js";
 import type { MarketingCampaignRow, UserRow } from "../db/types.js";
 
 /**
@@ -98,6 +98,27 @@ export interface CreateCampaignInput {
 
 const MAX_RECIPIENTS_PER_CAMPAIGN = 5000;
 
+/**
+ * Ayni anda en fazla bu kadar gonderim yapilir.
+ *
+ * MAX_RECIPIENTS_PER_CAMPAIGN kadar (5000) aliciyi TEK Promise.all() ile ayni anda
+ * atesle mek SMTP sunucusunun/SMS saglayicisinin oran sinirini asip TUM kampanyanin
+ * reddedilmesine (ya da hesabin gecici olarak kisitlanmasina) yol acabilir; ayrica
+ * sunucuda ayni anda binlerce acik soket/istek biriktirir. Sabit boyutlu ardisik
+ * pencerelerle gonderilir - saglayiciya nazik davranilir, kampanyanin tamami tek
+ * seferde riske atilmaz.
+ */
+const SEND_CONCURRENCY = 20;
+
+async function sendInBatches<T>(items: T[], size: number, send: (item: T) => Promise<SendResult>): Promise<SendResult[]> {
+  const results: SendResult[] = [];
+  for (let i = 0; i < items.length; i += size) {
+    const batch = items.slice(i, i + size);
+    results.push(...(await Promise.all(batch.map(send))));
+  }
+  return results;
+}
+
 /** Segmenti secip GERCEKTEN gonderir - kaydi olusturur, gonderimi yapar, sonuc sayaclarini yazar. */
 export async function createAndSendCampaign(stationId: number, input: CreateCampaignInput, actor: UserRow): Promise<MarketingCampaignRow> {
   const name = input.name.trim();
@@ -121,11 +142,8 @@ export async function createAndSendCampaign(stationId: number, input: CreateCamp
     .run(stationId, name, input.channel, message, input.minDaysSinceVisit ?? null, input.maxDaysSinceVisit ?? null, recipients.length, actor.id);
   const campaignId = insertResult.lastInsertRowid as number;
 
-  const results = await Promise.all(
-    recipients.map(async (r) => {
-      if (input.channel === "email") return sendEmail(r.contact_email!, name, message);
-      return sendSms(r.contact_phone!, message);
-    })
+  const results = await sendInBatches(recipients, SEND_CONCURRENCY, (r) =>
+    input.channel === "email" ? sendEmail(r.contact_email!, name, message) : sendSms(r.contact_phone!, message)
   );
   const successCount = results.filter((r) => r.sent).length;
 
