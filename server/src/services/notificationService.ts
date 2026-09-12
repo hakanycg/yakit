@@ -1,6 +1,8 @@
 import { createHmac } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import nodemailer, { type Transporter } from "nodemailer";
 import { env } from "../config.js";
 import { logger } from "../utils/logger.js";
@@ -160,12 +162,19 @@ function extractIpv4MappedAddress(lowerIpv6: string): string | null {
 }
 
 /**
- * Hedefi fetch'ten ONCE dogrular: yalnizca http/https, ve host (literal IP ya da
- * DNS'ten cozulen HER adres) yerel/ozel bir araliga dusmemeli. Bu, ayarlarda
- * `z.string().url()`'nin izin verdigi ama sunucunun kendi ic agina (ya da bulut
- * metadata ucuna) istek atmasina yol acabilecek bir URL'yi calisma zamaninda yakalar.
+ * Hedefi istekten ONCE dogrular VE baglanilacak adresi doner: yalnizca http/https,
+ * ve host (literal IP ya da DNS'ten cozulen HER adres) yerel/ozel bir araliga
+ * dusmemeli. Bu, ayarlarda `z.string().url()`'nin izin verdigi ama sunucunun kendi
+ * ic agina (ya da bulut metadata ucuna) istek atmasina yol acabilecek bir URL'yi
+ * calisma zamaninda yakalar.
+ *
+ * DONEN ADRES, asagida sendWebhook'un GERCEK baglantiyi kurarken kullandigi adrestir
+ * (bkz. asagidaki not) - burada sadece dogrulayip sonradan ayri bir DNS sorgusuna
+ * guvenmek DNS-rebinding'e acik birakirdi: dogrulama sirasinda guvenli bir IP donen
+ * bir alan adi, saniyeler sonraki GERCEK baglanti sorgusunda (kisa TTL ile) ic bir
+ * adrese donebilir - kontrolu tamamen atlatir.
  */
-async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
+async function resolveSafeWebhookAddress(rawUrl: string): Promise<string> {
   const parsed = new URL(rawUrl);
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
     throw new Error("Webhook yalnizca http/https destekler.");
@@ -174,12 +183,58 @@ async function assertSafeWebhookUrl(rawUrl: string): Promise<void> {
   if (host.startsWith("[") && host.endsWith("]")) host = host.slice(1, -1);
   if (isIP(host)) {
     if (isBlockedIp(host)) throw new Error("Webhook URL'si yerel/ozel aglara isaret edemez.");
-    return;
+    return host;
   }
   const records = await lookup(host, { all: true });
+  if (records.length === 0) throw new Error("Webhook hedefi cozulemedi.");
   if (records.some(({ address }) => isBlockedIp(address))) {
     throw new Error("Webhook URL'si yerel/ozel aglara isaret edemez.");
   }
+  // Ilk dogrulanmis adrese sabitlenir - asagidaki istek AYNI adrese baglanir,
+  // ayrica bir DNS sorgusu yapmaz.
+  return records[0]!.address;
+}
+
+/**
+ * TEK bir DNS sorgusuyla dogrulanan adrese SABITLENMIS bir HTTP(S) istegi.
+ * global fetch() kullanilmiyor cunku o, gonderilmeden hemen once kendi AYRI DNS
+ * sorgusunu yapar - resolveSafeWebhookAddress'in dogruladigi adresle GERCEKTE
+ * baglanilan adres boylece FARKLI olabilir (DNS-rebinding). `lookup` secenegi
+ * host adi ne olursa olsun baglantiyi dogrudan `pinnedIp`'ye yonlendirir; TLS
+ * sertifika dogrulamasi yine de gercek host adina (SNI/servername varsayilani)
+ * karsi yapilir, yani sunucu kimligi kontrolu bozulmaz.
+ */
+function requestPinned(
+  url: string,
+  pinnedIp: string,
+  opts: { headers: Record<string, string>; body: string; signal: AbortSignal }
+): Promise<{ status: number }> {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    const isHttps = parsed.protocol === "https:";
+    const requestFn = isHttps ? httpsRequest : httpRequest;
+    const pinnedFamily = isIP(pinnedIp) === 6 ? 6 : 4;
+
+    const req = requestFn(
+      {
+        hostname: parsed.hostname,
+        port: parsed.port || (isHttps ? 443 : 80),
+        path: `${parsed.pathname}${parsed.search}`,
+        method: "POST",
+        headers: opts.headers,
+        signal: opts.signal,
+        // Cozumleme burada YOK SAYILIR, dogrudan dogrulanmis adrese baglanilir.
+        lookup: (_hostname, _lookupOpts, callback) => callback(null, pinnedIp, pinnedFamily),
+      },
+      (res) => {
+        res.resume(); // govdeyi kullanmiyoruz ama tuketilmezse baglanti acik kalir
+        res.on("end", () => resolve({ status: res.statusCode ?? 0 }));
+        res.on("error", reject);
+      }
+    );
+    req.on("error", reject);
+    req.end(opts.body);
+  });
 }
 
 export async function sendWebhook(url: string, payload: unknown, secret: string | null): Promise<SendResult> {
@@ -191,11 +246,12 @@ export async function sendWebhook(url: string, payload: unknown, secret: string 
   const timeout = setTimeout(() => controller.abort(), 8000);
 
   try {
-    await assertSafeWebhookUrl(url);
-    // redirect: "manual" - aksi halde sunucu, DOGRULANMIS bir hedeften ENGELLENMIS
-    // bir ic adrese yonlendiren bir yanita korlemesine uyar ve kontrolu atlatirdi.
-    const res = await fetch(url, { method: "POST", redirect: "manual", signal: controller.signal, headers, body });
-    if (!res.ok) {
+    const pinnedIp = await resolveSafeWebhookAddress(url);
+    // Yonlendirme (redirect) TAKIP EDILMEZ (eski "redirect: manual" ile ayni ilke):
+    // DOGRULANMIS bir hedeften ENGELLENMIS bir ic adrese yonlendiren bir yanita
+    // korlemesine uymak kontrolu atlatirdi - 3xx durum kodu asagida hata sayilir.
+    const res = await requestPinned(url, pinnedIp, { headers, body, signal: controller.signal });
+    if (res.status < 200 || res.status >= 300) {
       logger.error({ url, status: res.status }, "Webhook bildirimi saglayicidan hata dondu.");
       return { sent: false, reason: `Webhook HTTP ${res.status} dondurdu.` };
     }

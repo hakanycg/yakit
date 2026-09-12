@@ -172,15 +172,27 @@ export async function finalizeCardTopup(id: number, token: string): Promise<{ su
     return { success: false };
   }
 
+  // Yaris durumu koruması: "pending" kontrolu yukarida (satir 160) yapildi ama
+  // araya bir `await` (retrieveCheckoutForm) girdi - ayni token'la esdeger iki
+  // callback isteği (ör. musteri sayfayi yenilerse) o kontrolu ikisi de gecebilir.
+  // Kesin kilit burada, ATOMIK UPDATE'in kendisinde: yalnizca hala 'pending' olan
+  // bir satiri 'paid'e cevirebilen istek hesaba kredi ISLER; diger istek 0 satir
+  // etkiler ve krediyi TEKRARLAMAZ (bkz. transactionService.finalizeTransactionPayment
+  // ile ayni ilke).
   const apply = db.transaction(() => {
+    const claimed = db
+      .prepare("UPDATE fleet_card_topups SET status = 'paid', payment_reference = ?, paid_at = ? WHERE id = ? AND status = 'pending'")
+      .run(result.paymentId ?? token, new Date().toISOString(), id);
+    if (claimed.changes === 0) return false;
     topUpFromCardPayment(row.station_id, row.fleet_account_id, row.requested_amount, `Kartla anlik yukleme #${row.id} (iyzico)`);
-    db.prepare("UPDATE fleet_card_topups SET status = 'paid', payment_reference = ?, paid_at = ? WHERE id = ?").run(
-      result.paymentId ?? token,
-      new Date().toISOString(),
-      id
-    );
+    return true;
   });
-  apply();
+  const applied = apply();
+  if (!applied) {
+    // Baska bir esdeger istek kaydi zaten kapatmis - idempotent basari yaniti,
+    // ikinci kez kredi verilmez.
+    return { success: true };
+  }
 
   logger.info({ topupId: id, accountId: row.fleet_account_id, amount: row.requested_amount }, "Filo portali kartla anlik yukleme tamamlandi.");
   return { success: true };

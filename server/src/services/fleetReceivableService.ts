@@ -114,6 +114,81 @@ function invoicesOldestFirst(accountId: number): FleetInvoiceRow[] {
     .all(accountId);
 }
 
+/** IN(...) sorgularinda tek seferde kullanilan azami id sayisi - SQLite'in degisken
+ * sinirinin cok altinda tutuluyor (bkz. archiveService.ts'teki ayni desen). */
+const IN_CLAUSE_CHUNK = 500;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
+/**
+ * Birden fazla hesabin odeme havuzunu TEK sorguda (parca basina) getirir.
+ *
+ * stationAging/sweepOverdueReceivables birden fazla hesabi tararken hesap basina
+ * ayri sorgu atmak (bkz. gorev #164'teki ayni desen, Stations sayfasinda) N+1'e
+ * yol acardi - 100 hesapli bir istasyonda tek sayfa yuklemesi ~300 ardisik SQLite
+ * sorgusuna donusurdu. Bunun yerine tum hesap id'leri icin GROUP BY ile tek
+ * sorguda toplanir.
+ */
+function paymentPoolsFor(accountIds: number[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const ids of chunk(accountIds, IN_CLAUSE_CHUNK)) {
+    if (ids.length === 0) continue;
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db
+      .prepare<number[], { fleet_account_id: number; total: number | null }>(
+        `SELECT fleet_account_id, SUM(amount) AS total FROM fleet_movements
+          WHERE fleet_account_id IN (${placeholders}) AND type = 'topup'
+          GROUP BY fleet_account_id`
+      )
+      .all(...ids);
+    for (const row of rows) map.set(row.fleet_account_id, round2(row.total ?? 0));
+  }
+  return map;
+}
+
+function unbilledAmountsFor(accountIds: number[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const ids of chunk(accountIds, IN_CLAUSE_CHUNK)) {
+    if (ids.length === 0) continue;
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db
+      .prepare<number[], { fleet_account_id: number; total: number | null }>(
+        `SELECT fleet_account_id,
+                SUM(CASE WHEN type = 'refund' THEN -amount ELSE amount END) AS total
+           FROM fleet_movements
+          WHERE fleet_account_id IN (${placeholders}) AND fleet_invoice_id IS NULL AND type IN ('charge','refund')
+          GROUP BY fleet_account_id`
+      )
+      .all(...ids);
+    for (const row of rows) map.set(row.fleet_account_id, round2(row.total ?? 0));
+  }
+  return map;
+}
+
+function invoicesOldestFirstFor(accountIds: number[]): Map<number, FleetInvoiceRow[]> {
+  const map = new Map<number, FleetInvoiceRow[]>();
+  for (const ids of chunk(accountIds, IN_CLAUSE_CHUNK)) {
+    if (ids.length === 0) continue;
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db
+      .prepare<number[], FleetInvoiceRow>(
+        `SELECT * FROM fleet_invoices WHERE fleet_account_id IN (${placeholders})
+          ORDER BY fleet_account_id, created_at, id`
+      )
+      .all(...ids);
+    for (const row of rows) {
+      const list = map.get(row.fleet_account_id);
+      if (list) list.push(row);
+      else map.set(row.fleet_account_id, [row]);
+    }
+  }
+  return map;
+}
+
 function emptyBuckets(): AgingBuckets {
   return { current: 0, d1to30: 0, d31to60: 0, d61to90: 0, d90plus: 0 };
 }
@@ -134,15 +209,21 @@ function addToBucket(buckets: AgingBuckets, daysOverdue: number, amount: number)
  * Iletilememis bir faturanin pesine dusmek yanlistir - musteri o faturayi hic
  * gormedi (bkz. fleet_invoices.status='failed', yeniden gonderim yolu mevcut).
  */
-export function accountReceivable(account: FleetAccountRow, now = Date.now()): AccountReceivable {
-  let pool = paymentPool(account.id);
+function computeAccountReceivable(
+  account: FleetAccountRow,
+  startingPool: number,
+  invoicesForAccount: FleetInvoiceRow[],
+  unbilled: number,
+  now: number
+): AccountReceivable {
+  let pool = startingPool;
   const buckets = emptyBuckets();
   const invoices: InvoiceReceivable[] = [];
   let openAmount = 0;
   let overdueAmount = 0;
   let oldestOverdueDays = 0;
 
-  for (const inv of invoicesOldestFirst(account.id)) {
+  for (const inv of invoicesForAccount) {
     // FIFO: havuzdaki para once en eski faturayi kapatir.
     const paidAmount = round2(Math.min(pool, inv.payable_amount));
     pool = round2(pool - paidAmount);
@@ -188,12 +269,31 @@ export function accountReceivable(account: FleetAccountRow, now = Date.now()): A
     invoices,
     openAmount,
     overdueAmount,
-    unbilledAmount: unbilledAmount(account.id),
+    unbilledAmount: unbilled,
     // Havuzda kalan para: musteri borcundan fazlasini odemis demektir.
     creditAmount: pool,
     oldestOverdueDays,
     buckets,
   };
+}
+
+export function accountReceivable(account: FleetAccountRow, now = Date.now()): AccountReceivable {
+  return computeAccountReceivable(account, paymentPool(account.id), invoicesOldestFirst(account.id), unbilledAmount(account.id), now);
+}
+
+/**
+ * Birden fazla hesabin alacak defterini TOPLU sorgularla hesaplar (bkz.
+ * paymentPoolsFor/unbilledAmountsFor/invoicesOldestFirstFor) - accountReceivable'i
+ * hesap basina cagirmanin N+1'ine dusmeden ayni sonucu uretir.
+ */
+export function accountsReceivable(accounts: FleetAccountRow[], now = Date.now()): AccountReceivable[] {
+  const ids = accounts.map((a) => a.id);
+  const pools = paymentPoolsFor(ids);
+  const unbilled = unbilledAmountsFor(ids);
+  const invoicesByAccount = invoicesOldestFirstFor(ids);
+  return accounts.map((a) =>
+    computeAccountReceivable(a, pools.get(a.id) ?? 0, invoicesByAccount.get(a.id) ?? [], unbilled.get(a.id) ?? 0, now)
+  );
 }
 
 /** Istasyondaki tum faturali hesaplarin yaslandirma tablosu; en riskli en ustte. */
@@ -204,9 +304,9 @@ export function stationAging(stationId: number, now = Date.now()): AccountReceiv
     )
     .all(stationId);
 
-  return accounts
-    .map((a) => accountReceivable(a, now))
-    .sort((a, b) => b.oldestOverdueDays - a.oldestOverdueDays || b.overdueAmount - a.overdueAmount);
+  return accountsReceivable(accounts, now).sort(
+    (a, b) => b.oldestOverdueDays - a.oldestOverdueDays || b.overdueAmount - a.overdueAmount
+  );
 }
 
 /**
@@ -242,10 +342,27 @@ export function sweepOverdueReceivables(now = Date.now()): void {
     )
     .all();
 
+  // Havuz/fatura/faturalanmamis tutarlar hesap basina degil, TUM hesaplar icin
+  // TOPLU sorgularla cekilir (bkz. paymentPoolsFor vd.) - hesap basina ayri sorgu
+  // atmak, yuzlerce faturali hesapta her taramada yuzlerce ardisik sorguya yol
+  // acardi. Hesaplama (computeAccountReceivable) yine hesap basina ve try/catch
+  // icinde kalir: bir hesabin verisi bozuksa yalnizca o hesap atlanir, diger
+  // hesaplarin taramasi durmaz.
+  const ids = accounts.map((a) => a.id);
+  const pools = paymentPoolsFor(ids);
+  const unbilled = unbilledAmountsFor(ids);
+  const invoicesByAccount = invoicesOldestFirstFor(ids);
+
   for (const account of accounts) {
     let ledger: AccountReceivable;
     try {
-      ledger = accountReceivable(account, now);
+      ledger = computeAccountReceivable(
+        account,
+        pools.get(account.id) ?? 0,
+        invoicesByAccount.get(account.id) ?? [],
+        unbilled.get(account.id) ?? 0,
+        now
+      );
     } catch (err) {
       logger.error({ err, accountId: account.id }, "Filo alacak defteri hesaplanamadi.");
       continue;

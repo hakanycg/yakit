@@ -65,10 +65,31 @@ export interface SaveRecordingInput {
 
 const MAX_RECORDING_BYTES = 25 * 1024 * 1024;
 
+/**
+ * Tarayicilarin MediaRecorder'inin gercekte urettigi ses tipleri. Yalnizca bu
+ * on-ek eslesenler kabul edilir; digerleri (ozellikle text/html,
+ * application/javascript gibi CALISTIRILABILIR tipler) reddedilir.
+ *
+ * Bu kontrol olmadan, kaydi yukleyen HERHANGI bir gorevli kendi content-type'ini
+ * secebilir; mime_type oldugu gibi saklanip /:id/audio ucunda (yalnizca yonetici
+ * rolleri) geri yansitildigindan (bkz. routes/intercomRecordings.ts), bir
+ * yonetici kaydi (ör. calmadiginda) yeni sekmede acarsa CSP'nin 'self'
+ * izniyle ayni-kaynak script calistirma riski dogar.
+ */
+const ALLOWED_AUDIO_MIME_PREFIXES = ["audio/webm", "audio/ogg", "audio/mp4", "audio/mpeg", "audio/wav"];
+
+export function isAllowedRecordingMimeType(mimeType: string): boolean {
+  const base = mimeType.split(";")[0]!.trim().toLowerCase();
+  return ALLOWED_AUDIO_MIME_PREFIXES.includes(base);
+}
+
 export function saveRecording(input: SaveRecordingInput): CallRecordingRow {
   const dir = recordingDir();
   if (input.buffer.length === 0) throw new CallRecordingError("Bos ses kaydi yuklenemez.", 400);
   if (input.buffer.length > MAX_RECORDING_BYTES) throw new CallRecordingError("Ses kaydi cok buyuk.", 413);
+  if (!isAllowedRecordingMimeType(input.mimeType)) {
+    throw new CallRecordingError("Desteklenmeyen ses formati.", 400);
+  }
 
   const existing = db
     .prepare<[string], { id: number }>("SELECT id FROM call_recordings WHERE call_id = ?")

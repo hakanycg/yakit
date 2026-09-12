@@ -44,7 +44,9 @@ const uploadQuerySchema = z.object({
  * cagriyi kim yanitladiysa (requireAuth+requireStationSelected zaten yeterli) o
  * kendi kaydini yukleyebilir. Govde JSON DEGIL, ham ses (webm/opus) - raw()
  * yalnizca bu route icin, herhangi bir content-type'i kabul eder (MediaRecorder
- * tarayiciya gore "audio/webm;codecs=opus" gibi degisken bir deger yazabilir).
+ * tarayiciya gore "audio/webm;codecs=opus" gibi degisken bir deger yazabilir);
+ * kabul edilen deger yine de saveRecording icinde bir ses-tipi listesiyle
+ * SINIRLANIR (bkz. callRecordingService.ts).
  */
 router.post("/", raw({ type: () => true, limit: "26mb" }), validateQuery(uploadQuerySchema), (req, res) => {
   const q = (req as unknown as { validatedQuery: z.infer<typeof uploadQuerySchema> }).validatedQuery;
