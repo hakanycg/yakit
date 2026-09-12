@@ -103,13 +103,46 @@ küçük mü sunucu" değil, **mimariyi ne zaman yatay ölçeklendireceğimiz**.
 **Hosting/domain kararı (12 Eylül 2026):**
 - Railway süresi bitiyor, kendi altyapıya geçiliyor.
 - **Sunucu konumu: Türkiye** (KVKK açısından kişisel verinin yurt içinde kalması avantajı).
-- **Hosting türü: kendi VPS'i** (Natro Cloud VPS / Turhost Cloud / gerekirse Radore) —
-  Railway benzeri bir PaaS (Render/Fly.io) yerine, daha ucuz ama nginx/SSL/systemd
-  kurulumu Claude tarafından hazırlanan script'lerle yapılacak.
+- **Hosting türü: Cloud Server / Cloud VPS** (Natro Cloud VPS / Turhost Cloud / gerekirse
+  Radore) — "klasik VPS" veya "Dedicated Server" değil. Fark: klasik VPS ve dedicated
+  server TEK fiziksel makineye bağlıdır (o donanım arızalanırsa kesinti saatler-günler
+  sürer, büyütme fiziksel müdahale ister); Cloud Server birden fazla fiziksel sunucudan
+  oluşan bir havuzda çalışır (donanım arızasında otomatik taşınır, disk/RAM dakikalar
+  içinde API'den büyütülür). Sistem 7/24 çalışıp internetsizken satış yapamadığı için
+  (bkz. `web/src/kiosk/useConnectivity.ts`) donanım arızasına dayanıklılık, ham işlem
+  gücünden daha kritik — bu yüzden Dedicated Server'ın sunduğu fazla güç gereksiz,
+  Cloud Server'ın esnekliği daha değerli.
 - **Domain: `.com`** (şirket belgesi gerektiren `.com.tr` değil) — isim henüz kesinleşmedi.
+- **Disk stratejisi:** sabit büyük bir disk (ör. 500GB) baştan alınmayacak. VPS'in kendi
+  diski (OS+uygulama, 50-100GB, çoğu pakette dahil) + ayrı, **büyütülebilir bir Block
+  Storage** (veritabanı+arşiv+yedek için, 100GB'tan başlayıp kullanım arttıkça
+  büyütülür). Sağlayıcı seçiminde belirleyici soru: **"Block Storage ürününüz var mı ve
+  kesintisiz büyütülebiliyor mu?"**
 - **Sonraki adım:** kullanıcı domain + VPS satın alacak; alınca IP adresi + erişim
   yöntemi (SSH bilgisi mi, yoksa Claude'un hazırlayacağı script kullanıcı tarafından mı
   çalıştırılacak) kararlaştırılıp kurulum başlayacak.
+
+**"Çok yüksek/sürekli yük" senaryosu — ileride masaya yatırılacak (12 Eylül 2026):**
+Türkiye'de ~12.500 EPDK lisanslı istasyon var; "çoğu istasyon" hedefi somutlaşırsa
+(örn. 10.000 istasyon):
+- Günde ~3 milyon işlem, yılda ~1.1 milyar işlem → yılda ~475GB (işlemler hiç
+  arşivlenmiyor, bkz. yukarısı), 10 yıllık TTK saklamasında ~4.75TB.
+- Her istasyon ajanı 60sn'de bir heartbeat + 120sn'de bir önbellek çekimi atıyor →
+  toplamda saniyede ~250 istek, sürekli. Artı gerçek işlem/alarm/panel trafiği, artı
+  10.000-30.000 eşzamanlı WebSocket bağlantısı.
+- **Asıl darboğaz bu ölçekte sunucu büyüklüğü değil, SQLite'ın tek-yazıcı kilidi** —
+  ne kadar güçlü donanım alınırsa alınsın değişmeyen bir mimari sınır.
+- Bu ölçekte gerekecek olan: tek sunucu değil, **çok parçalı mimari** (yük dengeleyici +
+  birden fazla uygulama sunucusu, SQLite yerine PostgreSQL veritaban katmanı, WebSocket
+  yayını için Redis/pub-sub, ayrı nesne depolama). Dedicated Server'ın gerçekten
+  mantıklı olduğu TEK yer burada olurdu: PostgreSQL veritabanı katmanı (paylaşımsız,
+  garantili G/Ç performansı için).
+- **Alternatif (tercih edilen yön):** tek dev merkezi veritabanı yerine, zaten kurulu
+  dağıtım şirketi (bayi) katmanını (#117) kullanıp büyük bayi/bölge başına ayrı bir
+  kurulum çalıştırmak — yatay ölçek, Postgres'e geçiş gibi büyük bir mühendislik
+  yatırımı gerekmeden.
+- Bu, gerçek istasyon sayısı yüzleri aştığında karar verilecek bir mimari dönüm noktası;
+  bugünün Cloud VPS kararını değiştirmiyor.
 
 Geçiş sırasında ayrıca:
 
