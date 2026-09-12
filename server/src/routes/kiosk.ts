@@ -315,7 +315,13 @@ const createSchema = z.object({
   requestedLiters: z.number().positive().max(300).optional(),
   discountCode: z.string().trim().min(1).max(30).optional(),
   redeemPoints: z.number().positive().max(1000000).optional(),
-  referrerPlate: z.string().regex(plateRegex, "Gecersiz plaka formati.").optional(),
+  // KRITIK: burada plateRegex (5-12 karakter, sifir tolerans) UYGULANMAZ. Referral
+  // opsiyonel bir alan - musteri eksik/hatali bir plaka yazarsa (ör. tek harf), asil
+  // amaci olan yakit alimini ENGELLEMEMESI gerekir (bkz. referralService.ts basindaki
+  // "asil amacini... riske atmamasi" ilkesi). Bicim/uygunluk kontrolu zaten
+  // tryRegisterReferral() icinde normalizePlate + eslesme kontrolleriyle yapiliyor;
+  // burada yalnizca makul bir uzunluk siniri yeterli.
+  referrerPlate: z.string().trim().max(15).optional(),
 });
 
 router.post("/transactions", validateBody(createSchema), (req, res) => {
