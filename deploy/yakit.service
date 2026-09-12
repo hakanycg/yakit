@@ -1,0 +1,23 @@
+[Unit]
+Description=Yakit istasyon otomasyon API sunucusu
+After=network.target
+
+[Service]
+Type=simple
+# Kurulum: /opt/yakit'e (ya da tercih ettiginiz dizine) klonlayin/deploy edin.
+WorkingDirectory=/opt/yakit/server
+EnvironmentFile=/opt/yakit/server/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=on-failure
+RestartSec=5
+# Cokerse otomatik yeniden baslar (bkz. deploy/nginx.conf ustundeki not - Node
+# uygulamasi yalnizca 127.0.0.1:4000'de dinler, disariya nginx uzerinden acilir).
+User=yakit
+Group=yakit
+# Servis hesabinin uygulama dizini disina yazmasina gerek yok.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/opt/yakit/server/data /opt/yakit/server/logs
+
+[Install]
+WantedBy=multi-user.target
