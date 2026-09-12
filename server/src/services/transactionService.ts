@@ -403,26 +403,34 @@ export function payWithFleetAccount(
   // tutari gosterir. Kod+puan indirimi zaten uygulanmissa (musteri once onu girdiyse),
   // anlasma indirimi orijinal total_amount uzerinden hesaplanip UZERINE eklenir - ikisi
   // ayni faturada bir arada var olabilir, chargeAmount() toplamini asamaz.
+  //
+  // KRITIK: bu hesaplama BELLEKTE tutulur, DB'ye HENUZ yazilmaz. Once yazilsaydi, limit/
+  // bakiye kontrolu ya da tahsilat basarisiz oldugunda islem 'created' durumunda kalirken
+  // indirim kalici olarak DB'de kalir - musteri baska bir odeme yontemine gecerse
+  // (ör. nakit) hic hak etmedigi bir indirimle daha az odemis, filo odemesini tekrar
+  // denerse indirim ikinci kez eklenmis olurdu.
   const fleetDiscount = computeFleetDiscount(account, t.total_amount);
-  const effectiveTransaction =
-    fleetDiscount > 0
-      ? touch(id, { discount_amount: Math.round(Math.min(t.discount_amount + fleetDiscount, t.total_amount) * 100) / 100 })
-      : t;
+  const newDiscountAmount = Math.round(Math.min(t.discount_amount + fleetDiscount, t.total_amount) * 100) / 100;
+  const chargeWithFleetDiscount = Math.max(0, Math.round((t.total_amount - newDiscountAmount) * 100) / 100);
 
   try {
     // Arac bazinda aylik harcama limiti, hesabin GENEL bakiyesinden/kredi limitinden
     // AYRI bir koruma - hesap yeterli olsa bile tek bir arac/sofor o ayki payini
     // asinca reddedilir (bkz. fleetService.checkPlateSpendingLimit).
-    checkPlateSpendingLimit(t.station_id, t.plate, chargeAmount(effectiveTransaction));
-    chargeFleetAccount(t.station_id, fleetAccountId, chargeAmount(effectiveTransaction), id);
+    checkPlateSpendingLimit(t.station_id, t.plate, chargeWithFleetDiscount);
+    chargeFleetAccount(t.station_id, fleetAccountId, chargeWithFleetDiscount, id);
   } catch (err) {
     if (err instanceof FleetError) throw new TransactionError(err.message, err.status);
     throw err;
   }
-  // Km OPSIYONELDIR: musteri girmezse islem normal ilerler. Girildiyse islemin
-  // uzerine yazilir ve iki ardisik dolum arasindan arac basina tuketim cikar
-  // (bkz. fleetConsumptionService.ts).
-  touch(id, { payment_method: "fleet", ...(odometerKm !== undefined ? { odometer_km: odometerKm } : {}) });
+  // Tahsilat BASARILI oldu - indirim simdi kalici olarak yazilir. Km OPSIYONELDIR:
+  // musteri girmezse islem normal ilerler. Girildiyse islemin uzerine yazilir ve iki
+  // ardisik dolum arasindan arac basina tuketim cikar (bkz. fleetConsumptionService.ts).
+  touch(id, {
+    discount_amount: fleetDiscount > 0 ? newDiscountAmount : t.discount_amount,
+    payment_method: "fleet",
+    ...(odometerKm !== undefined ? { odometer_km: odometerKm } : {}),
+  });
   return finalizeTransactionPayment(id, { success: true, reference: `FLEET-${fleetAccountId}`, message: "Filo hesabindan tahsil edildi." });
 }
 

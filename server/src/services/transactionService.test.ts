@@ -605,6 +605,44 @@ describe("payWithFleetAccount", () => {
     expect(account.balance).toBe(100000); // reddedilen odeme bakiyeden hic dusmemis olmali
   });
 
+  it("anlasma indirimi olan hesapta odeme limit asimiyla REDDEDILIRSE, indirim islemde kalici olarak yazilmaz (code-review bulgusu)", () => {
+    const { pumpId } = setUpStationForTransactions();
+    const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };
+    const staff = createTestUser(null, "admin");
+    const fleet = createFleetAccount(station.station_id, { companyName: "Anlasmali+Limitli Filo", billingType: "prepaid" }, staff);
+    const plate = addFleetPlate(station.station_id, fleet.id, "34LIMTX2");
+    topUpFleetAccount(station.station_id, fleet.id, 100000, undefined, staff);
+    setFleetDiscountAgreement(station.station_id, fleet.id, { discountType: "percent", discountValue: 10 });
+    setFleetPlateSpendingLimit(station.station_id, fleet.id, plate.id, 1); // dolumdan cok dusuk bir limit
+
+    const { transaction, accessToken } = createTransaction({
+      pumpId,
+      plate: "34LIMTX2",
+      plateSource: "manual",
+      fuelType: "benzin",
+      amountMode: "liters",
+      requestedLiters: 10,
+    });
+    expect(() => payWithFleetAccount(transaction.id, accessToken, fleet.id)).toThrow();
+
+    // Basarisiz denemeden sonra islem hala 'created' ve indirim HIC yazilmamis olmali -
+    // aksi halde musteri baska bir odeme yontemine gecerse hak etmedigi bir indirimle
+    // daha az odemis olurdu.
+    const afterFailure = db.prepare("SELECT status, discount_amount FROM transactions WHERE id = ?").get(transaction.id) as {
+      status: string;
+      discount_amount: number;
+    };
+    expect(afterFailure.status).toBe("created");
+    expect(afterFailure.discount_amount).toBe(0);
+
+    // Limiti kaldirip TEKRAR denendiginde indirim yalnizca BIR KEZ uygulanmali (iki katina cikmamali).
+    setFleetPlateSpendingLimit(station.station_id, fleet.id, plate.id, null);
+    const totalBefore = transaction.total_amount;
+    const retried = payWithFleetAccount(transaction.id, accessToken, fleet.id);
+    expect(retried.discount_amount).toBeCloseTo(totalBefore * 0.1, 2);
+    emergencyStopTransaction(transaction.id, staff, "test cleanup");
+  });
+
   it("indirimsiz filo hesabinda discount_amount degismez", () => {
     const { pumpId } = setUpStationForTransactions();
     const station = db.prepare("SELECT station_id FROM pumps WHERE id = ?").get(pumpId) as { station_id: number };

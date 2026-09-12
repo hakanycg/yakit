@@ -7,6 +7,7 @@ import { env } from "../config.js";
 import { safeCompare } from "../utils/safeCompare.js";
 import { verifyPassword } from "../utils/password.js";
 import { matchTotpCounter } from "../utils/totp.js";
+import { recordAudit } from "../services/auditService.js";
 
 export const SESSION_COOKIE = "yakit_sid";
 export const CSRF_COOKIE = "yakit_csrf";
@@ -191,6 +192,13 @@ const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
  * mevcut sifrenin tekrar girilmesi istenir (ayni ilke: /2fa/disable). requireAuth'tan
  * SONRA, csrfProtection'dan ONCE (veya sonra, sirasi onemli degil) zincire eklenir.
  */
+// /login'deki kilitleme esigiyle AYNI (bkz. routes/auth.ts MAX_FAILED_ATTEMPTS/LOCKOUT_MS) -
+// ayni users.failed_login_attempts/locked_until alanlari paylasilir: step-up sifresini
+// deneyen biri hesabin normal girisini de kilitler, ki bu kasitlidir (hesap zaten saldiri
+// altinda).
+const STEP_UP_MAX_FAILED_ATTEMPTS = 5;
+const STEP_UP_LOCKOUT_MS = 15 * 60 * 1000;
+
 export function requireStepUpAuth(req: Request, res: Response, next: NextFunction): void {
   const user = req.user!;
   const body = req.body as { stepUpPassword?: unknown; stepUpTotpCode?: unknown };
@@ -204,14 +212,27 @@ export function requireStepUpAuth(req: Request, res: Response, next: NextFunctio
     }
     db.prepare("UPDATE users SET totp_last_used_counter = ? WHERE id = ?").run(matchedCounter, user.id);
   } else {
+    // 2FA kapali hesaplarda tek koruma sifre - /login'in aksine burada rate-limit/kilitleme
+    // YOKTU: calinmis bir oturum+CSRF token'i olan biri, sifreyi sinirsizce deneyebilirdi
+    // (bkz. code-review bulgusu). /login ile AYNI kilitleme mekanizmasi burada da uygulanir.
+    if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+      res.status(423).json({ error: "Hesap gecici olarak kilitlendi. Lutfen daha sonra tekrar deneyin.", requiresStepUp: "password" });
+      return;
+    }
+
     const password = typeof body.stepUpPassword === "string" ? body.stepUpPassword : undefined;
     const ok =
       !!password &&
       verifyPassword(password, { hash: user.password_hash, salt: user.password_salt, iterations: user.password_iterations });
     if (!ok) {
+      const attempts = user.failed_login_attempts + 1;
+      const lockUntil = attempts >= STEP_UP_MAX_FAILED_ATTEMPTS ? new Date(Date.now() + STEP_UP_LOCKOUT_MS).toISOString() : null;
+      db.prepare("UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?").run(attempts, lockUntil, user.id);
+      recordAudit({ user, action: "step_up_auth_failed", details: { attempts }, ip: req.ip });
       res.status(401).json({ error: "Bu islem icin sifrenizi tekrar girmeniz gerekli.", requiresStepUp: "password" });
       return;
     }
+    db.prepare("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?").run(user.id);
   }
   next();
 }

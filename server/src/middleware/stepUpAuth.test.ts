@@ -78,6 +78,56 @@ describe("requireStepUpAuth", () => {
     expect(captured.status).toBe(401);
   });
 
+  it("art arda 5 yanlis sifre denemesinden sonra hesabi kilitler (code-review bulgusu: brute-force korumasi yoktu)", () => {
+    const station = createTestStation();
+    const { hash, salt, iterations } = hashPassword("DogruSifre123!");
+    let user = createTestUser(station.id, "super_admin");
+    db.prepare("UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ? WHERE id = ?").run(hash, salt, iterations, user.id);
+
+    for (let i = 0; i < 5; i++) {
+      user = db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(user.id)!;
+      const req = fakeReq(user, { stepUpPassword: "YanlisSifre" });
+      const { res, captured } = fakeRes();
+      requireStepUpAuth(req, res, () => {});
+      expect(captured.status).toBe(401);
+    }
+
+    const locked = db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(user.id)!;
+    expect(locked.locked_until).not.toBeNull();
+
+    // Kilitliyken artik DOGRU sifre bile denenmeden reddedilmeli.
+    const req = fakeReq(locked, { stepUpPassword: "DogruSifre123!" });
+    const { res, captured } = fakeRes();
+    let calledNext = false;
+    requireStepUpAuth(req, res, () => { calledNext = true; });
+    expect(calledNext).toBe(false);
+    expect(captured.status).toBe(423);
+  });
+
+  it("basarili sifre girisi onceki basarisiz deneme sayacini sifirlar", () => {
+    const station = createTestStation();
+    const password = "GecerliSifre123!";
+    const { hash, salt, iterations } = hashPassword(password);
+    let user = createTestUser(station.id, "super_admin");
+    db.prepare("UPDATE users SET password_hash = ?, password_salt = ?, password_iterations = ? WHERE id = ?").run(hash, salt, iterations, user.id);
+
+    // Iki basarisiz deneme...
+    for (let i = 0; i < 2; i++) {
+      user = db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(user.id)!;
+      const req = fakeReq(user, { stepUpPassword: "YanlisSifre" });
+      const { res } = fakeRes();
+      requireStepUpAuth(req, res, () => {});
+    }
+    expect(db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(user.id)!.failed_login_attempts).toBe(2);
+
+    // ...sonra dogru sifre sayaci sifirlamali.
+    user = db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(user.id)!;
+    const req = fakeReq(user, { stepUpPassword: password });
+    const { res } = fakeRes();
+    requireStepUpAuth(req, res, () => {});
+    expect(db.prepare<[number], UserRow>("SELECT * FROM users WHERE id = ?").get(user.id)!.failed_login_attempts).toBe(0);
+  });
+
   it("2FA acik kullanicida GUNCEL TOTP kodunu kabul eder ve last_used_counter'i ilerletir", () => {
     const station = createTestStation();
     const secret = generateTotpSecret();
