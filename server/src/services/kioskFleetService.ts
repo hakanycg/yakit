@@ -113,14 +113,33 @@ export function summarizeKioskFleet(rows: KioskFleetRow[]): KioskFleetSummary {
   return summary;
 }
 
-function activeOfflineAlarm(stationId: number, kioskId: number): { id: number } | undefined {
-  // Alarm tablosunda kiosk kimligi icin ayri bir kolon yok; ayni istasyondaki farkli
-  // kiosk'larin alarmlari mesaj icindeki "#<id>" ile ayrilir.
-  return db
-    .prepare<[number, string, string], { id: number }>(
-      "SELECT id FROM alarms WHERE station_id = ? AND type = ? AND status = 'active' AND message LIKE ? LIMIT 1"
-    )
-    .get(stationId, OFFLINE_ALARM_TYPE, `%#${kioskId} %`);
+interface OfflineAlarmRow {
+  id: number;
+  station_id: number;
+  message: string;
+}
+
+/**
+ * Tum istasyonlardaki acik "kiosk_offline" alarmlarini TEK sorguda ceker (yuzlerce
+ * kiosk'ta her biri icin ayri bir sorgu yerine). Alarm tablosunda kiosk kimligi icin
+ * ayri bir kolon yok; ayni istasyondaki farkli kiosk'larin alarmlari mesaj icindeki
+ * "#<id>" ile bellek icinde ayrilir.
+ */
+function activeOfflineAlarmsByStation(): Map<number, OfflineAlarmRow[]> {
+  const rows = db
+    .prepare<[string], OfflineAlarmRow>("SELECT id, station_id, message FROM alarms WHERE type = ? AND status = 'active'")
+    .all(OFFLINE_ALARM_TYPE);
+  const byStation = new Map<number, OfflineAlarmRow[]>();
+  for (const row of rows) {
+    const list = byStation.get(row.station_id);
+    if (list) list.push(row);
+    else byStation.set(row.station_id, [row]);
+  }
+  return byStation;
+}
+
+function findOfflineAlarm(alarms: OfflineAlarmRow[] | undefined, kioskId: number): OfflineAlarmRow | undefined {
+  return alarms?.find((a) => a.message.includes(`#${kioskId} `));
 }
 
 /**
@@ -129,9 +148,10 @@ function activeOfflineAlarm(stationId: number, kioskId: number): { id: number } 
  * kimse fark etmeden saatlerce boyle kalabilir.
  */
 export function checkOfflineKiosks(now = Date.now()): void {
+  const alarmsByStation = activeOfflineAlarmsByStation();
   for (const kiosk of listKioskFleet()) {
     const status = kioskStatus(kiosk.last_seen_at, now);
-    const existing = activeOfflineAlarm(kiosk.station_id, kiosk.id);
+    const existing = findOfflineAlarm(alarmsByStation.get(kiosk.station_id), kiosk.id);
 
     // Pasif istasyonun kiosk'u kapali olmalidir zaten; alarm uretmek gurultu olur.
     if (status === "offline" && kiosk.station_active === 1) {

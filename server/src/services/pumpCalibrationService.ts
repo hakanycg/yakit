@@ -188,36 +188,88 @@ function sealStatusFor(daysRemaining: number | null): PumpCalibrationStatus["sea
   return daysRemaining <= SEAL_WARNING_DAYS ? "expiring" : "valid";
 }
 
+const IN_CLAUSE_CHUNK = 500;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 /**
  * Istasyondaki her pompanin son kalibrasyon durumu.
  *
  * Her pompa icin YALNIZCA en son test dikkate alinir: gecmis testler kayittadir ama
  * "pompa su anda yasal mi" sorusunun cevabi en sonuncusudur.
+ *
+ * Pompa basina ayri bir "son test" sorgusu YERINE, istasyonun tum pompalarinin tum
+ * kalibrasyonlari TEK sorguda cekilir (tested_at DESC siralanir); her pompanin ilk
+ * gordugu satir onun en son testidir. Bu fonksiyon checkExpiringSeals ile TUM
+ * istasyonlar uzerinde dongude cagrildigindan (bkz. asagisi), pompa basina sorgu
+ * N istasyon x pompa sayisi kadar cogalirdi.
  */
 export function getStationCalibrationStatus(stationId: number, now = Date.now()): PumpCalibrationStatus[] {
-  return db
+  const pumps = db
     .prepare<[number], { id: number; number: number }>("SELECT id, number FROM pumps WHERE station_id = ? ORDER BY number")
-    .all(stationId)
-    .map((pump) => {
-      const last = db
-        .prepare<[number], PumpCalibrationRow>("SELECT * FROM pump_calibrations WHERE pump_id = ? ORDER BY tested_at DESC LIMIT 1")
-        .get(pump.id);
-      const sealDaysRemaining = last?.seal_valid_until ? daysUntil(last.seal_valid_until, now) : null;
+    .all(stationId);
+  if (pumps.length === 0) return [];
 
-      return {
-        pumpId: pump.id,
-        pumpNumber: pump.number,
-        lastTestedAt: last?.tested_at ?? null,
-        lastErrorPct: last?.error_pct ?? null,
-        withinTolerance: last ? last.within_tolerance === 1 : null,
-        sealValidUntil: last?.seal_valid_until ?? null,
-        sealDaysRemaining,
-        sealStatus: sealStatusFor(sealDaysRemaining),
-      };
-    });
+  const pumpIds = pumps.map((p) => p.id);
+  const latestByPump = new Map<number, PumpCalibrationRow>();
+  for (const ids of chunk(pumpIds, IN_CLAUSE_CHUNK)) {
+    const placeholders = ids.map(() => "?").join(",");
+    const calibrations = db
+      .prepare<number[], PumpCalibrationRow>(
+        `SELECT * FROM pump_calibrations WHERE pump_id IN (${placeholders}) ORDER BY tested_at DESC, id DESC`
+      )
+      .all(...ids);
+    for (const c of calibrations) {
+      if (!latestByPump.has(c.pump_id)) latestByPump.set(c.pump_id, c);
+    }
+  }
+
+  return pumps.map((pump) => {
+    const last = latestByPump.get(pump.id);
+    const sealDaysRemaining = last?.seal_valid_until ? daysUntil(last.seal_valid_until, now) : null;
+
+    return {
+      pumpId: pump.id,
+      pumpNumber: pump.number,
+      lastTestedAt: last?.tested_at ?? null,
+      lastErrorPct: last?.error_pct ?? null,
+      withinTolerance: last ? last.within_tolerance === 1 : null,
+      sealValidUntil: last?.seal_valid_until ?? null,
+      sealDaysRemaining,
+      sealStatus: sealStatusFor(sealDaysRemaining),
+    };
+  });
 }
 
 const SEAL_ALARM_TYPE = "pump_seal_expiring";
+
+/**
+ * TUM istasyonlardaki acik "pump_seal_expiring" alarmlarini TEK sorguda (500'luk
+ * parcalar halinde) ceker - checkExpiringSeals'in N istasyon x pompa sayisi icin
+ * ayri ayri sorgu atmasi yerine. Alarm tablosunda pump_id dogrudan bir kolon
+ * oldugundan (kioskFleetService'teki mesaj-icinde-ayirt etme gerekmez) anahtar
+ * dogrudan pump_id'dir.
+ */
+function activeSealAlarmsByPump(stationIds: number[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const ids of chunk(stationIds, IN_CLAUSE_CHUNK)) {
+    if (ids.length === 0) continue;
+    const placeholders = ids.map(() => "?").join(",");
+    const rows = db
+      .prepare<Array<number | string>, { id: number; pump_id: number | null }>(
+        `SELECT id, pump_id FROM alarms WHERE station_id IN (${placeholders}) AND type = ? AND status != 'resolved'`
+      )
+      .all(...ids, SEAL_ALARM_TYPE);
+    for (const row of rows) {
+      if (row.pump_id !== null) map.set(row.pump_id, row.id);
+    }
+  }
+  return map;
+}
 
 /**
  * Damgasi dolan/dolmak uzere olan pompalar icin alarm uretir (bkz. index.ts).
@@ -229,24 +281,22 @@ const SEAL_ALARM_TYPE = "pump_seal_expiring";
 export function checkExpiringSeals(now = Date.now()): { warned: number; expired: number } {
   const result = { warned: 0, expired: 0 };
   const stations = db.prepare<[], { id: number }>("SELECT id FROM stations WHERE active = 1").all();
+  const alarmsByPump = activeSealAlarmsByPump(stations.map((s) => s.id));
 
   for (const station of stations) {
     for (const status of getStationCalibrationStatus(station.id, now)) {
-      const existing = db
-        .prepare<[number, string, number], { id: number }>(
-          "SELECT id FROM alarms WHERE station_id = ? AND type = ? AND pump_id = ? AND status != 'resolved' LIMIT 1"
-        )
-        .get(station.id, SEAL_ALARM_TYPE, status.pumpId);
+      const existingId = alarmsByPump.get(status.pumpId);
 
       // "unknown" alarm URETMEZ: damga tarihi hic girilmemis olabilir ve bunu ihlal gibi
       // gostermek, veriyi girmemis her istasyonu alarma bogardi.
       if (status.sealStatus === "valid" || status.sealStatus === "unknown") {
-        if (existing) {
-          db.prepare("UPDATE alarms SET status = 'resolved', resolved_at = ? WHERE id = ?").run(new Date(now).toISOString(), existing.id);
+        if (existingId !== undefined) {
+          db.prepare("UPDATE alarms SET status = 'resolved', resolved_at = ? WHERE id = ?").run(new Date(now).toISOString(), existingId);
+          alarmsByPump.delete(status.pumpId);
         }
         continue;
       }
-      if (existing) continue;
+      if (existingId !== undefined) continue;
 
       const expired = status.sealStatus === "expired";
       try {

@@ -259,6 +259,16 @@ CREATE INDEX IF NOT EXISTS idx_alarms_status ON alarms(status);
 -- bir taramadir. Tekil status indeksi bu sorguda yeterli secicilige sahip degil
 -- (kritik olmayan HER durumu da eler ama once tum 'active' satirlari taramasi gerekir).
 CREATE INDEX IF NOT EXISTS idx_alarms_severity_status ON alarms(severity, status);
+-- Kod tabanindaki en yaygin alarm sorgusu deseni: "bu istasyonda bu TIPTE zaten
+-- cozulmemis bir alarm var mi" (idempotent alarm acma - bkz. fleetService.ts,
+-- fuelStockService.ts, tankWaterService.ts, systemErrorService.ts, syncService.ts,
+-- backupVerifyService.ts, safetyMonitorService.ts, pumpCalibrationService.ts,
+-- safetyComplianceService.ts, fleetReceivableService.ts, kioskFleetService.ts - 10+
+-- servis). alarms ARSIVLENMIYOR (bkz. archiveService.ts dosya sonundaki not) yani
+-- istasyon basina satir sayisi zamanla sinirsiz buyur; station+status indeksleri TEK
+-- BASINA bu sorguyu tip'e gore filtrelemeden once o istasyonun TUM alarm gecmisini
+-- taratir. Bu ucleme, sorguyu doğrudan indeksten karsilar.
+CREATE INDEX IF NOT EXISTS idx_alarms_station_type_status ON alarms(station_id, type, status);
 
 CREATE TABLE IF NOT EXISTS audit_log (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
