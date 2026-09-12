@@ -75,23 +75,54 @@ komisyon** var. Yüklemeyi karta bağlamak komisyonu hacmin %0'ından %100'üne 
 ayrıntı README "Kapasite ölçümü"):
 
 - İşlem başına ~434 bayt (indeksler dahil) → 1000 istasyon × 300 işlem/gün ≈ **48 GB/yıl**.
+  Küçük/orta bir VPS'in disk kapasitesi için bile önemsiz.
 - Tek istasyon sorguları (panel, kiosk, rapor) 10 ms'in altında ve toplam veri büyüdükçe
-  **sabit** kalıyor — indeksli oldukları için. Bunlar sunucu boyutlandırmasında baskın değil.
-- **Tek darboğaz konsolide rapor:** 100 istasyonda 1.6 sn, 1000 istasyonda ~16 sn.
-  Bu bir donanım sorunu değil, sorgu şekli sorunu — daha güçlü sunucu almak yerine
-  **günlük özet (rollup) tablosu** yazılmalı. Karar #81 ile birlikte verilmeli:
-  rollup yapılırsa konsolide rapor da sabit zamana iner ve CPU gereksinimi düşer.
+  **sabit** kalıyor — indeksli oldukları için. Sunucu boyutlandırmasında baskın değil.
+- **Konsolide rapor darboğazı ÇÖZÜLDÜ** (#155, `station_daily_rollups` özet tablosu):
+  100 istasyon/1.8M işlemde 1.6 sn'den 363 ms'e indi. Artık istasyon sayısı arttıkça
+  ham işlem sayısına değil, istasyon×gün özet satırına bakıyor — sabit zamana yakın.
+- **Ölçülmeyen tek şey: eşzamanlı YAZMA yükü.** Yukarıdaki ölçüm disk büyümesi ve
+  okuma/rapor sorgu hızını test etti; yüzlerce/binlerce istasyonun aynı anda işlem+
+  heartbeat gönderdiği eşzamanlı yazma senaryosu hiç yük testine tabi tutulmadı.
+  SQLite tek-yazıcı kilidine sahip — düşük/orta yoğunlukta (onlarca-yüzlerce istasyon,
+  trafik doğal dağınık) sorun çıkarmaz, ama gerçek bir eşzamanlı yazma yük testi
+  yapılmadan "X istasyona kadar güvenlidir" diye kesin bir tavan sayısı verilemez.
 
+**12 Eylül 2026 görüşmesi — ölçek stratejisi kararı:** "Türkiye'deki çoğu istasyon"
+hedefi ile "küçük bir VPS" arasındaki gerilim şöyle çözüldü: doğru soru "büyük mü
+küçük mü sunucu" değil, **mimariyi ne zaman yatay ölçeklendireceğimiz**.
+- **Şimdilik (birkaç düzine – birkaç yüz istasyon, tek/birkaç dağıtım şirketi):**
+  orta boy tek VPS (4-8 vCPU, 8-16GB RAM, NVMe SSD) yeterli — yukarıdaki sayılar
+  bunu destekliyor.
+- **"Çoğu istasyon" ölçeğine gelince:** tek dev sunucuyu büyütmek yerine, zaten kurulu
+  olan dağıtım şirketi (bayi) katmanını (#117) kullanıp **büyük bayi/bölge başına
+  ayrı bir kurulum** (yatay ölçek) ya da tek birleşik platform kalınacaksa SQLite'tan
+  PostgreSQL'e geçiş — bu, gerçek istasyon sayısı yüzleri aştığında yeniden masaya
+  yatırılacak bir mimari kararı, bugünün değil.
 
-Bugün Railway üzerinde çalışıyor. Kendi veri merkezine geçiş kararı verildiğinde:
+**Hosting/domain kararı (12 Eylül 2026):**
+- Railway süresi bitiyor, kendi altyapıya geçiliyor.
+- **Sunucu konumu: Türkiye** (KVKK açısından kişisel verinin yurt içinde kalması avantajı).
+- **Hosting türü: kendi VPS'i** (Natro Cloud VPS / Turhost Cloud / gerekirse Radore) —
+  Railway benzeri bir PaaS (Render/Fly.io) yerine, daha ucuz ama nginx/SSL/systemd
+  kurulumu Claude tarafından hazırlanan script'lerle yapılacak.
+- **Domain: `.com`** (şirket belgesi gerektiren `.com.tr` değil) — isim henüz kesinleşmedi.
+- **Sonraki adım:** kullanıcı domain + VPS satın alacak; alınca IP adresi + erişim
+  yöntemi (SSH bilgisi mi, yoksa Claude'un hazırlayacağı script kullanıcı tarafından mı
+  çalıştırılacak) kararlaştırılıp kurulum başlayacak.
 
-- **Sağlayıcı seçimi ve kapasite planı** — kaç istasyon, kaç kiosk, hangi büyüme eğrisi.
+Geçiş sırasında ayrıca:
+
 - **Çift ISP (uplink yedekliliği)** — tek hat, personelsiz istasyonda tek hata noktası.
 - **Yedekleme + felaket kurtarma planının DC'ye uyarlanması** — mevcut şifreli yedekleme
   ve geri yükleme tatbikatı altyapısı hazır, hedefi değişecek.
 - **Railway'den kesintisiz geçiş** — kiosk'lar 7/24 açık, kesinti dolum yapamamak demek.
+  DNS TTL önceden düşürülüp düşük trafik saatinde geçiş, Railway birkaç gün paralelde
+  yedek olarak tutulacak.
 - **Uplink sağlığı ve genel sistem durumu izleme** — dışarıdan uptime kontrolü mevcut
   (GitHub Actions), DC'ye geçince `HEALTH_CHECK_URL` güncellenecek.
+- **Kiosk ajanlarının merkez sunucu adresi güncellenecek** — sahadaki/test ortamındaki
+  ajan konfigürasyonları yeni domaine çevrilecek.
 
 ## 4. Regülasyon: teyit bekleyen konular
 
