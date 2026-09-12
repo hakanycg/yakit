@@ -203,8 +203,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "Uzun süredir bir işlem yapılmadı. {seconds} saniye içinde işlem sıfırlanacak.",
     "idle.continue": "Devam Ediyorum",
 
-    "offline.banner": "Bağlantı sorunu - fiyatlar/işlemler güncel olmayabilir.",
-    "offline.welcomeBlocked": "Sistem şu anda bağlantı kuramıyor. Lütfen birkaç dakika içinde tekrar deneyin veya istasyon görevlisine bildirin.",
+    "offline.banner": "Geçici bir bağlantı sorunu yaşanıyor. Güvenlik nedeniyle yakıt satışı şu anda durduruldu.",
+    "offline.welcomeBlocked": "Sistemimiz şu anda merkezi sunucuya ulaşamıyor, bu yüzden güncel fiyat ve ödeme onayı alınamadığından yeni satış başlatılamıyor. Bu durum genellikle birkaç dakika içinde kendiliğinden düzelir. Sorun devam ederse lütfen istasyon görevlisine bildirin.",
 
     "voice.toggleOnLabel": "Sesli yönlendirmeyi aç",
     "voice.toggleOffLabel": "Sesli yönlendirmeyi kapat",
@@ -456,8 +456,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "No activity has been detected for a while. This transaction will be reset in {seconds} seconds.",
     "idle.continue": "I'm Still Here",
 
-    "offline.banner": "Connection issue - prices/transactions may be outdated.",
-    "offline.welcomeBlocked": "The system cannot connect right now. Please try again in a few minutes or notify station staff.",
+    "offline.banner": "Temporary connection issue. Fuel sales are paused for your security.",
+    "offline.welcomeBlocked": "Our system cannot reach the central server right now, so a new sale cannot be started without current pricing and payment confirmation. This usually resolves within a few minutes. If it continues, please notify station staff.",
 
     "voice.toggleOnLabel": "Turn on voice guidance",
     "voice.toggleOffLabel": "Turn off voice guidance",
@@ -709,8 +709,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "Долгое время не было активности. Транзакция будет сброшена через {seconds} сек.",
     "idle.continue": "Я всё ещё здесь",
 
-    "offline.banner": "Проблема с подключением - цены/операции могут быть устаревшими.",
-    "offline.welcomeBlocked": "Система сейчас не может подключиться. Попробуйте снова через несколько минут или сообщите персоналу станции.",
+    "offline.banner": "Временная проблема с подключением. В целях безопасности продажа топлива приостановлена.",
+    "offline.welcomeBlocked": "Наша система сейчас не может подключиться к центральному серверу, поэтому новую продажу нельзя начать без актуальной цены и подтверждения оплаты. Обычно это устраняется в течение нескольких минут. Если проблема сохраняется, сообщите персоналу станции.",
 
     "voice.toggleOnLabel": "Включить голосовое сопровождение",
     "voice.toggleOffLabel": "Выключить голосовое сопровождение",
@@ -962,8 +962,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "Seit einiger Zeit wurde keine Aktivität festgestellt. Diese Transaktion wird in {seconds} Sekunden zurückgesetzt.",
     "idle.continue": "Ich bin noch da",
 
-    "offline.banner": "Verbindungsproblem - Preise/Transaktionen könnten veraltet sein.",
-    "offline.welcomeBlocked": "Das System kann sich gerade nicht verbinden. Bitte versuchen Sie es in ein paar Minuten erneut oder informieren Sie das Stationspersonal.",
+    "offline.banner": "Vorübergehendes Verbindungsproblem. Aus Sicherheitsgründen ist der Kraftstoffverkauf derzeit pausiert.",
+    "offline.welcomeBlocked": "Unser System kann derzeit keine Verbindung zum zentralen Server herstellen, daher kann ohne aktuellen Preis und Zahlungsbestätigung kein neuer Verkauf gestartet werden. Dies behebt sich normalerweise innerhalb weniger Minuten. Falls das Problem weiterhin besteht, wenden Sie sich bitte an das Stationspersonal.",
 
     "voice.toggleOnLabel": "Sprachführung einschalten",
     "voice.toggleOffLabel": "Sprachführung ausschalten",
@@ -1215,8 +1215,8 @@ const DICTS: Record<KioskLang, Dict> = {
     "idle.body": "لم يتم رصد أي نشاط منذ فترة. سيتم إعادة ضبط العملية خلال {seconds} ثانية.",
     "idle.continue": "ما زلت هنا",
 
-    "offline.banner": "مشكلة في الاتصال - قد تكون الأسعار/المعاملات غير محدثة.",
-    "offline.welcomeBlocked": "لا يمكن للنظام الاتصال حاليًا. يرجى المحاولة مرة أخرى خلال بضع دقائق أو إبلاغ موظفي المحطة.",
+    "offline.banner": "هناك مشكلة اتصال مؤقتة. تم إيقاف بيع الوقود مؤقتًا لأسباب أمنية.",
+    "offline.welcomeBlocked": "لا يستطيع نظامنا الاتصال بالخادم المركزي حاليًا، لذا لا يمكن بدء عملية بيع جديدة دون تأكيد السعر الحالي والدفع. عادةً ما يُحل هذا الأمر خلال بضع دقائق. إذا استمرت المشكلة، يرجى إبلاغ موظفي المحطة.",
 
     "voice.toggleOnLabel": "تشغيل الإرشاد الصوتي",
     "voice.toggleOffLabel": "إيقاف الإرشاد الصوتي",
